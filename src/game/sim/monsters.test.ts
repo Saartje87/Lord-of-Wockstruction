@@ -229,21 +229,28 @@ describe("giving up", () => {
    * Has a hit Skeleton chase the Hero past its leash and walk home, with the
    * Hero coming back to wait 4 tiles from its home.
    */
-  function sendHome() {
-    const w = world([
-      "......................", //
-      "...................HS.",
-      "......................",
-    ]);
+  function sendHome(seed = 1) {
+    const w = world(
+      [
+        "......................", //
+        "...................HS.",
+        "......................",
+      ],
+      seed,
+    );
     const [skeleton] = w.monsters;
     const home = { ...skeleton.pos };
-    step(w, [{ type: "SwingAt", target: home }]);
-    stepUntil(w, () => w.hero.swing === null);
-    expect(skeleton.life).toBeLessThan(60);
+    // Swinging again on a Miss.
+    while (skeleton.life === 60) {
+      step(w, [{ type: "SwingAt", target: home }]);
+      stepUntil(w, () => w.hero.swing === null);
+    }
 
-    // The Hero outruns it.
-    step(w, [{ type: "MoveTo", target: { x: 0.5, y: 1.5 } }]);
-    stepUntil(w, () => skeleton.state === "return");
+    // The Hero outruns it, walking on after any flinch.
+    for (let i = 0; skeleton.state !== "return"; i++) {
+      if (i === 1200) throw new Error("Still chased after 1200 steps");
+      step(w, [{ type: "MoveTo", target: { x: 0.5, y: 1.5 } }]);
+    }
     expect(distance(skeleton.pos, home)).toBeGreaterThan(14);
     expect(distance(skeleton.pos, home)).toBeLessThan(14.1);
     const [a, b] = track(w, skeleton, 2);
@@ -276,6 +283,23 @@ describe("giving up", () => {
     stepUntil(w, () => skeleton.life < 60);
     expect(steps).toBeLessThan(100);
     expect(AFTER_HERO).toContain(skeleton.state);
+  });
+
+  it("notices the Hero Missing it even while waiting at home", () => {
+    for (let seed = 1; seed <= 50; seed++) {
+      const { w, skeleton, home } = sendHome(seed);
+      step(w, [{ type: "MoveTo", target: { x: home.x - 1, y: home.y } }]);
+      const steps = stepUntil(w, () => w.hero.path.length === 0);
+      expect(steps).toBeLessThan(100);
+      const swing = [step(w, [{ type: "SwingAt", target: home }])];
+      while (w.hero.swing) swing.push(step(w, []));
+      if (!swing.flat().some((event) => event.type === "Missed")) continue;
+
+      expect(skeleton.life).toBe(60);
+      expect(AFTER_HERO).toContain(skeleton.state);
+      return;
+    }
+    throw new Error("No seed in 50 Missed the waiting Skeleton");
   });
 });
 

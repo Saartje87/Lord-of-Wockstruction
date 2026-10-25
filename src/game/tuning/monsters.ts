@@ -11,6 +11,8 @@ export type MonsterTuning = {
   speed: number;
   /** Damage per hit, rolled from `[min, max]` inclusive. */
   damage: [number, number];
+  /** Set against the Hero's Attack Rating for the chance to hit it. */
+  defense: number;
   /** How big a Monster is when pushed apart from others (tiles). */
   radius: number;
   /** How far an idle Monster strolls from its spawn (tiles). */
@@ -67,6 +69,8 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
     life: 60,
     speed: 2.8,
     damage: [4, 8],
+    // A fresh Hero's 100 Attack Rating hits it 85% of the time.
+    defense: 135,
     radius: 0.32,
     wanderRadius: 2.5,
     wanderSpeed: 0.35,

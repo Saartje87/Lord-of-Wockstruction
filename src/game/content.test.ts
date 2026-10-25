@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { areaDisplayNames, areas, tilesets } from "./content";
 import type { Area, Exit } from "./sim/area";
-import { createWorld, type SimEvent, step, type World } from "./sim/world";
+import type { Vec } from "./sim/vec";
+import {
+  createWorld,
+  FRESH_PROGRESS,
+  type Order,
+  type SimEvent,
+  step,
+  type World,
+} from "./sim/world";
 
 // Building the World runs the loader's validation: a `start` Entry, Exits to
 // an Entry that exists and can be reached from `start`, and spawns on tiles
@@ -48,6 +56,32 @@ function worldEntering(area: string, entry: string): World {
   walkThrough(world, world.areas.town.exits[0]);
   expect(world.areaName).toBe(area);
   return world;
+}
+
+/**
+ * Like `walkThrough`, but swinging at any Monster within `reach` tiles on
+ * the way, as a player would at a pack blocking the path, and heading for
+ * the Exit again once none is.
+ */
+function fightThrough(world: World, exit: Exit, reach = 2) {
+  let changed: Extract<SimEvent, { type: "AreaChanged" }> | null = null;
+  const distance = (pos: Vec) =>
+    Math.hypot(pos.x - world.hero.pos.x, pos.y - world.hero.pos.y);
+  for (let i = 0; i < 5 * 60 * 60 && !(changed && !world.areaChange); i++) {
+    let orders: Order[] = [];
+    if (!changed && i % 15 === 0) {
+      const [nearest] = world.monsters
+        .filter((monster) => monster.life > 0 && distance(monster.pos) < reach)
+        .sort((a, b) => distance(a.pos) - distance(b.pos));
+      orders = nearest
+        ? [{ type: "Attack", monster: nearest.id }]
+        : [{ type: "MoveTo", target: centreOf(exit) }];
+    }
+    for (const event of step(world, orders)) {
+      if (event.type === "AreaChanged") changed = event;
+    }
+  }
+  return changed;
 }
 
 /** An Area's one Exit to Area `to`; throws when it has none or several. */
@@ -266,5 +300,80 @@ describe("the shipped Areas", () => {
     );
     // Somewhat bigger, not a horde.
     expect(sum(deeper)).toBeLessThan(sum(shallower) * 2);
+  });
+  it("give the Ossuary Area Level 8 and only an Exit back up to the Crypt", () => {
+    const { ossuary } = shippedWorld().areas;
+
+    expect(ossuary.areaLevel).toBe(8);
+    expect(ossuary.exits).toHaveLength(1);
+    expect(exitTo(ossuary, "crypt").entry).toBe("from-ossuary");
+  });
+  it("lead from the Crypt down to the Ossuary, arriving next to its Exit back up", () => {
+    const world = worldEntering("crypt", "from-ossuary");
+    const down = exitTo(world.areas.crypt, "ossuary");
+
+    expect(heroDistanceTo(world, down)).toBeLessThan(4);
+    const arrived = walkThrough(world, down);
+
+    expect(arrived?.area).toBe("ossuary");
+    const up = exitTo(world.areas.ossuary, "crypt");
+    expect(heroDistanceTo(world, up)).toBeLessThan(4);
+  });
+
+  it("lead from the Ossuary back up to the Crypt, arriving next to its Exit down", () => {
+    const world = worldEntering("ossuary", "start");
+    const up = exitTo(world.areas.ossuary, "crypt");
+
+    expect(heroDistanceTo(world, up)).toBeLessThan(4);
+    const arrived = walkThrough(world, up);
+
+    expect(arrived?.area).toBe("crypt");
+    const down = exitTo(world.areas.crypt, "ossuary");
+    expect(heroDistanceTo(world, down)).toBeLessThan(4);
+  });
+
+  it("spawn the Ossuary's Monsters at Monster Level 8", () => {
+    const world = worldEntering("ossuary", "start");
+
+    expect(world.monsters.length).toBeGreaterThan(0);
+    expect(world.monsters.every((monster) => monster.level === 8)).toBe(true);
+  });
+
+  it("build the Ossuary about the Catacombs' size on the dungeon tileset, with bigger Skeleton packs than the Crypt", () => {
+    const { catacombs, crypt, ossuary } = shippedWorld().areas;
+    const shallower = packsOf(crypt);
+    const deeper = packsOf(ossuary);
+
+    expect(ossuary.tileset).toBe("dungeon");
+    expectAbout(ossuary.width, catacombs.width, 8);
+    expectAbout(ossuary.height, catacombs.height, 8);
+    expect(ossuary.spawns.every((s) => s.monster === "skeleton")).toBe(true);
+    expect(Math.max(...deeper)).toBeGreaterThan(Math.max(...shallower));
+    expect(sum(deeper) / deeper.length).toBeGreaterThan(
+      sum(shallower) / shallower.length,
+    );
+    // Somewhat bigger, not a horde.
+    expect(sum(deeper)).toBeLessThan(sum(shallower) * 2);
+  });
+
+  it("let the Hero walk from Town down through the Catacombs and the Crypt to the Ossuary, and back up to Town", () => {
+    // Sturdy and strong enough to fight through every pack on the way.
+    const progress = { ...FRESH_PROGRESS, strength: 200, vitality: 1000 };
+    const world = createWorld({ areas, tilesets, seed: 1, progress });
+    const route: [from: string, to: string][] = [
+      ["town", "catacombs"],
+      ["catacombs", "crypt"],
+      ["crypt", "ossuary"],
+      ["ossuary", "crypt"],
+      ["crypt", "catacombs"],
+      ["catacombs", "town"],
+    ];
+
+    for (const [from, to] of route) {
+      expect(world.areaName).toBe(from);
+      const arrived = fightThrough(world, exitTo(world.areas[from], to));
+      expect(arrived?.area).toBe(to);
+    }
+    expect(world.areaName).toBe("town");
   });
 });

@@ -11,7 +11,7 @@
  "infinite": false,
  "compressionlevel": -1,
  "nextlayerid": 5,
- "nextobjectid": 8,
+ "nextobjectid": 10,
  "properties": [
   {
    "name": "areaLevel",
@@ -2970,7 +2970,7 @@
     20,
     47,
     45,
-    18,
+    287,
     20,
     19,
     17,
@@ -12505,6 +12505,41 @@
        "value": "skeleton"
       }
      ]
+    },
+    {
+     "id": 8,
+     "name": "",
+     "type": "exit",
+     "x": 5088,
+     "y": 4032,
+     "width": 384,
+     "height": 384,
+     "rotation": 0,
+     "visible": true,
+     "properties": [
+      {
+       "name": "area",
+       "type": "string",
+       "value": "ossuary"
+      },
+      {
+       "name": "entry",
+       "type": "string",
+       "value": "from-crypt"
+      }
+     ]
+    },
+    {
+     "id": 9,
+     "name": "from-ossuary",
+     "type": "entry",
+     "x": 5328.0,
+     "y": 4560.0,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true
     }
    ]
   }

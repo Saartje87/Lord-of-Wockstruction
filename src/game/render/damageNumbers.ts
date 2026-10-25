@@ -7,15 +7,14 @@ const RISE_SPEED = 30;
 
 /**
  * A number to float up from whoever was hit: `hit` for the Hero's hits,
- * `kill` for a killing blow and `taken` for damage the Hero takes.
+ * `kill` for a killing blow and `taken` for damage the Hero takes; or a
+ * `miss` floating up from a Monster the Hero Missed.
  */
-export type DamageNumber = {
-  on: MonsterId | "hero";
-  damage: number;
-  kind: "hit" | "kill" | "taken";
-};
+export type DamageNumber =
+  | { on: MonsterId | "hero"; damage: number; kind: "hit" | "kill" | "taken" }
+  | { on: MonsterId; kind: "miss" };
 
-/** The damage numbers a step's events show. */
+/** The damage numbers, and Misses, a step's events show. */
 export function damageNumbers(events: readonly SimEvent[]): DamageNumber[] {
   const died = new Set<MonsterId>();
   for (const event of events) {
@@ -26,6 +25,9 @@ export function damageNumbers(events: readonly SimEvent[]): DamageNumber[] {
     if (event.type === "HitLanded") {
       const kind = died.has(event.target) ? "kill" : "hit";
       numbers.push({ on: event.target, damage: event.damage, kind });
+    }
+    if (event.type === "Missed") {
+      numbers.push({ on: event.target, kind: "miss" });
     }
     if (event.type === "HeroHit") {
       numbers.push({ on: "hero", damage: event.damage, kind: "taken" });

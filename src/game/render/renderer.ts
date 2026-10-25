@@ -152,11 +152,15 @@ const LIFE_COLOUR = 0xc02020;
 const LIFE_BACK = { colour: 0x2a0606, alpha: 0.85 };
 /** Damage numbers: their size and black outline (CSS px). */
 const NUMBER = { size: 18, stroke: 3, gap: 2 };
-/** White for the Hero's hits, gold for a killing blow, red for damage taken. */
+/**
+ * White for the Hero's hits, gold for a killing blow, red for damage taken
+ * and grey for a Miss.
+ */
 const NUMBER_COLOUR: Record<DamageNumber["kind"], number> = {
   hit: 0xffffff,
   kill: 0xffd04a,
   taken: 0xff4a4a,
+  miss: 0x9a9a9a,
 };
 
 /** The stone strip along the bottom of the screen (CSS px). */
@@ -420,7 +424,7 @@ export function createRenderer(app: Application, art: Art) {
           number.on === "hero" ? hero.sprite : monsters.get(number.on)?.sprite;
         if (!sprite) continue;
         const text = new Text({
-          text: String(number.damage),
+          text: number.kind === "miss" ? "Miss" : String(number.damage),
           style: {
             fill: NUMBER_COLOUR[number.kind],
             fontSize: NUMBER.size,

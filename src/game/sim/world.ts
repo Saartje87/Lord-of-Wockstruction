@@ -45,6 +45,8 @@ export type Hero = {
   level: number;
   /** All the Experience earned, never past the table's last value. */
   experience: number;
+  /** Raises Attack Rating. */
+  dexterity: number;
   pos: Vec;
   /** Where the Hero was one step ago, for the renderer to interpolate from. */
   prevPos: Vec;
@@ -195,6 +197,8 @@ export type Order =
 /** What happened during a step. */
 export type SimEvent =
   | { type: "HitLanded"; attacker: "hero"; target: MonsterId; damage: number }
+  /** A swing of the Hero's failed its chance to hit. */
+  | { type: "Missed"; target: MonsterId }
   | { type: "HeroHit"; damage: number }
   | { type: "MonsterDied"; id: MonsterId }
   | { type: "ExperienceGained"; amount: number }
@@ -255,6 +259,7 @@ export function createWorld(options: {
       life: 0,
       level,
       experience,
+      dexterity: heroTuning.dexterity,
       pos: { ...start },
       prevPos: { ...start },
       path: [],
@@ -302,6 +307,25 @@ export function maxLife(world: World): number {
 /** Whether the Hero is regaining Life: alive, out of combat and below full. */
 export function isRegenerating(world: World): boolean {
   return !world.death && !isInCombat(world) && world.hero.life < maxLife(world);
+}
+
+/** How accurate the Hero's swings are, from their Dexterity. */
+export function attackRating(world: World): number {
+  return world.hero.dexterity * heroTuning.attackRatingPerDexterity;
+}
+
+/** The chance each of the Hero's swings hits a Monster of type `type`. */
+export function hitChance(world: World, type: MonsterType): number {
+  return chanceToHit(attackRating(world), monsterTuning[type].defense);
+}
+
+/**
+ * Diablo 2's chance to hit, `2 × AR / (AR + Defense)` without its level
+ * factor, kept between 5% and 95%.
+ */
+export function chanceToHit(attackRating: number, defense: number): number {
+  const chance = (2 * attackRating) / (attackRating + defense);
+  return Math.min(0.95, Math.max(0.05, chance));
 }
 
 /**
@@ -585,7 +609,10 @@ function giveBuffered(world: World) {
   if (buffered) give(world, buffered);
 }
 
-/** Lands a swing's hit on its target, or on every Monster in its arc. */
+/**
+ * Lands a swing's hit on its target, or on every Monster in its arc, each
+ * rolling its own chance to hit.
+ */
 function land(world: World, swing: Swing, events: SimEvent[]) {
   const { hero } = world;
   swing.landed = true;
@@ -606,8 +633,23 @@ function land(world: World, swing: Swing, events: SimEvent[]) {
     return angleBetween(angle, hero.facing) <= ARC;
   });
 
-  if (victims.length > 0) world.hitstop = HITSTOP_STEPS;
-  for (const monster of victims) hit(world, monster, events);
+  for (const monster of victims) {
+    if (random(world.rng) < hitChance(world, monster.type)) {
+      world.hitstop = HITSTOP_STEPS;
+      hit(world, monster, events);
+    } else {
+      miss(world, monster, events);
+    }
+  }
+}
+
+/**
+ * A Miss deals no damage, so it neither flinches the Monster nor keeps the
+ * Hero In Combat, but the Monster still notices the Hero.
+ */
+function miss(world: World, monster: Monster, events: SimEvent[]) {
+  events.push({ type: "Missed", target: monster.id });
+  noticeHit(world, monster);
 }
 
 function hit(world: World, monster: Monster, events: SimEvent[]) {

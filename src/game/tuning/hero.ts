@@ -28,6 +28,10 @@ export type HeroTuning = {
   arcDegrees: number;
   /** Damage per hit, rolled from `[min, max]` inclusive. */
   damage: [number, number];
+  /** Dexterity a fresh Hero starts with. */
+  dexterity: number;
+  /** Attack Rating each point of Dexterity gives. */
+  attackRatingPerDexterity: number;
   /** How long the whole simulation pauses when a swing lands a hit (ms). */
   hitstopMs: number;
   /** The chance a Monster's hit makes the Hero flinch. */
@@ -76,6 +80,8 @@ export const heroTuning: HeroTuning = {
   reachGrace: 0.3,
   arcDegrees: 50,
   damage: [20, 30],
+  dexterity: 20,
+  attackRatingPerDexterity: 5,
   hitstopMs: 60,
   flinchChance: 0.25,
   flinchMs: 150,

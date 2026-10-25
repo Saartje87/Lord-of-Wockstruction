@@ -141,6 +141,32 @@ describe("what a point on the Inventory panel hits", () => {
     }
   });
 
+  // Worked out by hand from INVENTORY_PANEL, so they don't lean on the
+  // layout they test. Wide: 36 px cells, the grid's top-left at (886, 272)
+  // and the slots' area at (886, 74). Narrow: 34 px cells, the grid at
+  // (426, 262) and the slots' area at (426, 74).
+  it.each([
+    ["wide", WIDE, { x: 900, y: 290 }, { column: 0, row: 0 }],
+    ["wide", WIDE, { x: 1143, y: 349 }, { column: 7, row: 2 }],
+    ["narrow", NARROW, { x: 430, y: 265 }, { column: 0, row: 0 }],
+    ["narrow", NARROW, { x: 750, y: 380 }, { column: 9, row: 3 }],
+  ])("maps a %s screen's point %o to its cell", (_, screen, point, cell) => {
+    expect(inventoryHitAt(screen, point, true)).toEqual({
+      inventory: { type: "cell", cell },
+    });
+  });
+
+  it.each([
+    ["wide", WIDE, { x: 930, y: 150 }, "weapon"],
+    ["wide", WIDE, { x: 1110, y: 230 }, "ring2"],
+    ["narrow", NARROW, { x: 680, y: 108 }, "amulet"],
+    ["narrow", NARROW, { x: 590, y: 150 }, "armour"],
+  ] as const)("maps a %s screen's point %o to its slot", (_, screen, point, slot) => {
+    expect(inventoryHitAt(screen, point, true)).toEqual({
+      inventory: { type: "slot", slot },
+    });
+  });
+
   it("is the panel but nothing on it between the slots and the grid", () => {
     const { grid, panel } = inventoryPanelLayout(WIDE);
 

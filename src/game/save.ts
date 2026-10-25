@@ -47,6 +47,7 @@ const PROGRESS_EVENTS: readonly SimEvent["type"][] = [
   "LevelReached",
   "AttributeRaised",
   "ItemPickedUp",
+  "InventoryChanged",
 ];
 
 /** Whether a step's events changed what the Save keeps: progress or gear. */

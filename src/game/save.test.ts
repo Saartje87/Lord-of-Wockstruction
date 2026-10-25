@@ -94,6 +94,10 @@ describe("whether a step's events change the Hero's progress", () => {
     ).toBe(true);
   });
 
+  it("is yes for InventoryChanged, any move of an Item by hand", () => {
+    expect(changesProgress([{ type: "InventoryChanged" }])).toBe(true);
+  });
+
   it("is no for any other events", () => {
     expect(changesProgress([])).toBe(false);
     expect(

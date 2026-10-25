@@ -5,14 +5,18 @@ import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import { type Area, exitAt, isWalkable, loadArea, type Spawn } from "./area";
 import {
   type Cell,
+  type CursorItem,
   covers,
   EQUIPMENT_SLOTS,
   type Equipment,
   FRESH_GEAR,
   firstFreeCell,
+  fitsAt,
   type Gear,
   type Item,
   type ItemId,
+  inTheWay,
+  onGrid,
   type PlacedItem,
 } from "./inventory";
 import { noticeHit, sendHome, stepMonsters, wanderPause } from "./monsters";
@@ -60,6 +64,11 @@ export type Hero = {
   inventory: PlacedItem[];
   /** The Items worn, kept by the Save. */
   equipment: Equipment;
+  /**
+   * The Item held on the cursor, if any. The Save keeps it at the cell it
+   * was lifted from.
+   */
+  cursor: CursorItem | null;
   pos: Vec;
   /** Where the Hero was one step ago, for the renderer to interpolate from. */
   prevPos: Vec;
@@ -213,6 +222,26 @@ export type Order =
   | { type: "Attack"; monster: MonsterId }
   /** Swing in place towards a point, hitting every Monster in the arc. */
   | { type: "SwingAt"; target: Vec }
+  /**
+   * Lift the Inventory Item covering `from` onto the cursor, if it's empty.
+   * This and the other orders moving Items happen at once, whatever the Hero
+   * is doing.
+   */
+  | { type: "LiftItem"; from: Cell }
+  /**
+   * Put the cursor Item down with its top-left at `to`: into free cells, or
+   * over exactly one Item, which is swapped onto the cursor. Refused off the
+   * grid, over two or more Items, or when a swapped-out Item couldn't go
+   * back anywhere (see `placement`).
+   */
+  | { type: "PlaceItem"; to: Cell }
+  /** Lay the cursor Item on the ground at the Hero's feet. */
+  | { type: "DropItem" }
+  /**
+   * Put the cursor Item back where it was lifted from, as when the Inventory
+   * panel closes. Death and leaving the Area do the same by themselves.
+   */
+  | { type: "ReturnCursorItem" }
   /** Walk to a Ground Item and pick it up, if there's room for it. */
   | { type: "PickUp"; groundItem: ItemId }
   /** Go back to Town after dying. */
@@ -230,12 +259,14 @@ export type SimEvent =
   | { type: "Missed"; target: MonsterId }
   | { type: "HeroHit"; damage: number }
   | { type: "MonsterDied"; id: MonsterId }
-  /** A dying Monster dropped `item`, which now lies at `pos`. */
+  /** A dying Monster or the Hero dropped `item`, which now lies at `pos`. */
   | { type: "ItemDropped"; item: Item; pos: Vec }
   /** The Hero picked up `item`, which now has its top-left at `cell`. */
   | { type: "ItemPickedUp"; item: Item; cell: Cell }
   /** The Hero got to a Ground Item with no room for it in the Inventory. */
   | { type: "NoRoom" }
+  /** An Item moved in the Inventory, onto the cursor or off it. */
+  | { type: "InventoryChanged" }
   | { type: "ExperienceGained"; amount: number }
   /** The Hero reached Level `level`, with their Life already filled. */
   | { type: "LevelReached"; level: number }
@@ -254,6 +285,7 @@ export type Attribute = (typeof ATTRIBUTES)[number];
 
 export type {
   Cell,
+  CursorItem,
   Equipment,
   EquipmentSlot,
   Gear,
@@ -333,6 +365,7 @@ export function createWorld(options: {
       // Filled from `gear` below, handing out Item ids.
       inventory: [],
       equipment: emptyEquipment(),
+      cursor: null,
       pos: { ...start },
       prevPos: { ...start },
       path: [],
@@ -371,17 +404,20 @@ export function progressOf(world: World): Progress {
   return { ...world.hero.progress };
 }
 
-/** The Hero's Inventory and Equipment by Item type, as the Save keeps them. */
+/**
+ * The Hero's Inventory and Equipment by Item type, as the Save keeps them:
+ * a held Item is back at the cell it was lifted from.
+ */
 export function gearOf(world: World): Gear {
-  const { inventory, equipment } = world.hero;
+  const { equipment } = world.hero;
   const worn: Gear["equipment"] = {};
   for (const slot of EQUIPMENT_SLOTS) {
     const item = equipment[slot];
     if (item) worn[slot] = item.type;
   }
   return {
-    inventory: inventory.map(({ item, cell }) => ({
-      type: item.type,
+    inventory: taken(world.hero).map(({ type, cell }) => ({
+      type,
       cell: { ...cell },
     })),
     equipment: worn,
@@ -411,6 +447,12 @@ export function inventoryItemAt(world: World, cell: Cell): PlacedItem | null {
 /** A copy of a placed Item, so a query's answer can't change the World. */
 function copyPlaced({ item, cell }: PlacedItem): PlacedItem {
   return { item: { ...item }, cell: { ...cell } };
+}
+
+/** The Item held on the cursor and the cell it was lifted from, or null. */
+export function cursorItemOf(world: World): CursorItem | null {
+  const { cursor } = world.hero;
+  return cursor && { item: { ...cursor.item }, from: { ...cursor.from } };
 }
 
 /** The Ground Items lying in the active Area. */
@@ -535,14 +577,20 @@ export function areaFade(world: World): number {
 }
 
 /**
- * Starts the Area change to an Exit's target, stopping the Hero and ending
- * any hitstop.
+ * Starts the Area change to an Exit's target, stopping the Hero, putting
+ * back a held Item and ending any hitstop.
  */
-function startAreaChange(world: World, area: string, entry: string) {
+function startAreaChange(
+  world: World,
+  area: string,
+  entry: string,
+  events: SimEvent[],
+) {
   world.areaChange = { area, entry, elapsed: 0 };
   // A hit landed on this step stops for the fade instead.
   world.hitstop = 0;
   stopHero(world.hero);
+  returnCursorItem(world, events);
 }
 
 /** Stops whatever the Hero is doing: walking, attacking or flinching. */
@@ -669,7 +717,7 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   }
   if (hero.swing) advanceSwing(world, hero.swing, events);
   if (world.death) {
-    stepDeath(world, world.death, orders);
+    stepDeath(world, world.death, orders, events);
     world.tick += 1;
     return events;
   }
@@ -686,7 +734,7 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   const area = world.areas[world.areaName];
   const exit = exitAt(area, hero.pos);
   if (exit && exit !== exitAt(area, hero.prevPos)) {
-    startAreaChange(world, exit.area, exit.entry);
+    startAreaChange(world, exit.area, exit.entry, events);
     world.tick += 1;
     return events;
   }
@@ -708,7 +756,12 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
  * a `Continue` once `DEATH_STEPS` have passed, which starts the way back to
  * Town.
  */
-function stepDeath(world: World, death: Death, orders: readonly Order[]) {
+function stepDeath(
+  world: World,
+  death: Death,
+  orders: readonly Order[],
+  events: SimEvent[],
+) {
   death.elapsed += 1;
   const given = [...world.heldOrders, ...orders];
   world.heldOrders = [];
@@ -716,7 +769,7 @@ function stepDeath(world: World, death: Death, orders: readonly Order[]) {
     death.elapsed >= DEATH_STEPS &&
     given.some((order) => order.type === "Continue")
   ) {
-    startAreaChange(world, TOWN, "start");
+    startAreaChange(world, TOWN, "start", events);
     return;
   }
   stepMonsters(world);
@@ -749,6 +802,22 @@ function give(world: World, order: Order, events: SimEvent[]) {
   if (order.type === "Continue") return;
   if (order.type === "SpendAttributePoint") {
     spendAttributePoint(world, order.attribute, events);
+    return;
+  }
+  if (order.type === "LiftItem") {
+    liftItem(world, order.from, events);
+    return;
+  }
+  if (order.type === "PlaceItem") {
+    placeItem(world, order.to, events);
+    return;
+  }
+  if (order.type === "DropItem") {
+    dropItem(world, events);
+    return;
+  }
+  if (order.type === "ReturnCursorItem") {
+    returnCursorItem(world, events);
     return;
   }
   if (hero.flinch > 0) {
@@ -795,6 +864,112 @@ function give(world: World, order: Order, events: SimEvent[]) {
   }
 }
 
+/** Lifts the Inventory Item covering `cell` onto an empty cursor. */
+function liftItem(world: World, cell: Cell, events: SimEvent[]) {
+  const { hero } = world;
+  if (hero.cursor) return;
+  const placed = hero.inventory.find(({ item, cell: at }) =>
+    covers(item.type, at, cell),
+  );
+  if (!placed) return;
+  hero.inventory = hero.inventory.filter((other) => other !== placed);
+  hero.cursor = { item: placed.item, from: placed.cell };
+  events.push({ type: "InventoryChanged" });
+}
+
+/**
+ * What putting the cursor Item down at `to` would do: the Item it would swap
+ * onto the cursor, if any, and that Item's cell to go back to.
+ */
+type Placing = { out: PlacedItem; home: Cell } | { out: null };
+
+/**
+ * How the cursor Item would go down with its top-left at `to`, or null when
+ * it can't. A swapped-out Item goes back to where the cursor Item was lifted
+ * from if it fits there, or else to the first free spot; with neither, the
+ * swap is refused, so a held Item always has somewhere to go back to.
+ */
+function planPlacing(world: World, to: Cell): Placing | null {
+  const { cursor, inventory } = world.hero;
+  if (!cursor || !onGrid(cursor.item.type, to)) return null;
+  const blocking = inTheWay(typed(inventory), cursor.item.type, to);
+  if (blocking.length === 0) return { out: null };
+  if (blocking.length > 1) return null;
+  const [{ placed: out }] = blocking;
+  const after = [
+    ...typed(inventory.filter((other) => other !== out)),
+    { type: cursor.item.type, cell: to },
+  ];
+  const home = fitsAt(after, out.item.type, cursor.from)
+    ? cursor.from
+    : firstFreeCell(after, out.item.type);
+  return home && { out, home };
+}
+
+/** Placed Items by type and cell, each with the Item it stands for. */
+function typed(inventory: readonly PlacedItem[]) {
+  return inventory.map((placed) => ({
+    type: placed.item.type,
+    cell: placed.cell,
+    placed,
+  }));
+}
+
+/**
+ * What putting the cursor Item down with its top-left at `to` would do:
+ * `"fits"` into free cells, `"swap"` with the one Item in the way, or null
+ * when it's refused or the cursor is empty.
+ */
+export function placement(world: World, to: Cell): "fits" | "swap" | null {
+  const placing = planPlacing(world, to);
+  if (!placing) return null;
+  return placing.out ? "swap" : "fits";
+}
+
+/** Puts the cursor Item down at `to`, unless that's refused. */
+function placeItem(world: World, to: Cell, events: SimEvent[]) {
+  const { hero } = world;
+  const placing = planPlacing(world, to);
+  if (!hero.cursor || !placing) return;
+  const placed = { item: hero.cursor.item, cell: { ...to } };
+  const { out } = placing;
+  hero.inventory = [...hero.inventory.filter((other) => other !== out), placed];
+  hero.cursor = out && { item: out.item, from: placing.home };
+  events.push({ type: "InventoryChanged" });
+}
+
+/** Lays the cursor Item on the ground at the Hero's feet. */
+function dropItem(world: World, events: SimEvent[]) {
+  const { hero } = world;
+  if (!hero.cursor) return;
+  const { item } = hero.cursor;
+  const pos = { ...hero.pos };
+  hero.cursor = null;
+  world.groundItems.push({ item, pos });
+  events.push({ type: "ItemDropped", item: { ...item }, pos: { ...pos } });
+  events.push({ type: "InventoryChanged" });
+}
+
+/** Puts the cursor Item back at the cell it was lifted from, kept free. */
+function returnCursorItem(world: World, events: SimEvent[]) {
+  const { hero } = world;
+  if (!hero.cursor) return;
+  hero.inventory.push({ item: hero.cursor.item, cell: hero.cursor.from });
+  hero.cursor = null;
+  events.push({ type: "InventoryChanged" });
+}
+
+/**
+ * The cells taken in the Inventory, by type and top-left cell: its Items',
+ * and the cursor Item's at the cell it goes back to.
+ */
+function taken(hero: Hero): { type: ItemType; cell: Cell }[] {
+  const { inventory, cursor } = hero;
+  const placed = inventory.map(({ item, cell }) => ({ type: item.type, cell }));
+  if (cursor) placed.push({ type: cursor.item.type, cell: cursor.from });
+  return placed;
+}
+
 /** Swings at the Monster the Hero walks to once it is in reach. */
 function approach(world: World) {
   const { hero } = world;
@@ -831,11 +1006,7 @@ function reachGroundItem(world: World, events: SimEvent[]) {
   }
   hero.pickingUp = null;
   hero.path = [];
-  const placed = hero.inventory.map(({ item, cell }) => ({
-    type: item.type,
-    cell,
-  }));
-  const cell = firstFreeCell(placed, lying.item.type);
+  const cell = firstFreeCell(taken(hero), lying.item.type);
   if (!cell) {
     events.push({ type: "NoRoom" });
     return;
@@ -998,6 +1169,7 @@ function die(world: World, events: SimEvent[]) {
   world.death = { elapsed: 0 };
   for (const monster of world.monsters) sendHome(monster);
   stopHero(world.hero);
+  returnCursorItem(world, events);
   events.push({ type: "HeroDied" });
 }
 

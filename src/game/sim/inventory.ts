@@ -18,6 +18,12 @@ export type Cell = { column: number; row: number };
 /** An Item in the Inventory, with `cell` its top-left cell. */
 export type PlacedItem = { item: Item; cell: Cell };
 
+/**
+ * The Item held on the cursor, with `from` the top-left cell it goes back to
+ * if it's never put down, kept free for it all the while it's held.
+ */
+export type CursorItem = { item: Item; from: Cell };
+
 /** The Hero's Equipment slots, in the order they're listed. */
 export const EQUIPMENT_SLOTS = [
   "weapon",
@@ -96,6 +102,27 @@ function overlap(
   );
 }
 
+/** The ones of `placed` an Item of `type` with its top-left at `at` overlaps. */
+export function inTheWay<T extends { type: ItemType; cell: Cell }>(
+  placed: readonly T[],
+  type: ItemType,
+  at: Cell,
+): T[] {
+  return placed.filter((other) => overlap(other, { type, cell: at }));
+}
+
+/**
+ * Whether an Item of `type` with its top-left at `at` stays on the grid
+ * without overlapping any of `placed`.
+ */
+export function fitsAt(
+  placed: readonly { type: ItemType; cell: Cell }[],
+  type: ItemType,
+  at: Cell,
+): boolean {
+  return onGrid(type, at) && inTheWay(placed, type, at).length === 0;
+}
+
 /**
  * Where an Item of `type` would go among `placed` Items: the first spot it
  * fits, scanning column by column from the top-left, or null when none.
@@ -107,10 +134,7 @@ export function firstFreeCell(
   for (let column = 0; column < inventoryTuning.columns; column++) {
     for (let row = 0; row < inventoryTuning.rows; row++) {
       const cell = { column, row };
-      const fits =
-        onGrid(type, cell) &&
-        placed.every((other) => !overlap(other, { type, cell }));
-      if (fits) return cell;
+      if (fitsAt(placed, type, cell)) return cell;
     }
   }
   return null;

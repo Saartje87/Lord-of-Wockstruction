@@ -43,3 +43,11 @@ _Avoid_: Villager, townsperson
 **Life**:
 The Hero's or a Monster's health; reaching zero means death.
 _Avoid_: HP, health
+
+**In Combat**:
+The Hero's state while they have dealt or taken damage in the last few seconds, or while a Monster is chasing them; outside it, the Hero slowly regains Life.
+_Avoid_: Aggro, engaged
+
+**Corpse**:
+What remains of a dead Monster, lying in its Area until the Hero leaves.
+_Avoid_: Body, remains

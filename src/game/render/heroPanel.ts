@@ -22,7 +22,7 @@ export const HERO_PANEL = {
   left: 16,
   top: 16,
   width: 300,
-  height: 440,
+  height: 468,
   padding: 18,
   firstRow: 56,
   rowHeight: 28,

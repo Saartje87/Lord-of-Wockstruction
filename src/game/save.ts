@@ -42,7 +42,7 @@ export type SaveStorage = {
 };
 
 /** The events after which the Save is written again. */
-const PROGRESS_EVENTS: readonly SimEvent["type"][] = [
+const SAVE_CHANGING_EVENTS: readonly SimEvent["type"][] = [
   "ExperienceGained",
   "LevelReached",
   "AttributeRaised",
@@ -53,8 +53,8 @@ const PROGRESS_EVENTS: readonly SimEvent["type"][] = [
 ];
 
 /** Whether a step's events changed what the Save keeps: progress or Belongings. */
-export function changesProgress(events: SimEvent[]): boolean {
-  return events.some((event) => PROGRESS_EVENTS.includes(event.type));
+export function changesSave(events: SimEvent[]): boolean {
+  return events.some((event) => SAVE_CHANGING_EVENTS.includes(event.type));
 }
 
 /** The stored Hero, or null for no Save. */

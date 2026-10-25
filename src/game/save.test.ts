@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  changesProgress,
+  changesSave,
   encodeSave,
   parseSave,
   readSave,
@@ -74,47 +74,45 @@ function progress(
 
 describe("whether a step's events change the Hero's progress", () => {
   it("is yes for ExperienceGained, LevelReached or AttributeRaised", () => {
-    expect(changesProgress([{ type: "ExperienceGained", amount: 100 }])).toBe(
-      true,
-    );
+    expect(changesSave([{ type: "ExperienceGained", amount: 100 }])).toBe(true);
     expect(
-      changesProgress([
+      changesSave([
         { type: "MonsterDied", id: 1 },
         { type: "LevelReached", level: 2 },
       ]),
     ).toBe(true);
     expect(
-      changesProgress([{ type: "AttributeRaised", attribute: "vitality" }]),
+      changesSave([{ type: "AttributeRaised", attribute: "vitality" }]),
     ).toBe(true);
   });
 
   it("is yes for ItemPickedUp, which changes the Inventory", () => {
     const item = { id: 3, type: "axe" as const };
     expect(
-      changesProgress([
+      changesSave([
         { type: "ItemPickedUp", item, cell: { column: 0, row: 0 } },
       ]),
     ).toBe(true);
   });
 
   it("is yes for InventoryChanged, any move of an Item by hand", () => {
-    expect(changesProgress([{ type: "InventoryChanged" }])).toBe(true);
+    expect(changesSave([{ type: "InventoryChanged" }])).toBe(true);
   });
 
   it("is yes for ItemEquipped and ItemUnequipped", () => {
     const item = { id: 3, type: "axe" as const };
+    expect(changesSave([{ type: "ItemEquipped", item, slot: "weapon" }])).toBe(
+      true,
+    );
     expect(
-      changesProgress([{ type: "ItemEquipped", item, slot: "weapon" }]),
-    ).toBe(true);
-    expect(
-      changesProgress([{ type: "ItemUnequipped", item, slot: "weapon" }]),
+      changesSave([{ type: "ItemUnequipped", item, slot: "weapon" }]),
     ).toBe(true);
   });
 
   it("is no for any other events", () => {
-    expect(changesProgress([])).toBe(false);
+    expect(changesSave([])).toBe(false);
     expect(
-      changesProgress([
+      changesSave([
         { type: "HitLanded", attacker: "hero", target: 1, damage: 20 },
         { type: "HeroDied" },
         { type: "AreaChanged", area: "town", entry: "start" },

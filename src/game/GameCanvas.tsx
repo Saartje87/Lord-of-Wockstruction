@@ -22,7 +22,7 @@ import {
 import { createRenderer } from "./render/renderer";
 import {
   browserStorage,
-  changesProgress,
+  changesSave,
   readSave,
   removeSave,
   saveOf,
@@ -196,7 +196,7 @@ export default function GameCanvas() {
         last = now;
         for (let i = 0; i < steps; i++) {
           const events = step(world, orders);
-          if (changesProgress(events)) writeSave(storage, saveOf(world));
+          if (changesSave(events)) writeSave(storage, saveOf(world));
           renderer.react(events, now);
           orders = [];
         }

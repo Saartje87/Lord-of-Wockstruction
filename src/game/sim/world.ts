@@ -1,10 +1,12 @@
+import { areaTuning } from "../tuning/areas";
 import { heroTuning } from "../tuning/hero";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
-import { type Area, isWalkable, loadArea, type Spawn } from "./area";
+import { type Area, exitAt, isWalkable, loadArea, type Spawn } from "./area";
 import { noticeHit, stepMonsters, wanderPause } from "./monsters";
 import { findPath } from "./path";
 import { createRng, type Rng, random, randomInt } from "./random";
 import { msToSteps, perStep } from "./units";
+import { validateAreas } from "./validate";
 import { angleBetween, distance, type Vec } from "./vec";
 
 const WALK_PER_STEP = perStep(heroTuning.walkSpeed);
@@ -16,6 +18,10 @@ const HITSTOP_STEPS = msToSteps(heroTuning.hitstopMs);
 /** How many steps the Hero flinches for. */
 export const HERO_FLINCH_STEPS = msToSteps(heroTuning.flinchMs);
 const ARC = (heroTuning.arcDegrees * Math.PI) / 180;
+/** How many steps walking through an Exit takes. */
+export const AREA_CHANGE_STEPS = msToSteps(areaTuning.changeMs);
+/** The step of an Area change on which the Areas swap. */
+const ARRIVE_STEP = Math.floor(AREA_CHANGE_STEPS / 2);
 /** How many steps each Monster type flinches for. */
 export const FLINCH_STEPS = Object.fromEntries(
   Object.entries(monsterTuning).map(([type, tuning]) => [
@@ -109,6 +115,17 @@ export type MonsterState =
   | "recover"
   | "return";
 
+/**
+ * Walking through an Exit to Entry `entry` in Area `area`. The World stands
+ * still and orders are ignored until it ends.
+ */
+export type AreaChange = {
+  area: string;
+  entry: string;
+  /** Steps since the Hero walked into the Exit. */
+  elapsed: number;
+};
+
 /** What remains of a dead Monster: inert, not clickable, not blocking. */
 export type Corpse = { id: MonsterId; type: MonsterType; pos: Vec };
 
@@ -123,10 +140,14 @@ export type World = {
   /** Orders given during hitstop, applied once it ends. */
   heldOrders: Order[];
   areas: Record<string, Area>;
+  /** The one active Area. */
   areaName: string;
+  /** The Area change in progress, if any. */
+  areaChange: AreaChange | null;
   hero: Hero;
   /** The living Monsters in the active Area. */
   monsters: Monster[];
+  /** The Corpses in the active Area. */
   corpses: Corpse[];
   /** The id the next Monster gets. */
   nextMonsterId: MonsterId;
@@ -144,14 +165,18 @@ export type Order =
 export type SimEvent =
   | { type: "HitLanded"; attacker: "hero"; target: MonsterId; damage: number }
   | { type: "HeroHit"; damage: number }
-  | { type: "MonsterDied"; id: MonsterId };
+  | { type: "MonsterDied"; id: MonsterId }
+  /** The Hero arrived at Entry `entry` in Area `area`. */
+  | { type: "AreaChanged"; area: string; entry: string };
 
 const TOWN = "town";
 
 /**
  * Builds a World from raw `.tmj` content keyed by Area name, with the Hero in
  * Town at its `start` Entry. `tilesets` holds the raw `.tsj` content of the
- * tilesets the Areas keep in their own files, keyed by file name.
+ * tilesets the Areas keep in their own files, keyed by file name. Throws,
+ * naming the Area, on content that doesn't fit together (see
+ * `validateAreas`).
  */
 export function createWorld(options: {
   areas: Record<string, unknown>;
@@ -163,10 +188,10 @@ export function createWorld(options: {
     areas[name] = loadArea(name, content, options.tilesets);
   }
 
+  validateAreas(areas);
   const town = areas[TOWN];
   if (!town) throw new Error(`No Area named "${TOWN}"`);
   const start = town.entries.start;
-  if (!start) throw new Error(`Area "${TOWN}" has no "start" Entry`);
 
   const world: World = {
     seed: options.seed,
@@ -176,6 +201,7 @@ export function createWorld(options: {
     heldOrders: [],
     areas,
     areaName: TOWN,
+    areaChange: null,
     hero: {
       life: heroTuning.life,
       pos: { ...start },
@@ -194,6 +220,70 @@ export function createWorld(options: {
   };
   for (const spawn of town.spawns) placePack(world, town, spawn);
   return world;
+}
+
+/**
+ * How dark the screen is for an Area change, 0..1: fading to black until the
+ * Areas swap, then back.
+ */
+export function areaFade(world: World): number {
+  const change = world.areaChange;
+  if (!change) return 0;
+  return 1 - Math.abs(change.elapsed - ARRIVE_STEP) / ARRIVE_STEP;
+}
+
+/**
+ * Starts the Area change to an Exit's target, stopping the Hero and ending
+ * any hitstop.
+ */
+function startAreaChange(world: World, area: string, entry: string) {
+  const { hero } = world;
+  world.areaChange = { area, entry, elapsed: 0 };
+  // A hit landed on this step stops for the fade instead.
+  world.hitstop = 0;
+  hero.path = [];
+  hero.attacking = null;
+  hero.swing = null;
+  hero.flinch = 0;
+  hero.buffered = null;
+}
+
+/** Advances an Area change, swapping the Areas halfway through. */
+function stepAreaChange(world: World, change: AreaChange, events: SimEvent[]) {
+  change.elapsed += 1;
+  if (change.elapsed === ARRIVE_STEP) arrive(world, change, events);
+  if (change.elapsed >= AREA_CHANGE_STEPS) world.areaChange = null;
+}
+
+/**
+ * Makes the target Area the active one, fresh from its definition: its
+ * Monsters back at their spawns and no Corpses. The Hero carries over to the
+ * target Entry, facing away from the Area's nearest edge.
+ */
+function arrive(world: World, change: AreaChange, events: SimEvent[]) {
+  const area = world.areas[change.area];
+  const at = area.entries[change.entry];
+  const { hero } = world;
+  hero.pos = { ...at };
+  hero.prevPos = { ...at };
+  hero.facing = awayFromEdge(area, at);
+  world.areaName = area.name;
+  world.monsters = [];
+  world.corpses = [];
+  world.heldOrders = [];
+  for (const spawn of area.spawns) placePack(world, area, spawn);
+  events.push({ type: "AreaChanged", area: area.name, entry: change.entry });
+}
+
+/** The facing straight away from the Area edge nearest a point. */
+function awayFromEdge(area: Area, point: Vec): number {
+  const edges = [
+    { gap: point.x, facing: 0 },
+    { gap: area.width - point.x, facing: Math.PI },
+    { gap: point.y, facing: Math.PI / 2 },
+    { gap: area.height - point.y, facing: -Math.PI / 2 },
+  ];
+  return edges.reduce((a, b) => (b.gap < a.gap ? b : a)).facing;
 }
 
 /** How far apart a pack's Monsters stand, centre to centre (tiles). */
@@ -237,13 +327,20 @@ function placePack(world: World, area: Area, spawn: Spawn) {
 
 /**
  * Advances the World by one fixed 1/60 s step. During hitstop nothing
- * happens at all: orders wait until it ends.
+ * happens at all: orders wait until it ends. During an Area change nothing
+ * happens but the change, and orders are ignored.
  */
 export function step(world: World, orders: readonly Order[]): SimEvent[] {
   const { hero } = world;
   const events: SimEvent[] = [];
   hero.prevPos = { ...hero.pos };
   for (const monster of world.monsters) monster.prevPos = { ...monster.pos };
+
+  if (world.areaChange) {
+    stepAreaChange(world, world.areaChange, events);
+    world.tick += 1;
+    return events;
+  }
 
   if (world.hitstop > 0) {
     world.hitstop -= 1;
@@ -263,6 +360,13 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   // into it.
   approach(world);
   walk(hero);
+  const area = world.areas[world.areaName];
+  const exit = exitAt(area, hero.pos);
+  if (exit && exit !== exitAt(area, hero.prevPos)) {
+    startAreaChange(world, exit.area, exit.entry);
+    world.tick += 1;
+    return events;
+  }
   approach(world);
   for (const monster of stepMonsters(world)) hitHero(world, monster, events);
 

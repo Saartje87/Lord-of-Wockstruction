@@ -13,8 +13,11 @@ export type CharacterArt = {
 };
 
 export type Art = {
-  /** The Area's tileset's tiles by tile id, anchored on the diamond centre. */
-  tiles: Map<number, Texture>;
+  /**
+   * Each tileset's tiles by tileset name, then tile id, anchored on the
+   * diamond centre.
+   */
+  tiles: Record<string, Map<number, Texture>>;
   hero: CharacterArt;
   monsters: Record<MonsterType, CharacterArt>;
 };
@@ -25,39 +28,46 @@ type CharacterMeta = {
 };
 
 /**
- * Loads the Flare art an Area needs from `public/assets/`. Atlases are
- * sampled with `nearest` when the canvas resolution is a whole number, so
- * art drawn one pixel per CSS pixel stays sharp on any display that can.
+ * Loads the Flare art for Areas drawn with `tilesets` from `public/assets/`.
+ * Atlases are sampled with `nearest` when the canvas resolution is a whole
+ * number, so art drawn one pixel per CSS pixel stays sharp on any display
+ * that can.
  */
 export async function loadArt(
-  tileset: string | null,
+  tilesets: string[],
   resolution: number,
 ): Promise<Art> {
   const types = Object.keys(monsterTuning) as MonsterType[];
   const character = (name: string) =>
     Assets.load<Spritesheet>(`/assets/characters/${name}.json`);
-  const [hero, tilesheet, ...monsters] = await Promise.all([
+  const [hero, tilesheets, ...monsters] = await Promise.all([
     character("hero"),
-    tileset
-      ? Assets.load<Spritesheet>(`/assets/tilesets/${tileset}.json`)
-      : null,
+    Promise.all(
+      tilesets.map((name) =>
+        Assets.load<Spritesheet>(`/assets/tilesets/${name}.json`),
+      ),
+    ),
     ...types.map(character),
   ]);
 
-  const tilesheets = tilesheet ? [tilesheet, ...tilesheet.linkedSheets] : [];
+  const sheetsOf = tilesheets.map((sheet) => [sheet, ...sheet.linkedSheets]);
   if (Number.isInteger(resolution)) {
-    for (const sheet of [hero, ...monsters, ...tilesheets]) {
+    for (const sheet of [hero, ...monsters, ...sheetsOf.flat()]) {
       sheet.textureSource.scaleMode = "nearest";
     }
   }
 
-  const tiles = new Map<number, Texture>();
-  for (const sheet of tilesheets) {
-    for (const [key, texture] of Object.entries(sheet.textures)) {
-      // Frames are named `<tileset>/<id>`.
-      tiles.set(Number(key.slice(key.indexOf("/") + 1)), texture);
+  const tiles: Record<string, Map<number, Texture>> = {};
+  tilesets.forEach((name, i) => {
+    const byId = new Map<number, Texture>();
+    for (const sheet of sheetsOf[i]) {
+      for (const [key, texture] of Object.entries(sheet.textures)) {
+        // Frames are named `<tileset>/<id>`.
+        byId.set(Number(key.slice(key.indexOf("/") + 1)), texture);
+      }
     }
-  }
+    tiles[name] = byId;
+  });
   return {
     tiles,
     hero: characterArt(hero),

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import town from "../../../content/areas/town.tmj";
-import grassland from "../../../content/tilesets/grassland.tsj";
+import { areas, tilesets } from "../content";
 import { createWorld, type Order, step, type World } from "./world";
 
 // A 3×2 orthogonal Area with 32 px tiles and a `start` Entry in the middle
@@ -27,6 +26,22 @@ function tmj(objects: object[]) {
 
 const start = { name: "start", type: "entry", point: true, x: 48, y: 48 };
 
+/** An Exit covering tile (x, y), to an Entry in another Area. */
+function exit(x: number, y: number, area: string, entry: string) {
+  return {
+    name: "",
+    type: "exit",
+    x: x * 32,
+    y: y * 32,
+    width: 32,
+    height: 32,
+    properties: [
+      { name: "area", type: "string", value: area },
+      { name: "entry", type: "string", value: entry },
+    ],
+  };
+}
+
 describe("createWorld", () => {
   it("puts the Hero in Town at the `start` Entry", () => {
     const world = createWorld({ areas: { town: tmj([start]) }, seed: 1 });
@@ -35,22 +50,22 @@ describe("createWorld", () => {
     expect(world.hero.pos).toEqual({ x: 1.5, y: 1.5 });
   });
 
+  it("builds a World from every shipped Area, with no Monsters in Town", () => {
+    const world = createWorld({ areas, tilesets, seed: 1 });
+
+    expect(Object.keys(world.areas)).toEqual(Object.keys(areas));
+    expect(world.areas.town.spawns).toEqual([]);
+    expect(world.monsters).toEqual([]);
+  });
+
   it("puts the Hero at `start` in the shipped Town", () => {
-    const world = createWorld({
-      areas: { town },
-      tilesets: { grassland },
-      seed: 1,
-    });
+    const world = createWorld({ areas, tilesets, seed: 1 });
 
     expect(world.hero.pos).toEqual({ x: 5.5, y: 4.5 });
   });
 
   it("blocks the shipped Town's walls by their tileset, and not its plants", () => {
-    const world = createWorld({
-      areas: { town },
-      tilesets: { grassland },
-      seed: 1,
-    });
+    const world = createWorld({ areas, tilesets, seed: 1 });
     const area = world.areas.town;
     const at = (x: number, y: number) => y * area.width + x;
 
@@ -72,6 +87,75 @@ describe("createWorld", () => {
     expect(() =>
       createWorld({ areas: { town: tmj([elsewhere]) }, seed: 1 }),
     ).toThrow('Area "town" has no "start" Entry');
+  });
+
+  it("throws naming any Area with no `start` Entry", () => {
+    expect(() =>
+      createWorld({ areas: { town: tmj([start]), cave: tmj([]) }, seed: 1 }),
+    ).toThrow('Area "cave" has no "start" Entry');
+  });
+
+  it("throws naming the Area when an Exit leads to an unknown Area", () => {
+    const town = tmj([start, exit(0, 0, "cave", "start")]);
+
+    expect(() => createWorld({ areas: { town }, seed: 1 })).toThrow(
+      'Area "town" has an Exit to unknown Area "cave"',
+    );
+  });
+
+  it("throws naming the Area when an Exit leads to a missing Entry", () => {
+    const town = tmj([start, exit(0, 0, "cave", "from-town")]);
+    const cave = tmj([start]);
+
+    expect(() => createWorld({ areas: { town, cave }, seed: 1 })).toThrow(
+      'Area "town" has an Exit to missing Entry "from-town" in Area "cave"',
+    );
+  });
+
+  it("throws naming the Area when a spawn is on a blocked tile", () => {
+    // Tile (2, 1) has no floor.
+    const spawn = {
+      name: "",
+      type: "monsterSpawn",
+      point: true,
+      x: 80,
+      y: 48,
+      properties: [{ name: "monster", type: "string", value: "skeleton" }],
+    };
+
+    expect(() =>
+      createWorld({ areas: { town: tmj([start, spawn]) }, seed: 1 }),
+    ).toThrow('Area "town" has a spawn on blocked tile (2, 1)');
+  });
+
+  it("throws naming the Area when an Exit can't be reached from `start`", () => {
+    // Three tiles in a row, the middle one without floor.
+    const split = {
+      ...tmj([]),
+      height: 1,
+      layers: [
+        { type: "tilelayer", name: "floor", data: [1, 0, 1] },
+        {
+          type: "objectgroup",
+          name: "objects",
+          objects: [{ ...start, x: 16, y: 16 }, exit(2, 0, "town", "start")],
+        },
+      ],
+    };
+
+    expect(() => createWorld({ areas: { town: split }, seed: 1 })).toThrow(
+      'Area "town" has an Exit to "town" that can\'t be reached from "start"',
+    );
+  });
+
+  it("keeps each NPC's name and place", () => {
+    const npc = { name: "Gillian", type: "npc", point: true, x: 16, y: 16 };
+
+    const world = createWorld({ areas: { town: tmj([start, npc]) }, seed: 1 });
+
+    expect(world.areas.town.npcs).toEqual([
+      { name: "Gillian", pos: { x: 0.5, y: 0.5 } },
+    ]);
   });
 
   it("reads Entries on isometric maps in tileheight units", () => {

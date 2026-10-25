@@ -32,10 +32,28 @@ export type Area = {
   entries: Record<string, Vec>;
   /** Where Monsters stand when the Area is entered. */
   spawns: Spawn[];
+  exits: Exit[];
+  npcs: Npc[];
 };
 
 /** `count` Monsters of one type, placed around `pos` (tile units). */
 export type Spawn = { monster: MonsterType; count: number; pos: Vec };
+
+/**
+ * A zone, in tile units, that takes the Hero to Entry `entry` in Area `area`
+ * when they walk into it.
+ */
+export type Exit = {
+  area: string;
+  entry: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+/** A non-hostile character standing at `pos` (tile units). */
+export type Npc = { name: string; pos: Vec };
 
 type TmjLayer =
   | { type: "tilelayer"; name: string; data: number[] }
@@ -64,6 +82,9 @@ type TmjObject = {
   class?: string;
   x: number;
   y: number;
+  /** A rectangle's size, in the same units as `x` and `y`; 0 for a point. */
+  width?: number;
+  height?: number;
   properties?: { name: string; value: unknown }[];
 };
 
@@ -85,6 +106,17 @@ export function isFloor(area: Area, point: Vec): boolean {
   return cellAt(area, area.floor, point);
 }
 
+/** The Exit whose zone holds a point in tile units, if any. */
+export function exitAt(area: Area, point: Vec): Exit | undefined {
+  return area.exits.find(
+    (exit) =>
+      point.x >= exit.x &&
+      point.x < exit.x + exit.width &&
+      point.y >= exit.y &&
+      point.y < exit.y + exit.height,
+  );
+}
+
 /** Whether the Hero can stand at a point in tile units. */
 export function isWalkable(area: Area, point: Vec): boolean {
   return cellAt(area, area.walkable, point);
@@ -99,7 +131,8 @@ function cellAt(area: Area, grid: boolean[], point: Vec): boolean {
 
 /**
  * Reads the `floor`, `walls & props` and `blocking override` tile layers and
- * the `entry` and `monsterSpawn` objects of a Tiled `.tmj` file. Only
+ * the `entry`, `exit`, `monsterSpawn` and `npc` objects of a Tiled `.tmj`
+ * file. An `exit` is a rectangle, or a point for the one tile it is in. Only
  * uncompressed tile data and a single tileset are supported. A tileset in its
  * own file is looked up in `tilesets` by its file name without extension
  * (`../tilesets/grassland.tsj` is `grassland`).
@@ -151,6 +184,8 @@ export function loadArea(
   const unitY = tmj.tileheight;
   const entries: Record<string, Vec> = {};
   const spawns: Spawn[] = [];
+  const exits: Exit[] = [];
+  const npcs: Npc[] = [];
   for (const layer of tmj.layers) {
     if (layer.type !== "objectgroup") continue;
     for (const object of layer.objects) {
@@ -158,6 +193,14 @@ export function loadArea(
       const kind = object.type ?? object.class;
       if (kind === "entry") entries[object.name] = pos;
       if (kind === "monsterSpawn") spawns.push(readSpawn(name, object, pos));
+      if (kind === "exit") {
+        const size = {
+          width: (object.width ?? 0) / unitX,
+          height: (object.height ?? 0) / unitY,
+        };
+        exits.push(readExit(name, object, pos, size));
+      }
+      if (kind === "npc") npcs.push({ name: object.name, pos });
     }
   }
 
@@ -172,18 +215,42 @@ export function loadArea(
     walkable,
     entries,
     spawns,
+    exits,
+    npcs,
   };
+}
+
+/** A Tiled object's custom property's value, if it has it. */
+function propertyOf(object: TmjObject, key: string): unknown {
+  return object.properties?.find((p) => p.name === key)?.value;
+}
+
+/** An `exit` object's zone and its `area` and `entry` properties. */
+function readExit(
+  name: string,
+  object: TmjObject,
+  pos: Vec,
+  size: { width: number; height: number },
+): Exit {
+  const area = propertyOf(object, "area");
+  const entry = propertyOf(object, "entry");
+  if (typeof area !== "string" || typeof entry !== "string") {
+    throw new Error(`Area "${name}" has an Exit without an area and entry`);
+  }
+  if (size.width === 0 || size.height === 0) {
+    const tile = tileOf(pos);
+    return { area, entry, ...tile, width: 1, height: 1 };
+  }
+  return { area, entry, ...pos, ...size };
 }
 
 /** A `monsterSpawn` object's `monster` and `count` properties. */
 function readSpawn(name: string, object: TmjObject, pos: Vec): Spawn {
-  const property = (key: string) =>
-    object.properties?.find((p) => p.name === key)?.value;
-  const monster = property("monster");
+  const monster = propertyOf(object, "monster");
   if (!isMonsterType(monster)) {
     throw new Error(`Area "${name}" spawns unknown monster "${monster}"`);
   }
-  const count = property("count") ?? 1;
+  const count = propertyOf(object, "count") ?? 1;
   if (typeof count !== "number" || !Number.isInteger(count) || count < 1) {
     throw new Error(
       `Area "${name}" spawns a bad count of ${monster}: ${count}`,

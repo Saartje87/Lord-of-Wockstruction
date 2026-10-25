@@ -2,9 +2,8 @@
 
 import { Application } from "pixi.js";
 import { useEffect, useRef } from "react";
-import town from "../../content/areas/town.tmj";
-import grassland from "../../content/tilesets/grassland.tsj";
 import { advance, createClock } from "./clock";
+import { areas, tilesets } from "./content";
 import { attachPointer, createPointerInput, poll } from "./input/pointer";
 import { loadArt } from "./render/art";
 import { createRenderer } from "./render/renderer";
@@ -35,17 +34,18 @@ export default function GameCanvas() {
     });
     init.then(async () => {
       if (cancelled) return;
-      const world = createWorld({
-        areas: { town },
-        tilesets: { grassland },
-        seed: Date.now(),
-      });
-      const area = world.areas[world.areaName];
-      const art = await loadArt(area.tileset, app.renderer.resolution);
+      const world = createWorld({ areas, tilesets, seed: Date.now() });
+      const usedTilesets = Object.values(world.areas).map(
+        (area) => area.tileset,
+      );
+      const art = await loadArt(
+        [...new Set(usedTilesets)].filter((name) => name !== null),
+        app.renderer.resolution,
+      );
       if (cancelled) return;
       container.appendChild(app.canvas);
 
-      const renderer = createRenderer(app, area, art);
+      const renderer = createRenderer(app, art);
       const clock = createClock();
       const input = createPointerInput();
       let orders: Order[] = [];
@@ -59,6 +59,7 @@ export default function GameCanvas() {
           monsterAt: renderer.monsterAt,
         });
         orders.push(...newOrders);
+        const area = world.areas[world.areaName];
         if (click && isFloor(area, click)) renderer.markClick(click, now);
 
         // Orders wait for the next step, which may be a frame away.

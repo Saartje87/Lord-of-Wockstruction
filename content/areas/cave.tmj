@@ -1,0 +1,154 @@
+{
+ "type": "map",
+ "version": "1.10",
+ "tiledversion": "1.11.2",
+ "orientation": "isometric",
+ "renderorder": "right-down",
+ "width": 12,
+ "height": 10,
+ "tilewidth": 192,
+ "tileheight": 96,
+ "infinite": false,
+ "compressionlevel": -1,
+ "nextlayerid": 4,
+ "nextobjectid": 6,
+ "tilesets": [
+  {
+   "firstgid": 1,
+   "source": "../tilesets/dungeon.tsj"
+  }
+ ],
+ "layers": [
+  {
+   "id": 1,
+   "name": "floor",
+   "type": "tilelayer",
+   "x": 0,
+   "y": 0,
+   "width": 12,
+   "height": 10,
+   "opacity": 1,
+   "visible": true,
+   "data": [17,24,31,22,29,20,27,18,25,32,23,30,20,27,18,25,32,23,30,21,28,19,26,17,23,30,21,28,19,26,17,24,31,22,29,20,26,17,24,31,22,29,20,27,18,25,32,23,29,20,27,18,25,32,23,30,21,28,19,26,32,23,30,21,28,19,26,17,24,31,22,29,19,26,17,24,31,22,29,20,27,18,25,32,22,29,20,27,18,25,32,23,30,21,28,19,25,32,23,30,21,28,19,26,17,24,31,22,28,19,26,17,24,31,22,29,20,27,18,25]
+  },
+  {
+   "id": 2,
+   "name": "walls & props",
+   "type": "tilelayer",
+   "x": 0,
+   "y": 0,
+   "width": 12,
+   "height": 10,
+   "opacity": 1,
+   "visible": true,
+   "data": [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,65,0,0,0,0,0,0,0,0,0,0,0,65,0,0,0,0,0,0,0,0,0,0,0,65,0,0,0,0,0,0,0,0,0,0,0,65,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,65,0,0,0,0,0,65,0,0,0,0,0,65,65,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+  },
+  {
+   "id": 3,
+   "name": "objects",
+   "type": "objectgroup",
+   "draworder": "topdown",
+   "x": 0,
+   "y": 0,
+   "opacity": 1,
+   "visible": true,
+   "objects": [
+    {
+     "id": 1,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true,
+     "name": "start",
+     "type": "entry",
+     "x": 144,
+     "y": 240
+    },
+    {
+     "id": 2,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true,
+     "name": "from-town",
+     "type": "entry",
+     "x": 144,
+     "y": 240
+    },
+    {
+     "id": 3,
+     "width": 96,
+     "height": 288,
+     "rotation": 0,
+     "visible": true,
+     "name": "",
+     "type": "exit",
+     "x": 0,
+     "y": 96,
+     "properties": [
+      {
+       "name": "area",
+       "type": "string",
+       "value": "town"
+      },
+      {
+       "name": "entry",
+       "type": "string",
+       "value": "from-cave"
+      }
+     ]
+    },
+    {
+     "id": 4,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true,
+     "name": "",
+     "type": "monsterSpawn",
+     "x": 720,
+     "y": 432,
+     "properties": [
+      {
+       "name": "count",
+       "type": "int",
+       "value": 3
+      },
+      {
+       "name": "monster",
+       "type": "string",
+       "value": "skeleton"
+      }
+     ]
+    },
+    {
+     "id": 5,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true,
+     "name": "",
+     "type": "monsterSpawn",
+     "x": 1008,
+     "y": 816,
+     "properties": [
+      {
+       "name": "count",
+       "type": "int",
+       "value": 1
+      },
+      {
+       "name": "monster",
+       "type": "string",
+       "value": "skeleton"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

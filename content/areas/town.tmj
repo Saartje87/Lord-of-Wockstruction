@@ -67,25 +67,24 @@
     },
     {
      "id": 2,
-     "width": 0,
-     "height": 0,
+     "width": 96,
+     "height": 288,
      "rotation": 0,
      "visible": true,
-     "point": true,
      "name": "",
-     "type": "monsterSpawn",
-     "x": 288,
-     "y": 528,
+     "type": "exit",
+     "x": 1056,
+     "y": 480,
      "properties": [
       {
-       "name": "count",
-       "type": "int",
-       "value": 3
+       "name": "area",
+       "type": "string",
+       "value": "cave"
       },
       {
-       "name": "monster",
+       "name": "entry",
        "type": "string",
-       "value": "skeleton"
+       "value": "from-town"
       }
      ]
     },
@@ -96,22 +95,10 @@
      "rotation": 0,
      "visible": true,
      "point": true,
-     "name": "",
-     "type": "monsterSpawn",
+     "name": "from-cave",
+     "type": "entry",
      "x": 1008,
-     "y": 720,
-     "properties": [
-      {
-       "name": "count",
-       "type": "int",
-       "value": 1
-      },
-      {
-       "name": "monster",
-       "type": "string",
-       "value": "skeleton"
-      }
-     ]
+     "y": 624
     }
    ]
   }

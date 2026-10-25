@@ -39,6 +39,11 @@ export function findPath(
   return path;
 }
 
+/** Whether the tile of `to` can be walked to from the tile of `from`. */
+export function canReach(area: Area, from: Vec, to: Vec): boolean {
+  return astar(area, tileOf(from), to).reached;
+}
+
 /**
  * Hand-rolled 8-direction A* over walkable tiles. Returns the tiles from
  * `start` to the tile of `to`, or, when that can't be reached, to the

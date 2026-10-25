@@ -12,6 +12,7 @@ import { windUpProgress } from "../sim/monsters";
 import { STEP_MS } from "../sim/units";
 import { tileOf, type Vec } from "../sim/vec";
 import {
+  areaFade,
   FLINCH_STEPS,
   HERO_FLINCH_STEPS,
   HIT_STEP,
@@ -131,12 +132,19 @@ type MonsterView = CharacterView & {
   flash: ColorMatrixFilter | null;
 };
 
-/** Draws an Area and the World in it into a Pixi stage, following the Hero. */
-export function createRenderer(app: Application, area: Area, art: Art) {
+/**
+ * Draws the World's active Area and everything in it into a Pixi stage,
+ * following the Hero.
+ */
+export function createRenderer(app: Application, art: Art) {
   const camera = new Container();
   app.stage.addChild(camera);
 
-  camera.addChild(drawTiles(area, area.floorTiles, art));
+  // Filled by `showArea`.
+  let area: Area | null = null;
+  const floor = new Container();
+  camera.addChild(floor);
+  let props: Sprite[] = [];
   const hover = new Graphics();
   camera.addChild(hover);
   const marker = drawMarker();
@@ -145,7 +153,7 @@ export function createRenderer(app: Application, area: Area, art: Art) {
   const telegraphs = new Graphics();
   camera.addChild(telegraphs);
   // Walls, props, the Hero, Monsters and Corpses, nearest the viewer last.
-  const scene = drawTiles(area, area.propTiles, art);
+  const scene = new Container();
   scene.sortableChildren = true;
   camera.addChild(scene);
   const hero = characterView(art.hero, heroTuning.walkSpeed);
@@ -174,6 +182,10 @@ export function createRenderer(app: Application, area: Area, art: Art) {
   const hurt = new Graphics().rect(0, 0, 1, 1).fill(HURT_COLOUR);
   hurt.visible = false;
   app.stage.addChild(hurt);
+  // The fade to black of an Area change, over everything.
+  const fade = new Graphics().rect(0, 0, 1, 1).fill(0x000000);
+  fade.visible = false;
+  app.stage.addChild(fade);
 
   /** Living Monsters and Corpses by id. */
   const monsters = new Map<MonsterId, MonsterView>();
@@ -190,6 +202,23 @@ export function createRenderer(app: Application, area: Area, art: Art) {
   let hoveredTile: Vec | null = null;
   let markedAtMs: number | null = null;
   let hurtAtMs: number | null = null;
+
+  /**
+   * Swaps in another Area's tiles. Its Monsters and Corpses get their own
+   * views as they're drawn, and the old ones go as they're no longer seen.
+   */
+  const showArea = (next: Area) => {
+    area = next;
+    for (const tile of floor.removeChildren()) tile.destroy();
+    for (const prop of props) prop.destroy();
+    props = drawTiles(next, next.propTiles, art);
+    scene.addChild(...props);
+    floor.addChild(...drawTiles(next, next.floorTiles, art));
+    for (const { text } of floating.splice(0)) text.destroy();
+    markedAtMs = null;
+    hoveredTile = null;
+    hover.clear();
+  };
 
   /** Maps a point on the canvas (CSS px) to tile units, as last drawn. */
   const screenToTile = (screen: Vec): Vec =>
@@ -272,6 +301,8 @@ export function createRenderer(app: Application, area: Area, art: Art) {
      * current one; `pointer` is the cursor on the canvas (CSS px), if on it.
      */
     draw(world: World, alpha: number, pointer: Vec | null, nowMs: number) {
+      const active = world.areas[world.areaName];
+      if (active !== area) showArea(active);
       const heroAt = lerp(world.hero.prevPos, world.hero.pos, alpha);
       const at = toScreen(heroAt);
 
@@ -413,7 +444,7 @@ export function createRenderer(app: Application, area: Area, art: Art) {
       }
 
       const tile =
-        cursor && !hovered && isFloor(area, cursor) ? tileOf(cursor) : null;
+        cursor && !hovered && isFloor(active, cursor) ? tileOf(cursor) : null;
       if (tile?.x !== hoveredTile?.x || tile?.y !== hoveredTile?.y) {
         hoveredTile = tile;
         hover.clear();
@@ -431,6 +462,13 @@ export function createRenderer(app: Application, area: Area, art: Art) {
       if (hurt.visible) {
         hurt.alpha = HURT_STRENGTH * hurtLeft;
         hurt.scale.set(app.screen.width, app.screen.height);
+      }
+
+      const darkness = areaFade(world);
+      fade.visible = darkness > 0;
+      if (fade.visible) {
+        fade.alpha = darkness;
+        fade.scale.set(app.screen.width, app.screen.height);
       }
 
       const markerProgress =
@@ -660,10 +698,11 @@ function diamond(i: number, j: number): number[] {
  * centre of its diamond and sorted by it.
  */
 function drawTiles(area: Area, tiles: (number | null)[], art: Art) {
-  const layer = new Container();
+  const sprites: Sprite[] = [];
+  const tileset = area.tileset === null ? undefined : art.tiles[area.tileset];
   tiles.forEach((id, i) => {
     if (id === null) return;
-    const texture = art.tiles.get(id);
+    const texture = tileset?.get(id);
     if (!texture) {
       throw new Error(`Area "${area.name}" uses missing tile ${id}`);
     }
@@ -674,9 +713,9 @@ function drawTiles(area: Area, tiles: (number | null)[], art: Art) {
     });
     sprite.position.set(at.x, at.y);
     sprite.zIndex = at.y;
-    layer.addChild(sprite);
+    sprites.push(sprite);
   });
-  return layer;
+  return sprites;
 }
 
 /** A diamond centred on its origin, the size of one tile. */

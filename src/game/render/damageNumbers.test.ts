@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { damageNumbers, FLOAT_MS, floatAt } from "./damageNumbers";
+import { damageNumbers, FLOAT_MS, floatAt, floatText } from "./damageNumbers";
 
 describe("damageNumbers", () => {
   it("shows the Hero's hits on the Monsters hit", () => {
@@ -43,6 +43,20 @@ describe("damageNumbers", () => {
       { on: 1, kind: "miss" },
       { on: 2, damage: 27, kind: "hit" },
     ]);
+  });
+
+  it("shows No room over the Hero", () => {
+    expect(damageNumbers([{ type: "NoRoom" }])).toEqual([
+      { on: "hero", kind: "noRoom" },
+    ]);
+  });
+});
+
+describe("floatText", () => {
+  it("is the damage, Miss or No room", () => {
+    expect(floatText({ on: 1, damage: 22, kind: "hit" })).toBe("22");
+    expect(floatText({ on: 1, kind: "miss" })).toBe("Miss");
+    expect(floatText({ on: "hero", kind: "noRoom" })).toBe("No room");
   });
 });
 

@@ -85,6 +85,15 @@ describe("whether a step's events change the Hero's progress", () => {
     ).toBe(true);
   });
 
+  it("is yes for ItemPickedUp, which changes the Inventory", () => {
+    const item = { id: 3, type: "axe" as const };
+    expect(
+      changesProgress([
+        { type: "ItemPickedUp", item, cell: { column: 0, row: 0 } },
+      ]),
+    ).toBe(true);
+  });
+
   it("is no for any other events", () => {
     expect(changesProgress([])).toBe(false);
     expect(
@@ -92,6 +101,13 @@ describe("whether a step's events change the Hero's progress", () => {
         { type: "HitLanded", attacker: "hero", target: 1, damage: 20 },
         { type: "HeroDied" },
         { type: "AreaChanged", area: "town", entry: "start" },
+        // Ground Items are never saved.
+        {
+          type: "ItemDropped",
+          item: { id: 3, type: "axe" },
+          pos: { x: 1, y: 1 },
+        },
+        { type: "NoRoom" },
       ]),
     ).toBe(false);
   });

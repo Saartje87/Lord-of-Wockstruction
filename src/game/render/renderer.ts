@@ -38,7 +38,12 @@ import { type ItemKind, type ItemType, itemOf } from "../tuning/items";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import { type Compass, compassOf, frameAt, swingFrame } from "./animation";
 import { type Animation, type Art, type CharacterArt, frameOf } from "./art";
-import { type DamageNumber, damageNumbers, floatAt } from "./damageNumbers";
+import {
+  type DamageNumber,
+  damageNumbers,
+  floatAt,
+  floatText,
+} from "./damageNumbers";
 import { experienceBar } from "./experienceBar";
 import {
   HERO_PANEL,
@@ -182,13 +187,14 @@ const LIFE_BACK = { colour: 0x2a0606, alpha: 0.85 };
 const NUMBER = { size: 18, stroke: 3, gap: 2 };
 /**
  * White for the Hero's hits, gold for a killing blow, red for damage taken
- * and grey for a Miss.
+ * grey for a Miss and pale gold for No room.
  */
 const NUMBER_COLOUR: Record<DamageNumber["kind"], number> = {
   hit: 0xffffff,
   kill: 0xffd04a,
   taken: 0xff4a4a,
   miss: 0x9a9a9a,
+  noRoom: 0xe8e0c8,
 };
 
 /** The stone strip along the bottom of the screen (CSS px). */
@@ -558,7 +564,7 @@ export function createRenderer(app: Application, art: Art) {
           number.on === "hero" ? hero.sprite : monsters.get(number.on)?.sprite;
         if (!sprite) continue;
         const text = new Text({
-          text: number.kind === "miss" ? "Miss" : String(number.damage),
+          text: floatText(number),
           style: {
             fill: NUMBER_COLOUR[number.kind],
             fontSize: NUMBER.size,

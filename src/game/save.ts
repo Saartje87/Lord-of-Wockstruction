@@ -46,9 +46,10 @@ const PROGRESS_EVENTS: readonly SimEvent["type"][] = [
   "ExperienceGained",
   "LevelReached",
   "AttributeRaised",
+  "ItemPickedUp",
 ];
 
-/** Whether a step's events changed the Hero's progress. */
+/** Whether a step's events changed what the Save keeps: progress or gear. */
 export function changesProgress(events: SimEvent[]): boolean {
   return events.some((event) => PROGRESS_EVENTS.includes(event.type));
 }

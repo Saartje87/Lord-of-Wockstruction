@@ -33,15 +33,15 @@ A named place in an Area where the Hero appears on arriving; the Entry named `st
 _Avoid_: Spawn point (that's for Monsters), arrival
 
 **Monster**:
-A hostile creature that attacks the Hero and can be killed.
+A hostile creature that attacks the Hero and their Minions and can be killed.
 _Avoid_: Enemy, mob, NPC
 
 **Leash**:
-How far a Monster will chase the Hero from where it was placed before it gives up and starts Returning.
+How far a Monster will chase the Hero or their Minion from where it was placed before it gives up and starts Returning.
 _Avoid_: Tether, chase range, aggro range
 
 **Returning**:
-A Monster walking back to where it was placed after giving up on the Hero, ignoring them on the way and healing to full on arrival; it happens past the Leash or on the Hero's Death.
+A Monster walking back to where it was placed after giving up on the Hero or their Minion, ignoring both on the way and healing to full on arrival; it happens past the Leash or on the Hero's Death.
 _Avoid_: Resetting, evading, retreating
 
 **NPC**:
@@ -57,7 +57,7 @@ The Hero's state once their Life reaches zero: they lie where they fell, and Mon
 _Avoid_: Game over, defeat
 
 **In Combat**:
-The Hero's state while they have dealt or taken damage in the last few seconds, or while a Monster is chasing them; outside it, the Hero slowly regains Life.
+The Hero's state while they have dealt or taken damage in the last few seconds, or while a Monster is chasing them or their Minion; outside it, the Hero slowly regains Life.
 _Avoid_: Aggro, engaged
 
 **Corpse**:
@@ -65,20 +65,56 @@ What remains of a dead Monster, lying in its Area until the Hero leaves.
 _Avoid_: Body, remains
 
 **Experience**:
-What the Hero earns by killing Monsters; enough of it raises the Hero's Level.
+What the Hero earns when they or their Minions kill Monsters; enough of it raises the Hero's Level.
 _Avoid_: XP, EXP
 
 **Level**:
-How far the Hero has advanced, from 1 up, raised by earning Experience; reaching a new Level also fills the Hero's Life.
+How far the Hero has advanced, from 1 up, raised by earning Experience; reaching a new Level also fills the Hero's Life and Mana.
 _Avoid_: Character level, rank (and never a place: that's an Area)
 
 **Attribute**:
-One of the Hero's three permanent traits, Strength, Dexterity and Vitality, raised only by spending Attribute Points.
+One of the Hero's four permanent traits, Strength, Dexterity, Vitality and Energy, raised only by spending Attribute Points.
 _Avoid_: Stat
+
+**Energy**:
+The Attribute that raises the Hero's Mana.
+_Avoid_: Intelligence, magic
+
+**Mana**:
+What the Hero spends to cast Skills; unlike Life it regenerates all the time, In Combat or not.
+_Avoid_: MP, energy (that's the Attribute)
 
 **Attribute Point**:
 What the Hero gains five of on each new Level, kept until the player spends it to raise an Attribute by one; a spent point can't be taken back.
 _Avoid_: Stat point
+
+**Skill**:
+Something the Hero casts, spending Mana; it can't be cast in Town. Every Hero can learn the same Skills, from the one Skill Tree.
+_Avoid_: Spell, ability, power
+
+**Skill Tree**:
+All the Skills the Hero can learn, and how far each has been learned.
+_Avoid_: Talent tree, spellbook
+
+**Skill Point**:
+What the Hero gains one of on each new Level, kept until the player spends it to raise a Skill's Skill Level by one; a spent point can't be taken back.
+_Avoid_: Talent point
+
+**Skill Level**:
+How far the Hero has learned a Skill: 0 until the first Skill Point is spent on it, when it can first be cast; each higher Skill Level makes it stronger.
+_Avoid_: Rank (and never the Hero's Level)
+
+**Skill Bar**:
+The row of slots, one for the right mouse button and four for keys, holding the Skills the player casts at the cursor.
+_Avoid_: Hotbar, action bar
+
+**Minion**:
+A creature on the Hero's side, brought by a Skill, that fights Monsters for the Hero.
+_Avoid_: Pet, summon, ally (and never a Monster: Monsters are always hostile)
+
+**Golem**:
+The Minion summoned by the Golem Skill: the Hero has at most one, which follows them through Exits, never regains Life, leaves no Corpse, and is gone on the Hero's Death or when the Save is loaded. Casting the Skill again replaces it.
+_Avoid_: Golum
 
 **Attack Rating**:
 How accurate a Hero's or Monster's attacks are (the Hero's raised by Dexterity); set against the target's Defense it gives the chance to hit.
@@ -93,7 +129,7 @@ A swing that plays out in full but deals no damage because it failed its chance 
 _Avoid_: Dodge, whiff
 
 **Save**:
-The Hero's kept progress (Level, Experience, Attributes, unspent Attribute Points, Inventory and Equipment), written whenever it changes; there is only one, and loading it starts the Hero in Town.
+The Hero's kept progress (Level, Experience, Attributes, unspent Attribute Points, Skill Levels, unspent Skill Points, the Skill Bar, Inventory and Equipment), written whenever it changes; there is only one, and loading it starts the Hero in Town.
 _Avoid_: Save file, slot, profile, checkpoint
 
 **Item**:

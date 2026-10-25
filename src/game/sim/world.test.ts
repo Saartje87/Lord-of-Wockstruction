@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { town } from "../areas/town";
-import { createWorld, step, type World } from "./world";
+import { createWorld, type Order, step, type World } from "./world";
 
 // A 3×2 orthogonal Area with 32 px tiles and a `start` Entry in the middle
 // of tile (1, 1).
@@ -133,14 +133,30 @@ describe("MoveTo", () => {
     expect(world.hero.pos).toEqual({ x: 4.5, y: 5.5 });
   });
 
-  it("ignores a target with no floor", () => {
+  // The nearest point is kept the Hero's 0.3-tile radius inside its tile.
+  it("walks as near as it can get to a target with no floor", () => {
     const world = createWorld({ areas: { town: openFloor() }, seed: 1 });
 
-    step(world, [{ type: "MoveTo", target: { x: 6.5, y: 6.5 } }]);
-    step(world, [{ type: "MoveTo", target: { x: 9, y: 1.5 } }]);
-    step(world, [{ type: "MoveTo", target: { x: -0.1, y: 1.5 } }]);
+    walkOut(world, { type: "MoveTo", target: { x: 9, y: 1.5 } });
+    expect(world.hero.pos.x).toBeCloseTo(7.7);
+    expect(world.hero.pos.y).toBeCloseTo(1.5);
 
-    expect(world.hero.pos).toEqual({ x: 1.5, y: 1.5 });
+    walkOut(world, { type: "MoveTo", target: { x: -0.1, y: 1.5 } });
+    expect(world.hero.pos.x).toBeCloseTo(0.3);
+    expect(world.hero.pos.y).toBeCloseTo(1.5);
+  });
+
+  it("walks next to a hole it was sent into, never into it", () => {
+    const world = createWorld({ areas: { town: openFloor() }, seed: 1 });
+
+    const tiles = walkOut(world, {
+      type: "MoveTo",
+      target: { x: 6.5, y: 6.5 },
+    });
+
+    expect(tiles).not.toContain("6,6");
+    const { x, y } = world.hero.pos;
+    expect(Math.hypot(x - 6.5, y - 6.5)).toBeLessThan(1);
   });
 
   it("re-targets mid-walk", () => {
@@ -152,5 +168,184 @@ describe("MoveTo", () => {
     stepTimes(world, 11);
 
     expect(world.hero.pos).toEqual({ x: 1.5, y: 1.5 });
+  });
+});
+
+// Tileset tiles, as gids: plain floor, a wall that blocks, and two tiles for
+// the `blocking override` layer that block and unblock.
+const FLOOR = 1;
+const WALL = 2;
+const BLOCK = 3;
+const UNBLOCK = 4;
+
+/**
+ * An 8×8 orthogonal Area of floor with `start` in the middle of (1, 1),
+ * walls at `walls` and override tiles at `overrides`, as [x, y, gid].
+ */
+function walled(walls: [number, number][], overrides: number[][] = []) {
+  const wallData = new Array(64).fill(0);
+  for (const [x, y] of walls) wallData[y * 8 + x] = WALL;
+  const overrideData = new Array(64).fill(0);
+  for (const [x, y, gid] of overrides) overrideData[y * 8 + x] = gid;
+  const layer = (name: string, data: number[]) => ({
+    type: "tilelayer",
+    name,
+    width: 8,
+    height: 8,
+    data,
+  });
+  const blocks = (value: boolean) => [{ name: "blocks", type: "bool", value }];
+  return {
+    orientation: "orthogonal",
+    width: 8,
+    height: 8,
+    tilewidth: 32,
+    tileheight: 32,
+    tilesets: [
+      {
+        firstgid: FLOOR,
+        name: "test",
+        tiles: [
+          { id: WALL - 1, properties: blocks(true) },
+          { id: BLOCK - 1, properties: blocks(true) },
+          { id: UNBLOCK - 1, properties: blocks(false) },
+        ],
+      },
+    ],
+    layers: [
+      layer("floor", new Array(64).fill(FLOOR)),
+      layer("walls & props", wallData),
+      layer("blocking override", overrideData),
+      { type: "objectgroup", name: "objects", objects: [start] },
+    ],
+  };
+}
+
+/** A wall down column 3 from row 0 to row 5, open at rows 6 and 7. */
+const column: [number, number][] = [0, 1, 2, 3, 4, 5].map((y) => [3, y]);
+
+/**
+ * Steps until the Hero stops or `limit` steps pass, returning every tile the
+ * Hero stood in.
+ */
+function walkOut(world: World, order: Order, limit = 600) {
+  const tiles: string[] = [];
+  step(world, [order]);
+  for (let i = 0; i < limit; i++) {
+    tiles.push(
+      `${Math.floor(world.hero.pos.x)},${Math.floor(world.hero.pos.y)}`,
+    );
+    const before = { ...world.hero.pos };
+    step(world, []);
+    if (before.x === world.hero.pos.x && before.y === world.hero.pos.y) break;
+  }
+  return tiles;
+}
+
+describe("MoveTo around walls", () => {
+  it("walks around a wall to a target behind it, never entering a wall", () => {
+    const world = createWorld({ areas: { town: walled(column) }, seed: 1 });
+
+    const tiles = walkOut(world, {
+      type: "MoveTo",
+      target: { x: 5.5, y: 1.5 },
+    });
+
+    expect(world.hero.pos).toEqual({ x: 5.5, y: 1.5 });
+    for (const [x, y] of column) expect(tiles).not.toContain(`${x},${y}`);
+    expect(tiles).toContain("3,6");
+  });
+
+  // Straight across the corner would be √2 / 5.5 s ≈ 16 steps.
+  it("doesn't cut between two walls that meet at a corner", () => {
+    const corner: [number, number][] = [
+      [2, 1],
+      [1, 2],
+    ];
+    const world = createWorld({ areas: { town: walled(corner) }, seed: 1 });
+
+    const tiles = walkOut(world, {
+      type: "MoveTo",
+      target: { x: 2.5, y: 2.5 },
+    });
+
+    expect(world.hero.pos).toEqual({ x: 2.5, y: 2.5 });
+    expect(tiles).not.toContain("2,1");
+    expect(tiles).not.toContain("1,2");
+    expect(tiles.length).toBeGreaterThan(30);
+  });
+
+  // Straight through the gap is 4 / 5.5 s ≈ 44 steps.
+  it("walks through a wall tile the override layer unblocks", () => {
+    const gap = [[3, 1, UNBLOCK]];
+    const world = createWorld({
+      areas: { town: walled(column, gap) },
+      seed: 1,
+    });
+
+    const tiles = walkOut(world, {
+      type: "MoveTo",
+      target: { x: 5.5, y: 1.5 },
+    });
+
+    expect(world.hero.pos).toEqual({ x: 5.5, y: 1.5 });
+    expect(tiles).toContain("3,1");
+    expect(tiles.length).toBeLessThanOrEqual(45);
+  });
+
+  it("stops short of floor the override layer blocks", () => {
+    const invisible = [[5, 1, BLOCK]];
+    const world = createWorld({
+      areas: { town: walled([], invisible) },
+      seed: 1,
+    });
+
+    const tiles = walkOut(world, {
+      type: "MoveTo",
+      target: { x: 5.5, y: 1.5 },
+    });
+
+    expect(tiles).not.toContain("5,1");
+    expect(world.hero.pos.x).toBeCloseTo(4.7);
+    expect(world.hero.pos.y).toBeCloseTo(1.5);
+  });
+
+  it("walks up to a wall it can't get past and stops", () => {
+    const wall: [number, number][] = [0, 1, 2, 3, 4, 5, 6, 7].map((y) => [
+      3,
+      y,
+    ]);
+    const world = createWorld({ areas: { town: walled(wall) }, seed: 1 });
+
+    walkOut(world, { type: "MoveTo", target: { x: 5.5, y: 1.5 } });
+
+    expect(world.hero.pos.x).toBeCloseTo(2.7);
+    expect(world.hero.pos.y).toBeCloseTo(1.5);
+  });
+
+  // Stopping at a wall leaves the Hero exactly its radius from it, which
+  // must still count as clear.
+  it("walks straight along a wall it stopped against", () => {
+    const wall: [number, number][] = [0, 1, 2, 3, 4, 5, 6, 7].map((y) => [
+      3,
+      y,
+    ]);
+    const world = createWorld({ areas: { town: walled(wall) }, seed: 1 });
+    walkOut(world, { type: "MoveTo", target: { x: 5.5, y: 1.5 } });
+
+    step(world, [{ type: "MoveTo", target: { x: 2.7, y: 6.5 } }]);
+    for (let i = 0; i < 60; i++) {
+      expect(world.hero.pos.x).toBeCloseTo(2.7);
+      step(world, []);
+    }
+    expect(world.hero.pos.y).toBeCloseTo(6.5);
+  });
+
+  it("faces the exact direction it walks", () => {
+    const world = createWorld({ areas: { town: openFloor() }, seed: 1 });
+
+    step(world, [{ type: "MoveTo", target: { x: 4.5, y: 5.5 } }]);
+
+    expect(world.hero.facing).toBeCloseTo(Math.atan2(4, 3));
   });
 });

@@ -1,5 +1,6 @@
 import { heroTuning } from "../tuning/hero";
-import { type Area, isFloor, loadArea } from "./area";
+import { type Area, loadArea } from "./area";
+import { findPath } from "./path";
 import { perStep } from "./units";
 import type { Vec } from "./vec";
 
@@ -9,8 +10,13 @@ export type Hero = {
   pos: Vec;
   /** Where the Hero was one step ago, for the renderer to interpolate from. */
   prevPos: Vec;
-  /** Where the Hero is walking to, or null when standing. */
-  target: Vec | null;
+  /** Waypoints still to walk through, in order; empty when standing. */
+  path: Vec[];
+  /**
+   * Which way the Hero faces, in radians in tile space: `atan2(dy, dx)` of
+   * the direction last walked.
+   */
+  facing: number;
 };
 
 export type World = {
@@ -53,7 +59,13 @@ export function createWorld(options: {
     tick: 0,
     areas,
     areaName: TOWN,
-    hero: { pos: { ...start }, prevPos: { ...start }, target: null },
+    hero: {
+      pos: { ...start },
+      prevPos: { ...start },
+      path: [],
+      // Down the screen, along +x and +y.
+      facing: Math.PI / 4,
+    },
   };
 }
 
@@ -64,8 +76,7 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
 
   const area = world.areas[world.areaName];
   for (const order of orders) {
-    if (!isFloor(area, order.target)) continue;
-    hero.target = { ...order.target };
+    hero.path = findPath(area, hero.pos, order.target, heroTuning.radius);
   }
   walk(hero);
 
@@ -73,19 +84,25 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   return [];
 }
 
-/** Moves the Hero one step in a straight line towards its target. */
+/** Moves the Hero one step along its path, carrying over past waypoints. */
 function walk(hero: Hero) {
-  if (!hero.target) return;
-  const dx = hero.target.x - hero.pos.x;
-  const dy = hero.target.y - hero.pos.y;
-  const distance = Math.hypot(dx, dy);
-  if (distance <= WALK_PER_STEP) {
-    hero.pos = { ...hero.target };
-    hero.target = null;
-    return;
+  let budget = WALK_PER_STEP;
+  while (budget > 0 && hero.path.length > 0) {
+    const next = hero.path[0];
+    const dx = next.x - hero.pos.x;
+    const dy = next.y - hero.pos.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance > 0) hero.facing = Math.atan2(dy, dx);
+    if (distance <= budget) {
+      hero.pos = { ...next };
+      hero.path.shift();
+      budget -= distance;
+    } else {
+      hero.pos = {
+        x: hero.pos.x + (dx / distance) * budget,
+        y: hero.pos.y + (dy / distance) * budget,
+      };
+      budget = 0;
+    }
   }
-  hero.pos = {
-    x: hero.pos.x + (dx / distance) * WALK_PER_STEP,
-    y: hero.pos.y + (dy / distance) * WALK_PER_STEP,
-  };
 }

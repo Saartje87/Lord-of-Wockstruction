@@ -1,15 +1,18 @@
 import { type Application, Container, Graphics } from "pixi.js";
 import { toScreen, toTile } from "../iso";
-import { type Area, isFloor } from "../sim/area";
+import { type Area, isFloor, isWalkable } from "../sim/area";
 import { tileOf, type Vec } from "../sim/vec";
 import type { World } from "../sim/world";
 import { inputTuning } from "../tuning/input";
 
 const FLOOR_FILL = 0x3a3428;
 const FLOOR_LINE = 0x241f17;
+const WALL_FILL = 0x6b5e48;
+const WALL_LINE = 0x8a7a5c;
 const HOVER_LINE = 0xd8c48a;
 const MARKER_LINE = 0xe8d27a;
 const HERO_FILL = 0xc9a24a;
+const FACING_FILL = 0xe8d27a;
 
 /** Draws an Area and the World in it into a Pixi stage, following the Hero. */
 export function createRenderer(app: Application, area: Area) {
@@ -22,6 +25,8 @@ export function createRenderer(app: Application, area: Area) {
   const marker = drawMarker();
   marker.visible = false;
   camera.addChild(marker);
+  const facing = drawFacing();
+  camera.addChild(facing);
   const hero = drawHero();
   camera.addChild(hero);
 
@@ -66,6 +71,12 @@ export function createRenderer(app: Application, area: Area) {
         centre.x - camera.position.x,
         centre.y - camera.position.y,
       );
+      facing.position.copyFrom(hero.position);
+      const ahead = toScreen({
+        x: Math.cos(world.hero.facing),
+        y: Math.sin(world.hero.facing),
+      });
+      facing.rotation = Math.atan2(ahead.y, ahead.x);
 
       // After moving the camera, so the highlight matches this frame.
       const cursor = pointer && screenToTile(pointer);
@@ -110,10 +121,12 @@ function drawFloor(area: Area) {
   for (let y = 0; y < area.height; y++) {
     for (let x = 0; x < area.width; x++) {
       if (!isFloor(area, { x, y })) continue;
+      // Placeholder walls: flat, lighter diamonds until wall art lands.
+      const wall = !isWalkable(area, { x, y });
       floor
         .poly(diamond(x, y))
-        .fill(FLOOR_FILL)
-        .stroke({ color: FLOOR_LINE, width: 1 });
+        .fill(wall ? WALL_FILL : FLOOR_FILL)
+        .stroke({ color: wall ? WALL_LINE : FLOOR_LINE, width: 1 });
     }
   }
   return floor;
@@ -124,6 +137,14 @@ function drawMarker() {
   return new Graphics()
     .poly(diamond(-0.5, -0.5))
     .stroke({ color: MARKER_LINE, width: 2 });
+}
+
+/**
+ * A placeholder direction indicator on the ground, pointing along +x from
+ * its origin; rotate it to the facing as seen on screen.
+ */
+function drawFacing() {
+  return new Graphics().poly([14, -4, 22, 0, 14, 4]).fill(FACING_FILL);
 }
 
 /** A placeholder Hero standing on its origin. */

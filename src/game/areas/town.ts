@@ -1,21 +1,52 @@
+const WIDTH = 12;
+const HEIGHT = 10;
+const FLOOR = 1;
+const WALL = 2;
+
+// An L of wall north-east of `start` and a short one to its south-west, to
+// walk around.
+const walls = new Array(WIDTH * HEIGHT).fill(0);
+for (let x = 3; x <= 8; x++) walls[2 * WIDTH + x] = WALL;
+for (let y = 3; y <= 5; y++) walls[y * WIDTH + 8] = WALL;
+for (let x = 2; x <= 5; x++) walls[7 * WIDTH + x] = WALL;
+
 /**
  * A tiny inline Town in Tiled's `.tmj` shape, until real `.tmj` files are
- * authored. Open floor until walls and pathing arrive. Isometric 64×32 tiles;
- * Tiled measures object positions in tileheight units.
+ * authored. Isometric 64×32 tiles; Tiled measures object positions in
+ * tileheight units.
  */
 export const town = {
   orientation: "isometric",
-  width: 12,
-  height: 10,
+  width: WIDTH,
+  height: HEIGHT,
   tilewidth: 64,
   tileheight: 32,
+  tilesets: [
+    {
+      firstgid: FLOOR,
+      name: "placeholder",
+      tiles: [
+        {
+          id: WALL - FLOOR,
+          properties: [{ name: "blocks", type: "bool", value: true }],
+        },
+      ],
+    },
+  ],
   layers: [
     {
       type: "tilelayer",
       name: "floor",
-      width: 12,
-      height: 10,
-      data: new Array(12 * 10).fill(1),
+      width: WIDTH,
+      height: HEIGHT,
+      data: new Array(WIDTH * HEIGHT).fill(FLOOR),
+    },
+    {
+      type: "tilelayer",
+      name: "walls & props",
+      width: WIDTH,
+      height: HEIGHT,
+      data: walls,
     },
     {
       type: "objectgroup",

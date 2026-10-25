@@ -1,9 +1,16 @@
 /** Hero tuning, in human units. The sim converts it to steps once. */
 export type HeroTuning = {
-  /** Life at full health at Level 1. */
+  /**
+   * Max Life before Levels and Vitality: a fresh Hero has this plus
+   * `lifePerVitality` for each point of their starting Vitality.
+   */
   life: number;
   /** Max Life added by each new Level. */
   lifePerLevel: number;
+  /** Max Life added by each point of Vitality. */
+  lifePerVitality: number;
+  /** Attribute Points granted by each new Level. */
+  attributePointsPerLevel: number;
   /**
    * The total Experience each Level needs, from Level 1 (always 0) up to the
    * last Level, the cap.
@@ -26,10 +33,17 @@ export type HeroTuning = {
   reachGrace: number;
   /** A `SwingAt` hits every Monster in reach within this of the facing. */
   arcDegrees: number;
-  /** Damage per hit, rolled from `[min, max]` inclusive. */
+  /**
+   * Damage per hit before Strength, `[min, max]`. Each point of Strength
+   * adds 1% of it, and the hit rolls a whole number between the two.
+   */
   damage: [number, number];
+  /** Strength a fresh Hero starts with. */
+  strength: number;
   /** Dexterity a fresh Hero starts with. */
   dexterity: number;
+  /** Vitality a fresh Hero starts with. */
+  vitality: number;
   /** Attack Rating each point of Dexterity gives. */
   attackRatingPerDexterity: number;
   /** How long the whole simulation pauses when a swing lands a hit (ms). */
@@ -50,8 +64,11 @@ export type HeroTuning = {
 };
 
 export const heroTuning: HeroTuning = {
-  life: 100,
+  // 100 with the starting 20 Vitality.
+  life: 40,
   lifePerLevel: 2,
+  lifePerVitality: 3,
+  attributePointsPerLevel: 5,
   experienceTable: [
     // Diablo 2's table, which takes 5 Skeletons to Level 2.
     0, 500, 1_500, 3_750, 7_875, 14_175, 22_680, 32_886, 44_396, 57_715, 72_144,
@@ -79,8 +96,11 @@ export const heroTuning: HeroTuning = {
   reach: 1.0,
   reachGrace: 0.3,
   arcDegrees: 50,
-  damage: [20, 30],
+  // 20–30 with the starting 20 Strength.
+  damage: [50 / 3, 25],
+  strength: 20,
   dexterity: 20,
+  vitality: 20,
   attackRatingPerDexterity: 5,
   hitstopMs: 60,
   flinchChance: 0.25,

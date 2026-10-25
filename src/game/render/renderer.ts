@@ -31,6 +31,16 @@ import { inputTuning } from "../tuning/input";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import { type Compass, compassOf, frameAt, swingFrame } from "./animation";
 import { type Animation, type Art, type CharacterArt, frameOf } from "./art";
+import {
+  CHARACTER_PANEL,
+  characterLayout,
+  characterSheet,
+  PANEL_ROWS,
+  type PanelTarget,
+  panelTargetAt,
+  type Rect,
+  rowTop,
+} from "./characterPanel";
 import { type DamageNumber, damageNumbers, floatAt } from "./damageNumbers";
 import { experienceBar } from "./experienceBar";
 
@@ -215,6 +225,39 @@ const EXPERIENCE_BAR = {
   back: 0x2a241c,
   edge: 0x4a4236,
 };
+/**
+ * A button on the HUD, such as Level Up or a +: a dark box with a gold edge.
+ * The Level Up button's edge pulses `pulsesPerSecond` times a second, down to
+ * `edgeFaint` opaque (0..1).
+ */
+const HUD_BUTTON = {
+  fill: 0x2a2014,
+  edge: 0xe8d27a,
+  text: 0xe8d27a,
+  textSize: 14,
+  pulsesPerSecond: 0.8,
+  edgeFaint: 0.3,
+};
+/**
+ * The character panel's look, in the pause menu's colours; where things go is
+ * `CHARACTER_PANEL`. Each rule sits `ruleGap` over the rows it heads, and
+ * Attribute values keep `plusGap` from their + buttons (CSS px).
+ */
+const CHARACTER_STYLE = {
+  fill: 0x17130e,
+  alpha: 0.94,
+  edge: 0x5a4a2e,
+  title: 0xe8d27a,
+  titleSize: 22,
+  name: 0xb8ae98,
+  value: 0xe8e0c8,
+  textSize: 15,
+  plusSize: 18,
+  plusGap: 10,
+  hint: 0x9a9080,
+  hintSize: 13,
+  ruleGap: 4,
+};
 /** The badge over the orb: its size, gap over the rim (CSS px) and colours. */
 const BADGE = { size: 13, gap: 4, combat: 0xd84a3a, regen: 0x9cd89c };
 
@@ -307,6 +350,10 @@ export function createRenderer(app: Application, art: Art) {
   app.stage.addChild(orb.layer);
   const experience = experienceBarView();
   app.stage.addChild(experience.layer);
+  const levelUp = levelUpButtonView();
+  app.stage.addChild(levelUp.layer);
+  const character = characterPanelView();
+  app.stage.addChild(character.layer);
   // Over the whole screen, stretched to it each frame.
   const hurt = new Graphics().rect(0, 0, 1, 1).fill(HURT_COLOUR);
   hurt.visible = false;
@@ -338,6 +385,8 @@ export function createRenderer(app: Application, art: Art) {
   let levelAtMs: number | null = null;
   /** The World last drawn; a New Hero brings another. */
   let drawn: World | null = null;
+  /** Whether the character panel was open when last drawn. */
+  let characterOpenNow = false;
 
   /**
    * Starts afresh for another World, whose Monster ids start over: drops
@@ -417,6 +466,18 @@ export function createRenderer(app: Application, art: Art) {
     screenToTile,
     monsterAt,
 
+    /**
+     * What a click on the canvas (CSS px) presses of the character panel
+     * and Level Up button, as last drawn, or null when it's for the World.
+     */
+    panelAt(screen: Vec): PanelTarget | null {
+      if (!drawn) return null;
+      return panelTargetAt(app.screen, screen, {
+        open: characterOpenNow,
+        points: drawn.hero.attributePoints,
+      });
+    },
+
     /** Turns a step's events into effects. */
     react(events: readonly SimEvent[], nowMs: number) {
       for (const number of damageNumbers(events)) {
@@ -463,6 +524,7 @@ export function createRenderer(app: Application, art: Art) {
      * `alpha` (0..1) is how far the frame is from the previous step to the
      * current one; `pointer` is the cursor on the canvas (CSS px), if on it.
      * While paused, `pause` shows the pause menu over everything.
+     * `characterOpen` shows the character panel.
      */
     draw(
       world: World,
@@ -470,8 +532,10 @@ export function createRenderer(app: Application, art: Art) {
       pointer: Vec | null,
       nowMs: number,
       pause: Pause,
+      characterOpen: boolean,
     ) {
       const active = world.areas[world.areaName];
+      characterOpenNow = characterOpen;
       if (world !== drawn) showWorld(world);
       else if (active !== area) showArea(active);
       const heroAt = lerp(world.hero.prevPos, world.hero.pos, alpha);
@@ -668,6 +732,8 @@ export function createRenderer(app: Application, art: Art) {
 
       orb.draw(app.screen, world, nowMs);
       experience.draw(app.screen, world);
+      levelUp.draw(app.screen, world, nowMs);
+      character.draw(app.screen, world, characterOpen);
 
       const hurtLeft = hurtAtMs === null ? 0 : 1 - (nowMs - hurtAtMs) / HURT_MS;
       hurt.visible = hurtLeft > 0;
@@ -1030,6 +1096,170 @@ function experienceBarView() {
         .stroke({ width: 1, color: B.edge });
       if (bar.fill > 0) {
         graphics.rect(from, top, width * bar.fill, B.height).fill(B.fill);
+      }
+    },
+  };
+}
+
+/**
+ * The Level Up button by the Life orb, shown while Attribute Points are
+ * unspent, its edge pulsing to catch the eye.
+ */
+function levelUpButtonView() {
+  const L = HUD_BUTTON;
+  const layer = new Container();
+  const graphics = new Graphics();
+  const label = new Text({
+    text: "Level Up",
+    style: { fill: L.text, fontSize: L.textSize, fontFamily: SERIF },
+  });
+  label.anchor.set(0.5);
+  layer.addChild(graphics, label);
+  layer.visible = false;
+
+  return {
+    layer,
+    draw(
+      screen: { width: number; height: number },
+      world: World,
+      nowMs: number,
+    ) {
+      layer.visible = world.hero.attributePoints > 0;
+      if (!layer.visible) return;
+      const rect = characterLayout(screen).levelUp;
+      const pulse =
+        (Math.sin((nowMs / 1000) * L.pulsesPerSecond * 2 * Math.PI) + 1) / 2;
+      graphics.clear();
+      button(graphics, rect, L.edgeFaint + pulse * (1 - L.edgeFaint));
+      label.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
+    },
+  };
+}
+
+/** Draws a HUD button's box, its gold edge `edgeAlpha` opaque (0..1). */
+function button(graphics: Graphics, rect: Rect, edgeAlpha = 1) {
+  graphics
+    .rect(rect.x, rect.y, rect.w, rect.h)
+    .fill(HUD_BUTTON.fill)
+    .stroke({ color: HUD_BUTTON.edge, width: 1.5, alpha: edgeAlpha });
+}
+
+/**
+ * The character panel: Level and Experience, each Attribute with a + button
+ * while points are unspent, the unspent points, and what the Attributes add
+ * up to.
+ */
+function characterPanelView() {
+  const P = CHARACTER_PANEL;
+  const S = CHARACTER_STYLE;
+  const layer = new Container();
+  const graphics = new Graphics();
+  layer.addChild(graphics);
+  layer.visible = false;
+  const text = (fill: number, size = S.textSize) => {
+    const t = new Text({
+      text: "",
+      style: { fill, fontSize: size, fontFamily: SERIF },
+    });
+    layer.addChild(t);
+    return t;
+  };
+
+  const title = text(S.title, S.titleSize);
+  title.text = "Character";
+  title.anchor.set(0.5, 0);
+  const hint = text(S.hint, S.hintSize);
+  hint.text = "Press C to close";
+  hint.anchor.set(0.5, 1);
+  /** A row's name at its left and value at its right. */
+  const row = () => {
+    const name = text(S.name);
+    name.anchor.set(0, 0.5);
+    const value = text(S.value);
+    value.anchor.set(1, 0.5);
+    return { name, value };
+  };
+  const level = row();
+  const experience = row();
+  const attributes = [row(), row(), row()];
+  const points = row();
+  const stats = [row(), row(), row(), row()];
+  const pluses = attributes.map(() => {
+    const plus = text(S.title, S.plusSize);
+    plus.text = "+";
+    plus.anchor.set(0.5);
+    return plus;
+  });
+
+  return {
+    layer,
+    draw(
+      screen: { width: number; height: number },
+      world: World,
+      open: boolean,
+    ) {
+      layer.visible = open;
+      if (!open) return;
+      const sheet = characterSheet(world);
+      const layout = characterLayout(screen);
+      const { panel } = layout;
+      const left = panel.x + P.padding;
+      const right = panel.x + panel.w - P.padding;
+      // Attribute values leave room for their + buttons.
+      const beforePlus = right - P.plus - S.plusGap;
+
+      graphics.clear();
+      graphics
+        .rect(panel.x, panel.y, panel.w, panel.h)
+        .fill({ color: S.fill, alpha: S.alpha })
+        .stroke({ color: S.edge, width: 2 });
+      title.position.set(panel.x + panel.w / 2, panel.y + P.padding);
+      hint.position.set(panel.x + panel.w / 2, panel.y + panel.h - P.padding);
+
+      const place = (
+        r: ReturnType<typeof row>,
+        at: number,
+        name: string,
+        value: string,
+        valueRight = right,
+      ) => {
+        const y = rowTop(at) + P.rowHeight / 2;
+        r.name.text = name;
+        r.name.position.set(left, y);
+        r.value.text = value;
+        r.value.position.set(valueRight, y);
+      };
+      place(level, PANEL_ROWS.level, sheet.level, "");
+      place(experience, PANEL_ROWS.experience, "Experience", sheet.experience);
+      sheet.attributes.forEach((attribute, i) => {
+        place(
+          attributes[i],
+          PANEL_ROWS.attributes + i,
+          attribute.name,
+          attribute.value,
+          beforePlus,
+        );
+        const rect = layout.raise[attribute.attribute];
+        pluses[i].visible = sheet.canRaise;
+        if (sheet.canRaise) {
+          button(graphics, rect);
+          pluses[i].position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
+        }
+      });
+      place(
+        points,
+        PANEL_ROWS.attributePoints,
+        "Attribute Points",
+        sheet.attributePoints,
+        beforePlus,
+      );
+      points.value.style.fill = sheet.canRaise ? S.title : S.value;
+      sheet.stats.forEach((stat, i) => {
+        place(stats[i], PANEL_ROWS.stats + i, stat.name, stat.value);
+      });
+      for (const at of [PANEL_ROWS.attributes, PANEL_ROWS.stats]) {
+        const y = rowTop(at) - S.ruleGap;
+        graphics.rect(left, y, right - left, 1).fill(S.edge);
       }
     },
   };

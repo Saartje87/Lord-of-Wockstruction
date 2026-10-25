@@ -22,6 +22,7 @@ import {
   writeSave,
 } from "./save";
 import { isFloor } from "./sim/area";
+import type { Vec } from "./sim/vec";
 import { createWorld, type Order, progressOf, step } from "./sim/world";
 
 /** Mounts the Pixi Application and runs the fixed-step loop. */
@@ -70,13 +71,15 @@ export default function GameCanvas() {
       const clock = createClock();
       const input = createPointerInput();
       const pause = createPause();
+      let characterOpen = false;
       let orders: Order[] = [];
       let last = performance.now();
 
       attachPointer(app.canvas, input, listeners.signal);
       // Esc opens and closes the pause menu, and a click closes it too; the
-      // menu's own keys go to `pressKey`. Any other click or key press goes
-      // on from the death screen.
+      // menu's own keys go to `pressKey`. C opens and closes the character
+      // panel. Any other click or key press goes on from the death screen,
+      // but for a click on the panel or the Level Up button.
       let clicked = false;
       let keys: string[] = [];
       app.canvas.addEventListener(
@@ -95,11 +98,16 @@ export default function GameCanvas() {
       );
 
       const tick = (realNow: number) => {
-        let pressed = clicked || keys.some((key) => key !== "Escape");
+        let pressed =
+          clicked ||
+          keys.some((key) => key !== "Escape" && key.toLowerCase() !== "c");
         const wasPaused = pause.paused;
         let newHero = false;
         for (const key of keys) {
           if (pressKey(pause, key, realNow) === "newHero") newHero = true;
+          else if (!pause.paused && key.toLowerCase() === "c") {
+            characterOpen = !characterOpen;
+          }
         }
         if (clicked && wasPaused && pause.paused) togglePause(pause, realNow);
         if (pause.paused !== wasPaused) {
@@ -116,15 +124,33 @@ export default function GameCanvas() {
           removeSave(storage);
           world = createWorld({ areas, tilesets, seed: Date.now() });
           orders = [];
+          characterOpen = false;
         }
         // Stands still while paused, so the clock owes no steps for it and
         // the World and every effect hold still.
         const now = gameTime(pause, realNow);
-        const { orders: newOrders, click } = poll(input, now, {
+        const onPanel = (screen: Vec) => renderer.panelAt(screen) !== null;
+        const {
+          orders: newOrders,
+          click,
+          panel,
+        } = poll(input, now, {
           toTile: renderer.screenToTile,
           monsterAt: renderer.monsterAt,
+          onPanel,
         });
         orders.push(...newOrders);
+        // A click on the panel never orders the Hero about: Level Up opens
+        // it and a + spends a point, while the game runs on.
+        const pressedOnPanel = panel && renderer.panelAt(panel);
+        if (pressedOnPanel) {
+          pressed = false;
+          if (pressedOnPanel.type === "levelUp") characterOpen = true;
+          if (pressedOnPanel.type === "raise") {
+            const { attribute } = pressedOnPanel;
+            orders.push({ type: "SpendAttributePoint", attribute });
+          }
+        }
         if (pressed && world.death && !pause.paused) {
           orders.push({ type: "Continue" });
           // So holding on after the click doesn't steer in Town.
@@ -145,9 +171,12 @@ export default function GameCanvas() {
           renderer.react(events, now);
           orders = [];
         }
-        // No hover outline or nameplate under the menu.
-        const pointer = pause.paused ? null : input.screen;
-        renderer.draw(world, alpha, pointer, now, pause);
+        // No hover outline or nameplate under the menu or the panel.
+        const pointer =
+          pause.paused || (input.screen && onPanel(input.screen))
+            ? null
+            : input.screen;
+        renderer.draw(world, alpha, pointer, now, pause, characterOpen);
         app.render();
         frame = requestAnimationFrame(tick);
       };

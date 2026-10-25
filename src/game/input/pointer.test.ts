@@ -10,8 +10,12 @@ import {
 } from "./pointer";
 
 // Treat canvas pixels as tile units, so tests can speak in tiles, with no
-// Monster anywhere.
-const asTiles = { toTile: (screen: Vec) => screen, monsterAt: () => null };
+// Monster or panel anywhere.
+const asTiles = {
+  toTile: (screen: Vec) => screen,
+  monsterAt: () => null,
+  onPanel: () => false,
+};
 
 /** Like `asTiles`, with Monster 7 covering the tile (5, 5). */
 const withMonster = {
@@ -81,7 +85,11 @@ describe("pointer input", () => {
     press(input, { x: 3, y: 4 });
     cancel(input);
 
-    expect(poll(input, 0, asTiles)).toEqual({ orders: [], click: null });
+    expect(poll(input, 0, asTiles)).toEqual({
+      orders: [],
+      click: null,
+      panel: null,
+    });
     expect(poll(input, 500, asTiles).orders).toEqual([]);
   });
 });
@@ -159,5 +167,57 @@ describe("pointer input on Monsters", () => {
     ]);
     move(input, { x: 7, y: 5 });
     expect(poll(input, 32, withMonster).orders).toEqual([]);
+  });
+});
+
+/** Like `withMonster`, with a panel drawn over everything left of x = 4. */
+const withPanel = {
+  ...withMonster,
+  onPanel: (screen: Vec) => screen.x < 4,
+};
+
+describe("pointer input on a panel", () => {
+  it("hands a click on it back, ordering nothing", () => {
+    const input = createPointerInput();
+
+    press(input, { x: 2, y: 5 });
+
+    expect(poll(input, 0, withPanel)).toEqual({
+      orders: [],
+      click: null,
+      panel: { x: 2, y: 5 },
+    });
+  });
+
+  it("orders nothing for a Shift + click on it", () => {
+    const input = createPointerInput();
+
+    press(input, { x: 2, y: 5 }, { shift: true });
+
+    expect(poll(input, 0, withPanel).orders).toEqual([]);
+  });
+
+  it("orders nothing while a click on it is held, even off it", () => {
+    const input = createPointerInput();
+    press(input, { x: 2, y: 5 });
+    poll(input, 0, withPanel);
+
+    move(input, { x: 5.5, y: 5.5 });
+    expect(poll(input, 120, withPanel).orders).toEqual([]);
+    move(input, { x: 8, y: 8 });
+    expect(poll(input, 240, withPanel).orders).toEqual([]);
+  });
+
+  it("doesn't steer onto it while held from the floor", () => {
+    const input = createPointerInput();
+    press(input, { x: 6, y: 6 });
+    poll(input, 0, withPanel);
+
+    move(input, { x: 2, y: 5 });
+    expect(poll(input, 120, withPanel).orders).toEqual([]);
+    move(input, { x: 7, y: 6 });
+    expect(poll(input, 240, withPanel).orders).toEqual([
+      { type: "MoveTo", target: { x: 7.5, y: 6.5 } },
+    ]);
   });
 });

@@ -6,7 +6,7 @@ import { heroTuning } from "./tuning/hero";
  * is no Save, so the Hero starts fresh instead of loading something
  * misread.
  */
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 /** The one key the Save is stored under. */
 const SAVE_KEY = "wiablo.save";
@@ -25,6 +25,7 @@ export type SaveStorage = {
 const PROGRESS_EVENTS: readonly SimEvent["type"][] = [
   "ExperienceGained",
   "LevelReached",
+  "AttributeRaised",
 ];
 
 /** Whether a step's events changed the Hero's progress. */
@@ -82,8 +83,9 @@ export function encodeSave(progress: Progress): string {
 
 /**
  * Stored text as Hero progress, or null for no Save: missing, corrupt or
- * another version's text, or a Level and Experience that don't fit the
- * Experience table.
+ * another version's text, a Level and Experience that don't fit the
+ * Experience table, or Attributes and unspent points that don't fit the
+ * Level.
  */
 export function parseSave(text: string | null): Progress | null {
   if (text === null) return null;
@@ -94,21 +96,59 @@ export function parseSave(text: string | null): Progress | null {
     return null;
   }
   if (typeof stored !== "object" || stored === null) return null;
-  const { version, level, experience } = stored as Record<string, unknown>;
-  if (version !== SAVE_VERSION) return null;
-  if (!Number.isInteger(level) || !Number.isInteger(experience)) return null;
-  return fits(level as number, experience as number)
-    ? { level: level as number, experience: experience as number }
+  const fields = stored as Record<string, unknown>;
+  if (fields.version !== SAVE_VERSION) return null;
+  if (!PROGRESS_FIELDS.every((field) => Number.isInteger(fields[field]))) {
+    return null;
+  }
+  const progress = Object.fromEntries(
+    PROGRESS_FIELDS.map((field) => [field, fields[field]]),
+  ) as Progress;
+  return fitsTable(progress.level, progress.experience) && fitsPoints(progress)
+    ? progress
     : null;
 }
+
+/** Every field of the stored progress, each a whole number. */
+const PROGRESS_FIELDS: readonly (keyof Progress)[] = [
+  "level",
+  "experience",
+  "strength",
+  "dexterity",
+  "vitality",
+  "attributePoints",
+];
 
 /**
  * Whether a Level and Experience could have been earned: the Experience at
  * least what the Level needs and short of what the next one does.
  */
-function fits(level: number, experience: number): boolean {
+function fitsTable(level: number, experience: number): boolean {
   const table = heroTuning.experienceTable;
   if (level < 1 || level > table.length) return false;
   const next = level < table.length ? table[level] : table[level - 1] + 1;
   return experience >= table[level - 1] && experience < next;
+}
+
+/**
+ * Whether the Attributes and unspent points could have come from the Level:
+ * no Attribute below where a fresh Hero starts it, and the points spent and
+ * unspent adding up to what the Levels gained gave.
+ */
+function fitsPoints(progress: Progress): boolean {
+  const raised =
+    progress.strength -
+    heroTuning.strength +
+    progress.dexterity -
+    heroTuning.dexterity +
+    progress.vitality -
+    heroTuning.vitality;
+  return (
+    progress.strength >= heroTuning.strength &&
+    progress.dexterity >= heroTuning.dexterity &&
+    progress.vitality >= heroTuning.vitality &&
+    progress.attributePoints >= 0 &&
+    raised + progress.attributePoints ===
+      heroTuning.attributePointsPerLevel * (progress.level - 1)
+  );
 }

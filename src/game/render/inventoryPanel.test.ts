@@ -93,13 +93,13 @@ describe("what a point on the Inventory panel hits", () => {
     });
 
     expect(inventoryHitAt(screen, at(0, 0), true)).toEqual({
-      inventory: { type: "cell", cell: { column: 0, row: 0 } },
+      inventory: { column: 0, row: 0 },
     });
     expect(inventoryHitAt(screen, at(7, 2), true)).toEqual({
-      inventory: { type: "cell", cell: { column: 7, row: 2 } },
+      inventory: { column: 7, row: 2 },
     });
     expect(inventoryHitAt(screen, at(9, 3), true)).toEqual({
-      inventory: { type: "cell", cell: { column: 9, row: 3 } },
+      inventory: { column: 9, row: 3 },
     });
   });
 
@@ -108,7 +108,7 @@ describe("what a point on the Inventory panel hits", () => {
 
     expect(
       inventoryHitAt(WIDE, { x: grid.x + 2 * cell, y: grid.y + cell }, true),
-    ).toEqual({ inventory: { type: "cell", cell: { column: 2, row: 1 } } });
+    ).toEqual({ inventory: { column: 2, row: 1 } });
   });
 
   it("keeps the grid's far edges in its last cells", () => {
@@ -116,9 +116,9 @@ describe("what a point on the Inventory panel hits", () => {
 
     expect(
       inventoryHitAt(WIDE, { x: grid.x + grid.w, y: grid.y + grid.h }, true),
-    ).toEqual({ inventory: { type: "cell", cell: { column: 9, row: 3 } } });
+    ).toEqual({ inventory: { column: 9, row: 3 } });
     expect(inventoryHitAt(WIDE, { x: grid.x, y: grid.y }, true)).toEqual({
-      inventory: { type: "cell", cell: { column: 0, row: 0 } },
+      inventory: { column: 0, row: 0 },
     });
   });
 
@@ -133,7 +133,7 @@ describe("what a point on the Inventory panel hits", () => {
       const corner = { x: rect.x + rect.w, y: rect.y + rect.h };
       for (const point of [centre, corner]) {
         expect(inventoryHitAt(screen, point, true)).toEqual({
-          inventory: { type: "slot", slot },
+          inventory: slot,
         });
       }
     }
@@ -150,7 +150,7 @@ describe("what a point on the Inventory panel hits", () => {
     ["narrow", NARROW, { x: 750, y: 380 }, { column: 9, row: 3 }],
   ])("maps a %s screen's point %o to its cell", (_, screen, point, cell) => {
     expect(inventoryHitAt(screen, point, true)).toEqual({
-      inventory: { type: "cell", cell },
+      inventory: cell,
     });
   });
 
@@ -161,7 +161,7 @@ describe("what a point on the Inventory panel hits", () => {
     ["narrow", NARROW, { x: 590, y: 150 }, "armour"],
   ] as const)("maps a %s screen's point %o to its slot", (_, screen, point, slot) => {
     expect(inventoryHitAt(screen, point, true)).toEqual({
-      inventory: { type: "slot", slot },
+      inventory: slot,
     });
   });
 
@@ -254,7 +254,7 @@ describe("the order a click on the Inventory gives", () => {
     y: grid.y + (row + 0.5) * cell,
   });
   const onCell = (column: number, row: number) => ({
-    inventory: { type: "cell" as const, cell: { column, row } },
+    inventory: { column, row },
   });
   const belongings: Belongings = {
     inventory: [{ type: "axe", cell: { column: 4, row: 1 } }],
@@ -302,7 +302,7 @@ describe("the order a click on the Inventory gives", () => {
   });
 
   const onSlot = (slot: EquipmentSlot) => ({
-    inventory: { type: "slot" as const, slot },
+    inventory: slot,
   });
 
   it("lifts the Item out of a slot with nothing held, and nothing from an empty one", () => {
@@ -329,10 +329,10 @@ describe("the order a click on the Inventory gives", () => {
 
 describe("the order a right-click on the Inventory gives", () => {
   const onCell = (column: number, row: number) => ({
-    inventory: { type: "cell" as const, cell: { column, row } },
+    inventory: { column, row },
   });
   const onSlot = (slot: EquipmentSlot) => ({
-    inventory: { type: "slot" as const, slot },
+    inventory: slot,
   });
   const belongings: Belongings = {
     inventory: [{ type: "axe", cell: { column: 4, row: 1 } }],
@@ -387,20 +387,16 @@ describe("the Item under a point", () => {
       { column: 4, row: 1 },
       { column: 5, row: 3 },
     ]) {
-      expect(itemUnder(w, { type: "cell", cell })?.type).toBe("axe");
+      expect(itemUnder(w, cell)?.type).toBe("axe");
     }
-    expect(itemUnder(w, { type: "cell", cell: { column: 6, row: 1 } })).toBe(
-      null,
-    );
+    expect(itemUnder(w, { column: 6, row: 1 })).toBe(null);
   });
 
   it("is the Item in a slot, or nothing in an empty one", () => {
     const w = world(belongings);
 
-    expect(itemUnder(w, { type: "slot", slot: "weapon" })?.type).toBe(
-      "shortSword",
-    );
-    expect(itemUnder(w, { type: "slot", slot: "armour" })).toBeNull();
+    expect(itemUnder(w, "weapon")?.type).toBe("shortSword");
+    expect(itemUnder(w, "armour")).toBeNull();
   });
 });
 

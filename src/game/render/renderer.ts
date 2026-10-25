@@ -16,7 +16,9 @@ import {
   type EquipmentSlot,
   equipmentOf,
   type ItemId,
+  type ItemSpot,
   inventoryOf,
+  isSlot,
   placement,
 } from "../sim/inventory";
 import { windUpProgress } from "../sim/monsters";
@@ -72,7 +74,6 @@ import {
   type DropHit,
   INVENTORY_PANEL,
   type InventoryHit,
-  type InventorySpot,
   inventoryHitAt,
   inventoryPanelLayout,
   itemRect,
@@ -1586,7 +1587,7 @@ function inventoryPanelView() {
       screen: { width: number; height: number },
       world: World,
       open: boolean,
-      hovered: InventorySpot | null,
+      hovered: ItemSpot | null,
       pointer: Vec | null,
     ) {
       layer.visible = open;
@@ -1650,7 +1651,7 @@ function inventoryPanelView() {
       const held = cursorItemOf(world);
       if (held && pointer) {
         const { type } = held.item;
-        if (hovered?.type === "cell") {
+        if (hovered && !isSlot(hovered)) {
           // Where it would land, kept to the grid where it hangs off.
           const to = landingCell(layout, pointer, type);
           const rect = itemRect(layout, to, type);
@@ -1663,12 +1664,10 @@ function inventoryPanelView() {
             .rect(x, y, w, h)
             .fill({ color: colour, alpha: look.landingAlpha });
         }
-        if (hovered?.type === "slot") {
+        if (hovered && isSlot(hovered)) {
           // Whether the slot takes it.
-          const rect = slots[hovered.slot];
-          const colour = placement(world, hovered.slot)
-            ? look.fits
-            : look.refused;
+          const rect = slots[hovered];
+          const colour = placement(world, hovered) ? look.fits : look.refused;
           graphics
             .rect(rect.x, rect.y, rect.w, rect.h)
             .fill({ color: colour, alpha: look.landingAlpha });
@@ -1688,15 +1687,14 @@ function inventoryPanelView() {
       }
       const item = hovered && itemUnder(world, hovered);
       if (!hovered || !item) return;
-      const under =
-        hovered.type === "slot"
-          ? slots[hovered.slot]
-          : itemRect(
-              layout,
-              inventoryOf(world).find((placed) => placed.item.id === item.id)
-                ?.cell ?? hovered.cell,
-              item.type,
-            );
+      const under = isSlot(hovered)
+        ? slots[hovered]
+        : itemRect(
+            layout,
+            inventoryOf(world).find((placed) => placed.item.id === item.id)
+              ?.cell ?? hovered,
+            item.type,
+          );
       const lines = itemTooltip(world, item.type);
       lines.forEach((line, i) => {
         tooltipLines[i] ??= text(look.tooltipLine, look.tooltipSize);

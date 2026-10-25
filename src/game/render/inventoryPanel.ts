@@ -4,7 +4,9 @@ import {
   type EquipmentSlot,
   equipmentOf,
   type Item,
+  type ItemSpot,
   inventoryItemAt,
+  isSlot,
 } from "../sim/inventory";
 import { inside, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
@@ -122,16 +124,11 @@ export function itemRect(
   };
 }
 
-/** A spot on the Inventory panel that holds an Item: a grid cell or a slot. */
-export type InventorySpot =
-  | { type: "cell"; cell: Cell }
-  | { type: "slot"; slot: EquipmentSlot };
-
 /**
  * A point on the open Inventory panel, so not for the World: the spot it's
  * on, or null between them.
  */
-export type InventoryHit = { inventory: InventorySpot | null };
+export type InventoryHit = { inventory: ItemSpot | null };
 
 /**
  * A point off the open Inventory panel while an Item is held, so not for the
@@ -159,11 +156,11 @@ export function inventoryHitAt(
     const { columns, rows } = inventoryTuning;
     const column = Math.min(columns - 1, Math.floor((point.x - grid.x) / cell));
     const row = Math.min(rows - 1, Math.floor((point.y - grid.y) / cell));
-    return { inventory: { type: "cell", cell: { column, row } } };
+    return { inventory: { column, row } };
   }
   for (const [slot, rect] of Object.entries(layout.slots)) {
     if (inside(rect, point)) {
-      return { inventory: { type: "slot", slot: slot as EquipmentSlot } };
+      return { inventory: slot as EquipmentSlot };
     }
   }
   return { inventory: null };
@@ -205,11 +202,10 @@ export function inventoryOrder(
   if ("drop" in hit) return held && { type: "DropItem" };
   const spot = hit.inventory;
   if (!spot) return null;
-  const from = spot.type === "slot" ? spot.slot : spot.cell;
   if (!held) {
-    return itemUnder(world, spot) ? { type: "LiftItem", from } : null;
+    return itemUnder(world, spot) ? { type: "LiftItem", from: spot } : null;
   }
-  if (spot.type === "slot") return { type: "PlaceItem", to: spot.slot };
+  if (isSlot(spot)) return { type: "PlaceItem", to: spot };
   const layout = inventoryPanelLayout(screen);
   return { type: "PlaceItem", to: landingCell(layout, point, held.item.type) };
 }
@@ -227,15 +223,15 @@ export function inventoryRightClickOrder(
   const spot = hit.inventory;
   const item = itemUnder(world, spot);
   if (!item) return null;
-  return spot.type === "slot"
-    ? { type: "UnequipItem", slot: spot.slot }
+  return isSlot(spot)
+    ? { type: "UnequipItem", slot: spot }
     : { type: "EquipItem", item: item.id };
 }
 
 /** The Item at a spot on the panel, or null when there's none. */
-export function itemUnder(world: World, spot: InventorySpot): Item | null {
-  if (spot.type === "slot") return equipmentOf(world)[spot.slot];
-  return inventoryItemAt(world, spot.cell)?.item ?? null;
+export function itemUnder(world: World, spot: ItemSpot): Item | null {
+  if (isSlot(spot)) return equipmentOf(world)[spot];
+  return inventoryItemAt(world, spot)?.item ?? null;
 }
 
 const BONUS_NAMES: Record<Bonus, string> = {

@@ -1,6 +1,4 @@
-/** The simulation advances in fixed steps at this rate. */
-export const STEPS_PER_SECOND = 60;
-export const STEP_MS = 1000 / STEPS_PER_SECOND;
+import { STEPS_PER_SECOND } from "./sim/units";
 
 /** Longer frames (a hitch, a backgrounded tab) are cut to this. */
 const MAX_FRAME_MS = 250;

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { advance, createClock, STEP_MS } from "./clock";
+import { advance, createClock } from "./clock";
+import { STEP_MS } from "./sim/units";
 
 describe("fixed-step clock", () => {
   it("steps at 60 Hz", () => {

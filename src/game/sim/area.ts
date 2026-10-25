@@ -1,4 +1,4 @@
-import type { Vec } from "./vec";
+import { tileOf, type Vec } from "./vec";
 
 /**
  * Our own definition of an Area. The simulation and the renderer read only
@@ -35,9 +35,11 @@ type Tmj = {
   layers: TmjLayer[];
 };
 
-/** Whether there is floor at tile (x, y). */
-export function isFloor(area: Area, x: number, y: number): boolean {
-  return area.floor[y * area.width + x] ?? false;
+/** Whether there is floor at a point in tile units. */
+export function isFloor(area: Area, point: Vec): boolean {
+  const { x, y } = tileOf(point);
+  if (x < 0 || y < 0 || x >= area.width || y >= area.height) return false;
+  return area.floor[y * area.width + x];
 }
 
 /**

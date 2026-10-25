@@ -4,8 +4,10 @@ import { Application } from "pixi.js";
 import { useEffect, useRef } from "react";
 import { town } from "./areas/town";
 import { advance, createClock } from "./clock";
+import { attachPointer, createPointerInput, poll } from "./input/pointer";
 import { createRenderer } from "./render/renderer";
-import { createWorld, step } from "./sim/world";
+import { isFloor } from "./sim/area";
+import { createWorld, type Order, step } from "./sim/world";
 
 /** Mounts the Pixi Application and runs the fixed-step loop. */
 export default function GameCanvas() {
@@ -16,6 +18,7 @@ export default function GameCanvas() {
     if (!container) return;
 
     const app = new Application();
+    const listeners = new AbortController();
     let cancelled = false;
     let frame = 0;
 
@@ -33,15 +36,32 @@ export default function GameCanvas() {
       container.appendChild(app.canvas);
 
       const world = createWorld({ areas: { town }, seed: Date.now() });
-      const renderer = createRenderer(app, world.areas[world.areaName]);
+      const area = world.areas[world.areaName];
+      const renderer = createRenderer(app, area);
       const clock = createClock();
+      const input = createPointerInput();
+      let orders: Order[] = [];
       let last = performance.now();
 
+      attachPointer(app.canvas, input, listeners.signal);
+
       const tick = (now: number) => {
+        const { orders: newOrders, click } = poll(
+          input,
+          now,
+          renderer.screenToTile,
+        );
+        orders.push(...newOrders);
+        if (click && isFloor(area, click)) renderer.markClick(click, now);
+
+        // Orders wait for the next step, which may be a frame away.
         const { steps, alpha } = advance(clock, now - last);
         last = now;
-        for (let i = 0; i < steps; i++) step(world, []);
-        renderer.draw(world, alpha);
+        for (let i = 0; i < steps; i++) {
+          step(world, orders);
+          orders = [];
+        }
+        renderer.draw(world, alpha, input.screen, now);
         app.render();
         frame = requestAnimationFrame(tick);
       };
@@ -51,6 +71,7 @@ export default function GameCanvas() {
     return () => {
       cancelled = true;
       cancelAnimationFrame(frame);
+      listeners.abort();
       // A failed `init()` already surfaces through the chain above.
       init.then(
         () => app.destroy(true, { children: true }),

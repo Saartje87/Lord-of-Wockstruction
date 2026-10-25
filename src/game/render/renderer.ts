@@ -4,6 +4,7 @@ import {
   Container,
   Graphics,
   Sprite,
+  Text,
 } from "pixi.js";
 import { toScreen, toTile } from "../iso";
 import { type Area, isFloor } from "../sim/area";
@@ -24,6 +25,7 @@ import { inputTuning } from "../tuning/input";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import { type Compass, compassOf, frameAt, swingFrame } from "./animation";
 import { type Animation, type Art, type CharacterArt, frameOf } from "./art";
+import { type DamageNumber, damageNumbers, floatAt } from "./damageNumbers";
 
 const HOVER_LINE = 0xd8c48a;
 const MARKER_LINE = 0xe8d27a;
@@ -60,6 +62,42 @@ const MONSTER_BOX = { left: -35, right: 35, top: -135, bottom: 15 };
  * tiles, so anyone standing on or just behind a Corpse is drawn over it.
  */
 const CORPSE_DEPTH = toScreen({ x: 1, y: 0 }).y;
+
+/** The outline around a hovered Monster, and how thick it is (CSS px). */
+const OUTLINE = { colour: 0xd8c890, width: 1 };
+/** The HUD's font, for the nameplate and damage numbers. */
+const SERIF = "Georgia, serif";
+/** How high a character's head is over its feet at native scale (CSS px). */
+const HEAD_HEIGHT = 120;
+/** The Life bar over a damaged Monster's head (CSS px). */
+const MONSTER_BAR = { width: 30, height: 5, above: 8 };
+/**
+ * The top-centre nameplate of a hovered Monster (CSS px): a dark panel with
+ * the name `nameTop` below its top and a Life bar `barBottom` above its bottom.
+ */
+const NAMEPLATE = {
+  width: 220,
+  height: 46,
+  top: 10,
+  alpha: 0.6,
+  nameTop: 6,
+  nameColour: 0xe8e0c8,
+  nameSize: 16,
+  bar: 180,
+  barHeight: 8,
+  barBottom: 8,
+};
+/** A Life bar's fill, and its dark back with how opaque that is (0..1). */
+const LIFE_COLOUR = 0xc02020;
+const LIFE_BACK = { colour: 0x2a0606, alpha: 0.85 };
+/** Damage numbers: their size and black outline (CSS px). */
+const NUMBER = { size: 18, stroke: 3, gap: 2 };
+/** White for the Hero's hits, gold for a killing blow, red for damage taken. */
+const NUMBER_COLOUR: Record<DamageNumber["kind"], number> = {
+  hit: 0xffffff,
+  kill: 0xffd04a,
+  taken: 0xff4a4a,
+};
 
 /** The frame of the Hero's `swing` where the blade connects. */
 const HERO_STRIKE_FRAME = 2;
@@ -112,6 +150,26 @@ export function createRenderer(app: Application, area: Area, art: Art) {
   camera.addChild(scene);
   const hero = characterView(art.hero, heroTuning.walkSpeed);
   scene.addChild(hero.sprite);
+  const outline = outlineView();
+  scene.addChild(outline.layer);
+  // Over the scene: Life bars over heads and damage numbers.
+  const overheads = new Graphics();
+  camera.addChild(overheads);
+  const numbers = new Container();
+  camera.addChild(numbers);
+  const floating: { text: Text; bornMs: number; at: Vec }[] = [];
+  const nameplate = new Graphics();
+  app.stage.addChild(nameplate);
+  const nameplateText = new Text({
+    text: "",
+    style: {
+      fill: NAMEPLATE.nameColour,
+      fontSize: NAMEPLATE.nameSize,
+      fontFamily: SERIF,
+    },
+  });
+  nameplateText.anchor.set(0.5, 0);
+  app.stage.addChild(nameplateText);
   // Over the whole screen, stretched to it each frame.
   const hurt = new Graphics().rect(0, 0, 1, 1).fill(HURT_COLOUR);
   hurt.visible = false;
@@ -170,6 +228,25 @@ export function createRenderer(app: Application, area: Area, art: Art) {
 
     /** Turns a step's events into effects. */
     react(events: readonly SimEvent[], nowMs: number) {
+      for (const number of damageNumbers(events)) {
+        const sprite =
+          number.on === "hero" ? hero.sprite : monsters.get(number.on)?.sprite;
+        if (!sprite) continue;
+        const text = new Text({
+          text: String(number.damage),
+          style: {
+            fill: NUMBER_COLOUR[number.kind],
+            fontSize: NUMBER.size,
+            fontFamily: SERIF,
+            stroke: { color: 0x000000, width: NUMBER.stroke },
+          },
+        });
+        text.anchor.set(0.5, 1);
+        numbers.addChild(text);
+        // Just over where a Monster's Life bar goes.
+        const at = { x: sprite.position.x, y: barTop(sprite) - NUMBER.gap };
+        floating.push({ text, bornMs: nowMs, at });
+      }
       for (const event of events) {
         if (event.type === "HitLanded") {
           const view = monsters.get(event.target);
@@ -274,11 +351,69 @@ export function createRenderer(app: Application, area: Area, art: Art) {
         monsters.delete(id);
       }
 
+      overheads.clear();
+      for (const monster of world.monsters) {
+        const { life } = monsterTuning[monster.type];
+        if (monster.life >= life) continue;
+        const { sprite } = viewOf(monster.id, monster.type);
+        lifeBar(overheads, {
+          x: sprite.position.x - MONSTER_BAR.width / 2,
+          y: barTop(sprite),
+          width: MONSTER_BAR.width,
+          height: MONSTER_BAR.height,
+          fraction: monster.life / life,
+        });
+      }
+
+      for (let i = floating.length - 1; i >= 0; i--) {
+        const { text, bornMs, at } = floating[i];
+        const float = floatAt(nowMs - bornMs);
+        if (!float) {
+          text.destroy();
+          floating.splice(i, 1);
+          continue;
+        }
+        text.position.set(snap(at.x), snap(at.y - float.rise));
+        text.alpha = float.alpha;
+      }
+
       // After moving the camera, so the highlight matches this frame.
       const cursor = pointer && screenToTile(pointer);
-      const onMonster = pointer !== null && monsterAt(pointer) !== null;
+      const hoveredId = pointer && monsterAt(pointer);
+      const hovered =
+        world.monsters.find((monster) => monster.id === hoveredId) ?? null;
+      const hoveredView = hovered && monsters.get(hovered.id);
+      outline.show(hoveredView?.sprite ?? null);
+      nameplate.clear();
+      nameplateText.visible = hovered !== null;
+      if (hovered) {
+        const tuning = monsterTuning[hovered.type];
+        const centre = app.screen.width / 2;
+        nameplate
+          .rect(
+            centre - NAMEPLATE.width / 2,
+            NAMEPLATE.top,
+            NAMEPLATE.width,
+            NAMEPLATE.height,
+          )
+          .fill({ color: 0x000000, alpha: NAMEPLATE.alpha });
+        lifeBar(nameplate, {
+          x: centre - NAMEPLATE.bar / 2,
+          y:
+            NAMEPLATE.top +
+            NAMEPLATE.height -
+            NAMEPLATE.barHeight -
+            NAMEPLATE.barBottom,
+          width: NAMEPLATE.bar,
+          height: NAMEPLATE.barHeight,
+          fraction: hovered.life / tuning.life,
+        });
+        nameplateText.text = tuning.name;
+        nameplateText.position.set(centre, NAMEPLATE.top + NAMEPLATE.nameTop);
+      }
+
       const tile =
-        cursor && !onMonster && isFloor(area, cursor) ? tileOf(cursor) : null;
+        cursor && !hovered && isFloor(area, cursor) ? tileOf(cursor) : null;
       if (tile?.x !== hoveredTile?.x || tile?.y !== hoveredTile?.y) {
         hoveredTile = tile;
         hover.clear();
@@ -423,6 +558,83 @@ function telegraph(
   graphics
     .poly(wedge(reach * progress))
     .fill({ color: TELEGRAPH_COLOUR, alpha: TELEGRAPH_ALPHA.filled });
+}
+
+/** Where the top of the Life bar over a character's head goes (CSS px). */
+function barTop(sprite: Sprite): number {
+  return (
+    sprite.position.y -
+    HEAD_HEIGHT * sprite.scale.y -
+    MONSTER_BAR.above -
+    MONSTER_BAR.height
+  );
+}
+
+/** A Life bar: a dark back, filled from the left by `fraction` (0..1). */
+function lifeBar(
+  graphics: Graphics,
+  bar: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    fraction: number;
+  },
+) {
+  graphics
+    .rect(bar.x, bar.y, bar.width, bar.height)
+    .fill({ color: LIFE_BACK.colour, alpha: LIFE_BACK.alpha });
+  graphics
+    .rect(bar.x, bar.y, bar.width * bar.fraction, bar.height)
+    .fill(LIFE_COLOUR);
+}
+
+/**
+ * An outline for one sprite at a time: copies of its frame, solid in
+ * `OUTLINE.colour`, shifted a little each way and drawn just behind it.
+ */
+function outlineView() {
+  const layer = new Container();
+  const solid = new ColorMatrixFilter({ resolution: "inherit" });
+  const r = ((OUTLINE.colour >> 16) & 0xff) / 255;
+  const g = ((OUTLINE.colour >> 8) & 0xff) / 255;
+  const b = (OUTLINE.colour & 0xff) / 255;
+  // Every colour to the outline's. Faint pixels, such as Flare's soft
+  // shadows, drop out and the rest turn opaque, so only the body is outlined.
+  solid.matrix = [0, 0, 0, 0, r, 0, 0, 0, 0, g, 0, 0, 0, 0, b, 0, 0, 0, 10, -9];
+  layer.filters = [solid];
+  const offsets = [
+    [-1, 0],
+    [1, 0],
+    [0, -1],
+    [0, 1],
+    [-1, -1],
+    [1, -1],
+    [-1, 1],
+    [1, 1],
+  ];
+  const copies = offsets.map(([x, y]) => {
+    const copy = new Sprite();
+    copy.position.set(x * OUTLINE.width, y * OUTLINE.width);
+    layer.addChild(copy);
+    return copy;
+  });
+  layer.visible = false;
+  return {
+    layer,
+    /** Outlines `sprite` as last placed, or nothing. */
+    show(sprite: Sprite | null) {
+      layer.visible = sprite !== null;
+      if (!sprite) return;
+      layer.position.copyFrom(sprite.position);
+      layer.zIndex = sprite.zIndex - 0.5;
+      for (const copy of copies) {
+        copy.texture = sprite.texture;
+        copy.anchor.copyFrom(sprite.anchor);
+        copy.scale.copyFrom(sprite.scale);
+      }
+    },
+  };
 }
 
 /** The point `alpha` (0..1) of the way from `from` to `to`. */

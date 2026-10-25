@@ -18,6 +18,10 @@ const HITSTOP_STEPS = msToSteps(heroTuning.hitstopMs);
 /** How many steps the Hero flinches for. */
 export const HERO_FLINCH_STEPS = msToSteps(heroTuning.flinchMs);
 const ARC = (heroTuning.arcDegrees * Math.PI) / 180;
+/** How many steps dealing or taking damage keeps the Hero In Combat. */
+const COMBAT_STEPS = msToSteps(heroTuning.combatMs);
+/** Life the Hero regains per step outside In Combat. */
+const REGEN_PER_STEP = perStep(heroTuning.regenPerSecond);
 /** How many steps walking through an Exit takes. */
 export const AREA_CHANGE_STEPS = msToSteps(areaTuning.changeMs);
 /** The step of an Area change on which the Areas swap. */
@@ -47,6 +51,11 @@ export type Hero = {
   swing: Swing | null;
   /** Steps of flinching left; 0 when not flinching. */
   flinch: number;
+  /**
+   * Steps left in which damage dealt or taken keeps the Hero In Combat,
+   * counting through hitstop and Area changes; 0 once it no longer does.
+   */
+  combat: number;
   /**
    * The order given during a swing or a flinch, run when it ends; the newest
    * wins.
@@ -212,6 +221,7 @@ export function createWorld(options: {
       attacking: null,
       swing: null,
       flinch: 0,
+      combat: 0,
       buffered: null,
     },
     monsters: [],
@@ -220,6 +230,25 @@ export function createWorld(options: {
   };
   for (const spawn of town.spawns) placePack(world, town, spawn);
   return world;
+}
+
+/** The Monster states in which a Monster is going after the Hero. */
+const AFTER_HERO: readonly MonsterState[] = ["chase", "windup", "recover"];
+
+/**
+ * Whether the Hero is In Combat: they dealt or took damage in the last
+ * `combatMs`, or a Monster is going after them.
+ */
+export function isInCombat(world: World): boolean {
+  return (
+    world.hero.combat > 0 ||
+    world.monsters.some((monster) => AFTER_HERO.includes(monster.state))
+  );
+}
+
+/** Whether the Hero is regaining Life: out of combat and below full. */
+export function isRegenerating(world: World): boolean {
+  return !isInCombat(world) && world.hero.life < heroTuning.life;
 }
 
 /**
@@ -258,7 +287,8 @@ function stepAreaChange(world: World, change: AreaChange, events: SimEvent[]) {
 /**
  * Makes the target Area the active one, fresh from its definition: its
  * Monsters back at their spawns and no Corpses. The Hero carries over to the
- * target Entry, facing away from the Area's nearest edge.
+ * target Entry, facing away from the Area's nearest edge, with their Life
+ * restored to full on arriving in Town.
  */
 function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   const area = world.areas[change.area];
@@ -267,6 +297,10 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   hero.pos = { ...at };
   hero.prevPos = { ...at };
   hero.facing = awayFromEdge(area, at);
+  if (area.name === TOWN) {
+    hero.life = heroTuning.life;
+    hero.combat = 0;
+  }
   world.areaName = area.name;
   world.monsters = [];
   world.corpses = [];
@@ -335,6 +369,7 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   const events: SimEvent[] = [];
   hero.prevPos = { ...hero.pos };
   for (const monster of world.monsters) monster.prevPos = { ...monster.pos };
+  if (hero.combat > 0) hero.combat -= 1;
 
   if (world.areaChange) {
     stepAreaChange(world, world.areaChange, events);
@@ -369,6 +404,9 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   }
   approach(world);
   for (const monster of stepMonsters(world)) hitHero(world, monster, events);
+  if (isRegenerating(world)) {
+    hero.life = Math.min(heroTuning.life, hero.life + REGEN_PER_STEP);
+  }
 
   world.tick += 1;
   return events;
@@ -488,6 +526,7 @@ function land(world: World, swing: Swing, events: SimEvent[]) {
 function hit(world: World, monster: Monster, events: SimEvent[]) {
   const damage = randomInt(world.rng, heroTuning.damage);
   monster.life = Math.max(0, monster.life - damage);
+  world.hero.combat = COMBAT_STEPS;
   events.push({
     type: "HitLanded",
     attacker: "hero",
@@ -516,6 +555,7 @@ function hitHero(world: World, monster: Monster, events: SimEvent[]) {
   const { hero } = world;
   const damage = randomInt(world.rng, monsterTuning[monster.type].damage);
   hero.life = Math.max(0, hero.life - damage);
+  hero.combat = COMBAT_STEPS;
   events.push({ type: "HeroHit", damage });
 
   // A swing's follow-through carries on.

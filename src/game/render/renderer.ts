@@ -16,6 +16,8 @@ import {
   FLINCH_STEPS,
   HERO_FLINCH_STEPS,
   HIT_STEP,
+  isInCombat,
+  isRegenerating,
   type MonsterId,
   type SimEvent,
   SWING_STEPS,
@@ -100,6 +102,45 @@ const NUMBER_COLOUR: Record<DamageNumber["kind"], number> = {
   taken: 0xff4a4a,
 };
 
+/** The stone strip along the bottom of the screen (CSS px). */
+const STRIP = {
+  height: 34,
+  colour: 0x15120e,
+  alpha: 0.92,
+  edge: 2,
+  edgeColour: 0x4a4236,
+};
+/**
+ * The Hero's Life orb at the bottom left (CSS px): `left` and `bottom` from
+ * the screen's corner to its stone rim, which is `rim` wide.
+ */
+const ORB = {
+  radius: 52,
+  rim: 8,
+  left: 24,
+  bottom: 10,
+  rimColour: 0x2a241c,
+  rimLine: 0x4a4236,
+  glassLine: 0x6b6258,
+  empty: 0x140404,
+  /** The Life at the bottom, lighter towards the surface by up to `lighten`. */
+  life: 0x8a0e0e,
+  lighten: 0x30,
+};
+/** How far the surface ripples either way (CSS px) and how fast (rad/s). */
+const RIPPLE = { calm: 1, combat: 2.5, speed: 5, depth: 3 };
+/** Bubbles rising through the orb while the Hero regenerates. */
+const BUBBLES = {
+  count: 6,
+  radius: 2,
+  colour: 0xff9a9a,
+  alpha: 0.6,
+  /** Rises per second, bottom to surface. */
+  rate: 0.6,
+};
+/** The badge over the orb: its size, gap over the rim (CSS px) and colours. */
+const BADGE = { size: 13, gap: 4, combat: 0xd84a3a, regen: 0x9cd89c };
+
 /** The frame of the Hero's `swing` where the blade connects. */
 const HERO_STRIKE_FRAME = 2;
 /** The swing as the sim times it, so the strike frame starts on the hit step. */
@@ -178,6 +219,8 @@ export function createRenderer(app: Application, art: Art) {
   });
   nameplateText.anchor.set(0.5, 0);
   app.stage.addChild(nameplateText);
+  const orb = lifeOrbView();
+  app.stage.addChild(orb.layer);
   // Over the whole screen, stretched to it each frame.
   const hurt = new Graphics().rect(0, 0, 1, 1).fill(HURT_COLOUR);
   hurt.visible = false;
@@ -457,6 +500,8 @@ export function createRenderer(app: Application, art: Art) {
         }
       }
 
+      orb.draw(app.screen, world, nowMs);
+
       const hurtLeft = hurtAtMs === null ? 0 : 1 - (nowMs - hurtAtMs) / HURT_MS;
       hurt.visible = hurtLeft > 0;
       if (hurt.visible) {
@@ -671,6 +716,93 @@ function outlineView() {
         copy.anchor.copyFrom(sprite.anchor);
         copy.scale.copyFrom(sprite.scale);
       }
+    },
+  };
+}
+
+/**
+ * The stone strip along the bottom of the screen and the Hero's Life orb on
+ * it, filling from the bottom with Life. In Combat its surface ripples harder
+ * under an "⚔ In Combat" badge; while regenerating, bubbles rise through it
+ * under one with the rate.
+ */
+function lifeOrbView() {
+  const layer = new Container();
+  const graphics = new Graphics();
+  const badge = new Text({
+    text: "",
+    style: { fill: BADGE.combat, fontSize: BADGE.size, fontFamily: SERIF },
+  });
+  badge.anchor.set(0.5, 1);
+  layer.addChild(graphics, badge);
+
+  return {
+    layer,
+    draw(
+      screen: { width: number; height: number },
+      world: World,
+      nowMs: number,
+    ) {
+      const { radius: r } = ORB;
+      const cx = ORB.left + ORB.rim + r;
+      const cy = screen.height - ORB.bottom - ORB.rim - r;
+      const seconds = nowMs / 1000;
+      const inCombat = isInCombat(world);
+      const regenerating = isRegenerating(world);
+
+      graphics.clear();
+      graphics
+        .rect(0, screen.height - STRIP.height, screen.width, STRIP.height)
+        .fill({ color: STRIP.colour, alpha: STRIP.alpha });
+      graphics
+        .rect(0, screen.height - STRIP.height, screen.width, STRIP.edge)
+        .fill(STRIP.edgeColour);
+      graphics
+        .circle(cx, cy, r + ORB.rim)
+        .fill(ORB.rimColour)
+        .stroke({ width: 2, color: ORB.rimLine });
+      graphics.circle(cx, cy, r).fill(ORB.empty);
+
+      // One 1 px row at a time, so the surface can ripple.
+      const fraction = world.hero.life / heroTuning.life;
+      const surface = cy + r - fraction * r * 2;
+      const ripple = inCombat ? RIPPLE.combat : RIPPLE.calm;
+      for (let y = Math.floor(surface); y < cy + r; y++) {
+        const half = Math.sqrt(Math.max(0, r * r - (y - cy) ** 2));
+        const wave =
+          y < surface + RIPPLE.depth
+            ? Math.sin(seconds * RIPPLE.speed + y) * ripple
+            : 0;
+        const height = (cy + r - y) / (r * 2);
+        const red = Math.min(ORB.lighten, Math.floor(height * ORB.lighten));
+        graphics
+          .rect(cx - half + wave, y, half * 2, 1)
+          .fill(ORB.life + red * 0x10000);
+      }
+
+      if (regenerating) {
+        for (let i = 0; i < BUBBLES.count; i++) {
+          const rise = (seconds * BUBBLES.rate + i / BUBBLES.count) % 1;
+          const x = cx + Math.sin(i * 2.3 + seconds * 2) * r * 0.5;
+          const y = cy + r - rise * fraction * r * 2;
+          graphics
+            .circle(x, y, BUBBLES.radius)
+            .fill({ color: BUBBLES.colour, alpha: BUBBLES.alpha * (1 - rise) });
+        }
+      }
+
+      // The glass: a highlight and its rim.
+      graphics
+        .ellipse(cx - r * 0.3, cy - r * 0.45, r * 0.35, r * 0.18)
+        .fill({ color: 0xffffff, alpha: 0.12 });
+      graphics.circle(cx, cy, r).stroke({ width: 3, color: ORB.glassLine });
+
+      badge.visible = inCombat || regenerating;
+      badge.text = inCombat
+        ? "⚔ In Combat"
+        : `+${heroTuning.regenPerSecond} Life/s`;
+      badge.style.fill = inCombat ? BADGE.combat : BADGE.regen;
+      badge.position.set(cx, cy - r - ORB.rim - BADGE.gap);
     },
   };
 }

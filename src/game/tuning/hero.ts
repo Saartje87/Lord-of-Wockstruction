@@ -27,6 +27,10 @@ export type HeroTuning = {
   flinchChance: number;
   /** How long a flinch roots the Hero (ms). */
   flinchMs: number;
+  /** How long dealing or taking damage keeps the Hero In Combat (ms). */
+  combatMs: number;
+  /** Life regained per second outside In Combat. */
+  regenPerSecond: number;
 };
 
 export const heroTuning: HeroTuning = {
@@ -42,4 +46,6 @@ export const heroTuning: HeroTuning = {
   hitstopMs: 60,
   flinchChance: 0.25,
   flinchMs: 150,
+  combatMs: 5000,
+  regenPerSecond: 2,
 };

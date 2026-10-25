@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   areaFade,
   createWorld,
+  isInCombat,
   type SimEvent,
   step,
   type World,
@@ -207,14 +208,14 @@ describe("Exits", () => {
     expect(w.hero.pos).toEqual({ x: 1.5, y: 2.5 });
   });
 
-  it("carries the Hero's Life over, and no Monster follows", () => {
+  it("restores the Hero's Life to full on arriving in Town, and no Monster follows", () => {
     const w = world();
     walkThrough(w, { x: 3.5, y: 1.5 });
     expect(stepUntil(w, "HeroHit")).not.toBeNull();
 
     step(w, [{ type: "MoveTo", target: { x: 0.5, y: 2.5 } }]);
     while (w.areaChange === null) step(w, []);
-    const life = w.hero.life;
+    expect(w.hero.life).toBeLessThan(100);
     const arrived = stepUntil(w, "AreaChanged");
 
     expect(arrived).toEqual({
@@ -222,9 +223,32 @@ describe("Exits", () => {
       area: "town",
       entry: "from-cave",
     });
-    expect(life).toBeLessThan(100);
-    expect(w.hero.life).toBe(life);
+    expect(w.hero.life).toBe(100);
+    expect(isInCombat(w)).toBe(false);
     expect(w.monsters).toEqual([]);
+  });
+
+  // The cave stands in for the Combat Area.
+  it("carries the Hero's Life over into the cave", () => {
+    const hostile = map(
+      [
+        "....", //
+        ".H..",
+        ".S..",
+      ],
+      [exit(3, 1, "cave", "from-town"), entry("from-cave", 2, 1)],
+    );
+    const w = createWorld({ areas: { town: hostile, cave }, seed: 1 });
+    expect(stepUntil(w, "HeroHit")).not.toBeNull();
+
+    step(w, [{ type: "MoveTo", target: { x: 3.5, y: 1.5 } }]);
+    while (w.areaChange === null) step(w, []);
+    const life = w.hero.life;
+    expect(life).toBeLessThan(100);
+    expect(stepUntil(w, "AreaChanged")).not.toBeNull();
+
+    expect(w.areaName).toBe("cave");
+    expect(w.hero.life).toBe(life);
   });
 
   it("rebuilds the cave fresh on re-entry: every Monster back, no Corpses", () => {

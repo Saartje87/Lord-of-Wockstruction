@@ -1,5 +1,9 @@
 import { heroTuning } from "../tuning/hero";
-import { type MonsterType, monsterTuning } from "../tuning/monsters";
+import {
+  experienceDropOff,
+  type MonsterType,
+  monsterTuning,
+} from "../tuning/monsters";
 import { type Area, isWalkable } from "./area";
 import { canSee, findPath, isClear } from "./path";
 import { random, randomInt } from "./random";
@@ -87,6 +91,21 @@ export function monsterDefense({ type, level }: MonsterOfLevel): number {
 export function monsterExperience({ type, level }: MonsterOfLevel): number {
   const { experience, growth } = monsterTuning[type];
   return grown(experience, growth.experience, level);
+}
+
+/**
+ * The Experience a Hero of Level `heroLevel` gains for killing a Monster: its
+ * Experience times the drop-off for how far its Monster Level is below the
+ * Hero's Level, rounded to a whole number.
+ */
+export function killExperience(
+  monster: MonsterOfLevel,
+  heroLevel: number,
+): number {
+  const below = Math.max(0, heroLevel - monster.level);
+  const factor =
+    experienceDropOff[Math.min(below, experienceDropOff.length - 1)];
+  return Math.round(monsterExperience(monster) * factor);
 }
 
 /**

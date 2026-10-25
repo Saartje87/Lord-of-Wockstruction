@@ -294,3 +294,50 @@ describe("a Monster's scaled numbers in play", () => {
     expect(monsterChanceToHit(w, skeletonAt(3))).toBeCloseTo(0.941, 3);
   });
 });
+
+describe("Experience drop-off", () => {
+  /**
+   * The Experience a Hero of Level `heroLevel` gains for killing a crypt
+   * Skeleton of Monster Level `monsterLevel`, with the growth set so a
+   * Skeleton at any Monster Level gives 100.
+   */
+  function experienceFor(heroLevel: number, monsterLevel: number) {
+    monsterTuning.skeleton.growth.experience = 0;
+    const w = inCrypt(monsterLevel, {
+      progress: { ...FRESH_PROGRESS, level: heroLevel },
+    });
+    return killOne(w)
+      .filter((e) => e.type === "ExperienceGained")
+      .reduce((sum, e) => sum + e.amount, 0);
+  }
+
+  it("gives full Experience for a kill 0–5 Levels below the Hero", () => {
+    for (let heroLevel = 2; heroLevel <= 7; heroLevel++) {
+      expect(experienceFor(heroLevel, 2), `Hero Level ${heroLevel}`).toBe(100);
+    }
+  });
+
+  it("falls steeply for a kill 6–9 Levels below the Hero", () => {
+    const between = [6, 7, 8, 9, 10, 11].map((heroLevel) =>
+      experienceFor(heroLevel, 1),
+    );
+
+    // From full at 5 below, every Level further below gives less, down to
+    // about 5% at 10 below.
+    for (let i = 1; i < between.length; i++) {
+      expect(between[i], `${i + 5} Levels below`).toBeLessThan(between[i - 1]);
+    }
+    expect(between[0]).toBe(100);
+    expect(between.at(-1)).toBe(5);
+  });
+
+  it("leaves about 5% of a kill 10 or more Levels below the Hero", () => {
+    expect(experienceFor(11, 1)).toBe(5);
+    expect(experienceFor(20, 1)).toBe(5);
+  });
+
+  it("gives full Experience, with no bonus, for a kill above the Hero's Level", () => {
+    expect(experienceFor(1, 4)).toBe(100);
+    expect(experienceFor(1, 8)).toBe(100);
+  });
+});

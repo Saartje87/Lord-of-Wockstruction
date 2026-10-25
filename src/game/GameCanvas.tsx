@@ -3,7 +3,7 @@
 import { Application } from "pixi.js";
 import { useEffect, useRef } from "react";
 import { advance, createClock } from "./clock";
-import { areas, tilesets } from "./content";
+import { areaDisplayNames, areas, tilesets } from "./content";
 import {
   attachPointer,
   cancel,
@@ -83,7 +83,7 @@ export default function GameCanvas() {
       if (cancelled) return;
       container.appendChild(app.canvas);
 
-      const renderer = createRenderer(app, art);
+      const renderer = createRenderer(app, art, areaDisplayNames);
       const clock = createClock();
       const input = createPointerInput();
       const menus = createMenus();

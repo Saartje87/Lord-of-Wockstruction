@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { areas, tilesets } from "./content";
+import { areaDisplayNames, areas, tilesets } from "./content";
 import type { Area, Exit } from "./sim/area";
 import { createWorld, type SimEvent, step, type World } from "./sim/world";
 
@@ -52,6 +52,17 @@ describe("the shipped Areas", () => {
     const world = shippedWorld();
 
     expect(Object.keys(world.areas).sort()).toEqual(Object.keys(areas).sort());
+  });
+
+  it("each have a display name for the banner on arriving, with no Level in it", () => {
+    expect(Object.keys(areaDisplayNames).sort()).toEqual(
+      Object.keys(areas).sort(),
+    );
+    expect(areaDisplayNames.town).toBe("Town");
+    expect(areaDisplayNames.catacombs).toBe("Catacombs");
+    for (const name of Object.values(areaDisplayNames)) {
+      expect(name).not.toMatch(/level|\d/i);
+    }
   });
 
   it("start the Hero at `start` in a Town of about 32×32 on the grassland tileset, with NPCs and no Monsters", () => {

@@ -67,6 +67,7 @@ import {
 } from "./heroPanel";
 import {
   type DropHit,
+  INVENTORY_PANEL,
   type InventoryHit,
   type InventorySpot,
   inventoryHitAt,
@@ -1596,10 +1597,13 @@ function inventoryPanelView() {
         .rect(panel.x, panel.y, panel.w, panel.h)
         .fill({ color: style.fill, alpha: style.alpha })
         .stroke({ color: style.edge, width: 2 });
-      title.position.set(panel.x + panel.w / 2, panel.y + HERO_PANEL.padding);
+      title.position.set(
+        panel.x + panel.w / 2,
+        panel.y + INVENTORY_PANEL.padding,
+      );
       hint.position.set(
         panel.x + panel.w / 2,
-        panel.y + panel.h - HERO_PANEL.padding,
+        panel.y + panel.h - INVENTORY_PANEL.padding,
       );
 
       const box = (rect: Rect) =>

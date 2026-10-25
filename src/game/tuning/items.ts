@@ -1,17 +1,14 @@
 /** Item tuning: every Item type there is, and the Inventory's size. */
 
+import type { Attribute } from "../sim/world";
+
 /** What an Item is for, which decides the Equipment slot it fits. */
 export type ItemKind = "weapon" | "armour" | "ring" | "amulet";
 
-/** What an Equipped Item can add to the Hero. */
-export type Bonus =
-  | "strength"
-  | "dexterity"
-  | "vitality"
-  | "life"
-  | "defense"
-  | "attackRating";
+/** What an Equipped Item can add to the Hero: an Attribute, or one of these. */
+export type Bonus = Attribute | "life" | "defense" | "attackRating";
 
+/** One Item type's tuning. */
 export type ItemTuning = {
   /** Shown in the tooltip. */
   name: string;
@@ -29,6 +26,7 @@ export type ItemTuning = {
   bonuses: Partial<Record<Bonus, number>>;
 };
 
+/** Every Item type, by the key it's known as in code and in the Save. */
 export const itemTuning = {
   // 20–30 with the starting 20 Strength, as before Items.
   shortSword: {

@@ -61,6 +61,7 @@ export type InventoryPanelLayout = {
   cell: number;
 };
 
+/** Where the Inventory panel and its slots and grid go on a `screen` this big. */
 export function inventoryPanelLayout(screen: {
   width: number;
   height: number;

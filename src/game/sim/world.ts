@@ -547,11 +547,12 @@ function bonusOf(world: World, bonus: Bonus): number {
  */
 export function attributesOf(world: World): Record<Attribute, number> {
   const { progress } = world.hero;
-  return {
-    strength: progress.strength + bonusOf(world, "strength"),
-    dexterity: progress.dexterity + bonusOf(world, "dexterity"),
-    vitality: progress.vitality + bonusOf(world, "vitality"),
-  };
+  return Object.fromEntries(
+    ATTRIBUTES.map((attribute) => [
+      attribute,
+      progress[attribute] + bonusOf(world, attribute),
+    ]),
+  ) as Record<Attribute, number>;
 }
 
 /**

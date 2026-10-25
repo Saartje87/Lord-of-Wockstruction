@@ -1,11 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { dropTuning, ITEM_TYPES, type ItemType } from "../tuning/items";
+import { type Belongings, inventoryOf } from "./inventory";
 import {
-  type Belongings,
   createWorld,
   FRESH_PROGRESS,
   groundItemsOf,
-  inventoryOf,
   type SimEvent,
   step,
   type World,

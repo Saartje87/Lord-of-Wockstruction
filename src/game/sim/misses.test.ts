@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { itemOf } from "../tuning/items";
 import { monsterTuning } from "../tuning/monsters";
+import type { Belongings } from "./inventory";
 import {
   attackRating,
-  type Belongings,
   chanceToHit,
   createWorld,
   heroChanceToHit,

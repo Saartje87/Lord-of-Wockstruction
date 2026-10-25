@@ -10,28 +10,31 @@ import { toScreen, toTile } from "../iso";
 import type { MenuChoice, Menus } from "../menus";
 import type { Pause } from "../pause";
 import { type Area, isFloor } from "../sim/area";
+import {
+  cursorItemOf,
+  EQUIPMENT_SLOTS,
+  type EquipmentSlot,
+  equipmentOf,
+  type ItemId,
+  inventoryOf,
+  placement,
+} from "../sim/inventory";
 import { windUpProgress } from "../sim/monsters";
+import type { Rect } from "../sim/rect";
 import { STEP_MS } from "../sim/units";
 import { tileOf, type Vec } from "../sim/vec";
 import {
   ATTRIBUTES,
   areaFade,
-  cursorItemOf,
   DEATH_STEPS,
-  EQUIPMENT_SLOTS,
-  type EquipmentSlot,
-  equipmentOf,
   FLINCH_STEPS,
   groundItemsOf,
   HERO_FLINCH_STEPS,
   HIT_STEP,
-  type ItemId,
-  inventoryOf,
   isInCombat,
   isRegenerating,
   type MonsterId,
   maxLife,
-  placement,
   type SimEvent,
   SWING_STEPS,
   type World,
@@ -78,7 +81,6 @@ import {
   landingCell,
 } from "./inventoryPanel";
 import { menuChoiceAt, PAUSE_MENU_LAYOUT, pauseMenuLayout } from "./pauseMenu";
-import type { Rect } from "./rect";
 
 const HOVER_LINE = 0xd8c48a;
 const MARKER_LINE = 0xe8d27a;

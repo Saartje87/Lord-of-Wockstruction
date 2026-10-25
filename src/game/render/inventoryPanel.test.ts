@@ -1,12 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   type Belongings,
-  createWorld,
   type EquipmentSlot,
   inventoryOf,
-  type Progress,
-  step,
-} from "../sim/world";
+} from "../sim/inventory";
+import { createWorld, type Progress, step } from "../sim/world";
 import {
   inventoryHitAt,
   inventoryOrder,

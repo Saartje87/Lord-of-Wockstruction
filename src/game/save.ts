@@ -1,8 +1,10 @@
-import { isValidBelongings } from "./sim/inventory";
 import {
-  ATTRIBUTES,
   type Belongings,
   belongingsOf,
+  isValidBelongings,
+} from "./sim/inventory";
+import {
+  ATTRIBUTES,
   FRESH_PROGRESS,
   levelExperience,
   nextLevelExperience,

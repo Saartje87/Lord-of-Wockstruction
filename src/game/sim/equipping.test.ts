@@ -1,16 +1,18 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { type ItemType, itemOf } from "../tuning/items";
 import {
-  attackRating,
-  attributesOf,
   type Belongings,
   belongingsOf,
-  createWorld,
   cursorItemOf,
-  damageRange,
   equipmentOf,
-  heroDefense,
   inventoryOf,
+} from "./inventory";
+import {
+  attackRating,
+  attributesOf,
+  createWorld,
+  damageRange,
+  heroDefense,
   maxLife,
   progressOf,
   type SimEvent,

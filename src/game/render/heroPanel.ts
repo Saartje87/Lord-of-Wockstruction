@@ -1,3 +1,4 @@
+import { inside, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
 import {
   ATTRIBUTES,
@@ -11,7 +12,6 @@ import {
   type World,
 } from "../sim/world";
 import { experienceBar } from "./experienceBar";
-import { inside, type Rect } from "./rect";
 
 /**
  * The Hero panel at the top left (CSS px): `left` and `top` from the

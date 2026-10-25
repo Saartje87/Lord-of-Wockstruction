@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  createWorld,
-  inventoryOf,
-  type Progress,
-  step,
-  type World,
-} from "../sim/world";
+import { inventoryOf } from "../sim/inventory";
+import { createWorld, type Progress, step, type World } from "../sim/world";
 import { heroPanelLayout, heroSheet, panelHitAt } from "./heroPanel";
 
 /**

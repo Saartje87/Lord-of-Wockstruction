@@ -2,14 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   type Belongings,
   belongingsOf,
-  createWorld,
-  damageRange,
   equipmentOf,
   inventoryItemAt,
   inventoryOf,
-  type Progress,
-  type World,
-} from "./world";
+} from "./inventory";
+import { createWorld, damageRange, type Progress, type World } from "./world";
 
 /** A Town of open floor three tiles wide, the Hero's `start` on the first. */
 const town = {

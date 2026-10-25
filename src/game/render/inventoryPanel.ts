@@ -1,22 +1,20 @@
-import type { Vec } from "../sim/vec";
 import {
   type Cell,
   cursorItemOf,
-  damageWith,
   type EquipmentSlot,
   equipmentOf,
   type Item,
   inventoryItemAt,
-  type Order,
-  type World,
-} from "../sim/world";
+} from "../sim/inventory";
+import { inside, type Rect } from "../sim/rect";
+import type { Vec } from "../sim/vec";
+import { damageWith, type Order, type World } from "../sim/world";
 import {
   type Bonus,
   type ItemType,
   inventoryTuning,
   itemOf,
 } from "../tuning/items";
-import { inside, type Rect } from "./rect";
 
 /**
  * The Inventory panel at the top right (CSS px): `right` and `top` from the

@@ -3,11 +3,13 @@ import type { ItemType } from "../tuning/items";
 import {
   type Belongings,
   belongingsOf,
-  createWorld,
   cursorItemOf,
-  groundItemsOf,
   inventoryOf,
   placement,
+} from "./inventory";
+import {
+  createWorld,
+  groundItemsOf,
   type SimEvent,
   step,
   type World,

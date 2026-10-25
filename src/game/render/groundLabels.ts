@@ -1,6 +1,6 @@
 import type { ItemId } from "../sim/inventory";
+import { inside, overlaps, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
-import { inside, type Rect } from "./rect";
 
 /**
  * A Ground Item's name label (CSS px): `height` tall, its bottom `above` the
@@ -31,7 +31,7 @@ export function groundLabels(
       h: height,
     };
     for (;;) {
-      const under = placed.find((label) => overlap(label.rect, rect));
+      const under = placed.find((label) => overlaps(label.rect, rect));
       if (!under) break;
       rect.y = under.rect.y - gap - height;
     }
@@ -65,10 +65,4 @@ export function groundItemUnder(
     if (under && (!nearest || at.y > nearest.y)) nearest = { id, y: at.y };
   }
   return nearest?.id ?? null;
-}
-
-function overlap(a: Rect, b: Rect): boolean {
-  return (
-    a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
-  );
 }

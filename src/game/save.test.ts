@@ -8,7 +8,8 @@ import {
   type SaveStorage,
   writeSave,
 } from "./save";
-import type { Belongings, Progress } from "./sim/world";
+import type { Belongings } from "./sim/inventory";
+import type { Progress } from "./sim/world";
 
 /** Storage kept in a Map, standing in for the browser's. */
 function memoryStorage(): SaveStorage & { keys(): string[] } {

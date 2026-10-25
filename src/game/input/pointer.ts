@@ -1,5 +1,6 @@
+import type { ItemId } from "../sim/inventory";
 import { tileOf, type Vec } from "../sim/vec";
-import type { ItemId, MonsterId, Order } from "../sim/world";
+import type { MonsterId, Order } from "../sim/world";
 import { inputTuning } from "../tuning/input";
 
 /** Mouse state between frames. */

@@ -1,12 +1,18 @@
-import { describe, expect, it } from "vitest";
-import type { ItemType } from "../tuning/items";
+import { afterEach, describe, expect, it } from "vitest";
+import { type ItemType, itemOf } from "../tuning/items";
 import {
+  attackRating,
+  attributesOf,
   createWorld,
   cursorItemOf,
+  damageRange,
   type Gear,
   equipmentOf,
   gearOf,
+  heroDefense,
   inventoryOf,
+  maxLife,
+  progressOf,
   type SimEvent,
   step,
   type World,
@@ -67,6 +73,107 @@ const ofType = <T extends SimEvent["type"]>(events: SimEvent[], type: T) =>
   events.filter(
     (event): event is Extract<SimEvent, { type: T }> => event.type === type,
   );
+
+describe("Equipped bonuses", () => {
+  afterEach(() => {
+    itemOf("ringOfDexterity").bonuses = { dexterity: 5 };
+  });
+
+  it("add to the Attributes and what they add up to while Equipped", () => {
+    const world = wearing({ weapon: "shortSword" }, [
+      at("ringOfStrength", 0, 0),
+      at("ringOfDexterity", 1, 0),
+      at("amuletOfVitality", 2, 0),
+    ]);
+    for (const type of [
+      "ringOfStrength",
+      "ringOfDexterity",
+      "amuletOfVitality",
+    ] as const) {
+      step(world, [{ type: "EquipItem", item: idOf(world, type) }]);
+    }
+
+    expect(attributesOf(world)).toEqual({
+      strength: 25,
+      dexterity: 25,
+      vitality: 25,
+    });
+    // The base Attributes, which points are spent on, stay as they were.
+    expect(progressOf(world)).toMatchObject({
+      strength: 20,
+      dexterity: 20,
+      vitality: 20,
+    });
+    expect(maxLife(world)).toBe(115);
+    expect(attackRating(world)).toBe(125);
+    // The Short Sword's 20–30 at 20 Strength (×1.2) is ×1.25 at 25.
+    const [min, max] = damageRange(world);
+    expect(min).toBeCloseTo(20.8333);
+    expect(max).toBeCloseTo(31.25);
+  });
+
+  it("add +Life to max Life", () => {
+    const world = wearing({ ring2: "ringOfLife" });
+
+    expect(maxLife(world)).toBe(110);
+    expect(world.hero.life).toBe(110);
+  });
+
+  it("add +Attack Rating and +Defense", () => {
+    itemOf("ringOfDexterity").bonuses = { attackRating: 30, defense: 7 };
+    const world = wearing({ ring1: "ringOfDexterity", armour: "leatherArmour" });
+
+    expect(attackRating(world)).toBe(130);
+    expect(heroDefense(world)).toBe(15 + 7);
+  });
+
+  it("stop counting once the Item comes off, and Life above the new max drops to it", () => {
+    const world = wearing({ ring1: "ringOfLife" });
+
+    step(world, [{ type: "UnequipItem", slot: "ring1" }]);
+
+    expect(maxLife(world)).toBe(100);
+    expect(world.hero.life).toBe(100);
+  });
+
+  it("don't count for an Item lifted out of its slot", () => {
+    const world = wearing({ amulet: "amuletOfVitality" });
+
+    step(world, [{ type: "LiftItem", from: "amulet" }]);
+
+    expect(attributesOf(world).vitality).toBe(20);
+    expect(world.hero.life).toBe(100);
+  });
+});
+
+describe("Hero Defense", () => {
+  it("is 0 with no Armour", () => {
+    expect(heroDefense(wearing({}))).toBe(0);
+  });
+
+  it("is the Armour's base Defense", () => {
+    expect(heroDefense(wearing({ armour: "chainMail" }))).toBe(35);
+  });
+});
+
+describe("Weapon damage", () => {
+  it("comes from the Axe once it's Equipped", () => {
+    const world = wearing({ weapon: "shortSword" }, [at("axe", 0, 0)]);
+
+    step(world, [{ type: "EquipItem", item: idOf(world, "axe") }]);
+
+    expect(damageRange(world)).toEqual([30, 48]);
+  });
+
+  it("is a punch's 1–4 once the Weapon comes off", () => {
+    const world = wearing({ weapon: "shortSword" });
+
+    step(world, [{ type: "UnequipItem", slot: "weapon" }]);
+
+    const [min, max] = damageRange(world);
+    expect([Math.round(min), Math.round(max)]).toEqual([1, 4]);
+  });
+});
 
 describe("Putting a held Item into a slot", () => {
   it("equips it into an empty slot of its kind", () => {

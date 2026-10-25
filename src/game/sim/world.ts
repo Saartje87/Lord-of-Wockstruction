@@ -1,6 +1,11 @@
 import { areaTuning } from "../tuning/areas";
 import { heroTuning } from "../tuning/hero";
-import { dropTuning, type ItemType, itemOf } from "../tuning/items";
+import {
+  type Bonus,
+  dropTuning,
+  type ItemType,
+  itemOf,
+} from "../tuning/items";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import { type Area, exitAt, isWalkable, loadArea, type Spawn } from "./area";
 import {
@@ -528,14 +533,52 @@ export function nextLevelExperience(level: number): number | null {
   return level < EXPERIENCE_TABLE.length ? EXPERIENCE_TABLE[level] : null;
 }
 
-/** The Hero's full Life, growing with their Level and Vitality. */
+/** What the Equipped Items add up to, bonus by bonus (0 for none). */
+function bonusOf(world: World, bonus: Bonus): number {
+  let total = 0;
+  for (const slot of EQUIPMENT_SLOTS) {
+    const item = world.hero.equipment[slot];
+    if (item) total += itemOf(item.type).bonuses[bonus] ?? 0;
+  }
+  return total;
+}
+
+/**
+ * The Hero's Attributes as they count: the base ones points are spent on
+ * (see `progressOf`), plus the Equipped Items' bonuses.
+ */
+export function attributesOf(world: World): Record<Attribute, number> {
+  const { progress } = world.hero;
+  return {
+    strength: progress.strength + bonusOf(world, "strength"),
+    dexterity: progress.dexterity + bonusOf(world, "dexterity"),
+    vitality: progress.vitality + bonusOf(world, "vitality"),
+  };
+}
+
+/**
+ * The Hero's full Life, growing with their Level and Vitality, plus the
+ * Equipped Items' +Life.
+ */
 export function maxLife(world: World): number {
-  const { level, vitality } = world.hero.progress;
+  const { level } = world.hero.progress;
   return (
     heroTuning.life +
     heroTuning.lifePerLevel * (level - 1) +
-    heroTuning.lifePerVitality * vitality
+    heroTuning.lifePerVitality * attributesOf(world).vitality +
+    bonusOf(world, "life")
   );
+}
+
+/**
+ * The Hero's Defense, which Monsters' Attack Rating has to beat: the
+ * Equipped Armour's base Defense plus the Equipped Items' +Defense, 0 with
+ * neither.
+ */
+export function heroDefense(world: World): number {
+  const armour = world.hero.equipment.armour;
+  const base = (armour && itemOf(armour.type).defense) ?? 0;
+  return base + bonusOf(world, "defense");
 }
 
 /** Whether the Hero is regaining Life: alive, out of combat and below full. */
@@ -560,7 +603,7 @@ export function damageWith(
   world: World,
   weapon: ItemType | null,
 ): [number, number] {
-  const scale = 1 + world.hero.progress.strength / 100;
+  const scale = 1 + attributesOf(world).strength / 100;
   const [min, max] =
     (weapon && itemOf(weapon).damage) ?? heroTuning.unarmedDamage;
   return [min * scale, max * scale];
@@ -575,9 +618,15 @@ export function heroDamage(world: World, roll: number): number {
   return Math.round(min + roll * (max - min));
 }
 
-/** How accurate the Hero's swings are, from their Dexterity. */
+/**
+ * How accurate the Hero's swings are, from their Dexterity, plus the
+ * Equipped Items' +Attack Rating.
+ */
 export function attackRating(world: World): number {
-  return world.hero.progress.dexterity * heroTuning.attackRatingPerDexterity;
+  return (
+    attributesOf(world).dexterity * heroTuning.attackRatingPerDexterity +
+    bonusOf(world, "attackRating")
+  );
 }
 
 /** The chance each of the Hero's swings hits a Monster of type `type`. */
@@ -832,28 +881,9 @@ function give(world: World, order: Order, events: SimEvent[]) {
     spendAttributePoint(world, order.attribute, events);
     return;
   }
-  if (order.type === "LiftItem") {
-    liftItem(world, order.from, events);
-    return;
-  }
-  if (order.type === "PlaceItem") {
-    placeItem(world, order.to, events);
-    return;
-  }
-  if (order.type === "DropItem") {
-    dropItem(world, events);
-    return;
-  }
-  if (order.type === "EquipItem") {
-    equipItem(world, order.item, events);
-    return;
-  }
-  if (order.type === "UnequipItem") {
-    unequipItem(world, order.slot, events);
-    return;
-  }
-  if (order.type === "ReturnCursorItem") {
-    returnCursorItem(world, events);
+  if (moveItem(world, order, events)) {
+    // Taking off +Life or +Vitality can leave Life over the new max.
+    hero.life = Math.min(hero.life, maxLife(world));
     return;
   }
   if (hero.flinch > 0) {
@@ -897,6 +927,36 @@ function give(world: World, order: Order, events: SimEvent[]) {
       hero.pickingUp = null;
       startSwing(hero, null, order.target);
       break;
+  }
+}
+
+/**
+ * Applies an order moving Items, returning whether it was one. Taking an
+ * Item off keeps current Life where it is, up to the new max, and putting
+ * one on doesn't add any.
+ */
+function moveItem(world: World, order: Order, events: SimEvent[]): boolean {
+  switch (order.type) {
+    case "LiftItem":
+      liftItem(world, order.from, events);
+      return true;
+    case "PlaceItem":
+      placeItem(world, order.to, events);
+      return true;
+    case "DropItem":
+      dropItem(world, events);
+      return true;
+    case "EquipItem":
+      equipItem(world, order.item, events);
+      return true;
+    case "UnequipItem":
+      unequipItem(world, order.slot, events);
+      return true;
+    case "ReturnCursorItem":
+      returnCursorItem(world, events);
+      return true;
+    default:
+      return false;
   }
 }
 

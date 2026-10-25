@@ -4,7 +4,12 @@ import { Application } from "pixi.js";
 import { useEffect, useRef } from "react";
 import { advance, createClock } from "./clock";
 import { areas, tilesets } from "./content";
-import { attachPointer, createPointerInput, poll } from "./input/pointer";
+import {
+  attachPointer,
+  createPointerInput,
+  poll,
+  release,
+} from "./input/pointer";
 import { loadArt } from "./render/art";
 import { createRenderer } from "./render/renderer";
 import { isFloor } from "./sim/area";
@@ -52,6 +57,15 @@ export default function GameCanvas() {
       let last = performance.now();
 
       attachPointer(app.canvas, input, listeners.signal);
+      // Any click or key press goes on from the death screen.
+      let pressed = false;
+      const press = () => {
+        pressed = true;
+      };
+      app.canvas.addEventListener("pointerdown", press, {
+        signal: listeners.signal,
+      });
+      window.addEventListener("keydown", press, { signal: listeners.signal });
 
       const tick = (now: number) => {
         const { orders: newOrders, click } = poll(input, now, {
@@ -59,8 +73,16 @@ export default function GameCanvas() {
           monsterAt: renderer.monsterAt,
         });
         orders.push(...newOrders);
+        if (pressed && world.death) {
+          orders.push({ type: "Continue" });
+          // So holding on after the click doesn't steer in Town.
+          release(input);
+        }
+        pressed = false;
         const area = world.areas[world.areaName];
-        if (click && isFloor(area, click)) renderer.markClick(click, now);
+        if (click && !world.death && isFloor(area, click)) {
+          renderer.markClick(click, now);
+        }
 
         // Orders wait for the next step, which may be a frame away.
         const { steps, alpha } = advance(clock, now - last);

@@ -31,6 +31,11 @@ export type HeroTuning = {
   combatMs: number;
   /** Life regained per second outside In Combat. */
   regenPerSecond: number;
+  /**
+   * How long the Hero lies dead before `Continue` takes them back to Town
+   * (ms). The death screen darkens over it.
+   */
+  deathMs: number;
 };
 
 export const heroTuning: HeroTuning = {
@@ -48,4 +53,5 @@ export const heroTuning: HeroTuning = {
   flinchMs: 150,
   combatMs: 5000,
   regenPerSecond: 2,
+  deathMs: 1000,
 };

@@ -311,10 +311,14 @@ describe("a crowd", () => {
     "............",
   ];
 
+  // Long enough for every Skeleton to arrive, not for them to kill the Hero.
+  const SURROUND_STEPS = 4 * 60;
+
   it("surrounds the Hero without overlapping", () => {
     const w = world(crowd);
 
-    stepTimes(w, 600);
+    stepTimes(w, SURROUND_STEPS);
+    expect(w.death).toBeNull();
     for (const skeleton of w.monsters) {
       expect(AFTER_HERO).toContain(skeleton.state);
       expect(distance(skeleton.pos, w.hero.pos)).toBeLessThan(2.5);
@@ -326,13 +330,14 @@ describe("a crowd", () => {
 
   it("makes way for the Hero walking through, never moving them", () => {
     const w = world(crowd);
-    stepTimes(w, 600);
+    stepTimes(w, SURROUND_STEPS);
 
     step(w, [{ type: "MoveTo", target: { x: 0.5, y: 5.5 } }]);
     for (let i = 0; i < 120; i++) {
       step(w, []);
       expect(gaps(w).hero).toBeGreaterThan(0.55);
     }
+    expect(w.death).toBeNull();
     expect(w.hero.pos).toEqual({ x: 0.5, y: 5.5 });
   });
 

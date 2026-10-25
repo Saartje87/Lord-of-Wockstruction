@@ -13,6 +13,7 @@ import { STEP_MS } from "../sim/units";
 import { tileOf, type Vec } from "../sim/vec";
 import {
   areaFade,
+  DEATH_STEPS,
   FLINCH_STEPS,
   HERO_FLINCH_STEPS,
   HIT_STEP,
@@ -43,6 +44,19 @@ const HURT_MS = 150;
 /** How opaque the red flash starts (0..1). */
 const HURT_STRENGTH = 0.3;
 const HURT_COLOUR = 0xff0000;
+
+/**
+ * The death screen: it darkens to `darkness` over `DEATH_STEPS`, then shows
+ * "You died" over a hint that pulses `pulsesPerSecond` times a second.
+ */
+const DEATH_SCREEN = {
+  darkness: 0.55,
+  title: { colour: 0xb01818, size: 64 },
+  hint: { colour: 0xd8d0b8, size: 18, gap: 24 },
+  pulsesPerSecond: 0.8,
+  /** How faint the hint gets at the bottom of a pulse (0..1). */
+  faintest: 0.35,
+};
 
 /**
  * A placeholder telegraph: a red wedge over a Monster's reach and arc, filling
@@ -225,6 +239,8 @@ export function createRenderer(app: Application, art: Art) {
   const hurt = new Graphics().rect(0, 0, 1, 1).fill(HURT_COLOUR);
   hurt.visible = false;
   app.stage.addChild(hurt);
+  const death = deathScreenView();
+  app.stage.addChild(death.layer);
   // The fade to black of an Area change, over everything.
   const fade = new Graphics().rect(0, 0, 1, 1).fill(0x000000);
   fade.visible = false;
@@ -364,7 +380,11 @@ export function createRenderer(app: Application, art: Art) {
       place(hero, heroAt);
       const { swing } = world.hero;
       const heroCompass = compassOf(world.hero.facing);
-      if (swing) {
+      if (world.death) {
+        // Down from dying until back in Town.
+        const ms = world.death.elapsed * STEP_MS;
+        show(hero, "die", heroCompass, frameAt(art.hero.timing.die, ms));
+      } else if (swing) {
         const frame = swingFrame(
           {
             ...HERO_SWING,
@@ -508,6 +528,8 @@ export function createRenderer(app: Application, art: Art) {
         hurt.alpha = HURT_STRENGTH * hurtLeft;
         hurt.scale.set(app.screen.width, app.screen.height);
       }
+
+      death.draw(app.screen, world, nowMs);
 
       const darkness = areaFade(world);
       fade.visible = darkness > 0;
@@ -803,6 +825,62 @@ function lifeOrbView() {
         : `+${heroTuning.regenPerSecond} Life/s`;
       badge.style.fill = inCombat ? BADGE.combat : BADGE.regen;
       badge.position.set(cx, cy - r - ORB.rim - BADGE.gap);
+    },
+  };
+}
+
+/**
+ * The screen over a dead Hero: darkening while they lie still, then "You
+ * died" with a pulsing hint to click.
+ */
+function deathScreenView() {
+  const layer = new Container();
+  const dark = new Graphics().rect(0, 0, 1, 1).fill(0x000000);
+  const title = new Text({
+    text: "You died",
+    style: {
+      fill: DEATH_SCREEN.title.colour,
+      fontSize: DEATH_SCREEN.title.size,
+      fontFamily: SERIF,
+    },
+  });
+  title.anchor.set(0.5, 1);
+  const hint = new Text({
+    text: "Click to return to Town",
+    style: {
+      fill: DEATH_SCREEN.hint.colour,
+      fontSize: DEATH_SCREEN.hint.size,
+      fontFamily: SERIF,
+    },
+  });
+  hint.anchor.set(0.5, 0);
+  layer.addChild(dark, title, hint);
+  layer.visible = false;
+
+  return {
+    layer,
+    draw(
+      screen: { width: number; height: number },
+      world: World,
+      nowMs: number,
+    ) {
+      layer.visible = world.death !== null;
+      if (!world.death) return;
+      const lying = Math.min(1, world.death.elapsed / DEATH_STEPS);
+      dark.alpha = DEATH_SCREEN.darkness * lying;
+      dark.scale.set(screen.width, screen.height);
+
+      const ready = lying === 1;
+      title.visible = ready;
+      hint.visible = ready;
+      const centre = { x: screen.width / 2, y: screen.height / 2 };
+      title.position.set(centre.x, centre.y);
+      hint.position.set(centre.x, centre.y + DEATH_SCREEN.hint.gap);
+      const wave = Math.sin(
+        (nowMs / 1000) * DEATH_SCREEN.pulsesPerSecond * 2 * Math.PI,
+      );
+      const { faintest } = DEATH_SCREEN;
+      hint.alpha = faintest + ((1 - faintest) * (wave + 1)) / 2;
     },
   };
 }

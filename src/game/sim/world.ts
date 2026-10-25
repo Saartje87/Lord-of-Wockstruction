@@ -2,7 +2,7 @@ import { areaTuning } from "../tuning/areas";
 import { heroTuning } from "../tuning/hero";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import { type Area, exitAt, isWalkable, loadArea, type Spawn } from "./area";
-import { noticeHit, stepMonsters, wanderPause } from "./monsters";
+import { noticeHit, sendHome, stepMonsters, wanderPause } from "./monsters";
 import { findPath } from "./path";
 import { createRng, type Rng, random, randomInt } from "./random";
 import { msToSteps, perStep } from "./units";
@@ -22,6 +22,8 @@ const ARC = (heroTuning.arcDegrees * Math.PI) / 180;
 const COMBAT_STEPS = msToSteps(heroTuning.combatMs);
 /** Life the Hero regains per step outside In Combat. */
 const REGEN_PER_STEP = perStep(heroTuning.regenPerSecond);
+/** How many steps the Hero lies dead before `Continue` is heeded. */
+export const DEATH_STEPS = msToSteps(heroTuning.deathMs);
 /** How many steps walking through an Exit takes. */
 export const AREA_CHANGE_STEPS = msToSteps(areaTuning.changeMs);
 /** The step of an Area change on which the Areas swap. */
@@ -135,6 +137,15 @@ export type AreaChange = {
   elapsed: number;
 };
 
+/**
+ * The Hero lying dead. Orders are ignored but `Continue`, which goes back to
+ * Town once `DEATH_STEPS` have passed.
+ */
+export type Death = {
+  /** Steps since the Hero died. */
+  elapsed: number;
+};
+
 /** What remains of a dead Monster: inert, not clickable, not blocking. */
 export type Corpse = { id: MonsterId; type: MonsterType; pos: Vec };
 
@@ -154,6 +165,8 @@ export type World = {
   /** The Area change in progress, if any. */
   areaChange: AreaChange | null;
   hero: Hero;
+  /** Set while the Hero lies dead. */
+  death: Death | null;
   /** The living Monsters in the active Area. */
   monsters: Monster[];
   /** The Corpses in the active Area. */
@@ -168,13 +181,16 @@ export type Order =
   /** Walk into reach of a Monster and swing at it. */
   | { type: "Attack"; monster: MonsterId }
   /** Swing in place towards a point, hitting every Monster in the arc. */
-  | { type: "SwingAt"; target: Vec };
+  | { type: "SwingAt"; target: Vec }
+  /** Go back to Town after dying. */
+  | { type: "Continue" };
 
 /** What happened during a step. */
 export type SimEvent =
   | { type: "HitLanded"; attacker: "hero"; target: MonsterId; damage: number }
   | { type: "HeroHit"; damage: number }
   | { type: "MonsterDied"; id: MonsterId }
+  | { type: "HeroDied" }
   /** The Hero arrived at Entry `entry` in Area `area`. */
   | { type: "AreaChanged"; area: string; entry: string };
 
@@ -211,6 +227,7 @@ export function createWorld(options: {
     areas,
     areaName: TOWN,
     areaChange: null,
+    death: null,
     hero: {
       life: heroTuning.life,
       pos: { ...start },
@@ -246,9 +263,11 @@ export function isInCombat(world: World): boolean {
   );
 }
 
-/** Whether the Hero is regaining Life: out of combat and below full. */
+/** Whether the Hero is regaining Life: alive, out of combat and below full. */
 export function isRegenerating(world: World): boolean {
-  return !isInCombat(world) && world.hero.life < heroTuning.life;
+  return (
+    !world.death && !isInCombat(world) && world.hero.life < heroTuning.life
+  );
 }
 
 /**
@@ -266,10 +285,14 @@ export function areaFade(world: World): number {
  * any hitstop.
  */
 function startAreaChange(world: World, area: string, entry: string) {
-  const { hero } = world;
   world.areaChange = { area, entry, elapsed: 0 };
   // A hit landed on this step stops for the fade instead.
   world.hitstop = 0;
+  stopHero(world.hero);
+}
+
+/** Stops whatever the Hero is doing: walking, attacking or flinching. */
+function stopHero(hero: Hero) {
   hero.path = [];
   hero.attacking = null;
   hero.swing = null;
@@ -288,7 +311,7 @@ function stepAreaChange(world: World, change: AreaChange, events: SimEvent[]) {
  * Makes the target Area the active one, fresh from its definition: its
  * Monsters back at their spawns and no Corpses. The Hero carries over to the
  * target Entry, facing away from the Area's nearest edge, with their Life
- * restored to full on arriving in Town.
+ * restored to full on arriving in Town, and back on their feet if they died.
  */
 function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   const area = world.areas[change.area];
@@ -301,6 +324,7 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
     hero.life = heroTuning.life;
     hero.combat = 0;
   }
+  world.death = null;
   world.areaName = area.name;
   world.monsters = [];
   world.corpses = [];
@@ -388,6 +412,12 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
     if (monster.flinch > 0) monster.flinch -= 1;
   }
   if (hero.swing) advanceSwing(world, hero.swing, events);
+  if (world.death) {
+    stepDeath(world, world.death, orders);
+    world.tick += 1;
+    return events;
+  }
+
   if (hero.flinch > 0) stepFlinch(world);
   for (const order of [...world.heldOrders, ...orders]) give(world, order);
   world.heldOrders = [];
@@ -403,7 +433,9 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
     return events;
   }
   approach(world);
-  for (const monster of stepMonsters(world)) hitHero(world, monster, events);
+  for (const monster of stepMonsters(world)) {
+    if (!world.death) hitHero(world, monster, events);
+  }
   if (isRegenerating(world)) {
     hero.life = Math.min(heroTuning.life, hero.life + REGEN_PER_STEP);
   }
@@ -412,9 +444,30 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   return events;
 }
 
+/**
+ * While the Hero lies dead, Monsters carry on and every order is ignored but
+ * a `Continue` once `DEATH_STEPS` have passed, which starts the way back to
+ * Town.
+ */
+function stepDeath(world: World, death: Death, orders: readonly Order[]) {
+  death.elapsed += 1;
+  const given = [...world.heldOrders, ...orders];
+  world.heldOrders = [];
+  if (
+    death.elapsed >= DEATH_STEPS &&
+    given.some((order) => order.type === "Continue")
+  ) {
+    startAreaChange(world, TOWN, "start");
+    return;
+  }
+  stepMonsters(world);
+}
+
 /** Applies an order, or buffers it during a flinch or a committed swing. */
 function give(world: World, order: Order) {
   const { hero } = world;
+  // Only heeded while dead.
+  if (order.type === "Continue") return;
   if (hero.flinch > 0) {
     hero.buffered = order;
     return;
@@ -557,6 +610,10 @@ function hitHero(world: World, monster: Monster, events: SimEvent[]) {
   hero.life = Math.max(0, hero.life - damage);
   hero.combat = COMBAT_STEPS;
   events.push({ type: "HeroHit", damage });
+  if (hero.life === 0) {
+    die(world, events);
+    return;
+  }
 
   // A swing's follow-through carries on.
   if (hero.swing?.landed) return;
@@ -565,6 +622,17 @@ function hitHero(world: World, monster: Monster, events: SimEvent[]) {
   hero.swing = null;
   hero.attacking = null;
   hero.path = [];
+}
+
+/**
+ * Lays the Hero down, stopping whatever they were doing, and sends every
+ * Monster home.
+ */
+function die(world: World, events: SimEvent[]) {
+  world.death = { elapsed: 0 };
+  for (const monster of world.monsters) sendHome(monster);
+  stopHero(world.hero);
+  events.push({ type: "HeroDied" });
 }
 
 function monsterById(world: World, id: MonsterId): Monster | undefined {

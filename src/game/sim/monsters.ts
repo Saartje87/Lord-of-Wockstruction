@@ -118,8 +118,12 @@ function isStrolling(monster: Monster): boolean {
   return monster.state === "idle" || monster.state === "wander";
 }
 
-/** Whether the Monster can see the Hero near enough to go after them. */
+/**
+ * Whether the Monster can see the Hero near enough to go after them, and
+ * they're alive.
+ */
 function sees(world: World, monster: Monster): boolean {
+  if (world.death) return false;
   const tuning = monsterTuning[monster.type];
   const { pos } = world.hero;
   if (distance(monster.pos, pos) > tuning.aggroRadius) return false;
@@ -176,9 +180,7 @@ export function wanderPause(world: World, type: MonsterType): number {
 function chase(world: World, monster: Monster) {
   const { reach, leash } = monsterTuning[monster.type];
   if (distance(monster.pos, monster.home) > leash) {
-    monster.state = "return";
-    monster.path = [];
-    monster.replan = 0;
+    sendHome(monster);
     return;
   }
   const hero = world.hero.pos;
@@ -191,6 +193,13 @@ function chase(world: World, monster: Monster) {
   }
   const area = world.areas[world.areaName];
   goToward(area, monster, hero, STEPPED[monster.type].speed, gap - reach);
+}
+
+/** Gives up on the Hero and walks home. */
+export function sendHome(monster: Monster) {
+  monster.state = "return";
+  monster.path = [];
+  monster.replan = 0;
 }
 
 /** Whether it is ready to attack, with room under its type's attacker cap. */

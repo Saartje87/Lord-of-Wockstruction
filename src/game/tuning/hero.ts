@@ -34,11 +34,11 @@ export type HeroTuning = {
   /** A `SwingAt` hits every Monster in reach within this of the facing. */
   arcDegrees: number;
   /**
-   * Damage per hit before Strength, `[min, max]`. Each point of Strength
-   * adds 1% of it, and the hit rolls between the two, rounded to a whole
-   * number.
+   * A punch's damage per hit with no Weapon Equipped, before Strength,
+   * `[min, max]`. Each point of Strength adds 1% of it, as it does to a
+   * Weapon's, and the hit rolls between the two, rounded to a whole number.
    */
-  damage: [number, number];
+  unarmedDamage: [number, number];
   /** Strength a fresh Hero starts with. */
   strength: number;
   /** Dexterity a fresh Hero starts with. */
@@ -97,8 +97,8 @@ export const heroTuning: HeroTuning = {
   reach: 1.0,
   reachGrace: 0.3,
   arcDegrees: 50,
-  // 20–30 with the starting 20 Strength.
-  damage: [50 / 3, 25],
+  // 1–4 with the starting 20 Strength.
+  unarmedDamage: [5 / 6, 10 / 3],
   strength: 20,
   dexterity: 20,
   vitality: 20,

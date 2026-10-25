@@ -1,7 +1,18 @@
 import { areaTuning } from "../tuning/areas";
 import { heroTuning } from "../tuning/hero";
+import { itemOf } from "../tuning/items";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import { type Area, exitAt, isWalkable, loadArea, type Spawn } from "./area";
+import {
+  type Cell,
+  covers,
+  EQUIPMENT_SLOTS,
+  type Equipment,
+  FRESH_GEAR,
+  type Gear,
+  type ItemId,
+  type PlacedItem,
+} from "./inventory";
 import { noticeHit, sendHome, stepMonsters, wanderPause } from "./monsters";
 import { findPath } from "./path";
 import { createRng, type Rng, random, randomInt } from "./random";
@@ -41,8 +52,12 @@ export const FLINCH_STEPS = Object.fromEntries(
 
 export type Hero = {
   life: number;
-  /** Level, Experience and Attributes: what the Save keeps. */
+  /** Level, Experience and Attributes, kept by the Save. */
   progress: Progress;
+  /** The Items carried, none overlapping, kept by the Save. */
+  inventory: PlacedItem[];
+  /** The Items worn, kept by the Save. */
+  equipment: Equipment;
   pos: Vec;
   /** Where the Hero was one step ago, for the renderer to interpolate from. */
   prevPos: Vec;
@@ -178,6 +193,8 @@ export type World = {
   corpses: Corpse[];
   /** The id the next Monster gets. */
   nextMonsterId: MonsterId;
+  /** The id the next Item gets. */
+  nextItemId: ItemId;
 };
 
 /** Input reaching the simulation. */
@@ -218,7 +235,17 @@ export const ATTRIBUTES = ["strength", "dexterity", "vitality"] as const;
 /** One of the Hero's Attributes. */
 export type Attribute = (typeof ATTRIBUTES)[number];
 
-/** What the Save keeps of the Hero. */
+export type {
+  Cell,
+  Equipment,
+  EquipmentSlot,
+  Gear,
+  Item,
+  ItemId,
+  PlacedItem,
+} from "./inventory";
+
+/** Level, Experience and Attributes: what the Save keeps of the Hero besides their gear. */
 export type Progress = {
   /** From 1 up to the last Level in the Experience table. */
   level: number;
@@ -246,8 +273,8 @@ export const FRESH_PROGRESS: Progress = {
 
 /**
  * Builds a World from raw `.tmj` content keyed by Area name, with the Hero in
- * Town at its `start` Entry with full Life: with `progress` if given, or a
- * fresh Level 1 Hero if not. `tilesets` holds the raw `.tsj` content of the
+ * Town at its `start` Entry with full Life: with `progress` and `gear` if
+ * given, or a fresh Level 1 Hero with a Short Sword if not. `tilesets` holds the raw `.tsj` content of the
  * tilesets the Areas keep in their own files, keyed by file name. Throws,
  * naming the Area, on content that doesn't fit together (see
  * `validateAreas`).
@@ -257,6 +284,7 @@ export function createWorld(options: {
   tilesets?: Record<string, unknown>;
   seed: number;
   progress?: Progress | null;
+  gear?: Gear | null;
 }): World {
   const areas: Record<string, Area> = {};
   for (const [name, content] of Object.entries(options.areas)) {
@@ -268,6 +296,7 @@ export function createWorld(options: {
   if (!town) throw new Error(`No Area named "${TOWN}"`);
   const start = town.entries.start;
   const progress = options.progress ?? FRESH_PROGRESS;
+  const gear = options.gear ?? FRESH_GEAR;
 
   const world: World = {
     seed: options.seed,
@@ -283,6 +312,9 @@ export function createWorld(options: {
       // Filled to max Life below, once there's a World to ask.
       life: 0,
       progress: { ...progress },
+      // Filled from `gear` below, handing out Item ids.
+      inventory: [],
+      equipment: emptyEquipment(),
       pos: { ...start },
       prevPos: { ...start },
       path: [],
@@ -297,7 +329,18 @@ export function createWorld(options: {
     monsters: [],
     corpses: [],
     nextMonsterId: 1,
+    nextItemId: 1,
   };
+  for (const { type, cell } of gear.inventory) {
+    world.hero.inventory.push({
+      item: { id: world.nextItemId++, type },
+      cell: { ...cell },
+    });
+  }
+  for (const slot of EQUIPMENT_SLOTS) {
+    const type = gear.equipment[slot];
+    if (type) world.hero.equipment[slot] = { id: world.nextItemId++, type };
+  }
   world.hero.life = maxLife(world);
   for (const spawn of town.spawns) placePack(world, town, spawn);
   return world;
@@ -306,6 +349,58 @@ export function createWorld(options: {
 /** The Hero's progress, as the Save keeps it. */
 export function progressOf(world: World): Progress {
   return { ...world.hero.progress };
+}
+
+/** The Hero's Inventory and Equipment by Item type, as the Save keeps them. */
+export function gearOf(world: World): Gear {
+  const { inventory, equipment } = world.hero;
+  const worn: Gear["equipment"] = {};
+  for (const slot of EQUIPMENT_SLOTS) {
+    const item = equipment[slot];
+    if (item) worn[slot] = item.type;
+  }
+  return {
+    inventory: inventory.map(({ item, cell }) => ({
+      type: item.type,
+      cell: { ...cell },
+    })),
+    equipment: worn,
+  };
+}
+
+/** Every Equipment slot, empty. */
+function emptyEquipment(): Equipment {
+  return Object.fromEntries(
+    EQUIPMENT_SLOTS.map((slot) => [slot, null]),
+  ) as Equipment;
+}
+
+/** The Items in the Inventory, each with its top-left cell. */
+export function inventoryOf(world: World): PlacedItem[] {
+  return world.hero.inventory.map(copyPlaced);
+}
+
+/** The Inventory Item covering `cell`, or null when it's free. */
+export function inventoryItemAt(world: World, cell: Cell): PlacedItem | null {
+  const placed = world.hero.inventory.find(({ item, cell: at }) =>
+    covers(item.type, at, cell),
+  );
+  return placed ? copyPlaced(placed) : null;
+}
+
+/** A copy of a placed Item, so a query's answer can't change the World. */
+function copyPlaced({ item, cell }: PlacedItem): PlacedItem {
+  return { item: { ...item }, cell: { ...cell } };
+}
+
+/** What's in each Equipment slot. */
+export function equipmentOf(world: World): Equipment {
+  return Object.fromEntries(
+    EQUIPMENT_SLOTS.map((slot) => {
+      const item = world.hero.equipment[slot];
+      return [slot, item && { ...item }];
+    }),
+  ) as Equipment;
 }
 
 /** The Monster states in which a Monster is going after the Hero. */
@@ -351,13 +446,15 @@ export function isRegenerating(world: World): boolean {
 }
 
 /**
- * The least and most damage one of the Hero's hits deals, 1% more for each
- * point of Strength. Left unrounded, so every point counts: each hit rounds
- * its own damage.
+ * The least and most damage one of the Hero's hits deals: the Equipped
+ * Weapon's, or a punch's with none, 1% more for each point of Strength.
+ * Left unrounded, so every point counts: each hit rounds its own damage.
  */
 export function damageRange(world: World): [number, number] {
   const scale = 1 + world.hero.progress.strength / 100;
-  const [min, max] = heroTuning.damage;
+  const weapon = world.hero.equipment.weapon;
+  const [min, max] =
+    (weapon && itemOf(weapon.type).damage) ?? heroTuning.unarmedDamage;
   return [min * scale, max * scale];
 }
 

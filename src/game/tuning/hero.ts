@@ -1,5 +1,7 @@
 /** Hero tuning, in human units. The sim converts it to steps once. */
 export type HeroTuning = {
+  /** Life at full health. */
+  life: number;
   /** Tiles per second. */
   walkSpeed: number;
   /** How far the Hero keeps from walls when cutting corners (tiles). */
@@ -21,9 +23,14 @@ export type HeroTuning = {
   damage: [number, number];
   /** How long the whole simulation pauses when a swing lands a hit (ms). */
   hitstopMs: number;
+  /** The chance a Monster's hit makes the Hero flinch. */
+  flinchChance: number;
+  /** How long a flinch roots the Hero (ms). */
+  flinchMs: number;
 };
 
 export const heroTuning: HeroTuning = {
+  life: 100,
   walkSpeed: 5.5,
   radius: 0.3,
   swingMs: 350,
@@ -33,4 +40,6 @@ export const heroTuning: HeroTuning = {
   arcDegrees: 50,
   damage: [20, 30],
   hitstopMs: 60,
+  flinchChance: 0.25,
+  flinchMs: 150,
 };

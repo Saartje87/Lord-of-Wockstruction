@@ -29,6 +29,13 @@ export type MonsterTuning = {
   spreadRadius: number;
   /** How near the Hero must be to start an attack (tiles). */
   reach: number;
+  /**
+   * How much further the Hero may get during the wind-up and still be hit
+   * (tiles).
+   */
+  reachGrace: number;
+  /** An attack hits the Hero within this of the facing it wound up in. */
+  arcDegrees: number;
   /** The telegraph before an attack's hit (ms). */
   windUpMs: number;
   /** How long a Monster is rooted after its hit (ms). */
@@ -69,6 +76,8 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
     needsSight: true,
     spreadRadius: 1.5,
     reach: 1.2,
+    reachGrace: 0.25,
+    arcDegrees: 60,
     windUpMs: 400,
     rootMs: 200,
     recoveryMs: 1000,

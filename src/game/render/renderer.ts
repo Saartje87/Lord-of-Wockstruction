@@ -7,10 +7,12 @@ import {
 } from "pixi.js";
 import { toScreen, toTile } from "../iso";
 import { type Area, isFloor } from "../sim/area";
+import { windUpProgress } from "../sim/monsters";
 import { STEP_MS } from "../sim/units";
 import { tileOf, type Vec } from "../sim/vec";
 import {
   FLINCH_STEPS,
+  HERO_FLINCH_STEPS,
   HIT_STEP,
   type MonsterId,
   type SimEvent,
@@ -30,6 +32,21 @@ const MARKER_LINE = 0xe8d27a;
 const FLASH_MS = 120;
 /** How white a hit Monster turns at the start of its flash (0..1). */
 const FLASH_STRENGTH = 0.8;
+
+/** The screen's red flash when the Hero is hit: its length (ms), fading out. */
+const HURT_MS = 150;
+/** How opaque the red flash starts (0..1). */
+const HURT_STRENGTH = 0.3;
+const HURT_COLOUR = 0xff0000;
+
+/**
+ * A placeholder telegraph: a red wedge over a Monster's reach and arc, filling
+ * outwards as it winds up.
+ */
+const TELEGRAPH_COLOUR = 0xd02a1e;
+/** How opaque the whole wedge and its filled part are (0..1). */
+const TELEGRAPH_ALPHA = { reach: 0.12, filled: 0.35 };
+const TELEGRAPH_SEGMENTS = 12;
 
 /**
  * Each Monster type's size against Flare's native scale. The Skeleton is
@@ -69,7 +86,7 @@ type CharacterView = {
 
 type MonsterView = CharacterView & {
   type: MonsterType;
-  /** Which way it last walked (radians in tile space); the sim has no facing. */
+  /** Which way it faced when last seen alive, for its Corpse. */
   facing: number;
   diedAtMs: number | null;
   flashUntilMs: number;
@@ -87,12 +104,18 @@ export function createRenderer(app: Application, area: Area, art: Art) {
   const marker = drawMarker();
   marker.visible = false;
   camera.addChild(marker);
+  const telegraphs = new Graphics();
+  camera.addChild(telegraphs);
   // Walls, props, the Hero, Monsters and Corpses, nearest the viewer last.
   const scene = drawTiles(area, area.propTiles, art);
   scene.sortableChildren = true;
   camera.addChild(scene);
   const hero = characterView(art.hero, heroTuning.walkSpeed);
   scene.addChild(hero.sprite);
+  // Over the whole screen, stretched to it each frame.
+  const hurt = new Graphics().rect(0, 0, 1, 1).fill(HURT_COLOUR);
+  hurt.visible = false;
+  app.stage.addChild(hurt);
 
   /** Living Monsters and Corpses by id. */
   const monsters = new Map<MonsterId, MonsterView>();
@@ -108,6 +131,7 @@ export function createRenderer(app: Application, area: Area, art: Art) {
   };
   let hoveredTile: Vec | null = null;
   let markedAtMs: number | null = null;
+  let hurtAtMs: number | null = null;
 
   /** Maps a point on the canvas (CSS px) to tile units, as last drawn. */
   const screenToTile = (screen: Vec): Vec =>
@@ -155,6 +179,7 @@ export function createRenderer(app: Application, area: Area, art: Art) {
           const view = monsters.get(event.id);
           if (view) view.diedAtMs = nowMs;
         }
+        if (event.type === "HeroHit") hurtAtMs = nowMs;
       }
     },
 
@@ -198,22 +223,30 @@ export function createRenderer(app: Application, area: Area, art: Art) {
           swing.elapsed * STEP_MS,
         );
         show(hero, "swing", heroCompass, frame);
+      } else if (world.hero.flinch > 0) {
+        const ms = (HERO_FLINCH_STEPS - world.hero.flinch) * STEP_MS;
+        show(hero, "hit", heroCompass, frameAt(art.hero.timing.hit, ms));
       } else {
         walkOrStand(hero, world.hero, heroAt, heroCompass, nowMs);
       }
 
       const seen = new Set<MonsterId>();
+      telegraphs.clear();
       for (const monster of world.monsters) {
         seen.add(monster.id);
         const view = viewOf(monster.id, monster.type);
-        const { pos, prevPos } = monster;
-        const monsterAt = lerp(prevPos, pos, alpha);
+        const monsterAt = lerp(monster.prevPos, monster.pos, alpha);
         place(view, monsterAt);
-        if (pos.x !== prevPos.x || pos.y !== prevPos.y) {
-          view.facing = Math.atan2(pos.y - prevPos.y, pos.x - prevPos.x);
-        }
+        view.facing = monster.facing;
         const compass = compassOf(view.facing);
-        if (monster.flinch > 0) {
+        if (monster.state === "windup") {
+          // A flinch doesn't stop a wind-up, so it shows over one.
+          const progress = windUpProgress(monster);
+          const { frames } = view.art.timing.swing;
+          const frame = Math.min(frames - 1, Math.floor(progress * frames));
+          show(view, "swing", compass, frame);
+          telegraph(telegraphs, monster.type, monsterAt, view.facing, progress);
+        } else if (monster.flinch > 0) {
           const ms = (FLINCH_STEPS[monster.type] - monster.flinch) * STEP_MS;
           show(view, "hit", compass, frameAt(view.art.timing.hit, ms));
         } else {
@@ -256,6 +289,13 @@ export function createRenderer(app: Application, area: Area, art: Art) {
             alpha: 0.7,
           });
         }
+      }
+
+      const hurtLeft = hurtAtMs === null ? 0 : 1 - (nowMs - hurtAtMs) / HURT_MS;
+      hurt.visible = hurtLeft > 0;
+      if (hurt.visible) {
+        hurt.alpha = HURT_STRENGTH * hurtLeft;
+        hurt.scale.set(app.screen.width, app.screen.height);
       }
 
       const markerProgress =
@@ -349,6 +389,40 @@ function flash(view: MonsterView, nowMs: number) {
   }
   view.flash.alpha = FLASH_STRENGTH * left;
   if (!view.sprite.filters) view.sprite.filters = [view.flash];
+}
+
+/**
+ * Draws a winding-up Monster's telegraph: its reach and arc faintly, and the
+ * part of it that `progress` (0..1) has filled.
+ */
+function telegraph(
+  graphics: Graphics,
+  type: MonsterType,
+  at: Vec,
+  facing: number,
+  progress: number,
+) {
+  const { reach, arcDegrees } = monsterTuning[type];
+  const arc = (arcDegrees * Math.PI) / 180;
+  const wedge = (radius: number) => {
+    const points = [toScreen(at)];
+    for (let i = 0; i <= TELEGRAPH_SEGMENTS; i++) {
+      const angle = facing - arc + (2 * arc * i) / TELEGRAPH_SEGMENTS;
+      points.push(
+        toScreen({
+          x: at.x + radius * Math.cos(angle),
+          y: at.y + radius * Math.sin(angle),
+        }),
+      );
+    }
+    return points.flatMap(({ x, y }) => [x, y]);
+  };
+  graphics
+    .poly(wedge(reach))
+    .fill({ color: TELEGRAPH_COLOUR, alpha: TELEGRAPH_ALPHA.reach });
+  graphics
+    .poly(wedge(reach * progress))
+    .fill({ color: TELEGRAPH_COLOUR, alpha: TELEGRAPH_ALPHA.filled });
 }
 
 /** The point `alpha` (0..1) of the way from `from` to `to`. */

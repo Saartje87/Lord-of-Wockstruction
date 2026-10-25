@@ -4,7 +4,7 @@ import { type Area, isWalkable } from "./area";
 import { canSee, findPath, isClear } from "./path";
 import { random, randomInt } from "./random";
 import { msToSteps, perStep } from "./units";
-import { distance, type Vec } from "./vec";
+import { angleBetween, distance, type Vec } from "./vec";
 import type { Monster, World } from "./world";
 
 /** Each Monster type's tuning converted to steps. */
@@ -18,6 +18,11 @@ const STEPPED = Object.fromEntries(
       graceSteps: msToSteps(tuning.graceMs),
       wanderSpeed: perStep(tuning.speed * tuning.wanderSpeed),
       pauseSteps: tuning.wanderPauseMs.map(msToSteps) as [number, number],
+      windUpSteps: msToSteps(tuning.windUpMs),
+      rootSteps: msToSteps(tuning.rootMs),
+      recoverySteps: msToSteps(tuning.recoveryMs),
+      jitterSteps: msToSteps(tuning.jitterMs),
+      arc: (tuning.arcDegrees * Math.PI) / 180,
     },
   ]),
 ) as Record<
@@ -29,13 +34,32 @@ const STEPPED = Object.fromEntries(
     graceSteps: number;
     wanderSpeed: number;
     pauseSteps: [number, number];
+    windUpSteps: number;
+    rootSteps: number;
+    recoverySteps: number;
+    jitterSteps: number;
+    arc: number;
   }
 >;
 
-/** Moves every Monster one step: noticing, chasing and walking home. */
-export function stepMonsters(world: World) {
+/**
+ * Moves every Monster one step: noticing, chasing, attacking and walking
+ * home. Returns the Monsters whose attack hits the Hero this step.
+ */
+export function stepMonsters(world: World): Monster[] {
+  const strikers: Monster[] = [];
   for (const monster of world.monsters) {
     if (monster.grace > 0) monster.grace -= 1;
+    if (monster.cooldown > 0) monster.cooldown -= 1;
+    if (monster.state === "windup") {
+      if (windUp(world, monster)) strikers.push(monster);
+      continue;
+    }
+    if (monster.state === "recover") {
+      monster.attack -= 1;
+      if (monster.attack > 0) continue;
+      monster.state = "chase";
+    }
     // A flinch roots it.
     if (monster.flinch > 0) continue;
     if (isStrolling(monster) && monster.grace === 0 && sees(world, monster)) {
@@ -58,6 +82,7 @@ export function stepMonsters(world: World) {
     }
   }
   separate(world);
+  return strikers;
 }
 
 /** A Monster the Hero hits notices them, unless it is walking home. */
@@ -158,12 +183,64 @@ function chase(world: World, monster: Monster) {
   }
   const hero = world.hero.pos;
   const gap = distance(monster.pos, hero);
-  if (gap <= reach) {
+  // A chase stops at reach only up to rounding.
+  if (gap <= reach + 1e-9) {
     monster.path = [];
+    if (canWindUp(world, monster)) startWindUp(monster, hero);
     return;
   }
   const area = world.areas[world.areaName];
   goToward(area, monster, hero, STEPPED[monster.type].speed, gap - reach);
+}
+
+/** Whether it is ready to attack, with room under its type's attacker cap. */
+function canWindUp(world: World, monster: Monster): boolean {
+  if (monster.cooldown > 0) return false;
+  const { maxAttackers } = monsterTuning[monster.type];
+  if (maxAttackers === 0) return true;
+  const attackers = world.monsters.filter(
+    (other) => other.type === monster.type && other.state === "windup",
+  );
+  return attackers.length < maxAttackers;
+}
+
+/** How far through its wind-up a winding-up Monster is, from 0 to 1. */
+export function windUpProgress(monster: Monster): number {
+  return monster.attack / STEPPED[monster.type].windUpSteps;
+}
+
+/** Starts telegraphing an attack, facing the Hero. */
+function startWindUp(monster: Monster, hero: Vec) {
+  monster.state = "windup";
+  monster.attack = 0;
+  const dx = hero.x - monster.pos.x;
+  const dy = hero.y - monster.pos.y;
+  if (dx !== 0 || dy !== 0) monster.facing = Math.atan2(dy, dx);
+}
+
+/**
+ * Winds up, rooted, and at its end resolves the attack: it hits the Hero
+ * only if they are still in reach, plus grace, and in the arc of the facing
+ * it wound up in. Then it recovers, rooted, and waits a while longer, with
+ * some jitter, before it can attack again. Returns whether it hit.
+ */
+function windUp(world: World, monster: Monster): boolean {
+  const stepped = STEPPED[monster.type];
+  monster.attack += 1;
+  if (monster.attack < stepped.windUpSteps) return false;
+  monster.state = "recover";
+  monster.attack = stepped.rootSteps;
+  monster.cooldown =
+    stepped.rootSteps +
+    stepped.recoverySteps +
+    randomInt(world.rng, [0, stepped.jitterSteps]);
+  const { reach, reachGrace } = monsterTuning[monster.type];
+  const hero = world.hero.pos;
+  const gap = distance(monster.pos, hero);
+  if (gap > reach + reachGrace) return false;
+  if (gap === 0) return true;
+  const angle = Math.atan2(hero.y - monster.pos.y, hero.x - monster.pos.x);
+  return angleBetween(angle, monster.facing) <= STEPPED[monster.type].arc;
 }
 
 /**
@@ -212,7 +289,7 @@ function goToward(
 
 /**
  * Moves the Monster up to `budget` through `points` in order, dropping each
- * one it reaches.
+ * one it reaches, and faces the way it walks.
  */
 function walkAlong(monster: Monster, points: Vec[], budget: number) {
   while (budget > 0 && points.length > 0) {
@@ -220,6 +297,7 @@ function walkAlong(monster: Monster, points: Vec[], budget: number) {
     const dx = next.x - monster.pos.x;
     const dy = next.y - monster.pos.y;
     const gap = Math.hypot(dx, dy);
+    if (gap > 0) monster.facing = Math.atan2(dy, dx);
     if (gap <= budget) {
       monster.pos = { ...next };
       points.shift();

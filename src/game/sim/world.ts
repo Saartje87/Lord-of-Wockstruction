@@ -5,7 +5,7 @@ import { noticeHit, stepMonsters, wanderPause } from "./monsters";
 import { findPath } from "./path";
 import { createRng, type Rng, random, randomInt } from "./random";
 import { msToSteps, perStep } from "./units";
-import { distance, type Vec } from "./vec";
+import { angleBetween, distance, type Vec } from "./vec";
 
 const WALK_PER_STEP = perStep(heroTuning.walkSpeed);
 /** How many steps a swing takes. */
@@ -13,6 +13,8 @@ export const SWING_STEPS = msToSteps(heroTuning.swingMs);
 /** The step of a swing on which its hit lands. */
 export const HIT_STEP = msToSteps(heroTuning.swingMs * heroTuning.hitAt);
 const HITSTOP_STEPS = msToSteps(heroTuning.hitstopMs);
+/** How many steps the Hero flinches for. */
+export const HERO_FLINCH_STEPS = msToSteps(heroTuning.flinchMs);
 const ARC = (heroTuning.arcDegrees * Math.PI) / 180;
 /** How many steps each Monster type flinches for. */
 export const FLINCH_STEPS = Object.fromEntries(
@@ -23,6 +25,7 @@ export const FLINCH_STEPS = Object.fromEntries(
 ) as Record<MonsterType, number>;
 
 export type Hero = {
+  life: number;
   pos: Vec;
   /** Where the Hero was one step ago, for the renderer to interpolate from. */
   prevPos: Vec;
@@ -36,7 +39,12 @@ export type Hero = {
   /** The Monster the Hero is walking into reach of, to swing at. */
   attacking: MonsterId | null;
   swing: Swing | null;
-  /** The order given during a swing, run when it ends; the newest wins. */
+  /** Steps of flinching left; 0 when not flinching. */
+  flinch: number;
+  /**
+   * The order given during a swing or a flinch, run when it ends; the newest
+   * wins.
+   */
   buffered: Order | null;
 };
 
@@ -61,6 +69,18 @@ export type Monster = {
   /** Steps of flinching left; 0 when not flinching. */
   flinch: number;
   state: MonsterState;
+  /**
+   * Which way it faces, in radians in tile space: the direction it last
+   * walked, or the Hero's as it started winding up.
+   */
+  facing: number;
+  /**
+   * While winding up, steps into the wind-up; while recovering, steps left
+   * rooted.
+   */
+  attack: number;
+  /** Steps left before it can wind up again. */
+  cooldown: number;
   /** Where it was placed: it strolls around here and walks back here. */
   home: Vec;
   /**
@@ -77,10 +97,17 @@ export type Monster = {
 };
 
 /**
- * `idle` and `wander` stroll around the spawn, `chase` goes after the Hero
- * and `return` walks home after giving up.
+ * `idle` and `wander` stroll around the spawn, `chase` goes after the Hero,
+ * `windup` telegraphs an attack on them, `recover` stands rooted after it and
+ * `return` walks home after giving up.
  */
-export type MonsterState = "idle" | "wander" | "chase" | "return";
+export type MonsterState =
+  | "idle"
+  | "wander"
+  | "chase"
+  | "windup"
+  | "recover"
+  | "return";
 
 /** What remains of a dead Monster: inert, not clickable, not blocking. */
 export type Corpse = { id: MonsterId; type: MonsterType; pos: Vec };
@@ -116,6 +143,7 @@ export type Order =
 /** What happened during a step. */
 export type SimEvent =
   | { type: "HitLanded"; attacker: "hero"; target: MonsterId; damage: number }
+  | { type: "HeroHit"; damage: number }
   | { type: "MonsterDied"; id: MonsterId };
 
 const TOWN = "town";
@@ -149,6 +177,7 @@ export function createWorld(options: {
     areas,
     areaName: TOWN,
     hero: {
+      life: heroTuning.life,
       pos: { ...start },
       prevPos: { ...start },
       path: [],
@@ -156,6 +185,7 @@ export function createWorld(options: {
       facing: Math.PI / 4,
       attacking: null,
       swing: null,
+      flinch: 0,
       buffered: null,
     },
     monsters: [],
@@ -191,6 +221,10 @@ function placePack(world: World, area: Area, spawn: Spawn) {
       life: monsterTuning[spawn.monster].life,
       flinch: 0,
       state: "idle",
+      // Down the screen, as the Hero starts.
+      facing: Math.PI / 4,
+      attack: 0,
+      cooldown: 0,
       home: { ...pos },
       path: [],
       replan: 0,
@@ -222,6 +256,7 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
     if (monster.flinch > 0) monster.flinch -= 1;
   }
   if (hero.swing) advanceSwing(world, hero.swing, events);
+  if (hero.flinch > 0) stepFlinch(world);
   for (const order of [...world.heldOrders, ...orders]) give(world, order);
   world.heldOrders = [];
   // Swing from where the Hero stands if already in reach, or once walked
@@ -229,15 +264,19 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   approach(world);
   walk(hero);
   approach(world);
-  stepMonsters(world);
+  for (const monster of stepMonsters(world)) hitHero(world, monster, events);
 
   world.tick += 1;
   return events;
 }
 
-/** Applies an order, or buffers it while a swing is committed. */
+/** Applies an order, or buffers it during a flinch or a committed swing. */
 function give(world: World, order: Order) {
   const { hero } = world;
+  if (hero.flinch > 0) {
+    hero.buffered = order;
+    return;
+  }
   if (hero.swing) {
     // A move may walk out of a swing's follow-through, not its wind-up.
     if (order.type !== "MoveTo" || !hero.swing.landed) {
@@ -299,6 +338,19 @@ function advanceSwing(world: World, swing: Swing, events: SimEvent[]) {
   if (swing.elapsed < SWING_STEPS) return;
 
   hero.swing = null;
+  giveBuffered(world);
+}
+
+/** Counts down the Hero's flinch, running the buffered order once it ends. */
+function stepFlinch(world: World) {
+  const { hero } = world;
+  hero.flinch -= 1;
+  if (hero.flinch === 0) giveBuffered(world);
+}
+
+/** Gives the order buffered during a swing or a flinch, if any. */
+function giveBuffered(world: World) {
+  const { hero } = world;
   const buffered = hero.buffered;
   hero.buffered = null;
   if (buffered) give(world, buffered);
@@ -355,14 +407,24 @@ function hit(world: World, monster: Monster, events: SimEvent[]) {
   }
 }
 
-function monsterById(world: World, id: MonsterId): Monster | undefined {
-  return world.monsters.find((monster) => monster.id === id);
+/** Lands a Monster's attack on the Hero. */
+function hitHero(world: World, monster: Monster, events: SimEvent[]) {
+  const { hero } = world;
+  const damage = randomInt(world.rng, monsterTuning[monster.type].damage);
+  hero.life = Math.max(0, hero.life - damage);
+  events.push({ type: "HeroHit", damage });
+
+  // A swing's follow-through carries on.
+  if (hero.swing?.landed) return;
+  if (random(world.rng) >= heroTuning.flinchChance) return;
+  hero.flinch = HERO_FLINCH_STEPS;
+  hero.swing = null;
+  hero.attacking = null;
+  hero.path = [];
 }
 
-/** The absolute difference between two angles, in [0, π]. */
-function angleBetween(a: number, b: number): number {
-  const diff = Math.abs(a - b) % (2 * Math.PI);
-  return diff > Math.PI ? 2 * Math.PI - diff : diff;
+function monsterById(world: World, id: MonsterId): Monster | undefined {
+  return world.monsters.find((monster) => monster.id === id);
 }
 
 /** Moves the Hero one step along its path, carrying over past waypoints. */

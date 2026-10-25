@@ -281,7 +281,10 @@ describe("Leaving the Area", () => {
     const world = createWorld({
       areas: {
         town: map(["H.S.E"], { exitTo: "cave" }),
-        cave: map(["H..E"], { exitTo: "town" }),
+        cave: {
+          ...map(["H..E"], { exitTo: "town" }),
+          properties: [{ name: "areaLevel", type: "int", value: 1 }],
+        },
       },
       seed: 1,
     });

@@ -14,6 +14,14 @@ import {
   type World,
 } from "./world";
 
+/** A map made a Combat Area by giving it Area Level 1. */
+function combatArea(map: object) {
+  return {
+    ...map,
+    properties: [{ name: "areaLevel", type: "int", value: 1 }],
+  };
+}
+
 /**
  * An orthogonal Area of open floor drawn row by row: `.` floor, `H` the
  * Hero's `start` and `S` one Skeleton, both in the middle of their tile.
@@ -118,7 +126,10 @@ describe("chance to hit", () => {
     const w = world(["H.S"]);
 
     expect(attackRating(w)).toBe(100);
-    expect(heroChanceToHit(w, "skeleton")).toBeCloseTo(0.85, 2);
+    expect(heroChanceToHit(w, { type: "skeleton", level: 1 })).toBeCloseTo(
+      0.85,
+      2,
+    );
   });
 
   it("follows 2 × AR / (AR + Defense)", () => {
@@ -186,7 +197,7 @@ describe("a Miss", () => {
       ],
       [exit(3, 1, "cave", "from-town")],
     );
-    const cave = map(["H..."], [entry("from-town", 1, 0)]);
+    const cave = combatArea(map(["H..."], [entry("from-town", 1, 0)]));
     const w = createWorld({ areas: { town, cave }, seed });
     const events = swingOnce(w);
     step(w, [{ type: "MoveTo", target: { x: 3.5, y: 1.5 } }]);
@@ -326,7 +337,7 @@ describe("a Monster Miss", () => {
       ],
       [exit(3, 1, "cave", "from-town")],
     );
-    const cave = map(["H..."], [entry("from-town", 1, 0)]);
+    const cave = combatArea(map(["H..."], [entry("from-town", 1, 0)]));
     const w = createWorld({
       areas: { town, cave },
       seed,

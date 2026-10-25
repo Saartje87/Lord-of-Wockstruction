@@ -101,6 +101,17 @@ describe("the shipped Areas", () => {
     expect(counts.some((count) => Math.abs(count - 7) <= 1)).toBe(true);
   });
 
+  it("give the Catacombs Area Level 1, so its Monsters spawn at Monster Level 1", () => {
+    const world = shippedWorld();
+    walkThrough(world, world.areas.town.exits[0]);
+
+    expect(world.areas.town.areaLevel).toBeNull();
+    expect(world.areas.catacombs.areaLevel).toBe(1);
+    expect(world.areaName).toBe("catacombs");
+    expect(world.monsters.length).toBeGreaterThan(0);
+    expect(world.monsters.every((monster) => monster.level === 1)).toBe(true);
+  });
+
   it("put the Combat Area's Exit back to Town at its start", () => {
     const world = shippedWorld();
     const combat = combatAreaOf(world);

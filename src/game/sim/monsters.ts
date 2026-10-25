@@ -42,6 +42,53 @@ const STEPPED = Object.fromEntries(
   }
 >;
 
+/** A Monster type at a Monster Level: all its scaled numbers depend on. */
+export type MonsterOfLevel = Pick<Monster, "type" | "level">;
+
+/**
+ * A Monster Level 1 number grown by `rate` of itself for each Monster Level
+ * above 1, rounded to a whole number.
+ */
+function grown(value: number, rate: number, level: number): number {
+  return Math.round(value * (1 + rate * (level - 1)));
+}
+
+/** A Monster's max Life at its Monster Level. */
+export function monsterMaxLife({ type, level }: MonsterOfLevel): number {
+  const { life, growth } = monsterTuning[type];
+  return grown(life, growth.life, level);
+}
+
+/** The least and most damage a Monster's hit deals at its Monster Level. */
+export function monsterDamageRange({
+  type,
+  level,
+}: MonsterOfLevel): [number, number] {
+  const { damage, growth } = monsterTuning[type];
+  return [
+    grown(damage[0], growth.damage, level),
+    grown(damage[1], growth.damage, level),
+  ];
+}
+
+/** A Monster's Attack Rating at its Monster Level. */
+export function monsterAttackRating({ type, level }: MonsterOfLevel): number {
+  const { attackRating, growth } = monsterTuning[type];
+  return grown(attackRating, growth.attackRating, level);
+}
+
+/** A Monster's Defense at its Monster Level. */
+export function monsterDefense({ type, level }: MonsterOfLevel): number {
+  const { defense, growth } = monsterTuning[type];
+  return grown(defense, growth.defense, level);
+}
+
+/** The Experience killing a Monster is worth at its Monster Level. */
+export function monsterExperience({ type, level }: MonsterOfLevel): number {
+  const { experience, growth } = monsterTuning[type];
+  return grown(experience, growth.experience, level);
+}
+
 /**
  * Moves every Monster one step: noticing, chasing, attacking and walking
  * home. Returns the Monsters whose attack hits the Hero this step.
@@ -262,7 +309,7 @@ function goHome(world: World, monster: Monster) {
   goToward(area, monster, monster.home, stepped.returnSpeed);
   if (distance(monster.pos, monster.home) > 0) return;
   monster.state = "idle";
-  monster.life = monsterTuning[monster.type].life;
+  monster.life = monsterMaxLife(monster);
   monster.grace = stepped.graceSteps;
 }
 

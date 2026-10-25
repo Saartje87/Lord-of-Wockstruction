@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { itemOf } from "../tuning/items";
+import { monsterTuning } from "../tuning/monsters";
+import type { Belongings } from "./inventory";
 import {
   attackRating,
   chanceToHit,
   createWorld,
   heroChanceToHit,
+  heroDefense,
   isInCombat,
   type SimEvent,
   step,
@@ -204,9 +208,81 @@ describe("a Miss", () => {
   });
 });
 
+/** The events up to and including the first Monster attack on the Hero. */
+function untilAttacked(w: World): SimEvent[] {
+  const events: SimEvent[] = [];
+  for (let i = 0; i < 60 * 10; i++) {
+    const stepped = step(w, []);
+    events.push(...stepped);
+    if (stepped.some(isMonsterAttack)) return events;
+  }
+  throw new Error("No Monster attacked the Hero");
+}
+
+function isMonsterAttack(event: SimEvent): boolean {
+  return (
+    event.type === "HeroHit" ||
+    (event.type === "Missed" && event.target === "hero")
+  );
+}
+
+/** A Hero next to a Skeleton, wearing `equipment`. */
+function wearing(equipment: Belongings["equipment"], seed: number): World {
+  return createWorld({
+    areas: { town: map(["HS"]) },
+    seed,
+    belongings: { inventory: [], equipment },
+  });
+}
+
+/** The first seed at least `from` whose first Skeleton attack on Leather Armour Misses. */
+function seedWhereMonsterMisses(from = 1): number {
+  for (let seed = from; seed < from + 200; seed++) {
+    const events = untilAttacked(wearing({ armour: "leatherArmour" }, seed));
+    if (events.some((event) => event.type === "Missed")) return seed;
+  }
+  throw new Error(`No seed from ${from} where the Skeleton Misses`);
+}
+
 describe("Monsters", () => {
-  it("never Miss the Hero", () => {
+  it("have an Attack Rating that gives Leather Armour about 15% Misses", () => {
+    expect(
+      chanceToHit(
+        monsterTuning.skeleton.attackRating,
+        itemOf("leatherArmour").defense ?? 0,
+      ),
+    ).toBeCloseTo(0.85, 2);
+  });
+
+  it("Miss a Hero in Leather Armour about 15% of the time, replaying from a seed", () => {
+    let missed = 0;
+    for (let seed = 1; seed <= 400; seed++) {
+      const events = untilAttacked(wearing({ armour: "leatherArmour" }, seed));
+      expect(untilAttacked(wearing({ armour: "leatherArmour" }, seed))).toEqual(
+        events,
+      );
+      if (events.some((event) => event.type === "Missed")) missed += 1;
+    }
+
+    expect(missed).toBeGreaterThan(40);
+    expect(missed).toBeLessThan(80);
+  });
+
+  it("Miss more often against Chain Mail", () => {
+    const misses = (armour: "leatherArmour" | "chainMail") => {
+      let missed = 0;
+      for (let seed = 1; seed <= 200; seed++) {
+        const events = untilAttacked(wearing({ armour }, seed));
+        if (events.some((event) => event.type === "Missed")) missed += 1;
+      }
+      return missed;
+    };
+    expect(misses("chainMail")).toBeGreaterThan(misses("leatherArmour"));
+  });
+
+  it("never Miss a Hero with 0 Defense", () => {
     const w = world(["HS"]);
+    expect(heroDefense(w)).toBe(0);
     let attacks = 0;
     for (let i = 0; i < 60 * 60 && !w.death; i++) {
       const events = step(w, []);
@@ -214,5 +290,61 @@ describe("Monsters", () => {
       expect(events.filter((event) => event.type === "Missed")).toEqual([]);
     }
     expect(attacks).toBeGreaterThan(10);
+  });
+});
+
+describe("a Monster Miss", () => {
+  it("reports a Miss on the Hero in place of the hit", () => {
+    const w = wearing({ armour: "leatherArmour" }, seedWhereMonsterMisses());
+
+    expect(untilAttacked(w).filter(isMonsterAttack)).toEqual([
+      { type: "Missed", target: "hero" },
+    ]);
+  });
+
+  it("deals no damage and causes no flinch", () => {
+    for (let from = 1, checked = 0; checked < 10; checked++) {
+      const seed = seedWhereMonsterMisses(from);
+      from = seed + 1;
+      const w = wearing({ armour: "leatherArmour" }, seed);
+      const life = w.hero.life;
+      untilAttacked(w);
+
+      expect(w.hero.life).toBe(life);
+      expect(w.hero.flinch).toBe(0);
+    }
+  });
+
+  // As for the Hero's Misses: in the empty cave only damage taken can keep
+  // the Hero In Combat.
+  function attackedThenLeave(seed: number) {
+    const town = map(
+      [
+        "....", //
+        ".H..",
+        ".S..",
+      ],
+      [exit(3, 1, "cave", "from-town")],
+    );
+    const cave = map(["H..."], [entry("from-town", 1, 0)]);
+    const w = createWorld({
+      areas: { town, cave },
+      seed,
+      belongings: { inventory: [], equipment: { armour: "leatherArmour" } },
+    });
+    const events = untilAttacked(w);
+    step(w, [{ type: "MoveTo", target: { x: 3.5, y: 1.5 } }]);
+    while (w.areaName === "town" || w.areaChange) events.push(...step(w, []));
+    return { w, attacks: events.filter(isMonsterAttack) };
+  }
+
+  it("doesn't keep the Hero In Combat, as a hit does", () => {
+    const missed = attackedThenLeave(seedWhereMonsterMisses());
+    expect(missed.attacks).toEqual([{ type: "Missed", target: "hero" }]);
+    expect(isInCombat(missed.w)).toBe(false);
+
+    const hit = attackedThenLeave(1);
+    expect(hit.attacks).toEqual([expect.objectContaining({ type: "HeroHit" })]);
+    expect(isInCombat(hit.w)).toBe(true);
   });
 });

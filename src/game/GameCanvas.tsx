@@ -10,21 +10,27 @@ import {
   createPointerInput,
   poll,
   release,
+  takeRightClick,
 } from "./input/pointer";
 import { clickPaused, createMenus, pressKey } from "./menus";
 import { gameTime } from "./pause";
 import { loadArt } from "./render/art";
+import {
+  inventoryOrder,
+  inventoryRightClickOrder,
+} from "./render/inventoryPanel";
 import { createRenderer } from "./render/renderer";
 import {
   browserStorage,
-  changesProgress,
+  changesSave,
   readSave,
   removeSave,
+  saveOf,
   writeSave,
 } from "./save";
 import { isFloor } from "./sim/area";
 import type { Vec } from "./sim/vec";
-import { createWorld, type Order, progressOf, step } from "./sim/world";
+import { createWorld, type Order, step } from "./sim/world";
 
 /** Mounts the Pixi Application and runs the fixed-step loop. */
 export default function GameCanvas() {
@@ -52,11 +58,13 @@ export default function GameCanvas() {
       if (cancelled) return;
       const storage = browserStorage();
       // The Save's Hero, or a fresh one when there's no Save.
+      const save = readSave(storage);
       let world = createWorld({
         areas,
         tilesets,
         seed: Date.now(),
-        progress: readSave(storage),
+        progress: save?.progress,
+        belongings: save?.belongings,
       });
       const usedTilesets = Object.values(world.areas).map(
         (area) => area.tileset,
@@ -100,6 +108,7 @@ export default function GameCanvas() {
 
       const tick = (realNow: number) => {
         const wasPaused = pause.paused;
+        const inventoryWasOpen = menus.inventoryOpen;
         let pressed = clickedAt !== null;
         let newHero = false;
         for (const key of keys) {
@@ -126,9 +135,14 @@ export default function GameCanvas() {
           world = createWorld({ areas, tilesets, seed: Date.now() });
           orders = [];
         }
+        // An Item held as the panel closes goes back where it came from.
+        if (inventoryWasOpen && !menus.inventoryOpen) {
+          orders.push({ type: "ReturnCursorItem" });
+        }
         // Stands still while paused, so the clock owes no steps for it and
         // the World and every effect hold still.
         const now = gameTime(pause, realNow);
+        const pressedAt = input.pressedAt;
         const {
           orders: newOrders,
           click,
@@ -136,18 +150,35 @@ export default function GameCanvas() {
         } = poll(input, now, {
           toTile: renderer.screenToTile,
           monsterAt: renderer.monsterAt,
+          groundLabelAt: renderer.groundLabelAt,
+          groundItemAt: renderer.groundItemAt,
           panelAt: renderer.panelAt,
         });
         orders.push(...newOrders);
-        // A click on the panel never orders the Hero about: Level Up opens
-        // it and a + spends a point, while the game runs on.
+        // A click on a panel never orders the Hero about: on the Hero panel,
+        // Level Up opens it and a + spends a point, while the game runs on.
+        // On the Inventory it lifts or puts down an Item, and with one held
+        // a click off the panels drops it.
         if (panel) {
           pressed = false;
-          if (panel.button?.type === "levelUp") menus.heroPanelOpen = true;
-          if (panel.button?.type === "raise") {
-            const { attribute } = panel.button;
+          const button = "button" in panel ? panel.button : null;
+          if (button?.type === "levelUp") menus.heroPanelOpen = true;
+          if (button?.type === "raise") {
+            const { attribute } = button;
             orders.push({ type: "SpendAttributePoint", attribute });
           }
+          if (!("button" in panel) && pressedAt) {
+            const order = inventoryOrder(world, app.screen, pressedAt, panel);
+            if (order) orders.push(order);
+          }
+        }
+        // A right-click on the Inventory equips or unequips the Item under
+        // it; anywhere else it does nothing.
+        const rightAt = takeRightClick(input);
+        const rightHit = rightAt && renderer.panelAt(rightAt);
+        if (rightHit && !("button" in rightHit)) {
+          const order = inventoryRightClickOrder(world, rightHit);
+          if (order) orders.push(order);
         }
         if (pressed && world.death && !pause.paused) {
           orders.push({ type: "Continue" });
@@ -165,15 +196,12 @@ export default function GameCanvas() {
         last = now;
         for (let i = 0; i < steps; i++) {
           const events = step(world, orders);
-          if (changesProgress(events)) writeSave(storage, progressOf(world));
+          if (changesSave(events)) writeSave(storage, saveOf(world));
           renderer.react(events, now);
           orders = [];
         }
-        // No hover outline or nameplate under the menu or the panel.
-        const pointer =
-          pause.paused || (input.screen && renderer.panelAt(input.screen))
-            ? null
-            : input.screen;
+        // No hover outline, nameplate or tooltip under the menu.
+        const pointer = pause.paused ? null : input.screen;
         renderer.draw(world, alpha, pointer, now, menus);
         app.render();
         frame = requestAnimationFrame(tick);

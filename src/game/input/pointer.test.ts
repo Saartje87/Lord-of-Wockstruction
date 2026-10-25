@@ -6,7 +6,9 @@ import {
   move,
   poll,
   press,
+  pressRight,
   release,
+  takeRightClick,
 } from "./pointer";
 
 // Treat canvas pixels as tile units, so tests can speak in tiles, with no
@@ -14,6 +16,8 @@ import {
 const asTiles = {
   toTile: (screen: Vec) => screen,
   monsterAt: () => null,
+  groundLabelAt: () => null,
+  groundItemAt: () => null,
   panelAt: () => null,
 };
 
@@ -170,6 +174,98 @@ describe("pointer input on Monsters", () => {
   });
 });
 
+/** Like `withMonster`, with Ground Item 3's label over the same tile. */
+const withGroundItem = {
+  ...withMonster,
+  groundLabelAt: (screen: Vec) =>
+    Math.floor(screen.x) === 5 && Math.floor(screen.y) === 5 ? 3 : null,
+};
+
+describe("pointer input on Ground Items", () => {
+  it("picks up a clicked Ground Item, over a Monster, with no marker", () => {
+    const input = createPointerInput();
+
+    press(input, { x: 5.2, y: 5.7 });
+    const { orders, click } = poll(input, 0, withGroundItem);
+
+    expect(orders).toEqual([{ type: "PickUp", groundItem: 3 }]);
+    expect(click).toBeNull();
+  });
+
+  it("orders nothing more while the click is held", () => {
+    const input = createPointerInput();
+    press(input, { x: 5.5, y: 5.5 });
+    poll(input, 0, withGroundItem);
+
+    expect(poll(input, 120, withGroundItem).orders).toEqual([]);
+    move(input, { x: 8, y: 8 });
+    expect(poll(input, 240, withGroundItem).orders).toEqual([]);
+  });
+
+  it("swings in place on Shift + click, even on a Ground Item", () => {
+    const input = createPointerInput();
+
+    press(input, { x: 5.2, y: 5.7 }, { shift: true });
+
+    expect(poll(input, 0, withGroundItem).orders).toEqual([
+      { type: "SwingAt", target: { x: 5.2, y: 5.7 } },
+    ]);
+  });
+});
+
+/**
+ * Like `withMonster`, with Ground Item 4 lying on the floor over the tiles
+ * (5, 5) and (6, 5), its label elsewhere.
+ */
+const withLyingItem = {
+  ...withMonster,
+  groundItemAt: (screen: Vec) =>
+    Math.floor(screen.y) === 5 && [5, 6].includes(Math.floor(screen.x))
+      ? 4
+      : null,
+};
+
+describe("pointer input on a Ground Item's body", () => {
+  it("picks up the Ground Item clicked on the floor, with no marker", () => {
+    const input = createPointerInput();
+
+    press(input, { x: 6.5, y: 5.5 });
+    const { orders, click } = poll(input, 0, withLyingItem);
+
+    expect(orders).toEqual([{ type: "PickUp", groundItem: 4 }]);
+    expect(click).toBeNull();
+  });
+
+  it("attacks a Monster standing over it instead", () => {
+    const input = createPointerInput();
+
+    press(input, { x: 5.5, y: 5.5 });
+
+    expect(poll(input, 0, withLyingItem).orders).toEqual([
+      { type: "Attack", monster: 7 },
+    ]);
+  });
+
+  it("orders nothing more while the click is held", () => {
+    const input = createPointerInput();
+    press(input, { x: 6.5, y: 5.5 });
+    poll(input, 0, withLyingItem);
+
+    move(input, { x: 8, y: 8 });
+    expect(poll(input, 120, withLyingItem).orders).toEqual([]);
+  });
+
+  it("swings in place on Shift + click on it", () => {
+    const input = createPointerInput();
+
+    press(input, { x: 6.5, y: 5.5 }, { shift: true });
+
+    expect(poll(input, 0, withLyingItem).orders).toEqual([
+      { type: "SwingAt", target: { x: 6.5, y: 5.5 } },
+    ]);
+  });
+});
+
 /** Like `withMonster`, with a panel drawn over everything left of x = 4. */
 const withPanel = {
   ...withMonster,
@@ -219,5 +315,28 @@ describe("pointer input on a panel", () => {
     expect(poll(input, 240, withPanel).orders).toEqual([
       { type: "MoveTo", target: { x: 7.5, y: 6.5 } },
     ]);
+  });
+});
+
+describe("right-clicks", () => {
+  it("are handed back once, ordering nothing", () => {
+    const input = createPointerInput();
+    pressRight(input, { x: 2, y: 5 });
+
+    expect(poll(input, 0, asTiles)).toEqual({
+      orders: [],
+      click: null,
+      panel: null,
+    });
+    expect(takeRightClick(input)).toEqual({ x: 2, y: 5 });
+    expect(takeRightClick(input)).toBeNull();
+  });
+
+  it("are forgotten by a cancel", () => {
+    const input = createPointerInput();
+    pressRight(input, { x: 2, y: 5 });
+    cancel(input);
+
+    expect(takeRightClick(input)).toBeNull();
   });
 });

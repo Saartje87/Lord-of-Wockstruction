@@ -21,6 +21,35 @@ describe("the keys", () => {
     expect(menus.heroPanelOpen).toBe(false);
   });
 
+  it("open and close the Inventory panel with I while the game runs", () => {
+    const menus = createMenus();
+
+    expect(pressKey(menus, "i", 1000)).toBe("handled");
+    expect(menus.inventoryOpen).toBe(true);
+    pressKey(menus, "I", 2000);
+    expect(menus.inventoryOpen).toBe(false);
+  });
+
+  it("keep the Hero and Inventory panels open together", () => {
+    const menus = createMenus();
+
+    pressKey(menus, "c", 1000);
+    pressKey(menus, "i", 2000);
+
+    expect(menus.heroPanelOpen).toBe(true);
+    expect(menus.inventoryOpen).toBe(true);
+    expect(menus.pause.paused).toBe(false);
+  });
+
+  it("leave the Inventory panel be while paused", () => {
+    const menus = createMenus();
+    pressKey(menus, "Escape", 1000);
+
+    pressKey(menus, "i", 2000);
+
+    expect(menus.inventoryOpen).toBe(false);
+  });
+
   it("leave the Hero panel be while paused", () => {
     const menus = createMenus();
     pressKey(menus, "Escape", 1000);
@@ -51,15 +80,17 @@ describe("the keys", () => {
     expect(menus.pause.paused).toBe(false);
   });
 
-  it("close the Hero panel for a New Hero", () => {
+  it("close the Hero and Inventory panels for a New Hero", () => {
     const menus = createMenus();
     pressKey(menus, "c", 1000);
+    pressKey(menus, "i", 1000);
     pressKey(menus, "Escape", 2000);
     pressKey(menus, "n", 3000);
 
     pressKey(menus, "y", 4000);
 
     expect(menus.heroPanelOpen).toBe(false);
+    expect(menus.inventoryOpen).toBe(false);
   });
 
   it("take no Y for New Hero without the question first", () => {

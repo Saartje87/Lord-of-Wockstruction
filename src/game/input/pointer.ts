@@ -1,3 +1,4 @@
+import type { ItemId } from "../sim/inventory";
 import { tileOf, type Vec } from "../sim/vec";
 import type { MonsterId, Order } from "../sim/world";
 import { inputTuning } from "../tuning/input";
@@ -11,6 +12,8 @@ export type PointerInput = {
    * released and the pointer has left again since.
    */
   pressedAt: Vec | null;
+  /** Where the right button last went down, until taken. */
+  rightPressedAt: Vec | null;
   /** Whether Shift was down when the button went down. */
   shift: boolean;
   held: boolean;
@@ -22,7 +25,10 @@ export type PointerInput = {
 
 type Holding =
   | { type: "steer" }
-  /** Held from a press on a panel, which orders nothing. */
+  /**
+   * Held from a press on a panel or a Ground Item, which orders nothing
+   * more.
+   */
   | { type: "panel" }
   | { type: "attack"; monster: MonsterId }
   | { type: "swing" };
@@ -36,6 +42,13 @@ export type PointerView<Panel> = {
   toTile(screen: Vec): Vec;
   /** The Monster drawn under a canvas point (CSS px), if any. */
   monsterAt(screen: Vec): MonsterId | null;
+  /** The Ground Item whose label is under a canvas point (CSS px), if any. */
+  groundLabelAt(screen: Vec): ItemId | null;
+  /**
+   * The Ground Item drawn on the floor under a canvas point (CSS px), if
+   * any.
+   */
+  groundItemAt(screen: Vec): ItemId | null;
   /**
    * What a canvas point (CSS px) hits of the panels and buttons over the
    * World, or null when it's on none of them.
@@ -47,6 +60,7 @@ export function createPointerInput(): PointerInput {
   return {
     screen: null,
     pressedAt: null,
+    rightPressedAt: null,
     shift: false,
     held: false,
     holding: { type: "steer" },
@@ -65,7 +79,10 @@ export function attachPointer(
     listener: (e: HTMLElementEventMap[K]) => void,
   ) => canvas.addEventListener(type, listener, { signal });
 
+  // The right button is for the panels, not the browser's menu.
+  on("contextmenu", (e) => e.preventDefault());
   on("pointerdown", (e) => {
+    if (e.button === 2) pressRight(input, { x: e.offsetX, y: e.offsetY });
     if (e.button !== 0) return;
     // Keep receiving moves and the release while held outside the canvas.
     canvas.setPointerCapture(e.pointerId);
@@ -91,6 +108,21 @@ export function press(
   input.held = true;
 }
 
+/** The right button went down at `screen`. */
+export function pressRight(input: PointerInput, screen: Vec) {
+  input.rightPressedAt = screen;
+}
+
+/**
+ * Where the right button went down since this was last called, if it did,
+ * for the panels to handle: it never orders the Hero about.
+ */
+export function takeRightClick(input: PointerInput): Vec | null {
+  const at = input.rightPressedAt;
+  input.rightPressedAt = null;
+  return at;
+}
+
 /** The cursor moved on the canvas, or left it (null). */
 export function move(input: PointerInput, screen: Vec | null) {
   input.screen = screen;
@@ -106,6 +138,7 @@ export function release(input: PointerInput) {
  */
 export function cancel(input: PointerInput) {
   input.pressedAt = null;
+  input.rightPressedAt = null;
   release(input);
 }
 
@@ -114,8 +147,8 @@ export function cancel(input: PointerInput) {
  * fresh click on the floor, if any, to mark, and what a fresh click on a
  * panel hit, if any, for the panel to handle.
  *
- * A click attacks the Monster under it, or walks; Shift + click swings in
- * place. Holding the button repeats that every `retargetMs` towards the
+ * A click picks up the Ground Item whose label is under it, attacks the
+ * Monster under it, picks up the Ground Item lying under it, or walks; Shift + click swings in place. Holding the button repeats that every `retargetMs` towards the
  * cursor, keeps attacking the same Monster, and switches from walking to
  * attacking as soon as the cursor passes over a Monster. A click on a panel
  * orders nothing, nor does holding it on, and steering doesn't follow the
@@ -137,6 +170,15 @@ export function poll<Panel>(
       return { ...nothing, panel };
     }
     const monster = view.monsterAt(pressedAt);
+    // A label wins over a Monster, a Monster over an Item under its feet.
+    const groundItem = input.shift
+      ? null
+      : (view.groundLabelAt(pressedAt) ??
+        (monster === null ? view.groundItemAt(pressedAt) : null));
+    if (groundItem !== null) {
+      input.holding = { type: "panel" };
+      return { ...nothing, orders: [{ type: "PickUp", groundItem }] };
+    }
     if (input.shift) {
       input.holding = { type: "swing" };
     } else if (monster !== null) {

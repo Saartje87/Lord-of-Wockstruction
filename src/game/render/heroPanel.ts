@@ -1,15 +1,17 @@
+import { inside, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
 import {
   ATTRIBUTES,
   type Attribute,
   attackRating,
+  attributesOf,
   damageRange,
   heroChanceToHit,
+  heroDefense,
   maxLife,
   type World,
 } from "../sim/world";
 import { experienceBar } from "./experienceBar";
-import { inside, type Rect } from "./rect";
 
 /**
  * The Hero panel at the top left (CSS px): `left` and `top` from the
@@ -20,7 +22,7 @@ export const HERO_PANEL = {
   left: 16,
   top: 16,
   width: 300,
-  height: 440,
+  height: 468,
   padding: 18,
   firstRow: 56,
   rowHeight: 28,
@@ -66,8 +68,8 @@ export type HeroSheet = {
   /** Whether a point can be spent now, so + buttons show. */
   canRaise: boolean;
   /**
-   * What the Attributes add up to: max Life, the damage range, Attack Rating
-   * and the chance to hit a Skeleton.
+   * What the Attributes and Equipped Items add up to: max Life, the damage
+   * range, Defense, Attack Rating and the chance to hit a Skeleton.
    */
   derived: { name: string; value: string }[];
 };
@@ -75,13 +77,15 @@ export type HeroSheet = {
 export function heroSheet(world: World): HeroSheet {
   const { progress } = world.hero;
   const [min, max] = damageRange(world);
+  // As they count, with the Equipped Items' bonuses.
+  const attributes = attributesOf(world);
   return {
     level: `Level ${progress.level}`,
     experience: experienceBar(progress.level, progress.experience).experience,
     attributes: ATTRIBUTES.map((attribute) => ({
       attribute,
       name: ATTRIBUTE_NAMES[attribute],
-      value: String(progress[attribute]),
+      value: String(attributes[attribute]),
     })),
     attributePoints: String(progress.attributePoints),
     canRaise: canRaise(world),
@@ -89,6 +93,7 @@ export function heroSheet(world: World): HeroSheet {
       { name: "Life", value: String(maxLife(world)) },
       // Each hit rounds its own damage, so the range shows rounded too.
       { name: "Damage", value: `${Math.round(min)}–${Math.round(max)}` },
+      { name: "Defense", value: String(heroDefense(world)) },
       { name: "Attack Rating", value: String(attackRating(world)) },
       {
         name: "Chance to hit a Skeleton",

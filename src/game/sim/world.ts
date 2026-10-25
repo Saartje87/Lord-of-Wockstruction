@@ -1,7 +1,27 @@
 import { areaTuning } from "../tuning/areas";
 import { heroTuning } from "../tuning/hero";
+import { type Bonus, dropTuning, type ItemType, itemOf } from "../tuning/items";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import { type Area, exitAt, isWalkable, loadArea, type Spawn } from "./area";
+import {
+  type Belongings,
+  type Cell,
+  type CursorItem,
+  EQUIPMENT_SLOTS,
+  type Equipment,
+  type EquipmentSlot,
+  emptyEquipment,
+  FRESH_BELONGINGS,
+  firstFreeCell,
+  giveBelongings,
+  type Item,
+  type ItemId,
+  type ItemSpot,
+  moveItem,
+  type PlacedItem,
+  returnCursorItem,
+  taken,
+} from "./inventory";
 import { noticeHit, sendHome, stepMonsters, wanderPause } from "./monsters";
 import { findPath } from "./path";
 import { createRng, type Rng, random, randomInt } from "./random";
@@ -41,8 +61,17 @@ export const FLINCH_STEPS = Object.fromEntries(
 
 export type Hero = {
   life: number;
-  /** Level, Experience and Attributes: what the Save keeps. */
+  /** Level, Experience and Attributes, kept by the Save. */
   progress: Progress;
+  /** The Items carried, none overlapping, kept by the Save. */
+  inventory: PlacedItem[];
+  /** The Items worn, kept by the Save. */
+  equipment: Equipment;
+  /**
+   * The Item held on the cursor, if any. The Save keeps it at the cell it
+   * was lifted from.
+   */
+  cursor: CursorItem | null;
   pos: Vec;
   /** Where the Hero was one step ago, for the renderer to interpolate from. */
   prevPos: Vec;
@@ -55,6 +84,8 @@ export type Hero = {
   facing: number;
   /** The Monster the Hero is walking into reach of, to swing at. */
   attacking: MonsterId | null;
+  /** The Ground Item the Hero is walking to, to pick up. */
+  pickingUp: ItemId | null;
   swing: Swing | null;
   /** Steps of flinching left; 0 when not flinching. */
   flinch: number;
@@ -154,6 +185,9 @@ export type Death = {
 /** What remains of a dead Monster: inert, not clickable, not blocking. */
 export type Corpse = { id: MonsterId; type: MonsterType; pos: Vec };
 
+/** An Item lying in the active Area, until picked up or the Hero leaves. */
+export type GroundItem = { item: Item; pos: Vec };
+
 export type World = {
   seed: number;
   /** All randomness comes from here, so a seed and orders replay exactly. */
@@ -176,8 +210,12 @@ export type World = {
   monsters: Monster[];
   /** The Corpses in the active Area. */
   corpses: Corpse[];
+  /** The Ground Items in the active Area, never kept by the Save. */
+  groundItems: GroundItem[];
   /** The id the next Monster gets. */
   nextMonsterId: MonsterId;
+  /** The id the next Item gets. */
+  nextItemId: ItemId;
 };
 
 /** Input reaching the simulation. */
@@ -187,6 +225,41 @@ export type Order =
   | { type: "Attack"; monster: MonsterId }
   /** Swing in place towards a point, hitting every Monster in the arc. */
   | { type: "SwingAt"; target: Vec }
+  /**
+   * Lift the Inventory Item covering cell `from`, or the Item Equipped in
+   * slot `from`, onto the cursor, if it's empty. This and the other orders
+   * moving Items happen at once, whatever the Hero is doing.
+   */
+  | { type: "LiftItem"; from: ItemSpot }
+  /**
+   * Put the cursor Item down with its top-left at cell `to`, or into slot
+   * `to`: into free cells or an empty slot, or over exactly one Item, which
+   * is swapped onto the cursor. Refused off the grid, over two or more
+   * Items, into a slot of another kind, or when a swapped-out Item couldn't
+   * go back anywhere (see `placement`).
+   */
+  | { type: "PlaceItem"; to: ItemSpot }
+  /** Lay the cursor Item on the ground at the Hero's feet. */
+  | { type: "DropItem" }
+  /**
+   * Put the cursor Item back where it was lifted from, as when the Inventory
+   * panel closes. Death and leaving the Area do the same by themselves.
+   */
+  | { type: "ReturnCursorItem" }
+  /**
+   * Equip the Inventory Item `item` into the slot of its kind (a Ring into
+   * the first empty Ring slot, else the left one), whatever was there going
+   * into the space it leaves (see `equipItem`). Ignored while an Item is
+   * held.
+   */
+  | { type: "EquipItem"; item: ItemId }
+  /**
+   * Move the Item Equipped in `slot` to the first free spot in the
+   * Inventory, or refuse with `NoRoom` when it fits nowhere.
+   */
+  | { type: "UnequipItem"; slot: EquipmentSlot }
+  /** Walk to a Ground Item and pick it up, if there's room for it. */
+  | { type: "PickUp"; groundItem: ItemId }
   /** Go back to Town after dying. */
   | { type: "Continue" }
   /**
@@ -198,10 +271,25 @@ export type Order =
 /** What happened during a step. */
 export type SimEvent =
   | { type: "HitLanded"; attacker: "hero"; target: MonsterId; damage: number }
-  /** A swing of the Hero's failed its chance to hit. */
-  | { type: "Missed"; target: MonsterId }
+  /**
+   * A swing of the Hero's failed its chance to hit a Monster, or a Monster's
+   * attack failed to hit the Hero.
+   */
+  | { type: "Missed"; target: MonsterId | "hero" }
   | { type: "HeroHit"; damage: number }
   | { type: "MonsterDied"; id: MonsterId }
+  /** A dying Monster or the Hero dropped `item`, which now lies at `pos`. */
+  | { type: "ItemDropped"; item: Item; pos: Vec }
+  /** The Hero picked up `item`, which now has its top-left at `cell`. */
+  | { type: "ItemPickedUp"; item: Item; cell: Cell }
+  /** The Hero got to a Ground Item with no room for it in the Inventory. */
+  | { type: "NoRoom" }
+  /** An Item moved in the Inventory or Equipment, onto the cursor or off it. */
+  | { type: "InventoryChanged" }
+  /** `item` went into Equipment slot `slot`. */
+  | { type: "ItemEquipped"; item: Item; slot: EquipmentSlot }
+  /** `item` came out of Equipment slot `slot`. */
+  | { type: "ItemUnequipped"; item: Item; slot: EquipmentSlot }
   | { type: "ExperienceGained"; amount: number }
   /** The Hero reached Level `level`, with their Life already filled. */
   | { type: "LevelReached"; level: number }
@@ -218,7 +306,7 @@ export const ATTRIBUTES = ["strength", "dexterity", "vitality"] as const;
 /** One of the Hero's Attributes. */
 export type Attribute = (typeof ATTRIBUTES)[number];
 
-/** What the Save keeps of the Hero. */
+/** Level, Experience and Attributes: what the Save keeps besides Belongings. */
 export type Progress = {
   /** From 1 up to the last Level in the Experience table. */
   level: number;
@@ -246,9 +334,10 @@ export const FRESH_PROGRESS: Progress = {
 
 /**
  * Builds a World from raw `.tmj` content keyed by Area name, with the Hero in
- * Town at its `start` Entry with full Life: with `progress` if given, or a
- * fresh Level 1 Hero if not. `tilesets` holds the raw `.tsj` content of the
- * tilesets the Areas keep in their own files, keyed by file name. Throws,
+ * Town at its `start` Entry with full Life: with `progress` and `belongings`
+ * if given, or a fresh Level 1 Hero with a Short Sword if not. `tilesets`
+ * holds the raw `.tsj` content of the tilesets the Areas keep in their own
+ * files, keyed by file name. Throws,
  * naming the Area, on content that doesn't fit together (see
  * `validateAreas`).
  */
@@ -257,6 +346,7 @@ export function createWorld(options: {
   tilesets?: Record<string, unknown>;
   seed: number;
   progress?: Progress | null;
+  belongings?: Belongings | null;
 }): World {
   const areas: Record<string, Area> = {};
   for (const [name, content] of Object.entries(options.areas)) {
@@ -268,6 +358,7 @@ export function createWorld(options: {
   if (!town) throw new Error(`No Area named "${TOWN}"`);
   const start = town.entries.start;
   const progress = options.progress ?? FRESH_PROGRESS;
+  const belongings = options.belongings ?? FRESH_BELONGINGS;
 
   const world: World = {
     seed: options.seed,
@@ -283,12 +374,17 @@ export function createWorld(options: {
       // Filled to max Life below, once there's a World to ask.
       life: 0,
       progress: { ...progress },
+      // Filled from `belongings` below, handing out Item ids.
+      inventory: [],
+      equipment: emptyEquipment(),
+      cursor: null,
       pos: { ...start },
       prevPos: { ...start },
       path: [],
       // Down the screen, along +x and +y.
       facing: Math.PI / 4,
       attacking: null,
+      pickingUp: null,
       swing: null,
       flinch: 0,
       combat: 0,
@@ -296,8 +392,11 @@ export function createWorld(options: {
     },
     monsters: [],
     corpses: [],
+    groundItems: [],
     nextMonsterId: 1,
+    nextItemId: 1,
   };
+  giveBelongings(world, belongings);
   world.hero.life = maxLife(world);
   for (const spawn of town.spawns) placePack(world, town, spawn);
   return world;
@@ -306,6 +405,14 @@ export function createWorld(options: {
 /** The Hero's progress, as the Save keeps it. */
 export function progressOf(world: World): Progress {
   return { ...world.hero.progress };
+}
+
+/** The Ground Items lying in the active Area. */
+export function groundItemsOf(world: World): GroundItem[] {
+  return world.groundItems.map(({ item, pos }) => ({
+    item: { ...item },
+    pos: { ...pos },
+  }));
 }
 
 /** The Monster states in which a Monster is going after the Hero. */
@@ -335,14 +442,53 @@ export function nextLevelExperience(level: number): number | null {
   return level < EXPERIENCE_TABLE.length ? EXPERIENCE_TABLE[level] : null;
 }
 
-/** The Hero's full Life, growing with their Level and Vitality. */
+/** What the Equipped Items add up to, bonus by bonus (0 for none). */
+function bonusOf(world: World, bonus: Bonus): number {
+  let total = 0;
+  for (const slot of EQUIPMENT_SLOTS) {
+    const item = world.hero.equipment[slot];
+    if (item) total += itemOf(item.type).bonuses[bonus] ?? 0;
+  }
+  return total;
+}
+
+/**
+ * The Hero's Attributes as they count: the base ones points are spent on
+ * (see `progressOf`), plus the Equipped Items' bonuses.
+ */
+export function attributesOf(world: World): Record<Attribute, number> {
+  const { progress } = world.hero;
+  return Object.fromEntries(
+    ATTRIBUTES.map((attribute) => [
+      attribute,
+      progress[attribute] + bonusOf(world, attribute),
+    ]),
+  ) as Record<Attribute, number>;
+}
+
+/**
+ * The Hero's full Life, growing with their Level and Vitality, plus the
+ * Equipped Items' +Life.
+ */
 export function maxLife(world: World): number {
-  const { level, vitality } = world.hero.progress;
+  const { level } = world.hero.progress;
   return (
     heroTuning.life +
     heroTuning.lifePerLevel * (level - 1) +
-    heroTuning.lifePerVitality * vitality
+    heroTuning.lifePerVitality * attributesOf(world).vitality +
+    bonusOf(world, "life")
   );
+}
+
+/**
+ * The Hero's Defense, which Monsters' Attack Rating has to beat: the
+ * Equipped Armour's base Defense plus the Equipped Items' +Defense, 0 with
+ * neither.
+ */
+export function heroDefense(world: World): number {
+  const armour = world.hero.equipment.armour;
+  const base = (armour && itemOf(armour.type).defense) ?? 0;
+  return base + bonusOf(world, "defense");
 }
 
 /** Whether the Hero is regaining Life: alive, out of combat and below full. */
@@ -351,13 +497,25 @@ export function isRegenerating(world: World): boolean {
 }
 
 /**
- * The least and most damage one of the Hero's hits deals, 1% more for each
- * point of Strength. Left unrounded, so every point counts: each hit rounds
- * its own damage.
+ * The least and most damage one of the Hero's hits deals: the Equipped
+ * Weapon's, or a punch's with none, 1% more for each point of Strength.
+ * Left unrounded, so every point counts: each hit rounds its own damage.
  */
 export function damageRange(world: World): [number, number] {
-  const scale = 1 + world.hero.progress.strength / 100;
-  const [min, max] = heroTuning.damage;
+  return damageWith(world, world.hero.equipment.weapon?.type ?? null);
+}
+
+/**
+ * The least and most damage the Hero's hits would deal with a Weapon of
+ * `weapon` type, or a punch for null, 1% more for each point of Strength.
+ */
+export function damageWith(
+  world: World,
+  weapon: ItemType | null,
+): [number, number] {
+  const scale = 1 + attributesOf(world).strength / 100;
+  const [min, max] =
+    (weapon && itemOf(weapon).damage) ?? heroTuning.unarmedDamage;
   return [min * scale, max * scale];
 }
 
@@ -370,9 +528,15 @@ export function heroDamage(world: World, roll: number): number {
   return Math.round(min + roll * (max - min));
 }
 
-/** How accurate the Hero's swings are, from their Dexterity. */
+/**
+ * How accurate the Hero's swings are, from their Dexterity, plus the
+ * Equipped Items' +Attack Rating.
+ */
 export function attackRating(world: World): number {
-  return world.hero.progress.dexterity * heroTuning.attackRatingPerDexterity;
+  return (
+    attributesOf(world).dexterity * heroTuning.attackRatingPerDexterity +
+    bonusOf(world, "attackRating")
+  );
 }
 
 /** The chance each of the Hero's swings hits a Monster of type `type`. */
@@ -400,20 +564,27 @@ export function areaFade(world: World): number {
 }
 
 /**
- * Starts the Area change to an Exit's target, stopping the Hero and ending
- * any hitstop.
+ * Starts the Area change to an Exit's target, stopping the Hero, putting
+ * back a held Item and ending any hitstop.
  */
-function startAreaChange(world: World, area: string, entry: string) {
+function startAreaChange(
+  world: World,
+  area: string,
+  entry: string,
+  events: SimEvent[],
+) {
   world.areaChange = { area, entry, elapsed: 0 };
   // A hit landed on this step stops for the fade instead.
   world.hitstop = 0;
   stopHero(world.hero);
+  returnCursorItem(world, events);
 }
 
 /** Stops whatever the Hero is doing: walking, attacking or flinching. */
 function stopHero(hero: Hero) {
   hero.path = [];
   hero.attacking = null;
+  hero.pickingUp = null;
   hero.swing = null;
   hero.flinch = 0;
   hero.buffered = null;
@@ -447,6 +618,7 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   world.areaName = area.name;
   world.monsters = [];
   world.corpses = [];
+  world.groundItems = [];
   world.heldOrders = [];
   for (const spawn of area.spawns) placePack(world, area, spawn);
   events.push({ type: "AreaChanged", area: area.name, entry: change.entry });
@@ -532,7 +704,7 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   }
   if (hero.swing) advanceSwing(world, hero.swing, events);
   if (world.death) {
-    stepDeath(world, world.death, orders);
+    stepDeath(world, world.death, orders, events);
     world.tick += 1;
     return events;
   }
@@ -549,11 +721,12 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   const area = world.areas[world.areaName];
   const exit = exitAt(area, hero.pos);
   if (exit && exit !== exitAt(area, hero.prevPos)) {
-    startAreaChange(world, exit.area, exit.entry);
+    startAreaChange(world, exit.area, exit.entry, events);
     world.tick += 1;
     return events;
   }
   approach(world);
+  reachGroundItem(world, events);
   for (const monster of stepMonsters(world)) {
     if (!world.death) hitHero(world, monster, events);
   }
@@ -570,7 +743,12 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
  * a `Continue` once `DEATH_STEPS` have passed, which starts the way back to
  * Town.
  */
-function stepDeath(world: World, death: Death, orders: readonly Order[]) {
+function stepDeath(
+  world: World,
+  death: Death,
+  orders: readonly Order[],
+  events: SimEvent[],
+) {
   death.elapsed += 1;
   const given = [...world.heldOrders, ...orders];
   world.heldOrders = [];
@@ -578,7 +756,7 @@ function stepDeath(world: World, death: Death, orders: readonly Order[]) {
     death.elapsed >= DEATH_STEPS &&
     given.some((order) => order.type === "Continue")
   ) {
-    startAreaChange(world, TOWN, "start");
+    startAreaChange(world, TOWN, "start", events);
     return;
   }
   stepMonsters(world);
@@ -603,7 +781,9 @@ function spendAttributePoint(
 
 /**
  * Applies an order, or buffers it during a flinch or a committed swing. A
- * point is spent at once, whatever the Hero is doing.
+ * point is spent and Items move at once, whatever the Hero is doing. Taking
+ * an Item off keeps current Life where it is, up to the new max, and putting
+ * one on adds none.
  */
 function give(world: World, order: Order, events: SimEvent[]) {
   const { hero } = world;
@@ -611,6 +791,11 @@ function give(world: World, order: Order, events: SimEvent[]) {
   if (order.type === "Continue") return;
   if (order.type === "SpendAttributePoint") {
     spendAttributePoint(world, order.attribute, events);
+    return;
+  }
+  if (moveItem(world, order, events)) {
+    // Taking off +Life or +Vitality can leave Life over the new max.
+    hero.life = Math.min(hero.life, maxLife(world));
     return;
   }
   if (hero.flinch > 0) {
@@ -631,16 +816,27 @@ function give(world: World, order: Order, events: SimEvent[]) {
   switch (order.type) {
     case "MoveTo":
       hero.attacking = null;
+      hero.pickingUp = null;
       hero.path = findPath(area, hero.pos, order.target, heroTuning.radius);
       break;
     case "Attack": {
       const monster = monsterById(world, order.monster);
       if (!monster) return;
       hero.attacking = monster.id;
+      hero.pickingUp = null;
       hero.path = findPath(area, hero.pos, monster.pos, heroTuning.radius);
       break;
     }
+    case "PickUp": {
+      const lying = groundItemById(world, order.groundItem);
+      if (!lying) return;
+      hero.attacking = null;
+      hero.pickingUp = lying.item.id;
+      hero.path = findPath(area, hero.pos, lying.pos, heroTuning.radius);
+      break;
+    }
     case "SwingAt":
+      hero.pickingUp = null;
       startSwing(hero, null, order.target);
       break;
   }
@@ -660,6 +856,40 @@ function approach(world: World) {
     // Walked as near as it can get, still out of reach.
     hero.attacking = null;
   }
+}
+
+/**
+ * Picks up the Ground Item the Hero walks to once it is in reach: into the
+ * first free spot of the Inventory, or left lying with `NoRoom`.
+ */
+function reachGroundItem(world: World, events: SimEvent[]) {
+  const { hero } = world;
+  if (hero.pickingUp === null) return;
+  const lying = groundItemById(world, hero.pickingUp);
+  if (!lying) {
+    hero.pickingUp = null;
+    hero.path = [];
+    return;
+  }
+  if (distance(hero.pos, lying.pos) > heroTuning.pickupReach) {
+    // Walked as near as it can get, still out of reach.
+    if (hero.path.length === 0) hero.pickingUp = null;
+    return;
+  }
+  hero.pickingUp = null;
+  hero.path = [];
+  const cell = firstFreeCell(taken(hero), lying.item.type);
+  if (!cell) {
+    events.push({ type: "NoRoom" });
+    return;
+  }
+  world.groundItems = world.groundItems.filter((other) => other !== lying);
+  hero.inventory.push({ item: lying.item, cell });
+  events.push({
+    type: "ItemPickedUp",
+    item: { ...lying.item },
+    cell: { ...cell },
+  });
 }
 
 function startSwing(hero: Hero, monster: MonsterId | null, toward: Vec) {
@@ -759,6 +989,7 @@ function hit(world: World, monster: Monster, events: SimEvent[]) {
     });
     events.push({ type: "MonsterDied", id: monster.id });
     gainExperience(world, monsterTuning[monster.type].experience, events);
+    rollDrop(world, monster.pos, events);
     return;
   }
   noticeHit(world, monster);
@@ -767,9 +998,34 @@ function hit(world: World, monster: Monster, events: SimEvent[]) {
   }
 }
 
-/** Lands a Monster's attack on the Hero. */
+/**
+ * Rolls a dying Monster's drop: by `dropTuning.chance`, one Item of a type
+ * picked with equal odds, lying where it died.
+ */
+function rollDrop(world: World, pos: Vec, events: SimEvent[]) {
+  if (random(world.rng) >= dropTuning.chance) return;
+  const { items } = dropTuning;
+  const type = items[randomInt(world.rng, [0, items.length - 1])];
+  const item = { id: world.nextItemId++, type };
+  world.groundItems.push({ item, pos: { ...pos } });
+  events.push({ type: "ItemDropped", item: { ...item }, pos: { ...pos } });
+}
+
+/**
+ * Lands a Monster's attack on the Hero. A Hero with 0 Defense is always hit;
+ * above it the attack can Miss, which deals no damage, so it neither flinches
+ * the Hero nor keeps them In Combat.
+ */
 function hitHero(world: World, monster: Monster, events: SimEvent[]) {
   const { hero } = world;
+  const defense = heroDefense(world);
+  if (defense > 0) {
+    const { attackRating } = monsterTuning[monster.type];
+    if (random(world.rng) >= chanceToHit(attackRating, defense)) {
+      events.push({ type: "Missed", target: "hero" });
+      return;
+    }
+  }
   const damage = randomInt(world.rng, monsterTuning[monster.type].damage);
   hero.life = Math.max(0, hero.life - damage);
   hero.combat = COMBAT_STEPS;
@@ -785,6 +1041,7 @@ function hitHero(world: World, monster: Monster, events: SimEvent[]) {
   hero.flinch = HERO_FLINCH_STEPS;
   hero.swing = null;
   hero.attacking = null;
+  hero.pickingUp = null;
   hero.path = [];
 }
 
@@ -796,6 +1053,7 @@ function die(world: World, events: SimEvent[]) {
   world.death = { elapsed: 0 };
   for (const monster of world.monsters) sendHome(monster);
   stopHero(world.hero);
+  returnCursorItem(world, events);
   events.push({ type: "HeroDied" });
 }
 
@@ -821,6 +1079,10 @@ function gainExperience(world: World, amount: number, events: SimEvent[]) {
     hero.life = maxLife(world);
     events.push({ type: "LevelReached", level: progress.level });
   }
+}
+
+function groundItemById(world: World, id: ItemId): GroundItem | undefined {
+  return world.groundItems.find((lying) => lying.item.id === id);
 }
 
 function monsterById(world: World, id: MonsterId): Monster | undefined {

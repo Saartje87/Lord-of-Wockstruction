@@ -10,7 +10,19 @@ import { toScreen, toTile } from "../iso";
 import type { MenuChoice, Menus } from "../menus";
 import type { Pause } from "../pause";
 import { type Area, isFloor } from "../sim/area";
+import {
+  cursorItemOf,
+  EQUIPMENT_SLOTS,
+  type EquipmentSlot,
+  equipmentOf,
+  type ItemId,
+  type ItemSpot,
+  inventoryOf,
+  isSlot,
+  placement,
+} from "../sim/inventory";
 import { windUpProgress } from "../sim/monsters";
+import type { Rect } from "../sim/rect";
 import { STEP_MS } from "../sim/units";
 import { tileOf, type Vec } from "../sim/vec";
 import {
@@ -18,6 +30,7 @@ import {
   areaFade,
   DEATH_STEPS,
   FLINCH_STEPS,
+  groundItemsOf,
   HERO_FLINCH_STEPS,
   HIT_STEP,
   isInCombat,
@@ -30,11 +43,24 @@ import {
 } from "../sim/world";
 import { heroTuning } from "../tuning/hero";
 import { inputTuning } from "../tuning/input";
+import { type ItemKind, type ItemType, itemOf } from "../tuning/items";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import { type Compass, compassOf, frameAt, swingFrame } from "./animation";
 import { type Animation, type Art, type CharacterArt, frameOf } from "./art";
-import { type DamageNumber, damageNumbers, floatAt } from "./damageNumbers";
+import {
+  type DamageNumber,
+  damageNumbers,
+  floatAt,
+  floatText,
+} from "./damageNumbers";
 import { experienceBar } from "./experienceBar";
+import {
+  GROUND_LABEL,
+  type GroundLabel,
+  groundItemUnder,
+  groundLabelAt,
+  groundLabels,
+} from "./groundLabels";
 import {
   HERO_PANEL,
   heroPanelLayout,
@@ -44,8 +70,18 @@ import {
   panelHitAt,
   rowTop,
 } from "./heroPanel";
+import {
+  type DropHit,
+  INVENTORY_PANEL,
+  type InventoryHit,
+  inventoryHitAt,
+  inventoryPanelLayout,
+  itemRect,
+  itemTooltip,
+  itemUnder,
+  landingCell,
+} from "./inventoryPanel";
 import { menuChoiceAt, PAUSE_MENU_LAYOUT, pauseMenuLayout } from "./pauseMenu";
-import type { Rect } from "./rect";
 
 const HOVER_LINE = 0xd8c48a;
 const MARKER_LINE = 0xe8d27a;
@@ -168,13 +204,14 @@ const LIFE_BACK = { colour: 0x2a0606, alpha: 0.85 };
 const NUMBER = { size: 18, stroke: 3, gap: 2 };
 /**
  * White for the Hero's hits, gold for a killing blow, red for damage taken
- * and grey for a Miss.
+ * grey for a Miss and pale gold for No room.
  */
 const NUMBER_COLOUR: Record<DamageNumber["kind"], number> = {
   hit: 0xffffff,
   kill: 0xffd04a,
   taken: 0xff4a4a,
   miss: 0x9a9a9a,
+  noRoom: 0xe8e0c8,
 };
 
 /** The stone strip along the bottom of the screen (CSS px). */
@@ -262,6 +299,69 @@ const HERO_PANEL_STYLE = {
   hintSize: 13,
   ruleGap: 4,
 };
+/**
+ * The Inventory panel's look, in the Hero panel's colours; where things go
+ * is `inventoryPanelLayout`. Each Item is a box tinted by its kind with its
+ * name inside, and the tooltip sits `tooltipGap` over the hovered Item,
+ * `tooltipPadding` around its lines (CSS px). A held Item follows the
+ * cursor, over a highlight of where it would land: `fits` where it can go
+ * down, `refused` where it can't.
+ */
+const INVENTORY_STYLE = {
+  fits: 0x3c8c3c,
+  refused: 0xa03028,
+  landingAlpha: 0.45,
+  cell: 0x0e0b08,
+  cellEdge: 0x2e2618,
+  slotLabel: 0x6a6050,
+  slotLabelSize: 12,
+  itemEdge: 0x8a7a50,
+  itemAlpha: 0.9,
+  /** A held Item's, so the highlight under it shows through. */
+  heldAlpha: 0.55,
+  itemText: 0xe8e0c8,
+  itemTextSize: 11,
+  tooltip: 0x000000,
+  tooltipAlpha: 0.85,
+  tooltipName: 0xe8d27a,
+  tooltipLine: 0xe8e0c8,
+  tooltipSize: 14,
+  tooltipLineHeight: 19,
+  tooltipPadding: 8,
+  tooltipGap: 6,
+};
+/** The tint of each kind of Item on the Inventory panel. */
+const ITEM_COLOUR: Record<ItemKind, number> = {
+  weapon: 0x4a4a52,
+  armour: 0x5a4028,
+  ring: 0x3a3a68,
+  amulet: 0x5a3a5a,
+};
+/**
+ * A Ground Item: a small diamond on the floor tinted by its kind, `size`
+ * across (CSS px), under a dark label with its name, gold while hovered.
+ * A click within `grab` of the diamond's box picks it up too.
+ */
+const GROUND_ITEM = {
+  size: 14,
+  grab: 4,
+  edge: 0xd8c890,
+  label: 0x000000,
+  labelAlpha: 0.7,
+  name: 0xe8e0c8,
+  hoveredName: 0xe8d27a,
+  textSize: 13,
+};
+
+/** The name shown in each empty Equipment slot. */
+const SLOT_NAMES: Record<EquipmentSlot, string> = {
+  weapon: "Weapon",
+  armour: "Armour",
+  amulet: "Amulet",
+  ring1: "Ring",
+  ring2: "Ring",
+};
+
 /** The badge over the orb: its size, gap over the rim (CSS px) and colours. */
 const BADGE = { size: 13, gap: 4, combat: 0xd84a3a, regen: 0x9cd89c };
 
@@ -319,6 +419,9 @@ export function createRenderer(app: Application, art: Art) {
   camera.addChild(marker);
   const telegraphs = new Graphics();
   camera.addChild(telegraphs);
+  // On the floor, under everyone standing.
+  const groundItems = new Graphics();
+  camera.addChild(groundItems);
   // Walls, props, the Hero, Monsters and Corpses, nearest the viewer last.
   const scene = new Container();
   scene.sortableChildren = true;
@@ -335,6 +438,14 @@ export function createRenderer(app: Application, art: Art) {
   // Over the scene: Life bars over heads and damage numbers.
   const overheads = new Graphics();
   camera.addChild(overheads);
+  // Ground Items' name labels, always shown.
+  const labelBacks = new Graphics();
+  camera.addChild(labelBacks);
+  const labelTexts = new Map<ItemId, Text>();
+  /** Where each Ground Item's label was last drawn, in camera space. */
+  let labels: GroundLabel[] = [];
+  /** Where each Ground Item was last drawn on the floor, in camera space. */
+  let lyingAt: { id: ItemId; at: Vec }[] = [];
   const numbers = new Container();
   camera.addChild(numbers);
   const floating: { text: Text; bornMs: number; at: Vec }[] = [];
@@ -358,6 +469,8 @@ export function createRenderer(app: Application, art: Art) {
   app.stage.addChild(levelUp.layer);
   const heroPanel = heroPanelView();
   app.stage.addChild(heroPanel.layer);
+  const inventoryPanel = inventoryPanelView();
+  app.stage.addChild(inventoryPanel.layer);
   // Over the whole screen, stretched to it each frame.
   const hurt = new Graphics().rect(0, 0, 1, 1).fill(HURT_COLOUR);
   hurt.visible = false;
@@ -391,6 +504,22 @@ export function createRenderer(app: Application, art: Art) {
   let drawnWorld: World | null = null;
   /** Whether the Hero panel was open when last drawn. */
   let heroPanelOpenNow = false;
+  /** Whether the Inventory panel was open when last drawn. */
+  let inventoryOpenNow = false;
+
+  /**
+   * What a point on the canvas (CSS px) hits of the Hero panel, the Level Up
+   * button and the Inventory panel, as last drawn, or null when it's for
+   * the World.
+   */
+  const panelAt = (screen: Vec): PanelHit | InventoryHit | DropHit | null => {
+    if (!drawnWorld) return null;
+    const holding = cursorItemOf(drawnWorld) !== null;
+    return (
+      panelHitAt(app.screen, screen, drawnWorld, heroPanelOpenNow) ??
+      inventoryHitAt(app.screen, screen, inventoryOpenNow, holding)
+    );
+  };
 
   /**
    * Starts afresh for another World, whose Monster ids start over: drops
@@ -404,6 +533,9 @@ export function createRenderer(app: Application, art: Art) {
       view.flash?.destroy();
     }
     monsters.clear();
+    // Item ids start over too.
+    for (const text of labelTexts.values()) text.destroy();
+    labelTexts.clear();
     hurtAtMs = levelAtMs = null;
     showArea(next.areas[next.areaName]);
   };
@@ -466,18 +598,84 @@ export function createRenderer(app: Application, art: Art) {
     return nearest?.id ?? null;
   };
 
+  /** The Ground Item whose label is under a canvas point (CSS px). */
+  const groundLabelUnder = (screen: Vec): ItemId | null =>
+    groundLabelAt(labels, {
+      x: screen.x - camera.position.x,
+      y: screen.y - camera.position.y,
+    });
+
+  /** The Ground Item drawn on the floor under a canvas point (CSS px). */
+  const groundItemAt = (screen: Vec): ItemId | null =>
+    groundItemUnder(
+      lyingAt,
+      { x: screen.x - camera.position.x, y: screen.y - camera.position.y },
+      GROUND_ITEM.size / 2 + GROUND_ITEM.grab,
+    );
+
+  /**
+   * Draws each Ground Item on the floor with its name label over it, gold
+   * for `hovered`, and drops the labels of Items no longer lying there.
+   */
+  const drawGroundItems = (world: World, hovered: ItemId | null) => {
+    const lying = groundItemsOf(world);
+    groundItems.clear();
+    labelBacks.clear();
+    const half = GROUND_ITEM.size / 2;
+    const sized = lying.map(({ item, pos }) => {
+      const at = toScreen(pos);
+      groundItems
+        .poly([
+          at.x,
+          at.y - half,
+          at.x + half,
+          at.y,
+          at.x,
+          at.y + half,
+          at.x - half,
+          at.y,
+        ])
+        .fill(ITEM_COLOUR[itemOf(item.type).kind])
+        .stroke({ color: GROUND_ITEM.edge, width: 1 });
+      let text = labelTexts.get(item.id);
+      if (!text) {
+        text = new Text({
+          text: itemOf(item.type).name,
+          style: { fontSize: GROUND_ITEM.textSize, fontFamily: SERIF },
+        });
+        text.anchor.set(0.5, 0.5);
+        labelTexts.set(item.id, text);
+        camera.addChild(text);
+      }
+      const width = text.width + 2 * GROUND_LABEL.padding;
+      return { id: item.id, at, width };
+    });
+    labels = groundLabels(sized);
+    lyingAt = sized.map(({ id, at }) => ({ id, at }));
+    for (const { id, rect } of labels) {
+      labelBacks
+        .rect(rect.x, rect.y, rect.w, rect.h)
+        .fill({ color: GROUND_ITEM.label, alpha: GROUND_ITEM.labelAlpha });
+      const text = labelTexts.get(id);
+      if (!text) continue;
+      text.style.fill =
+        id === hovered ? GROUND_ITEM.hoveredName : GROUND_ITEM.name;
+      text.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
+    }
+    for (const [id, text] of labelTexts) {
+      if (lying.some(({ item }) => item.id === id)) continue;
+      text.destroy();
+      labelTexts.delete(id);
+    }
+  };
+
   return {
     screenToTile,
     monsterAt,
+    groundLabelAt: groundLabelUnder,
+    groundItemAt,
 
-    /**
-     * What a click on the canvas (CSS px) hits of the Hero panel and Level
-     * Up button, as last drawn, or null when it's for the World.
-     */
-    panelAt(screen: Vec): PanelHit | null {
-      if (!drawnWorld) return null;
-      return panelHitAt(app.screen, screen, drawnWorld, heroPanelOpenNow);
-    },
+    panelAt,
 
     /**
      * The pause-menu button under a click on the canvas (CSS px), or null
@@ -494,7 +692,7 @@ export function createRenderer(app: Application, art: Art) {
           number.on === "hero" ? hero.sprite : monsters.get(number.on)?.sprite;
         if (!sprite) continue;
         const text = new Text({
-          text: number.kind === "miss" ? "Miss" : String(number.damage),
+          text: floatText(number),
           style: {
             fill: NUMBER_COLOUR[number.kind],
             fontSize: NUMBER.size,
@@ -531,8 +729,10 @@ export function createRenderer(app: Application, art: Art) {
 
     /**
      * `alpha` (0..1) is how far the frame is from the previous step to the
-     * current one; `pointer` is the cursor on the canvas (CSS px), if on it.
-     * `menus` shows the Hero panel while it's open, and the pause menu over
+     * current one; `pointer` is the cursor on the canvas (CSS px), if on it,
+     * which outlines what it's over in the World, or off a panel, shows the
+     * tooltip of the Item it's over on one. `menus` shows the Hero and
+     * Inventory panels while they're open, and the pause menu over
      * everything while paused.
      */
     draw(
@@ -544,6 +744,7 @@ export function createRenderer(app: Application, art: Art) {
     ) {
       const active = world.areas[world.areaName];
       heroPanelOpenNow = menus.heroPanelOpen;
+      inventoryOpenNow = menus.inventoryOpen;
       if (world !== drawnWorld) showWorld(world);
       else if (active !== area) showArea(active);
       const heroAt = lerp(world.hero.prevPos, world.hero.pos, alpha);
@@ -689,9 +890,18 @@ export function createRenderer(app: Application, art: Art) {
         text.alpha = float.alpha;
       }
 
+      // No hover outline or nameplate under a panel.
+      const onPanel = pointer && panelAt(pointer);
+      const onWorld = onPanel ? null : pointer;
       // After moving the camera, so the highlight matches this frame.
-      const cursor = pointer && screenToTile(pointer);
-      const hoveredId = pointer && monsterAt(pointer);
+      const cursor = onWorld && screenToTile(onWorld);
+      // What a click there picks: a label over a Monster, a Monster over an
+      // Item lying under it.
+      const hoveredLabel = onWorld && groundLabelUnder(onWorld);
+      const hoveredId = onWorld && !hoveredLabel && monsterAt(onWorld);
+      const hoveredItem =
+        hoveredLabel || (onWorld && !hoveredId ? groundItemAt(onWorld) : null);
+      drawGroundItems(world, hoveredItem);
       const hovered =
         world.monsters.find((monster) => monster.id === hoveredId) ?? null;
       const hoveredView = hovered && monsters.get(hovered.id);
@@ -742,6 +952,14 @@ export function createRenderer(app: Application, art: Art) {
       experience.draw(app.screen, world);
       levelUp.draw(app.screen, world, nowMs);
       heroPanel.draw(app.screen, world, menus.heroPanelOpen);
+      const spot = onPanel && "inventory" in onPanel ? onPanel.inventory : null;
+      inventoryPanel.draw(
+        app.screen,
+        world,
+        menus.inventoryOpen,
+        spot,
+        pointer,
+      );
 
       const hurtLeft = hurtAtMs === null ? 0 : 1 - (nowMs - hurtAtMs) / HURT_MS;
       hurt.visible = hurtLeft > 0;
@@ -1289,6 +1507,224 @@ function heroPanelView() {
         const y = rowTop(at) - style.ruleGap;
         graphics.rect(left, y, right - left, 1).fill(style.edge);
       }
+    },
+  };
+}
+
+/**
+ * The Inventory panel: the Equipment slots over the 10×4 grid, each Item
+ * drawn at its size, and the tooltip of the Item under the cursor.
+ */
+function inventoryPanelView() {
+  const style = HERO_PANEL_STYLE;
+  const look = INVENTORY_STYLE;
+  const layer = new Container();
+  const graphics = new Graphics();
+  layer.addChild(graphics);
+  layer.visible = false;
+  const text = (fill: number, size: number) => {
+    const t = new Text({
+      text: "",
+      style: { fill, fontSize: size, fontFamily: SERIF },
+    });
+    layer.addChild(t);
+    return t;
+  };
+
+  const title = text(style.title, style.titleSize);
+  title.text = "Inventory";
+  title.anchor.set(0.5, 0);
+  const hint = text(style.hint, style.hintSize);
+  hint.text = "Press I to close";
+  hint.anchor.set(0.5, 1);
+  const slotLabels = Object.fromEntries(
+    EQUIPMENT_SLOTS.map((slot) => {
+      const label = text(look.slotLabel, look.slotLabelSize);
+      label.text = SLOT_NAMES[slot];
+      label.anchor.set(0.5);
+      return [slot, label];
+    }),
+  ) as Record<EquipmentSlot, Text>;
+  /** Item names, one per Item drawn, made as more are needed. */
+  const names: Text[] = [];
+  const tooltipBox = new Graphics();
+  layer.addChild(tooltipBox);
+  /** Tooltip lines, made as more are needed, over its box. */
+  const tooltipLines: Text[] = [];
+  /** The held Item, over everything else on the panel. */
+  const heldBox = new Graphics();
+  layer.addChild(heldBox);
+  const heldName = text(look.itemText, look.itemTextSize);
+
+  /** Draws an Item's box, tinted by its kind, with its name in `name`. */
+  const drawItem = (
+    to: Graphics,
+    name: Text,
+    rect: Rect,
+    type: ItemType,
+    alpha = look.itemAlpha,
+  ) => {
+    const tuning = itemOf(type);
+    to.rect(rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2)
+      .fill({ color: ITEM_COLOUR[tuning.kind], alpha })
+      .stroke({ color: look.itemEdge, width: 1 });
+    name.visible = true;
+    name.text = tuning.name;
+    name.style.wordWrap = true;
+    name.style.wordWrapWidth = rect.w - 4;
+    name.style.align = "center";
+    name.anchor.set(0.5);
+    name.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
+  };
+
+  return {
+    layer,
+    /**
+     * `hovered` is the spot under `pointer`, the cursor on the canvas (CSS
+     * px), if it's on the panel.
+     */
+    draw(
+      screen: { width: number; height: number },
+      world: World,
+      open: boolean,
+      hovered: ItemSpot | null,
+      pointer: Vec | null,
+    ) {
+      layer.visible = open;
+      if (!open) return;
+      const layout = inventoryPanelLayout(screen);
+      const { panel, grid, cell, slots } = layout;
+
+      graphics.clear();
+      graphics
+        .rect(panel.x, panel.y, panel.w, panel.h)
+        .fill({ color: style.fill, alpha: style.alpha })
+        .stroke({ color: style.edge, width: 2 });
+      title.position.set(
+        panel.x + panel.w / 2,
+        panel.y + INVENTORY_PANEL.padding,
+      );
+      hint.position.set(
+        panel.x + panel.w / 2,
+        panel.y + panel.h - INVENTORY_PANEL.padding,
+      );
+
+      const box = (rect: Rect) =>
+        graphics
+          .rect(rect.x, rect.y, rect.w, rect.h)
+          .fill(look.cell)
+          .stroke({ color: look.cellEdge, width: 1 });
+      for (let column = 0; column < grid.w / cell; column++) {
+        for (let row = 0; row < grid.h / cell; row++) {
+          box({
+            x: grid.x + column * cell,
+            y: grid.y + row * cell,
+            w: cell,
+            h: cell,
+          });
+        }
+      }
+
+      const items: { rect: Rect; type: ItemType }[] = [];
+      const equipment = equipmentOf(world);
+      for (const slot of EQUIPMENT_SLOTS) {
+        const rect = slots[slot];
+        box(rect);
+        const item = equipment[slot];
+        slotLabels[slot].visible = item === null;
+        slotLabels[slot].position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
+        if (item) items.push({ rect, type: item.type });
+      }
+      for (const { item, cell: at } of inventoryOf(world)) {
+        items.push({ rect: itemRect(layout, at, item.type), type: item.type });
+      }
+      items.forEach(({ rect, type }, i) => {
+        names[i] ??= text(look.itemText, look.itemTextSize);
+        drawItem(graphics, names[i], rect, type);
+      });
+      for (const name of names.slice(items.length)) name.visible = false;
+
+      tooltipBox.clear();
+      for (const line of tooltipLines) line.visible = false;
+      heldBox.clear();
+      heldName.visible = false;
+      const held = cursorItemOf(world);
+      if (held && pointer) {
+        const { type } = held.item;
+        if (hovered && !isSlot(hovered)) {
+          // Where it would land, kept to the grid where it hangs off.
+          const to = landingCell(layout, pointer, type);
+          const rect = itemRect(layout, to, type);
+          const x = Math.max(rect.x, grid.x);
+          const y = Math.max(rect.y, grid.y);
+          const w = Math.min(rect.x + rect.w, grid.x + grid.w) - x;
+          const h = Math.min(rect.y + rect.h, grid.y + grid.h) - y;
+          const colour = placement(world, to) ? look.fits : look.refused;
+          graphics
+            .rect(x, y, w, h)
+            .fill({ color: colour, alpha: look.landingAlpha });
+        }
+        if (hovered && isSlot(hovered)) {
+          // Whether the slot takes it.
+          const rect = slots[hovered];
+          const colour = placement(world, hovered) ? look.fits : look.refused;
+          graphics
+            .rect(rect.x, rect.y, rect.w, rect.h)
+            .fill({ color: colour, alpha: look.landingAlpha });
+        }
+        const { columns, rows } = itemOf(type).size;
+        const rect = {
+          x: pointer.x - (columns * cell) / 2,
+          y: pointer.y - (rows * cell) / 2,
+          w: columns * cell,
+          h: rows * cell,
+        };
+        layer.setChildIndex(heldBox, layer.children.length - 1);
+        layer.setChildIndex(heldName, layer.children.length - 1);
+        drawItem(heldBox, heldName, rect, type, look.heldAlpha);
+        // No tooltip while holding an Item, as in Diablo 2.
+        return;
+      }
+      const item = hovered && itemUnder(world, hovered);
+      if (!hovered || !item) return;
+      const under = isSlot(hovered)
+        ? slots[hovered]
+        : itemRect(
+            layout,
+            inventoryOf(world).find((placed) => placed.item.id === item.id)
+              ?.cell ?? hovered,
+            item.type,
+          );
+      const lines = itemTooltip(world, item.type);
+      lines.forEach((line, i) => {
+        tooltipLines[i] ??= text(look.tooltipLine, look.tooltipSize);
+        const shown = tooltipLines[i];
+        // Over the box, which is made before any line.
+        layer.setChildIndex(shown, layer.children.length - 1);
+        shown.visible = true;
+        shown.text = line;
+        shown.style.fill = i === 0 ? look.tooltipName : look.tooltipLine;
+        shown.anchor.set(0.5, 0);
+      });
+      const shown = tooltipLines.slice(0, lines.length);
+      const pad = look.tooltipPadding;
+      const w = Math.max(...shown.map((line) => line.width)) + 2 * pad;
+      const h = lines.length * look.tooltipLineHeight + 2 * pad;
+      // Over the Item, or under it where there's no room above, and kept on
+      // the screen.
+      const above = under.y - look.tooltipGap - h;
+      const y = above >= 0 ? above : under.y + under.h + look.tooltipGap;
+      const x = Math.min(
+        screen.width - w,
+        Math.max(0, under.x + under.w / 2 - w / 2),
+      );
+      tooltipBox
+        .rect(x, y, w, h)
+        .fill({ color: look.tooltip, alpha: look.tooltipAlpha })
+        .stroke({ color: style.edge, width: 1 });
+      shown.forEach((line, i) => {
+        line.position.set(x + w / 2, y + pad + i * look.tooltipLineHeight);
+      });
     },
   };
 }

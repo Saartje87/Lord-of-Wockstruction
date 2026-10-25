@@ -15,6 +15,8 @@ export type MonsterTuning = {
   damage: [number, number];
   /** Set against the Hero's Attack Rating for the chance to hit it. */
   defense: number;
+  /** Set against the Hero's Defense for its chance to hit them. */
+  attackRating: number;
   /** How big a Monster is when pushed apart from others (tiles). */
   radius: number;
   /** How far an idle Monster strolls from its spawn (tiles). */
@@ -74,6 +76,9 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
     damage: [4, 8],
     // A fresh Hero's 100 Attack Rating hits it 85% of the time.
     defense: 135,
+    // Leather Armour's 27 Defense makes it Miss 15% of the time, and a Hero
+    // with 0 Defense is always hit.
+    attackRating: 20,
     radius: 0.32,
     wanderRadius: 2.5,
     wanderSpeed: 0.35,

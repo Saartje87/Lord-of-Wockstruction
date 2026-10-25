@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { inventoryOf } from "../sim/inventory";
 import { createWorld, type Progress, step, type World } from "../sim/world";
 import { heroPanelLayout, heroSheet, panelHitAt } from "./heroPanel";
 
@@ -59,6 +60,42 @@ function kill(w: World) {
   }
 }
 
+describe("heroSheet with Items Equipped", () => {
+  it("counts their bonuses in the Attributes and what they add up to", () => {
+    const w = createWorld({
+      areas: { town },
+      seed: 1,
+      belongings: {
+        inventory: [{ type: "ringOfStrength", cell: { column: 0, row: 0 } }],
+        equipment: {
+          weapon: "shortSword",
+          armour: "chainMail",
+          amulet: "amuletOfVitality",
+        },
+      },
+    });
+    const before = heroSheet(w);
+    const ring = inventoryOf(w)[0].item.id;
+
+    step(w, [{ type: "EquipItem", item: ring }]);
+    const sheet = heroSheet(w);
+
+    expect(before.attributes[0].value).toBe("20");
+    expect(sheet.attributes.map(({ value }) => value)).toEqual([
+      "25",
+      "20",
+      "25",
+    ]);
+    expect(sheet.derived).toEqual([
+      { name: "Life", value: "115" },
+      { name: "Damage", value: "21–31" },
+      { name: "Defense", value: "40" },
+      { name: "Attack Rating", value: "100" },
+      { name: "Chance to hit a Skeleton", value: "85%" },
+    ]);
+  });
+});
+
 describe("heroSheet", () => {
   it("shows a fresh Hero's Level, Experience, Attributes and what they add up to", () => {
     expect(heroSheet(world())).toEqual({
@@ -74,6 +111,7 @@ describe("heroSheet", () => {
       derived: [
         { name: "Life", value: "100" },
         { name: "Damage", value: "20–30" },
+        { name: "Defense", value: "0" },
         { name: "Attack Rating", value: "100" },
         { name: "Chance to hit a Skeleton", value: "85%" },
       ],
@@ -102,6 +140,7 @@ describe("heroSheet", () => {
     expect(sheet.derived).toEqual([
       { name: "Life", value: "108" },
       { name: "Damage", value: "22–33" },
+      { name: "Defense", value: "0" },
       { name: "Attack Rating", value: "105" },
       // 2 × 105 / (105 + 135)
       { name: "Chance to hit a Skeleton", value: "88%" },

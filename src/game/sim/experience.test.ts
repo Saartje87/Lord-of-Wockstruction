@@ -166,9 +166,14 @@ describe("a kill worth several Levels", () => {
 describe("max Life", () => {
   it("is what regeneration tops up to", () => {
     const w = world(6);
-    kill(w, 6);
+    kill(w, 5);
     expect(w.hero.progress.level).toBe(2);
-    expect(w.hero.life).toBeLessThan(100);
+    // The last Skeleton lands a hit before it dies.
+    for (let i = 0; !step(w, []).some((e) => e.type === "HeroHit"); i++) {
+      if (i > 60 * 60) throw new Error("The Hero wasn't hit");
+    }
+    kill(w, 1);
+    expect(w.hero.life).toBeLessThan(102);
 
     // Out of combat after 5 s, then 2 Life/s.
     for (let i = 0; i < 60 * 60; i++) step(w, []);

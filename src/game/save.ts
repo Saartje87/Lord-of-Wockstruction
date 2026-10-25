@@ -1,10 +1,17 @@
 import {
+  type Belongings,
+  belongingsOf,
+  isValidBelongings,
+} from "./sim/inventory";
+import {
   ATTRIBUTES,
   FRESH_PROGRESS,
   levelExperience,
   nextLevelExperience,
   type Progress,
+  progressOf,
   type SimEvent,
+  type World,
 } from "./sim/world";
 import { heroTuning } from "./tuning/hero";
 
@@ -13,7 +20,15 @@ import { heroTuning } from "./tuning/hero";
  * is no Save, so the Hero starts fresh instead of loading something
  * misread.
  */
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
+
+/** What the Save keeps of the Hero: their progress and their Belongings. */
+export type HeroSave = { progress: Progress; belongings: Belongings };
+
+/** What the Save would keep of the World's Hero now. */
+export function saveOf(world: World): HeroSave {
+  return { progress: progressOf(world), belongings: belongingsOf(world) };
+}
 
 /** The one key the Save is stored under. */
 const SAVE_KEY = "wiablo.save";
@@ -29,25 +44,29 @@ export type SaveStorage = {
 };
 
 /** The events after which the Save is written again. */
-const PROGRESS_EVENTS: readonly SimEvent["type"][] = [
+const SAVE_CHANGING_EVENTS: readonly SimEvent["type"][] = [
   "ExperienceGained",
   "LevelReached",
   "AttributeRaised",
+  "ItemPickedUp",
+  "InventoryChanged",
+  "ItemEquipped",
+  "ItemUnequipped",
 ];
 
-/** Whether a step's events changed the Hero's progress. */
-export function changesProgress(events: SimEvent[]): boolean {
-  return events.some((event) => PROGRESS_EVENTS.includes(event.type));
+/** Whether a step's events changed what the Save keeps: progress or Belongings. */
+export function changesSave(events: SimEvent[]): boolean {
+  return events.some((event) => SAVE_CHANGING_EVENTS.includes(event.type));
 }
 
-/** The stored Hero progress, or null for no Save. */
-export function readSave(storage: SaveStorage): Progress | null {
+/** The stored Hero, or null for no Save. */
+export function readSave(storage: SaveStorage): HeroSave | null {
   return parseSave(storage.get(SAVE_KEY));
 }
 
-/** Stores the Hero's progress, replacing the Save. */
-export function writeSave(storage: SaveStorage, progress: Progress) {
-  storage.set(SAVE_KEY, encodeSave(progress));
+/** Stores the Hero, replacing the Save. */
+export function writeSave(storage: SaveStorage, save: HeroSave) {
+  storage.set(SAVE_KEY, encodeSave(save));
 }
 
 /** Removes the Save, so the next start is a fresh Hero. */
@@ -83,18 +102,26 @@ export function browserStorage(): SaveStorage {
   };
 }
 
-/** Hero progress as stored text, with the version it was written in. */
-export function encodeSave(progress: Progress): string {
-  return JSON.stringify({ version: SAVE_VERSION, ...progress });
+/**
+ * The Hero as stored text, with the version it was written in: the progress
+ * fields, then the Inventory and Equipment by Item type.
+ */
+export function encodeSave({ progress, belongings }: HeroSave): string {
+  return JSON.stringify({
+    version: SAVE_VERSION,
+    ...progress,
+    inventory: belongings.inventory,
+    equipment: belongings.equipment,
+  });
 }
 
 /**
- * Stored text as Hero progress, or null for no Save: missing, corrupt or
- * another version's text, a Level and Experience that don't fit the
- * Experience table, or Attributes and unspent points that don't fit the
- * Level.
+ * Stored text as the Hero, or null for no Save: missing, corrupt or another
+ * version's text, a Level and Experience that don't fit the Experience
+ * table, Attributes and unspent points that don't fit the Level, or Belongings
+ * the Hero couldn't have (see `isValidBelongings`).
  */
-export function parseSave(text: string | null): Progress | null {
+export function parseSave(text: string | null): HeroSave | null {
   if (text === null) return null;
   let stored: unknown;
   try {
@@ -111,9 +138,36 @@ export function parseSave(text: string | null): Progress | null {
   const progress = Object.fromEntries(
     PROGRESS_FIELDS.map((field) => [field, fields[field]]),
   ) as Progress;
-  return fitsTable(progress.level, progress.experience) && fitsPoints(progress)
-    ? progress
-    : null;
+  if (!fitsTable(progress.level, progress.experience)) return null;
+  if (!fitsPoints(progress)) return null;
+  const belongings = parseBelongings(fields.inventory, fields.equipment);
+  return belongings && { progress, belongings };
+}
+
+/**
+ * The stored Inventory and Equipment as Belongings, or null when they aren't a
+ * list of Item types at cells and an object of Item types by slot, or the
+ * Hero couldn't have them.
+ */
+function parseBelongings(
+  inventory: unknown,
+  equipment: unknown,
+): Belongings | null {
+  if (!Array.isArray(inventory)) return null;
+  if (typeof equipment !== "object" || equipment === null) return null;
+  if (Array.isArray(equipment)) return null;
+  const placed: Belongings["inventory"] = [];
+  for (const entry of inventory) {
+    if (typeof entry !== "object" || entry === null) return null;
+    const { type, cell } = entry;
+    if (typeof cell !== "object" || cell === null) return null;
+    placed.push({ type, cell: { column: cell.column, row: cell.row } });
+  }
+  const belongings: Belongings = {
+    inventory: placed,
+    equipment: { ...equipment },
+  };
+  return isValidBelongings(belongings) ? belongings : null;
 }
 
 /** Every field of the stored progress, each a whole number. */

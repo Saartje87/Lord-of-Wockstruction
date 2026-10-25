@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
+import type { Rect } from "../sim/rect";
 import { menuChoiceAt, pauseMenuLayout } from "./pauseMenu";
-import type { Rect } from "./rect";
 
 const screen = { width: 1280, height: 720 };
 

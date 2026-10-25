@@ -148,6 +148,10 @@ _Avoid_: Bag, backpack, stash (and never the Equipment slots)
 The Hero's slots for worn Items: Weapon, Armour, two Rings and an Amulet; an Item in one of them is Equipped and its bonuses count.
 _Avoid_: Gear, paper doll, loadout
 
+**Belongings**:
+Everything the Hero owns: the Items in their Inventory and Equipment together, an Item held on the cursor counting as back where it was lifted from; what the Save keeps besides progress.
+_Avoid_: Gear, loot, possessions
+
 **Weapon**:
 The Item kind Equipped in the Weapon slot, setting the Hero's damage.
 _Avoid_: Sword (that's one Weapon)

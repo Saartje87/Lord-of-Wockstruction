@@ -1,6 +1,6 @@
 import type { MenuChoice } from "../menus";
+import { inside, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
-import { inside, type Rect } from "./rect";
 
 /**
  * Where the pause menu goes (CSS px): a `width` × `height` panel in the

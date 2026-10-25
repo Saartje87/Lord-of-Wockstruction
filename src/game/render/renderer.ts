@@ -312,6 +312,8 @@ const INVENTORY_STYLE = {
   slotLabelSize: 12,
   itemEdge: 0x8a7a50,
   itemAlpha: 0.9,
+  /** A held Item's, so the highlight under it shows through. */
+  heldAlpha: 0.55,
   itemText: 0xe8e0c8,
   itemTextSize: 11,
   tooltip: 0x000000,
@@ -1533,10 +1535,16 @@ function inventoryPanelView() {
   const heldName = text(look.itemText, look.itemTextSize);
 
   /** Draws an Item's box, tinted by its kind, with its name in `name`. */
-  const drawItem = (to: Graphics, name: Text, rect: Rect, type: ItemType) => {
+  const drawItem = (
+    to: Graphics,
+    name: Text,
+    rect: Rect,
+    type: ItemType,
+    alpha = look.itemAlpha,
+  ) => {
     const tuning = itemOf(type);
     to.rect(rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2)
-      .fill({ color: ITEM_COLOUR[tuning.kind], alpha: look.itemAlpha })
+      .fill({ color: ITEM_COLOUR[tuning.kind], alpha })
       .stroke({ color: look.itemEdge, width: 1 });
     name.visible = true;
     name.text = tuning.name;
@@ -1640,7 +1648,7 @@ function inventoryPanelView() {
         };
         layer.setChildIndex(heldBox, layer.children.length - 1);
         layer.setChildIndex(heldName, layer.children.length - 1);
-        drawItem(heldBox, heldName, rect, type);
+        drawItem(heldBox, heldName, rect, type, look.heldAlpha);
         // No tooltip while holding an Item, as in Diablo 2.
         return;
       }

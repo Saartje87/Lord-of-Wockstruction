@@ -95,7 +95,7 @@ export const VARIANTS = {
     wanderRadius: 2.5,
     aggroRadius: 7,
     needsSight: true,
-    spreadRadius: 5,
+    spreadRadius: 1.5,
     pathing: "astar",
     reach: 1.2,
     windUp: 0.4,

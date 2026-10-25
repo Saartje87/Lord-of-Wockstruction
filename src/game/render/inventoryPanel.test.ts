@@ -401,30 +401,20 @@ describe("the Item under a point", () => {
 });
 
 describe("an Item's tooltip", () => {
-  it("names a Weapon and the damage it deals the Hero", () => {
-    const w = world();
-
-    expect(itemTooltip(w, "shortSword")).toEqual([
-      "Short Sword",
-      "Damage: 20–30",
-    ]);
+  it("names a Weapon and its own damage, before the Hero's Strength", () => {
+    expect(itemTooltip("shortSword")).toEqual(["Short Sword", "Damage: 17–25"]);
+    expect(itemTooltip("axe")).toEqual(["Axe", "Damage: 25–40"]);
   });
 
   it("names an Armour and its Defense", () => {
-    expect(itemTooltip(world(), "chainMail")).toEqual([
-      "Chain Mail",
-      "Defense: 40",
-    ]);
+    expect(itemTooltip("chainMail")).toEqual(["Chain Mail", "Defense: 40"]);
   });
 
   it("lists a Ring's or Amulet's bonuses", () => {
-    expect(itemTooltip(world(), "ringOfStrength")).toEqual([
+    expect(itemTooltip("ringOfStrength")).toEqual([
       "Ring of Strength",
       "+5 to Strength",
     ]);
-    expect(itemTooltip(world(), "ringOfLife")).toEqual([
-      "Ring of Life",
-      "+10 to Life",
-    ]);
+    expect(itemTooltip("ringOfLife")).toEqual(["Ring of Life", "+10 to Life"]);
   });
 });

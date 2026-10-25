@@ -1695,7 +1695,7 @@ function inventoryPanelView() {
               ?.cell ?? hovered,
             item.type,
           );
-      const lines = itemTooltip(world, item.type);
+      const lines = itemTooltip(item.type);
       lines.forEach((line, i) => {
         tooltipLines[i] ??= text(look.tooltipLine, look.tooltipSize);
         const shown = tooltipLines[i];

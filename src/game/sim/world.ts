@@ -7,11 +7,14 @@ import { msToSteps, perStep } from "./units";
 import type { Vec } from "./vec";
 
 const WALK_PER_STEP = perStep(heroTuning.walkSpeed);
-const SWING_STEPS = msToSteps(heroTuning.swingMs);
-const HIT_STEP = msToSteps(heroTuning.swingMs * heroTuning.hitAt);
+/** How many steps a swing takes. */
+export const SWING_STEPS = msToSteps(heroTuning.swingMs);
+/** The step of a swing on which its hit lands. */
+export const HIT_STEP = msToSteps(heroTuning.swingMs * heroTuning.hitAt);
 const HITSTOP_STEPS = msToSteps(heroTuning.hitstopMs);
 const ARC = (heroTuning.arcDegrees * Math.PI) / 180;
-const FLINCH_STEPS = Object.fromEntries(
+/** How many steps each Monster type flinches for. */
+export const FLINCH_STEPS = Object.fromEntries(
   Object.entries(monsterTuning).map(([type, tuning]) => [
     type,
     msToSteps(tuning.flinchMs),

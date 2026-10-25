@@ -1,32 +1,80 @@
-import { type Application, Container, Graphics, Sprite } from "pixi.js";
+import {
+  type Application,
+  ColorMatrixFilter,
+  Container,
+  Graphics,
+  Sprite,
+} from "pixi.js";
 import { toScreen, toTile } from "../iso";
 import { type Area, isFloor } from "../sim/area";
+import { STEP_MS } from "../sim/units";
 import { tileOf, type Vec } from "../sim/vec";
-import type { MonsterId, SimEvent, World } from "../sim/world";
+import {
+  FLINCH_STEPS,
+  HIT_STEP,
+  type MonsterId,
+  type SimEvent,
+  SWING_STEPS,
+  type World,
+} from "../sim/world";
 import { heroTuning } from "../tuning/hero";
 import { inputTuning } from "../tuning/input";
-import { compassOf, frameAt } from "./animation";
-import { type Art, frameOf } from "./art";
+import { type MonsterType, monsterTuning } from "../tuning/monsters";
+import { type Compass, compassOf, frameAt, swingFrame } from "./animation";
+import { type Animation, type Art, type CharacterArt, frameOf } from "./art";
 
 const HOVER_LINE = 0xd8c48a;
 const MARKER_LINE = 0xe8d27a;
-const BONE_FILL = 0xd9d2bf;
-const CORPSE_FILL = 0x8f8775;
-const SWING_FILL = 0x8899ff;
-const SWING_LANDED_FILL = 0xffd04a;
 
-/** How long a hit Monster flashes white (ms). */
+/** How long a hit Monster flashes white (ms), fading out. */
 const FLASH_MS = 120;
-/** How far a flinching Monster leans back (radians). */
-const FLINCH_LEAN = 0.25;
-/** A placeholder Monster's clickable box around its feet (CSS px). */
-const MONSTER_BOX = { left: -10, right: 10, top: -34, bottom: 6 };
+/** How white a hit Monster turns at the start of its flash (0..1). */
+const FLASH_STRENGTH = 0.8;
 
 /**
- * The Hero's walking speed (tiles/s) at which `run` plays at Flare's own
- * rate; it plays faster or slower with the speed actually walked.
+ * Each Monster type's size against Flare's native scale. The Skeleton is
+ * drawn as Flare made it; this is the one number to change if it looks off.
  */
-const HERO_RUN_SPEED = heroTuning.walkSpeed;
+const MONSTER_SCALE: Record<MonsterType, number> = { skeleton: 1 };
+/** A Monster's clickable box around its feet at native scale (CSS px). */
+const MONSTER_BOX = { left: -35, right: 35, top: -135, bottom: 15 };
+/**
+ * How far behind the living a Corpse sorts (CSS px of screen y): one row of
+ * tiles, so anyone standing on or just behind a Corpse is drawn over it.
+ */
+const CORPSE_DEPTH = toScreen({ x: 1, y: 0 }).y;
+
+/** The frame of the Hero's `swing` where the blade connects. */
+const HERO_STRIKE_FRAME = 2;
+/** The swing as the sim times it, so the strike frame starts on the hit step. */
+const HERO_SWING = {
+  swingMs: SWING_STEPS * STEP_MS,
+  hitMs: HIT_STEP * STEP_MS,
+};
+
+/** A character on screen: its sprite and what its animation needs to know. */
+type CharacterView = {
+  sprite: Sprite;
+  art: CharacterArt;
+  /**
+   * The walking speed (tiles/s) at which `run` plays at Flare's own rate; it
+   * plays faster or slower with the speed actually walked.
+   */
+  runSpeed: number;
+  /** How far into `run` the feet are, as ms at `runSpeed`. */
+  runMs: number;
+  /** Where it was drawn last frame, in tile units. */
+  drawnAt: Vec | null;
+};
+
+type MonsterView = CharacterView & {
+  type: MonsterType;
+  /** Which way it last walked (radians in tile space); the sim has no facing. */
+  facing: number;
+  diedAtMs: number | null;
+  flashUntilMs: number;
+  flash: ColorMatrixFilter | null;
+};
 
 /** Draws an Area and the World in it into a Pixi stage, following the Hero. */
 export function createRenderer(app: Application, area: Area, art: Art) {
@@ -39,25 +87,27 @@ export function createRenderer(app: Application, area: Area, art: Art) {
   const marker = drawMarker();
   marker.visible = false;
   camera.addChild(marker);
-  const corpses = new Container();
-  camera.addChild(corpses);
-  const swing = new Graphics();
-  camera.addChild(swing);
-  // Walls, props, the Hero and Monsters, drawn nearest the viewer last.
-  const characters = drawTiles(area, area.propTiles, art);
-  characters.sortableChildren = true;
-  camera.addChild(characters);
-  const hero = new Sprite(frameOf(art.hero, "stance", "s", 0));
-  characters.addChild(hero);
+  // Walls, props, the Hero, Monsters and Corpses, nearest the viewer last.
+  const scene = drawTiles(area, area.propTiles, art);
+  scene.sortableChildren = true;
+  camera.addChild(scene);
+  const hero = characterView(art.hero, heroTuning.walkSpeed);
+  scene.addChild(hero.sprite);
 
-  const monsters = new Map<MonsterId, Graphics>();
-  const drawnCorpses = new Set<MonsterId>();
-  const flashUntilMs = new Map<MonsterId, number>();
+  /** Living Monsters and Corpses by id. */
+  const monsters = new Map<MonsterId, MonsterView>();
+  /** The view of a living Monster or Corpse, made on first sight. */
+  const viewOf = (id: MonsterId, type: MonsterType): MonsterView => {
+    let view = monsters.get(id);
+    if (!view) {
+      view = monsterView(art, type);
+      monsters.set(id, view);
+      scene.addChild(view.sprite);
+    }
+    return view;
+  };
   let hoveredTile: Vec | null = null;
   let markedAtMs: number | null = null;
-  /** How far into `run` the Hero's feet are, as ms at `HERO_RUN_SPEED`. */
-  let heroRunMs = 0;
-  let heroDrawnAt: Vec | null = null;
 
   /** Maps a point on the canvas (CSS px) to tile units, as last drawn. */
   const screenToTile = (screen: Vec): Vec =>
@@ -72,16 +122,19 @@ export function createRenderer(app: Application, area: Area, art: Art) {
     const y = screen.y - camera.position.y;
     let nearest: { id: MonsterId; y: number } | null = null;
     for (const [id, view] of monsters) {
-      const dx = x - view.position.x;
-      const dy = y - view.position.y;
+      if (view.diedAtMs !== null) continue;
+      const { position } = view.sprite;
+      const scale = MONSTER_SCALE[view.type];
+      const dx = (x - position.x) / scale;
+      const dy = (y - position.y) / scale;
       const inside =
         dx >= MONSTER_BOX.left &&
         dx <= MONSTER_BOX.right &&
         dy >= MONSTER_BOX.top &&
         dy <= MONSTER_BOX.bottom;
       // The one in front wins where they overlap.
-      if (inside && (!nearest || view.position.y > nearest.y)) {
-        nearest = { id, y: view.position.y };
+      if (inside && (!nearest || position.y > nearest.y)) {
+        nearest = { id, y: position.y };
       }
     }
     return nearest?.id ?? null;
@@ -95,7 +148,12 @@ export function createRenderer(app: Application, area: Area, art: Art) {
     react(events: readonly SimEvent[], nowMs: number) {
       for (const event of events) {
         if (event.type === "HitLanded") {
-          flashUntilMs.set(event.target, nowMs + FLASH_MS);
+          const view = monsters.get(event.target);
+          if (view) view.flashUntilMs = nowMs + FLASH_MS;
+        }
+        if (event.type === "MonsterDied") {
+          const view = monsters.get(event.id);
+          if (view) view.diedAtMs = nowMs;
         }
       }
     },
@@ -112,8 +170,7 @@ export function createRenderer(app: Application, area: Area, art: Art) {
      * current one; `pointer` is the cursor on the canvas (CSS px), if on it.
      */
     draw(world: World, alpha: number, pointer: Vec | null, nowMs: number) {
-      const { pos, prevPos } = world.hero;
-      const heroAt = lerp(prevPos, pos, alpha);
+      const heroAt = lerp(world.hero.prevPos, world.hero.pos, alpha);
       const at = toScreen(heroAt);
 
       // Snap the camera and sprites to device pixels so the art stays
@@ -122,65 +179,66 @@ export function createRenderer(app: Application, area: Area, art: Art) {
       const snap = (v: number) =>
         Math.round(v * app.renderer.resolution) / app.renderer.resolution;
       camera.position.set(snap(centre.x - at.x), snap(centre.y - at.y));
-      hero.position.set(snap(at.x), snap(at.y));
-      hero.zIndex = at.y;
+      const place = (view: CharacterView, at: Vec, depth = 0) => {
+        const screen = toScreen(at);
+        view.sprite.position.set(snap(screen.x), snap(screen.y));
+        view.sprite.zIndex = screen.y - depth;
+      };
 
-      // The feet follow the ground actually covered, so they never slide.
-      const walking = pos.x !== prevPos.x || pos.y !== prevPos.y;
-      if (walking && heroDrawnAt) {
-        const covered = Math.hypot(
-          heroAt.x - heroDrawnAt.x,
-          heroAt.y - heroDrawnAt.y,
+      place(hero, heroAt);
+      const { swing } = world.hero;
+      const heroCompass = compassOf(world.hero.facing);
+      if (swing) {
+        const frame = swingFrame(
+          {
+            ...HERO_SWING,
+            frames: art.hero.timing.swing.frames,
+            strikeFrame: HERO_STRIKE_FRAME,
+          },
+          swing.elapsed * STEP_MS,
         );
-        heroRunMs += (covered / HERO_RUN_SPEED) * 1000;
+        show(hero, "swing", heroCompass, frame);
+      } else {
+        walkOrStand(hero, world.hero, heroAt, heroCompass, nowMs);
       }
-      heroDrawnAt = heroAt;
-      const compass = compassOf(world.hero.facing);
-      hero.texture = walking
-        ? frameOf(
-            art.hero,
-            "run",
-            compass,
-            frameAt(art.hero.timing.run, heroRunMs),
-          )
-        : frameOf(
-            art.hero,
-            "stance",
-            compass,
-            frameAt(art.hero.timing.stance, nowMs),
-          );
-      drawSwing(swing, world);
+
+      const seen = new Set<MonsterId>();
+      for (const monster of world.monsters) {
+        seen.add(monster.id);
+        const view = viewOf(monster.id, monster.type);
+        const { pos, prevPos } = monster;
+        const monsterAt = lerp(prevPos, pos, alpha);
+        place(view, monsterAt);
+        if (pos.x !== prevPos.x || pos.y !== prevPos.y) {
+          view.facing = Math.atan2(pos.y - prevPos.y, pos.x - prevPos.x);
+        }
+        const compass = compassOf(view.facing);
+        if (monster.flinch > 0) {
+          const ms = (FLINCH_STEPS[monster.type] - monster.flinch) * STEP_MS;
+          show(view, "hit", compass, frameAt(view.art.timing.hit, ms));
+        } else {
+          walkOrStand(view, monster, monsterAt, compass, nowMs);
+        }
+        flash(view, nowMs);
+      }
 
       for (const corpse of world.corpses) {
-        if (drawnCorpses.has(corpse.id)) continue;
-        drawnCorpses.add(corpse.id);
-        const view = drawCorpse();
-        const at = toScreen(corpse.pos);
-        view.position.set(at.x, at.y);
-        corpses.addChild(view);
+        seen.add(corpse.id);
+        const view = viewOf(corpse.id, corpse.type);
+        // Already dead when first drawn: lying still.
+        view.diedAtMs ??= -Infinity;
+        place(view, corpse.pos, CORPSE_DEPTH);
+        const ms = nowMs - view.diedAtMs;
+        const frame = frameAt(view.art.timing.die, ms);
+        show(view, "die", compassOf(view.facing), frame);
+        flash(view, nowMs);
       }
 
-      const alive = new Set<MonsterId>();
-      for (const monster of world.monsters) {
-        alive.add(monster.id);
-        let view = monsters.get(monster.id);
-        if (!view) {
-          view = drawMonster();
-          monsters.set(monster.id, view);
-          characters.addChild(view);
-        }
-        const at = toScreen(lerp(monster.prevPos, monster.pos, alpha));
-        view.position.set(at.x, at.y);
-        view.zIndex = at.y;
-        view.rotation = monster.flinch > 0 ? -FLINCH_LEAN : 0;
-        const flashing = (flashUntilMs.get(monster.id) ?? 0) > nowMs;
-        view.tint = flashing ? 0xffffff : BONE_FILL;
-      }
       for (const [id, view] of monsters) {
-        if (alive.has(id)) continue;
-        view.destroy();
+        if (seen.has(id)) continue;
+        view.sprite.destroy();
+        view.flash?.destroy();
         monsters.delete(id);
-        flashUntilMs.delete(id);
       }
 
       // After moving the camera, so the highlight matches this frame.
@@ -211,6 +269,86 @@ export function createRenderer(app: Application, area: Area, art: Art) {
       }
     },
   };
+}
+
+function characterView(art: CharacterArt, runSpeed: number): CharacterView {
+  return {
+    sprite: new Sprite(frameOf(art, "stance", "s", 0)),
+    art,
+    runSpeed,
+    runMs: 0,
+    drawnAt: null,
+  };
+}
+
+function monsterView(art: Art, type: MonsterType): MonsterView {
+  const view = characterView(art.monsters[type], monsterTuning[type].speed);
+  view.sprite.scale.set(MONSTER_SCALE[type]);
+  return {
+    ...view,
+    type,
+    // Down the screen, as the Hero starts.
+    facing: Math.PI / 4,
+    diedAtMs: null,
+    flashUntilMs: 0,
+    flash: null,
+  };
+}
+
+function show(
+  view: CharacterView,
+  animation: Animation,
+  compass: Compass,
+  frame: number,
+) {
+  const texture = frameOf(view.art, animation, compass, frame);
+  view.sprite.texture = texture;
+  // Every Flare frame has its own anchor, and setting a texture keeps the
+  // old one.
+  view.sprite.anchor.copyFrom(texture.defaultAnchor ?? { x: 0, y: 0 });
+}
+
+/**
+ * Plays `run` while the sim moved the character in its last step, its feet
+ * following the ground actually covered so they never slide, and `stance`
+ * otherwise.
+ */
+function walkOrStand(
+  view: CharacterView,
+  { pos, prevPos }: { pos: Vec; prevPos: Vec },
+  at: Vec,
+  compass: Compass,
+  nowMs: number,
+) {
+  const walking = pos.x !== prevPos.x || pos.y !== prevPos.y;
+  if (walking && view.drawnAt) {
+    const covered = Math.hypot(at.x - view.drawnAt.x, at.y - view.drawnAt.y);
+    view.runMs += (covered / view.runSpeed) * 1000;
+  }
+  view.drawnAt = at;
+  if (walking) {
+    show(view, "run", compass, frameAt(view.art.timing.run, view.runMs));
+  } else {
+    show(view, "stance", compass, frameAt(view.art.timing.stance, nowMs));
+  }
+}
+
+/** Washes a hit Monster towards white, fading out over `FLASH_MS`. */
+function flash(view: MonsterView, nowMs: number) {
+  const left = (view.flashUntilMs - nowMs) / FLASH_MS;
+  if (left <= 0) {
+    if (view.sprite.filters) view.sprite.filters = null;
+    return;
+  }
+  if (!view.flash) {
+    view.flash = new ColorMatrixFilter({ resolution: "inherit" });
+    // Every colour to white, keeping alpha; `alpha` mixes it in.
+    view.flash.matrix = [
+      0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0,
+    ];
+  }
+  view.flash.alpha = FLASH_STRENGTH * left;
+  if (!view.sprite.filters) view.sprite.filters = [view.flash];
 }
 
 /** The point `alpha` (0..1) of the way from `from` to `to`. */
@@ -260,54 +398,4 @@ function drawMarker() {
   return new Graphics()
     .poly(diamond(-0.5, -0.5))
     .stroke({ color: MARKER_LINE, width: 2 });
-}
-
-/**
- * A placeholder Skeleton standing on its origin, drawn white so its tint
- * sets its colour.
- */
-function drawMonster() {
-  return new Graphics()
-    .ellipse(0, 0, 11, 5)
-    .fill({ color: 0x000000, alpha: 0.4 })
-    .roundRect(-6, -32, 12, 32, 5)
-    .fill(0xffffff)
-    .circle(0, -36, 5)
-    .fill(0xffffff);
-}
-
-/** A placeholder Corpse: bones lying on the ground around its origin. */
-function drawCorpse() {
-  return new Graphics()
-    .ellipse(0, 0, 14, 5)
-    .fill(CORPSE_FILL)
-    .circle(12, -2, 4)
-    .fill(CORPSE_FILL);
-}
-
-/** The arc a swing covers on the ground, brighter once its hit has landed. */
-function drawSwing(graphics: Graphics, world: World) {
-  graphics.clear();
-  const { swing, pos, facing } = world.hero;
-  if (!swing) return;
-  const half = (heroTuning.arcDegrees * Math.PI) / 180;
-  const points: Vec[] = [pos];
-  for (let i = 0; i <= 10; i++) {
-    const angle = facing - half + (2 * half * i) / 10;
-    points.push({
-      x: pos.x + heroTuning.reach * Math.cos(angle),
-      y: pos.y + heroTuning.reach * Math.sin(angle),
-    });
-  }
-  graphics
-    .poly(
-      points.flatMap((point) => {
-        const at = toScreen(point);
-        return [at.x, at.y];
-      }),
-    )
-    .fill({
-      color: swing.landed ? SWING_LANDED_FILL : SWING_FILL,
-      alpha: swing.landed ? 0.35 : 0.2,
-    });
 }

@@ -50,6 +50,9 @@ type Tsj = {
   }[];
 };
 
+/** The Area's one tileset: its content and the first gid it covers. */
+type Tileset = Tsj & { firstgid: number };
+
 type TmjTileset =
   | ({ firstgid: number; source?: undefined } & Tsj)
   /** A tileset in its own file, a path relative to the map. */
@@ -194,7 +197,7 @@ function readTileset(
   name: string,
   refs: TmjTileset[],
   files: Record<string, unknown>,
-): (Tsj & { firstgid: number }) | null {
+): Tileset | null {
   if (refs.length > 1) {
     throw new Error(`Area "${name}" uses ${refs.length} tilesets; use one`);
   }
@@ -210,9 +213,7 @@ function readTileset(
 }
 
 /** The gids of every tile in a tileset whose `blocks` property is set. */
-function blockingGids(
-  tileset: (Tsj & { firstgid: number }) | null,
-): Set<number> {
+function blockingGids(tileset: Tileset | null): Set<number> {
   const gids = new Set<number>();
   if (!tileset) return gids;
   for (const tile of tileset.tiles ?? []) {

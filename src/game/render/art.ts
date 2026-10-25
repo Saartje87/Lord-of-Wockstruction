@@ -1,4 +1,5 @@
 import { Assets, type Spritesheet, type Texture } from "pixi.js";
+import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import type { Compass, Timing } from "./animation";
 
 /** The animations the Flare import keeps for every character. */
@@ -15,6 +16,7 @@ export type Art = {
   /** The Area's tileset's tiles by tile id, anchored on the diamond centre. */
   tiles: Map<number, Texture>;
   hero: CharacterArt;
+  monsters: Record<MonsterType, CharacterArt>;
 };
 
 /** What the Flare import writes into a character spritesheet's `meta`. */
@@ -31,26 +33,38 @@ export async function loadArt(
   tileset: string | null,
   resolution: number,
 ): Promise<Art> {
-  const [hero, ...tilesheets] = await Promise.all([
-    Assets.load<Spritesheet>("/assets/characters/hero.json"),
-    ...(tileset
-      ? [Assets.load<Spritesheet>(`/assets/tilesets/${tileset}.json`)]
-      : []),
+  const types = Object.keys(monsterTuning) as MonsterType[];
+  const character = (name: string) =>
+    Assets.load<Spritesheet>(`/assets/characters/${name}.json`);
+  const [hero, tilesheet, ...monsters] = await Promise.all([
+    character("hero"),
+    tileset
+      ? Assets.load<Spritesheet>(`/assets/tilesets/${tileset}.json`)
+      : null,
+    ...types.map(character),
   ]);
 
-  const sheets = [hero, ...tilesheets.flatMap((s) => [s, ...s.linkedSheets])];
+  const tilesheets = tilesheet ? [tilesheet, ...tilesheet.linkedSheets] : [];
   if (Number.isInteger(resolution)) {
-    for (const sheet of sheets) sheet.textureSource.scaleMode = "nearest";
+    for (const sheet of [hero, ...monsters, ...tilesheets]) {
+      sheet.textureSource.scaleMode = "nearest";
+    }
   }
 
   const tiles = new Map<number, Texture>();
-  for (const sheet of sheets.slice(1)) {
+  for (const sheet of tilesheets) {
     for (const [key, texture] of Object.entries(sheet.textures)) {
       // Frames are named `<tileset>/<id>`.
       tiles.set(Number(key.slice(key.indexOf("/") + 1)), texture);
     }
   }
-  return { tiles, hero: characterArt(hero) };
+  return {
+    tiles,
+    hero: characterArt(hero),
+    monsters: Object.fromEntries(
+      types.map((type, i) => [type, characterArt(monsters[i])]),
+    ) as Record<MonsterType, CharacterArt>,
+  };
 }
 
 function characterArt(sheet: Spritesheet): CharacterArt {

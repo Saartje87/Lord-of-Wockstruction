@@ -55,11 +55,12 @@ describe("createWorld", () => {
     const at = (x: number, y: number) => y * area.width + x;
 
     expect(area.tileset).toBe("grassland");
-    // A rock pillar, a pine and a leafy tree.
+    // Rock pillars on both legs of the L, and a tree.
     expect(area.propTiles[at(4, 2)]).toBe(132);
     expect(area.walkable[at(4, 2)]).toBe(false);
     expect(area.walkable[at(8, 4)]).toBe(false);
     expect(area.walkable[at(3, 7)]).toBe(false);
+    expect(area.walkable[at(11, 4)]).toBe(false);
     // A fern.
     expect(area.propTiles[at(6, 6)]).toBe(120);
     expect(area.walkable[at(6, 6)]).toBe(true);

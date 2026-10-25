@@ -42,6 +42,11 @@ export type PointerView<Panel> = {
   /** The Monster drawn under a canvas point (CSS px), if any. */
   monsterAt(screen: Vec): MonsterId | null;
   /** The Ground Item whose label is under a canvas point (CSS px), if any. */
+  groundLabelAt(screen: Vec): ItemId | null;
+  /**
+   * The Ground Item drawn on the floor under a canvas point (CSS px), if
+   * any.
+   */
   groundItemAt(screen: Vec): ItemId | null;
   /**
    * What a canvas point (CSS px) hits of the panels and buttons over the
@@ -142,7 +147,7 @@ export function cancel(input: PointerInput) {
  * panel hit, if any, for the panel to handle.
  *
  * A click picks up the Ground Item whose label is under it, attacks the
- * Monster under it, or walks; Shift + click swings in place. Holding the button repeats that every `retargetMs` towards the
+ * Monster under it, picks up the Ground Item lying under it, or walks; Shift + click swings in place. Holding the button repeats that every `retargetMs` towards the
  * cursor, keeps attacking the same Monster, and switches from walking to
  * attacking as soon as the cursor passes over a Monster. A click on a panel
  * orders nothing, nor does holding it on, and steering doesn't follow the
@@ -164,7 +169,11 @@ export function poll<Panel>(
       return { ...nothing, panel };
     }
     const monster = view.monsterAt(pressedAt);
-    const groundItem = input.shift ? null : view.groundItemAt(pressedAt);
+    // A label wins over a Monster, a Monster over an Item under its feet.
+    const groundItem = input.shift
+      ? null
+      : (view.groundLabelAt(pressedAt) ??
+        (monster === null ? view.groundItemAt(pressedAt) : null));
     if (groundItem !== null) {
       input.holding = { type: "panel" };
       return { ...nothing, orders: [{ type: "PickUp", groundItem }] };

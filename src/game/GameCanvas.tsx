@@ -150,6 +150,7 @@ export default function GameCanvas() {
         } = poll(input, now, {
           toTile: renderer.screenToTile,
           monsterAt: renderer.monsterAt,
+          groundLabelAt: renderer.groundLabelAt,
           groundItemAt: renderer.groundItemAt,
           panelAt: renderer.panelAt,
         });

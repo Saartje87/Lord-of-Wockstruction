@@ -52,6 +52,7 @@ import { experienceBar } from "./experienceBar";
 import {
   GROUND_LABEL,
   type GroundLabel,
+  groundItemUnder,
   groundLabelAt,
   groundLabels,
 } from "./groundLabels";
@@ -335,9 +336,11 @@ const ITEM_COLOUR: Record<ItemKind, number> = {
 /**
  * A Ground Item: a small diamond on the floor tinted by its kind, `size`
  * across (CSS px), under a dark label with its name, gold while hovered.
+ * A click within `grab` of the diamond's box picks it up too.
  */
 const GROUND_ITEM = {
   size: 14,
+  grab: 4,
   edge: 0xd8c890,
   label: 0x000000,
   labelAlpha: 0.7,
@@ -437,6 +440,8 @@ export function createRenderer(app: Application, art: Art) {
   const labelTexts = new Map<ItemId, Text>();
   /** Where each Ground Item's label was last drawn, in camera space. */
   let labels: GroundLabel[] = [];
+  /** Where each Ground Item was last drawn on the floor, in camera space. */
+  let lyingAt: { id: ItemId; at: Vec }[] = [];
   const numbers = new Container();
   camera.addChild(numbers);
   const floating: { text: Text; bornMs: number; at: Vec }[] = [];
@@ -590,11 +595,19 @@ export function createRenderer(app: Application, art: Art) {
   };
 
   /** The Ground Item whose label is under a canvas point (CSS px). */
-  const groundItemAt = (screen: Vec): ItemId | null =>
+  const groundLabelUnder = (screen: Vec): ItemId | null =>
     groundLabelAt(labels, {
       x: screen.x - camera.position.x,
       y: screen.y - camera.position.y,
     });
+
+  /** The Ground Item drawn on the floor under a canvas point (CSS px). */
+  const groundItemAt = (screen: Vec): ItemId | null =>
+    groundItemUnder(
+      lyingAt,
+      { x: screen.x - camera.position.x, y: screen.y - camera.position.y },
+      GROUND_ITEM.size / 2 + GROUND_ITEM.grab,
+    );
 
   /**
    * Draws each Ground Item on the floor with its name label over it, gold
@@ -634,6 +647,7 @@ export function createRenderer(app: Application, art: Art) {
       return { id: item.id, at, width };
     });
     labels = groundLabels(sized);
+    lyingAt = sized.map(({ id, at }) => ({ id, at }));
     for (const { id, rect } of labels) {
       labelBacks
         .rect(rect.x, rect.y, rect.w, rect.h)
@@ -654,6 +668,7 @@ export function createRenderer(app: Application, art: Art) {
   return {
     screenToTile,
     monsterAt,
+    groundLabelAt: groundLabelUnder,
     groundItemAt,
 
     panelAt,
@@ -876,10 +891,13 @@ export function createRenderer(app: Application, art: Art) {
       const onWorld = onPanel ? null : pointer;
       // After moving the camera, so the highlight matches this frame.
       const cursor = onWorld && screenToTile(onWorld);
-      // A label over a Monster is what a click there picks.
-      const hoveredItem = onWorld && groundItemAt(onWorld);
+      // What a click there picks: a label over a Monster, a Monster over an
+      // Item lying under it.
+      const hoveredLabel = onWorld && groundLabelUnder(onWorld);
+      const hoveredId = onWorld && !hoveredLabel && monsterAt(onWorld);
+      const hoveredItem =
+        hoveredLabel || (onWorld && !hoveredId ? groundItemAt(onWorld) : null);
       drawGroundItems(world, hoveredItem);
-      const hoveredId = onWorld && !hoveredItem && monsterAt(onWorld);
       const hovered =
         world.monsters.find((monster) => monster.id === hoveredId) ?? null;
       const hoveredView = hovered && monsters.get(hovered.id);

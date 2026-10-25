@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { GROUND_LABEL, groundLabelAt, groundLabels } from "./groundLabels";
+import {
+  GROUND_LABEL,
+  groundItemUnder,
+  groundLabelAt,
+  groundLabels,
+} from "./groundLabels";
 
 const { height, gap, above } = GROUND_LABEL;
 
@@ -36,5 +41,23 @@ describe("groundLabelAt", () => {
     expect(groundLabelAt(labels, { x: 100, y: 200 - above - 1 })).toBe(1);
     expect(groundLabelAt(labels, { x: 100, y: 200 })).toBeNull();
     expect(groundLabelAt(labels, { x: 20, y: 190 })).toBeNull();
+  });
+});
+
+describe("groundItemUnder", () => {
+  const lying = [
+    { id: 1, at: { x: 100, y: 200 } },
+    { id: 2, at: { x: 104, y: 206 } },
+  ];
+
+  it("is the Ground Item drawn under the point, the nearest one in front", () => {
+    expect(groundItemUnder(lying, { x: 92, y: 194 }, 10)).toBe(1);
+    expect(groundItemUnder(lying, { x: 112, y: 214 }, 10)).toBe(2);
+    expect(groundItemUnder(lying, { x: 102, y: 203 }, 10)).toBe(2);
+  });
+
+  it("is null away from them all", () => {
+    expect(groundItemUnder(lying, { x: 100, y: 180 }, 10)).toBeNull();
+    expect(groundItemUnder([], { x: 100, y: 200 }, 10)).toBeNull();
   });
 });

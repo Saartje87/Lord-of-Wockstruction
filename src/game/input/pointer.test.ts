@@ -16,6 +16,7 @@ import {
 const asTiles = {
   toTile: (screen: Vec) => screen,
   monsterAt: () => null,
+  groundLabelAt: () => null,
   groundItemAt: () => null,
   panelAt: () => null,
 };
@@ -176,7 +177,7 @@ describe("pointer input on Monsters", () => {
 /** Like `withMonster`, with Ground Item 3's label over the same tile. */
 const withGroundItem = {
   ...withMonster,
-  groundItemAt: (screen: Vec) =>
+  groundLabelAt: (screen: Vec) =>
     Math.floor(screen.x) === 5 && Math.floor(screen.y) === 5 ? 3 : null,
 };
 
@@ -208,6 +209,59 @@ describe("pointer input on Ground Items", () => {
 
     expect(poll(input, 0, withGroundItem).orders).toEqual([
       { type: "SwingAt", target: { x: 5.2, y: 5.7 } },
+    ]);
+  });
+});
+
+/**
+ * Like `withMonster`, with Ground Item 4 lying on the floor over the tiles
+ * (5, 5) and (6, 5), its label elsewhere.
+ */
+const withLyingItem = {
+  ...withMonster,
+  groundItemAt: (screen: Vec) =>
+    Math.floor(screen.y) === 5 && [5, 6].includes(Math.floor(screen.x))
+      ? 4
+      : null,
+};
+
+describe("pointer input on a Ground Item's body", () => {
+  it("picks up the Ground Item clicked on the floor, with no marker", () => {
+    const input = createPointerInput();
+
+    press(input, { x: 6.5, y: 5.5 });
+    const { orders, click } = poll(input, 0, withLyingItem);
+
+    expect(orders).toEqual([{ type: "PickUp", groundItem: 4 }]);
+    expect(click).toBeNull();
+  });
+
+  it("attacks a Monster standing over it instead", () => {
+    const input = createPointerInput();
+
+    press(input, { x: 5.5, y: 5.5 });
+
+    expect(poll(input, 0, withLyingItem).orders).toEqual([
+      { type: "Attack", monster: 7 },
+    ]);
+  });
+
+  it("orders nothing more while the click is held", () => {
+    const input = createPointerInput();
+    press(input, { x: 6.5, y: 5.5 });
+    poll(input, 0, withLyingItem);
+
+    move(input, { x: 8, y: 8 });
+    expect(poll(input, 120, withLyingItem).orders).toEqual([]);
+  });
+
+  it("swings in place on Shift + click on it", () => {
+    const input = createPointerInput();
+
+    press(input, { x: 6.5, y: 5.5 }, { shift: true });
+
+    expect(poll(input, 0, withLyingItem).orders).toEqual([
+      { type: "SwingAt", target: { x: 6.5, y: 5.5 } },
     ]);
   });
 });

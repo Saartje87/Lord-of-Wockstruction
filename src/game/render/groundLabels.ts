@@ -48,6 +48,25 @@ export function groundLabelAt(
   return labels.find((label) => inside(label.rect, point))?.id ?? null;
 }
 
+/**
+ * The Ground Item drawn on the floor under `point`: within `half` of its
+ * centre `at` across and down, the one nearest the viewer where they
+ * overlap, or null.
+ */
+export function groundItemUnder(
+  items: readonly { id: ItemId; at: Vec }[],
+  point: Vec,
+  half: number,
+): ItemId | null {
+  let nearest: { id: ItemId; y: number } | null = null;
+  for (const { id, at } of items) {
+    const under =
+      Math.abs(point.x - at.x) <= half && Math.abs(point.y - at.y) <= half;
+    if (under && (!nearest || at.y > nearest.y)) nearest = { id, y: at.y };
+  }
+  return nearest?.id ?? null;
+}
+
 function overlap(a: Rect, b: Rect): boolean {
   return (
     a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h

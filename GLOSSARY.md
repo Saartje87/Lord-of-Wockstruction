@@ -24,6 +24,14 @@ _Avoid_: Level, dungeon, zone, map
 A distinct place the Hero can be in; Town and Combat Areas are both Areas.
 _Avoid_: Level, zone, map, scene
 
+**Exit**:
+A zone in an Area that, when the Hero walks into it, takes the Hero to an Entry in another Area.
+_Avoid_: Portal, door, transition, warp
+
+**Entry**:
+A named place in an Area where the Hero appears on arriving; the Entry named `start` is where the Hero begins.
+_Avoid_: Spawn point (that's for Monsters), arrival
+
 **Monster**:
 A hostile creature that attacks the Hero and can be killed.
 _Avoid_: Enemy, mob, NPC

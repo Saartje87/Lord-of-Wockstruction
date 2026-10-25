@@ -66,6 +66,39 @@ const ofType = <T extends SimEvent["type"]>(events: SimEvent[], type: T) =>
     (event): event is Extract<SimEvent, { type: T }> => event.type === type,
   );
 
+describe("Unequipping an Item (right-click)", () => {
+  it("moves it to the first free spot in the Inventory", () => {
+    const world = wearing({ weapon: "axe" }, [at("chainMail", 0, 0)]);
+    const axe = equipmentOf(world).weapon;
+
+    const events = step(world, [{ type: "UnequipItem", slot: "weapon" }]);
+
+    expect(worn(world).weapon).toBeNull();
+    expect(layout(world)).toEqual([at("chainMail", 0, 0), at("axe", 2, 0)]);
+    expect(ofType(events, "ItemUnequipped")).toEqual([
+      { type: "ItemUnequipped", item: axe, slot: "weapon" },
+    ]);
+    expect(ofType(events, "InventoryChanged")).toHaveLength(1);
+  });
+
+  it("is refused with No room when it fits nowhere", () => {
+    const armour = [0, 2, 4, 6, 8].map((column) => at("chainMail", column, 0));
+    const world = wearing({ armour: "leatherArmour" }, armour);
+
+    const events = step(world, [{ type: "UnequipItem", slot: "armour" }]);
+
+    expect(worn(world).armour).toBe("leatherArmour");
+    expect(layout(world)).toEqual(armour);
+    expect(events).toEqual([{ type: "NoRoom" }]);
+  });
+
+  it("does nothing for an empty slot", () => {
+    const world = wearing({});
+
+    expect(step(world, [{ type: "UnequipItem", slot: "amulet" }])).toEqual([]);
+  });
+});
+
 describe("Equipping a Ring", () => {
   it("fills the left Ring slot first, then the right one", () => {
     const world = wearing({}, [

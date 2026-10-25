@@ -251,6 +251,11 @@ export type Order =
    * held.
    */
   | { type: "EquipItem"; item: ItemId }
+  /**
+   * Move the Item Equipped in `slot` to the first free spot in the
+   * Inventory, or refuse with `NoRoom` when it fits nowhere.
+   */
+  | { type: "UnequipItem"; slot: EquipmentSlot }
   /** Walk to a Ground Item and pick it up, if there's room for it. */
   | { type: "PickUp"; groundItem: ItemId }
   /** Go back to Town after dying. */
@@ -833,6 +838,10 @@ function give(world: World, order: Order, events: SimEvent[]) {
     equipItem(world, order.item, events);
     return;
   }
+  if (order.type === "UnequipItem") {
+    unequipItem(world, order.slot, events);
+    return;
+  }
   if (order.type === "ReturnCursorItem") {
     returnCursorItem(world, events);
     return;
@@ -992,6 +1001,25 @@ function equipItem(world: World, id: ItemId, events: SimEvent[]) {
   hero.inventory = rest;
   hero.equipment[slot] = placed.item;
   events.push({ type: "ItemEquipped", item: { ...placed.item }, slot });
+  events.push({ type: "InventoryChanged" });
+}
+
+/**
+ * Moves the Item Equipped in `slot` to the first free spot, which a held
+ * Item's cell isn't, or says there's no room.
+ */
+function unequipItem(world: World, slot: EquipmentSlot, events: SimEvent[]) {
+  const { hero } = world;
+  const item = hero.equipment[slot];
+  if (!item) return;
+  const cell = firstFreeCell(taken(hero), item.type);
+  if (!cell) {
+    events.push({ type: "NoRoom" });
+    return;
+  }
+  hero.equipment[slot] = null;
+  hero.inventory.push({ item, cell });
+  events.push({ type: "ItemUnequipped", item: { ...item }, slot });
   events.push({ type: "InventoryChanged" });
 }
 

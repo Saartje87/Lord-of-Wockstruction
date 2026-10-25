@@ -98,6 +98,16 @@ describe("whether a step's events change the Hero's progress", () => {
     expect(changesProgress([{ type: "InventoryChanged" }])).toBe(true);
   });
 
+  it("is yes for ItemEquipped and ItemUnequipped", () => {
+    const item = { id: 3, type: "axe" as const };
+    expect(
+      changesProgress([{ type: "ItemEquipped", item, slot: "weapon" }]),
+    ).toBe(true);
+    expect(
+      changesProgress([{ type: "ItemUnequipped", item, slot: "weapon" }]),
+    ).toBe(true);
+  });
+
   it("is no for any other events", () => {
     expect(changesProgress([])).toBe(false);
     expect(

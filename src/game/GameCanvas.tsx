@@ -11,11 +11,18 @@ import {
   poll,
   release,
 } from "./input/pointer";
-import { createPause, gameTime, togglePause } from "./pause";
+import { createPause, gameTime, pressKey, togglePause } from "./pause";
 import { loadArt } from "./render/art";
 import { createRenderer } from "./render/renderer";
+import {
+  browserStorage,
+  changesProgress,
+  readSave,
+  removeSave,
+  writeSave,
+} from "./save";
 import { isFloor } from "./sim/area";
-import { createWorld, type Order, step } from "./sim/world";
+import { createWorld, type Order, progressOf, step } from "./sim/world";
 
 /** Mounts the Pixi Application and runs the fixed-step loop. */
 export default function GameCanvas() {
@@ -41,7 +48,14 @@ export default function GameCanvas() {
     });
     init.then(async () => {
       if (cancelled) return;
-      const world = createWorld({ areas, tilesets, seed: Date.now() });
+      const storage = browserStorage();
+      // The Save's Hero, or a fresh one when there's no Save.
+      let world = createWorld({
+        areas,
+        tilesets,
+        seed: Date.now(),
+        progress: readSave(storage),
+      });
       const usedTilesets = Object.values(world.areas).map(
         (area) => area.tileset,
       );
@@ -60,11 +74,11 @@ export default function GameCanvas() {
       let last = performance.now();
 
       attachPointer(app.canvas, input, listeners.signal);
-      // Esc opens and closes the pause menu, and a click closes it too. Any
-      // other click or key press goes on from the death screen.
+      // Esc opens and closes the pause menu, and a click closes it too; the
+      // menu's own keys go to `pressKey`. Any other click or key press goes
+      // on from the death screen.
       let clicked = false;
-      let keyed = false;
-      let escPressed = false;
+      let keys: string[] = [];
       app.canvas.addEventListener(
         "pointerdown",
         () => {
@@ -75,23 +89,34 @@ export default function GameCanvas() {
       window.addEventListener(
         "keydown",
         (e) => {
-          if (e.repeat) return;
-          if (e.key === "Escape") escPressed = true;
-          else keyed = true;
+          if (!e.repeat) keys.push(e.key);
         },
         { signal: listeners.signal },
       );
 
       const tick = (realNow: number) => {
-        let pressed = clicked || keyed;
-        if (escPressed || (clicked && pause.paused)) {
-          togglePause(pause, realNow);
+        let pressed = clicked || keys.some((key) => key !== "Escape");
+        const wasPaused = pause.paused;
+        let newHero = false;
+        for (const key of keys) {
+          if (pressKey(pause, key, realNow) === "newHero") newHero = true;
+        }
+        if (clicked && wasPaused && pause.paused) togglePause(pause, realNow);
+        if (pause.paused !== wasPaused) {
           // Neither the closing click nor a hold from before the pause
           // orders the Hero about.
           cancel(input);
           pressed = false;
         }
-        clicked = keyed = escPressed = false;
+        clicked = false;
+        keys = [];
+        if (newHero) {
+          // Confirmed in the menu: the Save goes, and a fresh Level 1 Hero
+          // starts in Town.
+          removeSave(storage);
+          world = createWorld({ areas, tilesets, seed: Date.now() });
+          orders = [];
+        }
         // Stands still while paused, so the clock owes no steps for it and
         // the World and every effect hold still.
         const now = gameTime(pause, realNow);
@@ -115,12 +140,14 @@ export default function GameCanvas() {
         const { steps, alpha } = advance(clock, now - last);
         last = now;
         for (let i = 0; i < steps; i++) {
-          renderer.react(step(world, orders), now);
+          const events = step(world, orders);
+          if (changesProgress(events)) writeSave(storage, progressOf(world));
+          renderer.react(events, now);
           orders = [];
         }
         // No hover outline or nameplate under the menu.
         const pointer = pause.paused ? null : input.screen;
-        renderer.draw(world, alpha, pointer, now, pause.paused);
+        renderer.draw(world, alpha, pointer, now, pause);
         app.render();
         frame = requestAnimationFrame(tick);
       };

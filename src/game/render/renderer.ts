@@ -7,6 +7,7 @@ import {
   Text,
 } from "pixi.js";
 import { toScreen, toTile } from "../iso";
+import type { Pause } from "../pause";
 import { type Area, isFloor } from "../sim/area";
 import { windUpProgress } from "../sim/monsters";
 import { STEP_MS } from "../sim/units";
@@ -75,13 +76,16 @@ const DEATH_SCREEN = {
 
 /**
  * The pause menu: a dark panel in the middle of a darkened screen, with the
- * art's credit and a hint to resume.
+ * art's credit, the New Hero option and a hint to resume. Asking to confirm
+ * a New Hero, the question takes the place of the credit and the option.
  */
 const PAUSE_MENU = {
   darkness: 0.6,
-  panel: { width: 460, height: 250, colour: 0x17130e, edge: 0x5a4a2e },
+  panel: { width: 460, height: 290, colour: 0x17130e, edge: 0x5a4a2e },
   title: { colour: 0xe8d27a, size: 40, top: 28 },
   credit: { colour: 0xd8d0b8, size: 15, top: 96, lineHeight: 22 },
+  option: { colour: 0xe8d27a, size: 17, top: 200 },
+  question: { colour: 0xd8d0b8, size: 17, top: 100, lineHeight: 28 },
   hint: { colour: 0x9a9080, size: 14, bottom: 26 },
 };
 
@@ -328,6 +332,24 @@ export function createRenderer(app: Application, art: Art) {
   let markedAtMs: number | null = null;
   let hurtAtMs: number | null = null;
   let levelAtMs: number | null = null;
+  /** The World last drawn; a New Hero brings another. */
+  let drawn: World | null = null;
+
+  /**
+   * Starts afresh for another World, whose Monster ids start over: drops
+   * every Monster view and the Hero's hurt and level-up effects, and shows
+   * its Area.
+   */
+  const showWorld = (next: World) => {
+    drawn = next;
+    for (const view of monsters.values()) {
+      view.sprite.destroy();
+      view.flash?.destroy();
+    }
+    monsters.clear();
+    hurtAtMs = levelAtMs = null;
+    showArea(next.areas[next.areaName]);
+  };
 
   /**
    * Swaps in another Area's tiles and NPCs. Its Monsters and Corpses get
@@ -436,17 +458,18 @@ export function createRenderer(app: Application, art: Art) {
     /**
      * `alpha` (0..1) is how far the frame is from the previous step to the
      * current one; `pointer` is the cursor on the canvas (CSS px), if on it.
-     * `paused` shows the pause menu over everything.
+     * While paused, `pause` shows the pause menu over everything.
      */
     draw(
       world: World,
       alpha: number,
       pointer: Vec | null,
       nowMs: number,
-      paused: boolean,
+      pause: Pause,
     ) {
       const active = world.areas[world.areaName];
-      if (active !== area) showArea(active);
+      if (world !== drawn) showWorld(world);
+      else if (active !== area) showArea(active);
       const heroAt = lerp(world.hero.prevPos, world.hero.pos, alpha);
       const at = toScreen(heroAt);
 
@@ -658,7 +681,7 @@ export function createRenderer(app: Application, art: Art) {
         fade.scale.set(app.screen.width, app.screen.height);
       }
 
-      menu.draw(app.screen, paused);
+      menu.draw(app.screen, pause.paused, pause.confirming, world.hero.level);
 
       const markerProgress =
         markedAtMs === null
@@ -1066,10 +1089,10 @@ function deathScreenView() {
 
 /**
  * The menu over a paused game: it credits the Flare art and points to
- * `CREDITS.md` for the rest.
+ * `CREDITS.md` for the rest, and offers a New Hero.
  */
 function pauseMenuView() {
-  const { darkness, panel, title, credit, hint } = PAUSE_MENU;
+  const { darkness, panel, title, credit, option, question, hint } = PAUSE_MENU;
   const layer = new Container();
   const dark = new Graphics().rect(0, 0, 1, 1).fill(0x000000);
   dark.alpha = darkness;
@@ -1100,6 +1123,24 @@ function pauseMenuView() {
   });
   credits.anchor.set(0.5, 0);
   credits.position.set(0, credit.top);
+  const newHero = new Text({
+    text: "Press N for a New Hero",
+    style: { fill: option.colour, fontSize: option.size, fontFamily: SERIF },
+  });
+  newHero.anchor.set(0.5, 0);
+  newHero.position.set(0, option.top);
+  const confirm = new Text({
+    text: "",
+    style: {
+      fill: question.colour,
+      fontSize: question.size,
+      fontFamily: SERIF,
+      align: "center",
+      lineHeight: question.lineHeight,
+    },
+  });
+  confirm.anchor.set(0.5, 0);
+  confirm.position.set(0, question.top);
   const resume = new Text({
     text: "Click or press Esc to resume",
     style: { fill: hint.colour, fontSize: hint.size, fontFamily: SERIF },
@@ -1107,15 +1148,37 @@ function pauseMenuView() {
   resume.anchor.set(0.5, 1);
   resume.position.set(0, panel.height - hint.bottom);
   const content = new Container();
-  content.addChild(box, heading, credits, resume);
+  content.addChild(box, heading, credits, newHero, confirm, resume);
   layer.addChild(dark, content);
   layer.visible = false;
 
   return {
     layer,
-    draw(screen: { width: number; height: number }, paused: boolean) {
+    /**
+     * `confirming` asks whether to give up the Level `level` Hero for a New
+     * Hero.
+     */
+    draw(
+      screen: { width: number; height: number },
+      paused: boolean,
+      confirming: boolean,
+      level: number,
+    ) {
       layer.visible = paused;
       if (!paused) return;
+      credits.visible = newHero.visible = !confirming;
+      confirm.visible = confirming;
+      if (confirming) {
+        confirm.text = [
+          "Start a New Hero?",
+          `Your Level ${level} Hero will be lost for good.`,
+          "Press Y to confirm, or N or Esc to go back",
+        ].join("\n");
+      }
+      // Esc goes back from the question rather than resuming.
+      resume.text = confirming
+        ? "Click to resume"
+        : "Click or press Esc to resume";
       dark.scale.set(screen.width, screen.height);
       content.position.set(
         Math.round(screen.width / 2),

@@ -206,9 +206,19 @@ export type SimEvent =
 
 const TOWN = "town";
 
+/** What the Save keeps of the Hero. */
+export type Progress = {
+  level: number;
+  experience: number;
+};
+
+/** A fresh Level 1 Hero's progress. */
+const FRESH: Progress = { level: 1, experience: 0 };
+
 /**
  * Builds a World from raw `.tmj` content keyed by Area name, with the Hero in
- * Town at its `start` Entry. `tilesets` holds the raw `.tsj` content of the
+ * Town at its `start` Entry with full Life: with `progress` if given, or a
+ * fresh Level 1 Hero if not. `tilesets` holds the raw `.tsj` content of the
  * tilesets the Areas keep in their own files, keyed by file name. Throws,
  * naming the Area, on content that doesn't fit together (see
  * `validateAreas`).
@@ -217,6 +227,7 @@ export function createWorld(options: {
   areas: Record<string, unknown>;
   tilesets?: Record<string, unknown>;
   seed: number;
+  progress?: Progress | null;
 }): World {
   const areas: Record<string, Area> = {};
   for (const [name, content] of Object.entries(options.areas)) {
@@ -227,6 +238,7 @@ export function createWorld(options: {
   const town = areas[TOWN];
   if (!town) throw new Error(`No Area named "${TOWN}"`);
   const start = town.entries.start;
+  const { level, experience } = options.progress ?? FRESH;
 
   const world: World = {
     seed: options.seed,
@@ -239,9 +251,10 @@ export function createWorld(options: {
     areaChange: null,
     death: null,
     hero: {
-      life: heroTuning.life,
-      level: 1,
-      experience: 0,
+      // Filled to max Life below, once there's a World to ask.
+      life: 0,
+      level,
+      experience,
       pos: { ...start },
       prevPos: { ...start },
       path: [],
@@ -257,8 +270,14 @@ export function createWorld(options: {
     corpses: [],
     nextMonsterId: 1,
   };
+  world.hero.life = maxLife(world);
   for (const spawn of town.spawns) placePack(world, town, spawn);
   return world;
+}
+
+/** The Hero's progress, as the Save keeps it. */
+export function progressOf(world: World): Progress {
+  return { level: world.hero.level, experience: world.hero.experience };
 }
 
 /** The Monster states in which a Monster is going after the Hero. */

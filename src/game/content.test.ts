@@ -8,6 +8,67 @@ import { createWorld, type SimEvent, step, type World } from "./sim/world";
 // Monsters can stand on.
 const shippedWorld = () => createWorld({ areas, tilesets, seed: 1 });
 
+/**
+ * The shipped Areas with a stand-in Town of three floor tiles, whose one
+ * Exit, two tiles from `start`, leads to `entry` in `area`; with the Hero
+ * just arrived there. It saves walking past every Monster above.
+ */
+function worldEntering(area: string, entry: string): World {
+  const town = {
+    orientation: "orthogonal",
+    width: 3,
+    height: 1,
+    tilewidth: 32,
+    tileheight: 32,
+    layers: [
+      { type: "tilelayer", name: "floor", data: [1, 1, 1] },
+      {
+        type: "objectgroup",
+        name: "objects",
+        objects: [
+          { name: "start", type: "entry", x: 16, y: 16 },
+          { name: "from-catacombs", type: "entry", x: 16, y: 16 },
+          {
+            name: "",
+            type: "exit",
+            x: 64,
+            y: 0,
+            width: 32,
+            height: 32,
+            properties: [
+              { name: "area", type: "string", value: area },
+              { name: "entry", type: "string", value: entry },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  const world = createWorld({ areas: { ...areas, town }, tilesets, seed: 1 });
+  walkThrough(world, world.areas.town.exits[0]);
+  expect(world.areaName).toBe(area);
+  return world;
+}
+
+/** An Area's one Exit to Area `to`; throws when it has none or several. */
+function exitTo(area: Area, to: string): Exit {
+  const exits = area.exits.filter((exit) => exit.area === to);
+  if (exits.length !== 1) {
+    throw new Error(`Area "${area.name}" has ${exits.length} Exits to "${to}"`);
+  }
+  return exits[0];
+}
+
+/** How far the Hero stands from the centre of an Exit, in tiles. */
+function heroDistanceTo(world: World, exit: Exit) {
+  const centre = centreOf(exit);
+  return Math.hypot(world.hero.pos.x - centre.x, world.hero.pos.y - centre.y);
+}
+
+/** The number of Monsters in each of an Area's packs. */
+const packsOf = (area: Area) => area.spawns.map((spawn) => spawn.count);
+const sum = (values: number[]) => values.reduce((a, b) => a + b, 0);
+
 /** The Combat Area that Town's one Exit leads to. */
 const combatAreaOf = (world: World) =>
   world.areas[world.areas.town.exits[0].area];
@@ -60,6 +121,7 @@ describe("the shipped Areas", () => {
     );
     expect(areaDisplayNames.town).toBe("Town");
     expect(areaDisplayNames.catacombs).toBe("Catacombs");
+    expect(areaDisplayNames.crypt).toBe("Crypt");
     for (const name of Object.values(areaDisplayNames)) {
       expect(name).not.toMatch(/level|\d/i);
     }
@@ -142,5 +204,67 @@ describe("the shipped Areas", () => {
 
     expect(arrivedHome?.area).toBe("town");
     expect(world.areaName).toBe("town");
+  });
+
+  it("draw the dungeon Areas only with tiles the dungeon tileset has", () => {
+    const world = shippedWorld();
+    const dungeon = tilesets.dungeon as { tiles: { id: number }[] };
+    const known = new Set(dungeon.tiles.map((tile) => tile.id));
+
+    for (const area of Object.values(world.areas)) {
+      if (area.tileset !== "dungeon") continue;
+      for (const id of [...area.floorTiles, ...area.propTiles]) {
+        if (id !== null) expect(known).toContain(id);
+      }
+    }
+  });
+
+  it("lead from the Catacombs down to the Crypt, arriving next to its Exit back up", () => {
+    const world = worldEntering("catacombs", "from-crypt");
+    const down = exitTo(world.areas.catacombs, "crypt");
+
+    expect(heroDistanceTo(world, down)).toBeLessThan(4);
+    const arrived = walkThrough(world, down);
+
+    expect(arrived?.area).toBe("crypt");
+    const up = exitTo(world.areas.crypt, "catacombs");
+    expect(heroDistanceTo(world, up)).toBeLessThan(4);
+  });
+
+  it("lead from the Crypt back up to the Catacombs, arriving next to its Exit down", () => {
+    const world = worldEntering("crypt", "start");
+    const up = exitTo(world.areas.crypt, "catacombs");
+
+    expect(heroDistanceTo(world, up)).toBeLessThan(4);
+    const arrived = walkThrough(world, up);
+
+    expect(arrived?.area).toBe("catacombs");
+    const down = exitTo(world.areas.catacombs, "crypt");
+    expect(heroDistanceTo(world, down)).toBeLessThan(4);
+  });
+
+  it("give the Crypt Area Level 4, so its Monsters spawn at Monster Level 4", () => {
+    const world = worldEntering("crypt", "start");
+
+    expect(world.areas.crypt.areaLevel).toBe(4);
+    expect(world.monsters.length).toBeGreaterThan(0);
+    expect(world.monsters.every((monster) => monster.level === 4)).toBe(true);
+  });
+
+  it("build the Crypt about the Catacombs' size on the dungeon tileset, with somewhat bigger Skeleton packs", () => {
+    const { catacombs, crypt } = shippedWorld().areas;
+    const shallower = packsOf(catacombs);
+    const deeper = packsOf(crypt);
+
+    expect(crypt.tileset).toBe("dungeon");
+    expectAbout(crypt.width, catacombs.width, 8);
+    expectAbout(crypt.height, catacombs.height, 8);
+    expect(crypt.spawns.every((s) => s.monster === "skeleton")).toBe(true);
+    expect(Math.max(...deeper)).toBeGreaterThan(Math.max(...shallower));
+    expect(sum(deeper) / deeper.length).toBeGreaterThan(
+      sum(shallower) / shallower.length,
+    );
+    // Somewhat bigger, not a horde.
+    expect(sum(deeper)).toBeLessThan(sum(shallower) * 2);
   });
 });

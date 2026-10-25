@@ -509,10 +509,7 @@ export function damageRange(world: World): [number, number] {
  * The least and most damage the Hero's hits would deal with a Weapon of
  * `weapon` type, or a punch for null, 1% more for each point of Strength.
  */
-export function damageWith(
-  world: World,
-  weapon: ItemType | null,
-): [number, number] {
+function damageWith(world: World, weapon: ItemType | null): [number, number] {
   const scale = 1 + attributesOf(world).strength / 100;
   const [min, max] =
     (weapon && itemOf(weapon).damage) ?? heroTuning.unarmedDamage;

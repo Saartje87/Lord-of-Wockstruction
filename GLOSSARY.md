@@ -20,6 +20,10 @@ _Avoid_: Hub, village
 An Area outside Town where Monsters live and combat happens.
 _Avoid_: Level, dungeon, zone, map
 
+**Area Level**:
+How hard a Combat Area is: every Monster in it has this as its Monster Level. Town has none.
+_Avoid_: Level (that's the Hero's), difficulty, depth
+
 **Area**:
 A distinct place the Hero can be in; Town and Combat Areas are both Areas.
 _Avoid_: Level, zone, map, scene
@@ -35,6 +39,10 @@ _Avoid_: Spawn point (that's for Monsters), arrival
 **Monster**:
 A hostile creature that attacks the Hero and their Minions and can be killed.
 _Avoid_: Enemy, mob, NPC
+
+**Monster Level**:
+How strong a Monster is: the same Monster type is tougher, hits harder and gives more Experience at a higher Monster Level.
+_Avoid_: Level (that's the Hero's), tier, difficulty
 
 **Leash**:
 How far a Monster will chase the Hero or their Minion from where it was placed before it gives up and starts Returning.
@@ -65,7 +73,7 @@ What remains of a dead Monster, lying in its Area until the Hero leaves.
 _Avoid_: Body, remains
 
 **Experience**:
-What the Hero earns when they or their Minions kill Monsters; enough of it raises the Hero's Level.
+What the Hero earns when they or their Minions kill Monsters, less for a Monster whose Monster Level is well below the Hero's Level; enough of it raises the Hero's Level.
 _Avoid_: XP, EXP
 
 **Level**:

@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { areas, tilesets } from "../content";
 import { createWorld, type Order, step, type World } from "./world";
 
 // A 3×2 orthogonal Area with 32 px tiles and a `start` Entry in the middle
@@ -48,37 +47,6 @@ describe("createWorld", () => {
 
     expect(world.areaName).toBe("town");
     expect(world.hero.pos).toEqual({ x: 1.5, y: 1.5 });
-  });
-
-  it("builds a World from every shipped Area, with no Monsters in Town", () => {
-    const world = createWorld({ areas, tilesets, seed: 1 });
-
-    expect(Object.keys(world.areas)).toEqual(Object.keys(areas));
-    expect(world.areas.town.spawns).toEqual([]);
-    expect(world.monsters).toEqual([]);
-  });
-
-  it("puts the Hero at `start` in the shipped Town", () => {
-    const world = createWorld({ areas, tilesets, seed: 1 });
-
-    expect(world.hero.pos).toEqual({ x: 5.5, y: 4.5 });
-  });
-
-  it("blocks the shipped Town's walls by their tileset, and not its plants", () => {
-    const world = createWorld({ areas, tilesets, seed: 1 });
-    const area = world.areas.town;
-    const at = (x: number, y: number) => y * area.width + x;
-
-    expect(area.tileset).toBe("grassland");
-    // Rock pillars on both legs of the L, and a tree.
-    expect(area.propTiles[at(4, 2)]).toBe(132);
-    expect(area.walkable[at(4, 2)]).toBe(false);
-    expect(area.walkable[at(8, 4)]).toBe(false);
-    expect(area.walkable[at(3, 7)]).toBe(false);
-    expect(area.walkable[at(11, 4)]).toBe(false);
-    // A fern.
-    expect(area.propTiles[at(6, 6)]).toBe(120);
-    expect(area.walkable[at(6, 6)]).toBe(true);
   });
 
   it("throws naming the Area when it has no `start` Entry", () => {

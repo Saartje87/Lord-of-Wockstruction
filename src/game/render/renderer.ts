@@ -72,6 +72,16 @@ const TELEGRAPH_SEGMENTS = 12;
  * drawn as Flare made it; this is the one number to change if it looks off.
  */
 const MONSTER_SCALE: Record<MonsterType, number> = { skeleton: 1 };
+/**
+ * Placeholder NPCs are drawn with the Hero's art, tinted so they can't be
+ * mistaken for the Hero, facing down the screen.
+ */
+const NPC = { tint: 0x8c9ccc, compass: "s" } satisfies {
+  tint: number;
+  compass: Compass;
+};
+/** How far apart NPCs' idle animations run (ms), so they don't breathe in step. */
+const NPC_STAGGER_MS = 337;
 /** A Monster's clickable box around its feet at native scale (CSS px). */
 const MONSTER_BOX = { left: -35, right: 35, top: -135, bottom: 15 };
 /**
@@ -79,6 +89,8 @@ const MONSTER_BOX = { left: -35, right: 35, top: -135, bottom: 15 };
  * tiles, so anyone standing on or just behind a Corpse is drawn over it.
  */
 const CORPSE_DEPTH = toScreen({ x: 1, y: 0 }).y;
+/** How wide one tile's diamond is on screen (CSS px). */
+const TILE_WIDTH = toScreen({ x: 1, y: -1 }).x;
 
 /** The outline around a hovered Monster, and how thick it is (CSS px). */
 const OUTLINE = { colour: 0xd8c890, width: 1 };
@@ -198,8 +210,10 @@ export function createRenderer(app: Application, art: Art) {
   // Filled by `showArea`.
   let area: Area | null = null;
   const floor = new Container();
+  floor.sortableChildren = true;
   camera.addChild(floor);
   let props: Sprite[] = [];
+  let npcs: CharacterView[] = [];
   const hover = new Graphics();
   camera.addChild(hover);
   const marker = drawMarker();
@@ -263,8 +277,9 @@ export function createRenderer(app: Application, art: Art) {
   let hurtAtMs: number | null = null;
 
   /**
-   * Swaps in another Area's tiles. Its Monsters and Corpses get their own
-   * views as they're drawn, and the old ones go as they're no longer seen.
+   * Swaps in another Area's tiles and NPCs. Its Monsters and Corpses get
+   * their own views as they're drawn, and the old ones go as they're no
+   * longer seen.
    */
   const showArea = (next: Area) => {
     area = next;
@@ -272,7 +287,16 @@ export function createRenderer(app: Application, art: Art) {
     for (const prop of props) prop.destroy();
     props = drawTiles(next, next.propTiles, art);
     scene.addChild(...props);
-    floor.addChild(...drawTiles(next, next.floorTiles, art));
+    const floorTiles = drawTiles(next, next.floorTiles, art);
+    // Floor art wider than a tile, such as Flare's 2×2 waypoint, spreads over
+    // its neighbours, so it goes over their floor whatever the order.
+    for (const tile of floorTiles) {
+      tile.zIndex = tile.width > TILE_WIDTH ? 1 : 0;
+    }
+    floor.addChild(...floorTiles);
+    for (const npc of npcs) npc.sprite.destroy();
+    npcs = next.npcs.map(() => npcView(art));
+    if (npcs.length > 0) scene.addChild(...npcs.map((npc) => npc.sprite));
     for (const { text } of floating.splice(0)) text.destroy();
     markedAtMs = null;
     hoveredTile = null;
@@ -378,6 +402,12 @@ export function createRenderer(app: Application, art: Art) {
       };
 
       place(hero, heroAt);
+      active.npcs.forEach((npc, i) => {
+        const view = npcs[i];
+        place(view, npc.pos);
+        const ms = nowMs + i * NPC_STAGGER_MS;
+        show(view, "stance", NPC.compass, frameAt(art.hero.timing.stance, ms));
+      });
       const { swing } = world.hero;
       const heroCompass = compassOf(world.hero.facing);
       if (world.death) {
@@ -573,6 +603,13 @@ function monsterView(art: Art, type: MonsterType): MonsterView {
     flashUntilMs: 0,
     flash: null,
   };
+}
+
+/** A placeholder NPC: the Hero's art, tinted. It never walks. */
+function npcView(art: Art): CharacterView {
+  const view = characterView(art.hero, 0);
+  view.sprite.tint = NPC.tint;
+  return view;
 }
 
 function show(

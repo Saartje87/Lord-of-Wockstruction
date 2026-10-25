@@ -950,7 +950,7 @@ export function createRenderer(app: Application, art: Art) {
 
       orb.draw(app.screen, world, nowMs);
       experience.draw(app.screen, world);
-      levelUp.draw(app.screen, world, nowMs);
+      levelUp.draw(app.screen, world, nowMs, menus.heroDead);
       heroPanel.draw(app.screen, world, menus.heroPanelOpen);
       const spot = onPanel && "inventory" in onPanel ? onPanel.inventory : null;
       inventoryPanel.draw(
@@ -1340,7 +1340,7 @@ function experienceBarView() {
 
 /**
  * The Level Up button by the Life orb, shown while Attribute Points are
- * unspent, its edge pulsing to catch the eye.
+ * unspent but not over the death screen, its edge pulsing to catch the eye.
  */
 function levelUpButtonView() {
   const layer = new Container();
@@ -1363,8 +1363,9 @@ function levelUpButtonView() {
       screen: { width: number; height: number },
       world: World,
       nowMs: number,
+      heroDead: boolean,
     ) {
-      layer.visible = world.hero.progress.attributePoints > 0;
+      layer.visible = !heroDead && world.hero.progress.attributePoints > 0;
       if (!layer.visible) return;
       const rect = heroPanelLayout(screen).levelUp;
       const { pulsesPerSecond, edgeFaint } = HUD_BUTTON;

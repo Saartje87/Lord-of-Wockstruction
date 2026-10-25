@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { clickPaused, createMenus, pressKey } from "./menus";
+import {
+  clickLevelUp,
+  clickPaused,
+  createMenus,
+  pressKey,
+  reactMenus,
+} from "./menus";
 import { togglePause } from "./pause";
 
 describe("the keys", () => {
@@ -170,5 +176,98 @@ describe("a click while paused", () => {
     expect(clickPaused(menus, null, 3000)).toBeNull();
     expect(menus.pause.paused).toBe(false);
     expect(menus.pause.confirming).toBe(false);
+  });
+});
+
+describe("a click on the Level Up button", () => {
+  it("opens the Hero panel", () => {
+    const menus = createMenus();
+
+    clickLevelUp(menus);
+
+    expect(menus.heroPanelOpen).toBe(true);
+  });
+
+  it("opens nothing while the Hero is dead", () => {
+    const menus = createMenus();
+    reactMenus(menus, [{ type: "HeroDied" }]);
+
+    clickLevelUp(menus);
+
+    expect(menus.heroPanelOpen).toBe(false);
+  });
+});
+
+describe("the Hero's Death", () => {
+  it("closes the Hero and Inventory panels", () => {
+    const menus = createMenus();
+    pressKey(menus, "c", 1000);
+    pressKey(menus, "i", 1000);
+
+    reactMenus(menus, [{ type: "HeroDied" }]);
+
+    expect(menus.heroPanelOpen).toBe(false);
+    expect(menus.inventoryOpen).toBe(false);
+  });
+
+  it.each([
+    "c",
+    "C",
+    "i",
+    "I",
+  ])("leaves %s opening nothing, and takes it from the game", (key) => {
+    const menus = createMenus();
+    reactMenus(menus, [{ type: "HeroDied" }]);
+
+    expect(pressKey(menus, key, 1000)).toBe("handled");
+    expect(menus.heroPanelOpen).toBe(false);
+    expect(menus.inventoryOpen).toBe(false);
+  });
+
+  it("keeps the panels shut back in Town, until C and I open them", () => {
+    const menus = createMenus();
+    pressKey(menus, "c", 1000);
+    pressKey(menus, "i", 1000);
+    reactMenus(menus, [{ type: "HeroDied" }]);
+
+    reactMenus(menus, [{ type: "AreaChanged", area: "town", entry: "start" }]);
+
+    expect(menus.heroPanelOpen).toBe(false);
+    expect(menus.inventoryOpen).toBe(false);
+    pressKey(menus, "c", 2000);
+    pressKey(menus, "i", 2000);
+    expect(menus.heroPanelOpen).toBe(true);
+    expect(menus.inventoryOpen).toBe(true);
+  });
+
+  it("leaves any other key to the game, to go on to Town", () => {
+    const menus = createMenus();
+    reactMenus(menus, [{ type: "HeroDied" }]);
+
+    expect(pressKey(menus, "x", 1000)).toBeNull();
+    expect(pressKey(menus, " ", 1000)).toBeNull();
+  });
+
+  it("still opens and closes the pause menu with Esc", () => {
+    const menus = createMenus();
+    reactMenus(menus, [{ type: "HeroDied" }]);
+
+    expect(pressKey(menus, "Escape", 1000)).toBe("handled");
+    expect(menus.pause.paused).toBe(true);
+    pressKey(menus, "Escape", 2000);
+    expect(menus.pause.paused).toBe(false);
+  });
+
+  it("still starts a New Hero from the pause menu, whose panels open", () => {
+    const menus = createMenus();
+    reactMenus(menus, [{ type: "HeroDied" }]);
+    pressKey(menus, "Escape", 1000);
+    pressKey(menus, "n", 2000);
+
+    expect(pressKey(menus, "y", 3000)).toBe("newHero");
+    pressKey(menus, "c", 4000);
+    pressKey(menus, "i", 4000);
+    expect(menus.heroPanelOpen).toBe(true);
+    expect(menus.inventoryOpen).toBe(true);
   });
 });

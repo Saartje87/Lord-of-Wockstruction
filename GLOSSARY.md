@@ -36,6 +36,14 @@ _Avoid_: Spawn point (that's for Monsters), arrival
 A hostile creature that attacks the Hero and can be killed.
 _Avoid_: Enemy, mob, NPC
 
+**Leash**:
+How far a Monster will chase the Hero from where it was placed before it gives up and starts Returning.
+_Avoid_: Tether, chase range, aggro range
+
+**Returning**:
+A Monster walking back to where it was placed after giving up on the Hero, ignoring them on the way and healing to full on arrival; it happens past the Leash or on the Hero's Death.
+_Avoid_: Resetting, evading, retreating
+
 **NPC**:
 A non-hostile character in Town.
 _Avoid_: Villager, townsperson
@@ -43,6 +51,10 @@ _Avoid_: Villager, townsperson
 **Life**:
 The Hero's or a Monster's health; reaching zero means death.
 _Avoid_: HP, health
+
+**Death**:
+The Hero's state once their Life reaches zero: they lie where they fell, and Monsters leave them be, until the player sends them back to Town.
+_Avoid_: Game over, defeat
 
 **In Combat**:
 The Hero's state while they have dealt or taken damage in the last few seconds, or while a Monster is chasing them; outside it, the Hero slowly regains Life.

@@ -1,6 +1,6 @@
 # Pure, fixed-step simulation separated from Pixi
 
-The game logic lives in `src/game/sim/` as pure TypeScript with no Pixi import. It advances in fixed 1/60 s steps inside the `requestAnimationFrame` loop: each frame runs 0..n steps from accumulated time, and rendering interpolates between the last two steps. Input reaches the simulation only as **orders** (`MoveTo`, `Attack`, `SwingAt`). The simulation reports what happened as **events** (`HitLanded`, `HeroHit`, `MonsterDied`) that the Pixi renderer turns into effects. We chose this so that melee timing is exact and identical on every machine (a hit authored at 140 ms always lands on the same step, and a frame hitch can't tunnel through walls or skip an attack), and so that fights can be replayed in Vitest from a script of orders.
+The game logic lives in `src/game/sim/` as pure TypeScript with no Pixi import. It advances in fixed 1/60 s steps inside the `requestAnimationFrame` loop: each frame runs 0..n steps from accumulated time, and rendering interpolates between the last two steps. Input reaches the simulation only as **orders** (such as `MoveTo` and `Attack`). The simulation reports what happened as **events** (such as `HitLanded` and `MonsterDied`) that the Pixi renderer turns into effects. We chose this so that melee timing is exact and identical on every machine (a hit authored at 140 ms always lands on the same step, and a frame hitch can't tunnel through walls or skip an attack), and so that fights can be replayed in Vitest from a script of orders.
 
 ## Considered Options
 

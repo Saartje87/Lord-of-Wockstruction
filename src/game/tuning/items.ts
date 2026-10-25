@@ -99,3 +99,12 @@ export function itemOf(type: ItemType): ItemTuning {
 
 /** The Inventory grid's size in cells. */
 export const inventoryTuning = { columns: 10, rows: 4 };
+
+/**
+ * Monster drops: each kill has `chance` of dropping one Item, of a type
+ * picked from `items` with equal odds.
+ */
+export const dropTuning: { chance: number; items: readonly ItemType[] } = {
+  chance: 0.25,
+  items: ITEM_TYPES,
+};

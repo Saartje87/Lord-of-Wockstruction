@@ -1,6 +1,6 @@
 import { areaTuning } from "../tuning/areas";
 import { heroTuning } from "../tuning/hero";
-import { type ItemType, itemOf } from "../tuning/items";
+import { dropTuning, type ItemType, itemOf } from "../tuning/items";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import { type Area, exitAt, isWalkable, loadArea, type Spawn } from "./area";
 import {
@@ -10,6 +10,7 @@ import {
   type Equipment,
   FRESH_GEAR,
   type Gear,
+  type Item,
   type ItemId,
   type PlacedItem,
 } from "./inventory";
@@ -169,6 +170,9 @@ export type Death = {
 /** What remains of a dead Monster: inert, not clickable, not blocking. */
 export type Corpse = { id: MonsterId; type: MonsterType; pos: Vec };
 
+/** An Item lying in the active Area, until picked up or the Hero leaves. */
+export type GroundItem = { item: Item; pos: Vec };
+
 export type World = {
   seed: number;
   /** All randomness comes from here, so a seed and orders replay exactly. */
@@ -191,6 +195,8 @@ export type World = {
   monsters: Monster[];
   /** The Corpses in the active Area. */
   corpses: Corpse[];
+  /** The Ground Items in the active Area, never kept by the Save. */
+  groundItems: GroundItem[];
   /** The id the next Monster gets. */
   nextMonsterId: MonsterId;
   /** The id the next Item gets. */
@@ -219,6 +225,8 @@ export type SimEvent =
   | { type: "Missed"; target: MonsterId }
   | { type: "HeroHit"; damage: number }
   | { type: "MonsterDied"; id: MonsterId }
+  /** A dying Monster dropped `item`, which now lies at `pos`. */
+  | { type: "ItemDropped"; item: Item; pos: Vec }
   | { type: "ExperienceGained"; amount: number }
   /** The Hero reached Level `level`, with their Life already filled. */
   | { type: "LevelReached"; level: number }
@@ -329,6 +337,7 @@ export function createWorld(options: {
     },
     monsters: [],
     corpses: [],
+    groundItems: [],
     nextMonsterId: 1,
     nextItemId: 1,
   };
@@ -392,6 +401,14 @@ export function inventoryItemAt(world: World, cell: Cell): PlacedItem | null {
 /** A copy of a placed Item, so a query's answer can't change the World. */
 function copyPlaced({ item, cell }: PlacedItem): PlacedItem {
   return { item: { ...item }, cell: { ...cell } };
+}
+
+/** The Ground Items lying in the active Area. */
+export function groundItemsOf(world: World): GroundItem[] {
+  return world.groundItems.map(({ item, pos }) => ({
+    item: { ...item },
+    pos: { ...pos },
+  }));
 }
 
 /** What's in each Equipment slot. */
@@ -555,6 +572,7 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   world.areaName = area.name;
   world.monsters = [];
   world.corpses = [];
+  world.groundItems = [];
   world.heldOrders = [];
   for (const spawn of area.spawns) placePack(world, area, spawn);
   events.push({ type: "AreaChanged", area: area.name, entry: change.entry });
@@ -867,12 +885,26 @@ function hit(world: World, monster: Monster, events: SimEvent[]) {
     });
     events.push({ type: "MonsterDied", id: monster.id });
     gainExperience(world, monsterTuning[monster.type].experience, events);
+    rollDrop(world, monster.pos, events);
     return;
   }
   noticeHit(world, monster);
   if (random(world.rng) < monsterTuning[monster.type].flinchChance) {
     monster.flinch = FLINCH_STEPS[monster.type];
   }
+}
+
+/**
+ * Rolls a dying Monster's drop: by `dropTuning.chance`, one Item of a type
+ * picked with equal odds, lying where it died.
+ */
+function rollDrop(world: World, pos: Vec, events: SimEvent[]) {
+  if (random(world.rng) >= dropTuning.chance) return;
+  const { items } = dropTuning;
+  const type = items[randomInt(world.rng, [0, items.length - 1])];
+  const item = { id: world.nextItemId++, type };
+  world.groundItems.push({ item, pos: { ...pos } });
+  events.push({ type: "ItemDropped", item: { ...item }, pos: { ...pos } });
 }
 
 /** Lands a Monster's attack on the Hero. */

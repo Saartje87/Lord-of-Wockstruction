@@ -97,6 +97,26 @@ function overlap(
 }
 
 /**
+ * Where an Item of `type` would go among `placed` Items: the first spot it
+ * fits, scanning column by column from the top-left, or null when none.
+ */
+export function firstFreeCell(
+  placed: readonly { type: ItemType; cell: Cell }[],
+  type: ItemType,
+): Cell | null {
+  for (let column = 0; column < inventoryTuning.columns; column++) {
+    for (let row = 0; row < inventoryTuning.rows; row++) {
+      const cell = { column, row };
+      const fits =
+        onGrid(type, cell) &&
+        placed.every((other) => !overlap(other, { type, cell }));
+      if (fits) return cell;
+    }
+  }
+  return null;
+}
+
+/**
  * Whether gear could be the Hero's: known Item types, every Inventory Item
  * on the grid with none overlapping, and every Equipped Item in a slot of
  * its kind.

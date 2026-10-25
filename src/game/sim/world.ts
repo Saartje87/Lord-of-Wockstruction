@@ -9,6 +9,7 @@ import {
   EQUIPMENT_SLOTS,
   type Equipment,
   FRESH_GEAR,
+  firstFreeCell,
   type Gear,
   type Item,
   type ItemId,
@@ -71,6 +72,8 @@ export type Hero = {
   facing: number;
   /** The Monster the Hero is walking into reach of, to swing at. */
   attacking: MonsterId | null;
+  /** The Ground Item the Hero is walking to, to pick up. */
+  pickingUp: ItemId | null;
   swing: Swing | null;
   /** Steps of flinching left; 0 when not flinching. */
   flinch: number;
@@ -210,6 +213,8 @@ export type Order =
   | { type: "Attack"; monster: MonsterId }
   /** Swing in place towards a point, hitting every Monster in the arc. */
   | { type: "SwingAt"; target: Vec }
+  /** Walk to a Ground Item and pick it up, if there's room for it. */
+  | { type: "PickUp"; groundItem: ItemId }
   /** Go back to Town after dying. */
   | { type: "Continue" }
   /**
@@ -227,6 +232,10 @@ export type SimEvent =
   | { type: "MonsterDied"; id: MonsterId }
   /** A dying Monster dropped `item`, which now lies at `pos`. */
   | { type: "ItemDropped"; item: Item; pos: Vec }
+  /** The Hero picked up `item`, which now has its top-left at `cell`. */
+  | { type: "ItemPickedUp"; item: Item; cell: Cell }
+  /** The Hero got to a Ground Item with no room for it in the Inventory. */
+  | { type: "NoRoom" }
   | { type: "ExperienceGained"; amount: number }
   /** The Hero reached Level `level`, with their Life already filled. */
   | { type: "LevelReached"; level: number }
@@ -330,6 +339,7 @@ export function createWorld(options: {
       // Down the screen, along +x and +y.
       facing: Math.PI / 4,
       attacking: null,
+      pickingUp: null,
       swing: null,
       flinch: 0,
       combat: 0,
@@ -539,6 +549,7 @@ function startAreaChange(world: World, area: string, entry: string) {
 function stopHero(hero: Hero) {
   hero.path = [];
   hero.attacking = null;
+  hero.pickingUp = null;
   hero.swing = null;
   hero.flinch = 0;
   hero.buffered = null;
@@ -680,6 +691,7 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
     return events;
   }
   approach(world);
+  reachGroundItem(world, events);
   for (const monster of stepMonsters(world)) {
     if (!world.death) hitHero(world, monster, events);
   }
@@ -757,16 +769,27 @@ function give(world: World, order: Order, events: SimEvent[]) {
   switch (order.type) {
     case "MoveTo":
       hero.attacking = null;
+      hero.pickingUp = null;
       hero.path = findPath(area, hero.pos, order.target, heroTuning.radius);
       break;
     case "Attack": {
       const monster = monsterById(world, order.monster);
       if (!monster) return;
       hero.attacking = monster.id;
+      hero.pickingUp = null;
       hero.path = findPath(area, hero.pos, monster.pos, heroTuning.radius);
       break;
     }
+    case "PickUp": {
+      const lying = groundItemById(world, order.groundItem);
+      if (!lying) return;
+      hero.attacking = null;
+      hero.pickingUp = lying.item.id;
+      hero.path = findPath(area, hero.pos, lying.pos, heroTuning.radius);
+      break;
+    }
     case "SwingAt":
+      hero.pickingUp = null;
       startSwing(hero, null, order.target);
       break;
   }
@@ -786,6 +809,44 @@ function approach(world: World) {
     // Walked as near as it can get, still out of reach.
     hero.attacking = null;
   }
+}
+
+/**
+ * Picks up the Ground Item the Hero walks to once it is in reach: into the
+ * first free spot of the Inventory, or left lying with `NoRoom`.
+ */
+function reachGroundItem(world: World, events: SimEvent[]) {
+  const { hero } = world;
+  if (hero.pickingUp === null) return;
+  const lying = groundItemById(world, hero.pickingUp);
+  if (!lying) {
+    hero.pickingUp = null;
+    hero.path = [];
+    return;
+  }
+  if (distance(hero.pos, lying.pos) > heroTuning.pickupReach) {
+    // Walked as near as it can get, still out of reach.
+    if (hero.path.length === 0) hero.pickingUp = null;
+    return;
+  }
+  hero.pickingUp = null;
+  hero.path = [];
+  const placed = hero.inventory.map(({ item, cell }) => ({
+    type: item.type,
+    cell,
+  }));
+  const cell = firstFreeCell(placed, lying.item.type);
+  if (!cell) {
+    events.push({ type: "NoRoom" });
+    return;
+  }
+  world.groundItems = world.groundItems.filter((other) => other !== lying);
+  hero.inventory.push({ item: lying.item, cell });
+  events.push({
+    type: "ItemPickedUp",
+    item: { ...lying.item },
+    cell: { ...cell },
+  });
 }
 
 function startSwing(hero: Hero, monster: MonsterId | null, toward: Vec) {
@@ -925,6 +986,7 @@ function hitHero(world: World, monster: Monster, events: SimEvent[]) {
   hero.flinch = HERO_FLINCH_STEPS;
   hero.swing = null;
   hero.attacking = null;
+  hero.pickingUp = null;
   hero.path = [];
 }
 
@@ -961,6 +1023,10 @@ function gainExperience(world: World, amount: number, events: SimEvent[]) {
     hero.life = maxLife(world);
     events.push({ type: "LevelReached", level: progress.level });
   }
+}
+
+function groundItemById(world: World, id: ItemId): GroundItem | undefined {
+  return world.groundItems.find((lying) => lying.item.id === id);
 }
 
 function monsterById(world: World, id: MonsterId): Monster | undefined {

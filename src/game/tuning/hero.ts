@@ -31,6 +31,8 @@ export type HeroTuning = {
    * lands, and still be hit (tiles).
    */
   reachGrace: number;
+  /** How near a Ground Item must be to pick it up (tiles, centre to centre). */
+  pickupReach: number;
   /** A `SwingAt` hits every Monster in reach within this of the facing. */
   arcDegrees: number;
   /**
@@ -96,6 +98,7 @@ export const heroTuning: HeroTuning = {
   hitAt: 0.4,
   reach: 1.0,
   reachGrace: 0.3,
+  pickupReach: 0.5,
   arcDegrees: 50,
   // 1–4 with the starting 20 Strength.
   unarmedDamage: [5 / 6, 10 / 3],

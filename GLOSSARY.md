@@ -149,8 +149,12 @@ The Hero's slots for worn Items: Weapon, Armour, two Rings and an Amulet; an Ite
 _Avoid_: Gear, paper doll, loadout
 
 **Belongings**:
-Everything the Hero owns: the Items in their Inventory and Equipment together, an Item held on the cursor counting as back where it was lifted from; what the Save keeps besides progress.
+Everything the Hero owns: the Items in their Inventory and Equipment together, a Held Item counting as back where it was lifted from; what the Save keeps besides progress.
 _Avoid_: Gear, loot, possessions
+
+**Held Item**:
+The one Item the player has lifted onto the cursor to move; it still counts as where it was lifted from until it's put down.
+_Avoid_: Cursor Item, dragged Item
 
 **Weapon**:
 The Item kind Equipped in the Weapon slot, setting the Hero's damage.

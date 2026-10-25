@@ -7,6 +7,8 @@ export type MonsterTuning = {
   /** Shown on the nameplate. */
   name: string;
   life: number;
+  /** Experience the Hero gains for killing one. */
+  experience: number;
   /** Chase speed, in tiles per second. */
   speed: number;
   /** Damage per hit, rolled from `[min, max]` inclusive. */
@@ -67,6 +69,7 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
   skeleton: {
     name: "Skeleton",
     life: 60,
+    experience: 100,
     speed: 2.8,
     damage: [4, 8],
     // A fresh Hero's 100 Attack Rating hits it 85% of the time.

@@ -8,7 +8,7 @@ import {
   type SaveStorage,
   writeSave,
 } from "./save";
-import type { Gear, Progress } from "./sim/world";
+import type { Belongings, Progress } from "./sim/world";
 
 /** Storage kept in a Map, standing in for the browser's. */
 function memoryStorage(): SaveStorage & { keys(): string[] } {
@@ -25,11 +25,14 @@ function memoryStorage(): SaveStorage & { keys(): string[] } {
   };
 }
 
-/** A New Hero's gear: the Short Sword Equipped and nothing carried. */
-const SWORD_ONLY: Gear = { inventory: [], equipment: { weapon: "shortSword" } };
+/** A New Hero's Belongings: the Short Sword Equipped and nothing carried. */
+const SWORD_ONLY: Belongings = {
+  inventory: [],
+  equipment: { weapon: "shortSword" },
+};
 
-/** Some gear carried and worn, as a Hero might have it later on. */
-const GEARED: Gear = {
+/** Some Belongings carried and worn, as a Hero might have it later on. */
+const WELL_EQUIPPED: Belongings = {
   inventory: [
     { type: "shortSword", cell: { column: 0, row: 0 } },
     { type: "chainMail", cell: { column: 8, row: 1 } },
@@ -44,9 +47,9 @@ const GEARED: Gear = {
   },
 };
 
-/** A Save of `progress`, with only the Short Sword unless `gear` is given. */
-function save(progress: Progress, gear: Gear = SWORD_ONLY) {
-  return { progress, gear };
+/** A Save of `progress`, with only the Short Sword unless `belongings` is given. */
+function save(progress: Progress, belongings: Belongings = SWORD_ONLY) {
+  return { progress, belongings };
 }
 
 /**
@@ -135,10 +138,13 @@ describe("the Save in storage", () => {
   it("reads back what was last written, under one key", () => {
     const storage = memoryStorage();
     writeSave(storage, save(progress(2, 600)));
-    writeSave(storage, save(progress(3, 1_600, { strength: 24 }), GEARED));
+    writeSave(
+      storage,
+      save(progress(3, 1_600, { strength: 24 }), WELL_EQUIPPED),
+    );
 
     expect(readSave(storage)).toEqual(
-      save(progress(3, 1_600, { strength: 24 }), GEARED),
+      save(progress(3, 1_600, { strength: 24 }), WELL_EQUIPPED),
     );
     expect(storage.keys()).toHaveLength(1);
   });
@@ -173,7 +179,7 @@ describe("stored text", () => {
   });
 
   it("round-trips the Inventory and Equipment", () => {
-    const kept = save(progress(2, 600), GEARED);
+    const kept = save(progress(2, 600), WELL_EQUIPPED);
 
     expect(parseSave(encodeSave(kept))).toEqual(kept);
   });
@@ -270,7 +276,7 @@ describe("stored text", () => {
   });
 
   // What Saves before Items held, so a Hero from then starts afresh.
-  it("gives no Save for version 2 progress without gear", () => {
+  it("gives no Save for version 2 progress without Belongings", () => {
     expect(parseSave(stored(2, progress(2, 500)))).toBeNull();
   });
 });

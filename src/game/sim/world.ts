@@ -4,16 +4,16 @@ import { type Bonus, dropTuning, type ItemType, itemOf } from "../tuning/items";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import { type Area, exitAt, isWalkable, loadArea, type Spawn } from "./area";
 import {
+  type Belongings,
   type Cell,
   type CursorItem,
   covers,
   EQUIPMENT_SLOTS,
   type Equipment,
   type EquipmentSlot,
-  FRESH_GEAR,
+  FRESH_BELONGINGS,
   firstFreeCell,
   fitsAt,
-  type Gear,
   type Item,
   type ItemId,
   type ItemSpot,
@@ -308,11 +308,11 @@ export const ATTRIBUTES = ["strength", "dexterity", "vitality"] as const;
 export type Attribute = (typeof ATTRIBUTES)[number];
 
 export type {
+  Belongings,
   Cell,
   CursorItem,
   Equipment,
   EquipmentSlot,
-  Gear,
   Item,
   ItemId,
   ItemSpot,
@@ -320,7 +320,7 @@ export type {
 } from "./inventory";
 export { EQUIPMENT_SLOTS, isSlot } from "./inventory";
 
-/** Level, Experience and Attributes: what the Save keeps besides gear. */
+/** Level, Experience and Attributes: what the Save keeps besides Belongings. */
 export type Progress = {
   /** From 1 up to the last Level in the Experience table. */
   level: number;
@@ -348,7 +348,7 @@ export const FRESH_PROGRESS: Progress = {
 
 /**
  * Builds a World from raw `.tmj` content keyed by Area name, with the Hero in
- * Town at its `start` Entry with full Life: with `progress` and `gear` if
+ * Town at its `start` Entry with full Life: with `progress` and `belongings` if
  * given, or a fresh Level 1 Hero with a Short Sword if not. `tilesets` holds the raw `.tsj` content of the
  * tilesets the Areas keep in their own files, keyed by file name. Throws,
  * naming the Area, on content that doesn't fit together (see
@@ -359,7 +359,7 @@ export function createWorld(options: {
   tilesets?: Record<string, unknown>;
   seed: number;
   progress?: Progress | null;
-  gear?: Gear | null;
+  belongings?: Belongings | null;
 }): World {
   const areas: Record<string, Area> = {};
   for (const [name, content] of Object.entries(options.areas)) {
@@ -371,7 +371,7 @@ export function createWorld(options: {
   if (!town) throw new Error(`No Area named "${TOWN}"`);
   const start = town.entries.start;
   const progress = options.progress ?? FRESH_PROGRESS;
-  const gear = options.gear ?? FRESH_GEAR;
+  const belongings = options.belongings ?? FRESH_BELONGINGS;
 
   const world: World = {
     seed: options.seed,
@@ -387,7 +387,7 @@ export function createWorld(options: {
       // Filled to max Life below, once there's a World to ask.
       life: 0,
       progress: { ...progress },
-      // Filled from `gear` below, handing out Item ids.
+      // Filled from `belongings` below, handing out Item ids.
       inventory: [],
       equipment: emptyEquipment(),
       cursor: null,
@@ -409,14 +409,14 @@ export function createWorld(options: {
     nextMonsterId: 1,
     nextItemId: 1,
   };
-  for (const { type, cell } of gear.inventory) {
+  for (const { type, cell } of belongings.inventory) {
     world.hero.inventory.push({
       item: { id: world.nextItemId++, type },
       cell: { ...cell },
     });
   }
   for (const slot of EQUIPMENT_SLOTS) {
-    const type = gear.equipment[slot];
+    const type = belongings.equipment[slot];
     if (type) world.hero.equipment[slot] = { id: world.nextItemId++, type };
   }
   world.hero.life = maxLife(world);
@@ -433,9 +433,9 @@ export function progressOf(world: World): Progress {
  * The Hero's Inventory and Equipment by Item type, as the Save keeps them:
  * a held Item is back at the cell or slot it was lifted from.
  */
-export function gearOf(world: World): Gear {
+export function belongingsOf(world: World): Belongings {
   const { equipment, cursor } = world.hero;
-  const worn: Gear["equipment"] = {};
+  const worn: Belongings["equipment"] = {};
   for (const slot of EQUIPMENT_SLOTS) {
     const item = equipment[slot];
     if (item) worn[slot] = item.type;

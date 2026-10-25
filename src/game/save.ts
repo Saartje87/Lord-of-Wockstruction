@@ -1,9 +1,9 @@
-import { isValidGear } from "./sim/inventory";
+import { isValidBelongings } from "./sim/inventory";
 import {
   ATTRIBUTES,
+  type Belongings,
+  belongingsOf,
   FRESH_PROGRESS,
-  type Gear,
-  gearOf,
   levelExperience,
   nextLevelExperience,
   type Progress,
@@ -20,12 +20,12 @@ import { heroTuning } from "./tuning/hero";
  */
 export const SAVE_VERSION = 3;
 
-/** What the Save keeps of the Hero: their progress and their gear. */
-export type HeroSave = { progress: Progress; gear: Gear };
+/** What the Save keeps of the Hero: their progress and their Belongings. */
+export type HeroSave = { progress: Progress; belongings: Belongings };
 
 /** What the Save would keep of the World's Hero now. */
 export function saveOf(world: World): HeroSave {
-  return { progress: progressOf(world), gear: gearOf(world) };
+  return { progress: progressOf(world), belongings: belongingsOf(world) };
 }
 
 /** The one key the Save is stored under. */
@@ -52,7 +52,7 @@ const PROGRESS_EVENTS: readonly SimEvent["type"][] = [
   "ItemUnequipped",
 ];
 
-/** Whether a step's events changed what the Save keeps: progress or gear. */
+/** Whether a step's events changed what the Save keeps: progress or Belongings. */
 export function changesProgress(events: SimEvent[]): boolean {
   return events.some((event) => PROGRESS_EVENTS.includes(event.type));
 }
@@ -104,20 +104,20 @@ export function browserStorage(): SaveStorage {
  * The Hero as stored text, with the version it was written in: the progress
  * fields, then the Inventory and Equipment by Item type.
  */
-export function encodeSave({ progress, gear }: HeroSave): string {
+export function encodeSave({ progress, belongings }: HeroSave): string {
   return JSON.stringify({
     version: SAVE_VERSION,
     ...progress,
-    inventory: gear.inventory,
-    equipment: gear.equipment,
+    inventory: belongings.inventory,
+    equipment: belongings.equipment,
   });
 }
 
 /**
  * Stored text as the Hero, or null for no Save: missing, corrupt or another
  * version's text, a Level and Experience that don't fit the Experience
- * table, Attributes and unspent points that don't fit the Level, or gear
- * the Hero couldn't have (see `isValidGear`).
+ * table, Attributes and unspent points that don't fit the Level, or Belongings
+ * the Hero couldn't have (see `isValidBelongings`).
  */
 export function parseSave(text: string | null): HeroSave | null {
   if (text === null) return null;
@@ -138,28 +138,34 @@ export function parseSave(text: string | null): HeroSave | null {
   ) as Progress;
   if (!fitsTable(progress.level, progress.experience)) return null;
   if (!fitsPoints(progress)) return null;
-  const gear = parseGear(fields.inventory, fields.equipment);
-  return gear && { progress, gear };
+  const belongings = parseBelongings(fields.inventory, fields.equipment);
+  return belongings && { progress, belongings };
 }
 
 /**
- * The stored Inventory and Equipment as gear, or null when they aren't a
+ * The stored Inventory and Equipment as Belongings, or null when they aren't a
  * list of Item types at cells and an object of Item types by slot, or the
  * Hero couldn't have them.
  */
-function parseGear(inventory: unknown, equipment: unknown): Gear | null {
+function parseBelongings(
+  inventory: unknown,
+  equipment: unknown,
+): Belongings | null {
   if (!Array.isArray(inventory)) return null;
   if (typeof equipment !== "object" || equipment === null) return null;
   if (Array.isArray(equipment)) return null;
-  const placed: Gear["inventory"] = [];
+  const placed: Belongings["inventory"] = [];
   for (const entry of inventory) {
     if (typeof entry !== "object" || entry === null) return null;
     const { type, cell } = entry;
     if (typeof cell !== "object" || cell === null) return null;
     placed.push({ type, cell: { column: cell.column, row: cell.row } });
   }
-  const gear: Gear = { inventory: placed, equipment: { ...equipment } };
-  return isValidGear(gear) ? gear : null;
+  const belongings: Belongings = {
+    inventory: placed,
+    equipment: { ...equipment },
+  };
+  return isValidBelongings(belongings) ? belongings : null;
 }
 
 /** Every field of the stored progress, each a whole number. */

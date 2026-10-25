@@ -70,7 +70,7 @@ describe("heroSheet with Items Equipped", () => {
     const w = createWorld({
       areas: { town },
       seed: 1,
-      gear: {
+      belongings: {
         inventory: [{ type: "ringOfStrength", cell: { column: 0, row: 0 } }],
         equipment: {
           weapon: "shortSword",

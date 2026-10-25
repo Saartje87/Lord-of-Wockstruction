@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  type Belongings,
+  belongingsOf,
   createWorld,
   damageRange,
   equipmentOf,
-  type Gear,
-  gearOf,
   inventoryItemAt,
   inventoryOf,
   type Progress,
@@ -29,7 +29,7 @@ const town = {
 };
 
 function world(
-  options: { progress?: Progress; gear?: Gear | null } = {},
+  options: { progress?: Progress; belongings?: Belongings | null } = {},
 ): World {
   return createWorld({ areas: { town }, seed: 1, ...options });
 }
@@ -68,13 +68,15 @@ describe("a fresh Hero's Equipment and Inventory", () => {
     expect(damageRange(world())).toEqual([20, 30]);
   });
 
-  it("is the same with no gear given", () => {
-    expect(gearOf(world({ gear: null }))).toEqual(gearOf(world()));
+  it("is the same with no Belongings given", () => {
+    expect(belongingsOf(world({ belongings: null }))).toEqual(
+      belongingsOf(world()),
+    );
   });
 });
 
-describe("gear given to a new World", () => {
-  const gear: Gear = {
+describe("Belongings given to a new World", () => {
+  const belongings: Belongings = {
     inventory: [
       { type: "axe", cell: { column: 0, row: 0 } },
       { type: "ringOfLife", cell: { column: 9, row: 3 } },
@@ -83,11 +85,11 @@ describe("gear given to a new World", () => {
   };
 
   it("comes back as it was given", () => {
-    expect(gearOf(world({ gear }))).toEqual(gear);
+    expect(belongingsOf(world({ belongings }))).toEqual(belongings);
   });
 
   it("puts each Inventory Item in every cell it covers", () => {
-    const w = world({ gear });
+    const w = world({ belongings });
 
     // The Axe is 2×3.
     for (const cell of [
@@ -105,7 +107,7 @@ describe("gear given to a new World", () => {
   });
 
   it("gives every Item its own id", () => {
-    const w = world({ gear });
+    const w = world({ belongings });
     const ids = [
       ...inventoryOf(w).map((placed) => placed.item.id),
       ...Object.values(equipmentOf(w)).flatMap((item) =>
@@ -123,7 +125,7 @@ describe("damage", () => {
     const sword = world({ progress: strongerBy(10) });
     const axe = world({
       progress: strongerBy(10),
-      gear: { inventory: [], equipment: { weapon: "axe" } },
+      belongings: { inventory: [], equipment: { weapon: "axe" } },
     });
 
     // 130% of the Short Sword's 16.67–25 and the Axe's 25–40.
@@ -136,7 +138,7 @@ describe("damage", () => {
   });
 
   it("is a punch's 1–4 with no Weapon", () => {
-    const w = world({ gear: { inventory: [], equipment: {} } });
+    const w = world({ belongings: { inventory: [], equipment: {} } });
 
     const [min, max] = damageRange(w);
     expect(min).toBeCloseTo(1, 5);

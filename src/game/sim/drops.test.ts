@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { dropTuning, ITEM_TYPES, type ItemType } from "../tuning/items";
 import {
+  type Belongings,
   createWorld,
   FRESH_PROGRESS,
-  type Gear,
   groundItemsOf,
   inventoryOf,
   type SimEvent,
@@ -83,15 +83,15 @@ function map(rows: string[], { pack = 1, exitTo = "" } = {}) {
 function town({
   seed = 1,
   pack = 1,
-  gear,
+  belongings,
 }: {
   seed?: number;
   pack?: number;
-  gear?: Gear;
+  belongings?: Belongings;
 } = {}): World {
   const progress = pack > 1 ? { ...FRESH_PROGRESS, vitality: 200 } : null;
   const areas = { town: map(["H.S.."], { pack }) };
-  return createWorld({ areas, seed, gear, progress });
+  return createWorld({ areas, seed, belongings, progress });
 }
 
 /**
@@ -162,10 +162,14 @@ afterEach(() => {
 });
 
 /** A Town where every kill drops an Item of `type`. */
-function dropping(type: ItemType = "ringOfLife", gear?: Gear, pack = 1) {
+function dropping(
+  type: ItemType = "ringOfLife",
+  belongings?: Belongings,
+  pack = 1,
+) {
   dropTuning.chance = 1;
   dropTuning.items = [type];
-  return town({ gear, pack });
+  return town({ belongings, pack });
 }
 
 /** Kills one Monster and returns the Item it dropped. */
@@ -212,11 +216,11 @@ describe("Picking up", () => {
   });
 
   it("fills the first free spot column by column from the top-left", () => {
-    const gear: Gear = {
+    const belongings: Belongings = {
       inventory: inRow("ringOfStrength", 0, [0]),
       equipment: {},
     };
-    const world = dropping("ringOfLife", gear, 4);
+    const world = dropping("ringOfLife", belongings, 4);
     const dropped = ofType(kill(world, 4), "ItemDropped");
     const cells = [];
     for (const { item } of dropped) {
@@ -233,14 +237,14 @@ describe("Picking up", () => {
   });
 
   it("keeps a sized Item on the grid, finding room at its far edge", () => {
-    const gear: Gear = {
+    const belongings: Belongings = {
       inventory: [
         ...inRow("ringOfStrength", 1, [0]),
         ...inRow("axe", 0, [1, 3, 5, 7]),
       ],
       equipment: {},
     };
-    const world = dropping("shortSword", gear);
+    const world = dropping("shortSword", belongings);
     const { item } = killForDrop(world);
 
     const [picked] = ofType(pickUp(world, item.id), "ItemPickedUp");
@@ -250,7 +254,7 @@ describe("Picking up", () => {
   });
 
   it("leaves the Item on the ground with No room when it doesn't fit", () => {
-    const full: Gear = {
+    const full: Belongings = {
       inventory: [
         ...inRow("axe", 0, [0, 2, 4, 6, 8]),
         ...inRow("ringOfLife", 3, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),

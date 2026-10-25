@@ -58,16 +58,16 @@ export const SLOT_KINDS: Record<EquipmentSlot, ItemKind> = {
 };
 
 /**
- * The Hero's Inventory and Equipment by Item type, as the Save keeps them:
- * Item ids are handed out afresh when a World is made from it.
+ * The Hero's Belongings by Item type, as the Save keeps them: Item ids are
+ * handed out afresh when a World is made from them.
  */
-export type Gear = {
+export type Belongings = {
   inventory: { type: ItemType; cell: Cell }[];
   equipment: Partial<Record<EquipmentSlot, ItemType>>;
 };
 
-/** A New Hero's gear: a Short Sword Equipped and an empty Inventory. */
-export const FRESH_GEAR: Gear = {
+/** A New Hero's Belongings: a Short Sword Equipped and an empty Inventory. */
+export const FRESH_BELONGINGS: Belongings = {
   inventory: [],
   equipment: { weapon: "shortSword" },
 };
@@ -150,14 +150,14 @@ export function firstFreeCell(
 }
 
 /**
- * Whether gear could be the Hero's: known Item types, every Inventory Item
+ * Whether Belongings could be the Hero's: known Item types, every Inventory Item
  * on the grid with none overlapping, and every Equipped Item in a slot of
  * its kind.
  */
-export function isValidGear(gear: Gear): boolean {
+export function isValidBelongings(belongings: Belongings): boolean {
   const known = (type: unknown): type is ItemType =>
     ITEM_TYPES.includes(type as ItemType);
-  const { inventory, equipment } = gear;
+  const { inventory, equipment } = belongings;
   const placedFine = inventory.every(
     (placed, i) =>
       known(placed.type) &&

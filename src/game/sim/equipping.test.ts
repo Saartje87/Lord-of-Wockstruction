@@ -3,12 +3,12 @@ import { type ItemType, itemOf } from "../tuning/items";
 import {
   attackRating,
   attributesOf,
+  type Belongings,
+  belongingsOf,
   createWorld,
   cursorItemOf,
   damageRange,
   equipmentOf,
-  type Gear,
-  gearOf,
   heroDefense,
   inventoryOf,
   maxLife,
@@ -43,13 +43,13 @@ const at = (type: ItemType, column: number, row: number) => ({
 
 /** A World whose Hero carries `inventory` and wears `equipment`. */
 function wearing(
-  equipment: Gear["equipment"],
-  inventory: Gear["inventory"] = [],
+  equipment: Belongings["equipment"],
+  inventory: Belongings["inventory"] = [],
 ): World {
   return createWorld({
     areas: { town },
     seed: 1,
-    gear: { inventory, equipment },
+    belongings: { inventory, equipment },
   });
 }
 
@@ -254,7 +254,7 @@ describe("Lifting an Equipped Item", () => {
     const world = wearing({ armour: "chainMail" });
     step(world, [{ type: "LiftItem", from: "armour" }]);
 
-    expect(gearOf(world).equipment.armour).toBe("chainMail");
+    expect(belongingsOf(world).equipment.armour).toBe("chainMail");
     step(world, [{ type: "ReturnCursorItem" }]);
 
     expect(worn(world).armour).toBe("chainMail");

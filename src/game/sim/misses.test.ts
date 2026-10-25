@@ -3,9 +3,9 @@ import { itemOf } from "../tuning/items";
 import { monsterTuning } from "../tuning/monsters";
 import {
   attackRating,
+  type Belongings,
   chanceToHit,
   createWorld,
-  type Gear,
   heroChanceToHit,
   heroDefense,
   isInCombat,
@@ -227,11 +227,11 @@ function isMonsterAttack(event: SimEvent): boolean {
 }
 
 /** A Hero next to a Skeleton, wearing `equipment`. */
-function wearing(equipment: Gear["equipment"], seed: number): World {
+function wearing(equipment: Belongings["equipment"], seed: number): World {
   return createWorld({
     areas: { town: map(["HS"]) },
     seed,
-    gear: { inventory: [], equipment },
+    belongings: { inventory: [], equipment },
   });
 }
 
@@ -330,7 +330,7 @@ describe("a Monster Miss", () => {
     const w = createWorld({
       areas: { town, cave },
       seed,
-      gear: { inventory: [], equipment: { armour: "leatherArmour" } },
+      belongings: { inventory: [], equipment: { armour: "leatherArmour" } },
     });
     const events = untilAttacked(w);
     step(w, [{ type: "MoveTo", target: { x: 3.5, y: 1.5 } }]);

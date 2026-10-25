@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  type Belongings,
   createWorld,
   type EquipmentSlot,
-  type Gear,
   inventoryOf,
   type Progress,
   step,
@@ -38,8 +38,8 @@ const town = {
   ],
 };
 
-function world(gear?: Gear, progress?: Progress) {
-  return createWorld({ areas: { town }, seed: 1, gear, progress });
+function world(belongings?: Belongings, progress?: Progress) {
+  return createWorld({ areas: { town }, seed: 1, belongings, progress });
 }
 
 describe("the Inventory panel's layout", () => {
@@ -258,22 +258,22 @@ describe("the order a click on the Inventory gives", () => {
   const onCell = (column: number, row: number) => ({
     inventory: { type: "cell" as const, cell: { column, row } },
   });
-  const gear: Gear = {
+  const belongings: Belongings = {
     inventory: [{ type: "axe", cell: { column: 4, row: 1 } }],
     equipment: {},
   };
 
   it("lifts the Item under it with nothing held", () => {
     expect(
-      inventoryOrder(world(gear), WIDE, centreOf(5, 3), onCell(5, 3)),
+      inventoryOrder(world(belongings), WIDE, centreOf(5, 3), onCell(5, 3)),
     ).toEqual({ type: "LiftItem", from: { column: 5, row: 3 } });
     expect(
-      inventoryOrder(world(gear), WIDE, centreOf(0, 0), onCell(0, 0)),
+      inventoryOrder(world(belongings), WIDE, centreOf(0, 0), onCell(0, 0)),
     ).toBeNull();
   });
 
   it("puts the held Item down centred on the pointer", () => {
-    const w = world(gear);
+    const w = world(belongings);
     step(w, [{ type: "LiftItem", from: { column: 4, row: 1 } }]);
     const centre = { x: grid.x + 2 * cell, y: grid.y + 1.5 * cell };
 
@@ -284,7 +284,7 @@ describe("the order a click on the Inventory gives", () => {
   });
 
   it("drops the held Item for a click outside the panel", () => {
-    const w = world(gear);
+    const w = world(belongings);
     step(w, [{ type: "LiftItem", from: { column: 4, row: 1 } }]);
 
     expect(inventoryOrder(w, WIDE, { x: 10, y: 10 }, { drop: true })).toEqual({
@@ -294,7 +294,12 @@ describe("the order a click on the Inventory gives", () => {
 
   it("orders nothing between the cells", () => {
     expect(
-      inventoryOrder(world(gear), WIDE, { x: 0, y: 0 }, { inventory: null }),
+      inventoryOrder(
+        world(belongings),
+        WIDE,
+        { x: 0, y: 0 },
+        { inventory: null },
+      ),
     ).toBeNull();
   });
 
@@ -314,7 +319,7 @@ describe("the order a click on the Inventory gives", () => {
   });
 
   it("puts the held Item into a clicked slot", () => {
-    const w = world(gear);
+    const w = world(belongings);
     step(w, [{ type: "LiftItem", from: { column: 4, row: 1 } }]);
 
     expect(inventoryOrder(w, WIDE, { x: 0, y: 0 }, onSlot("weapon"))).toEqual({
@@ -331,13 +336,13 @@ describe("the order a right-click on the Inventory gives", () => {
   const onSlot = (slot: EquipmentSlot) => ({
     inventory: { type: "slot" as const, slot },
   });
-  const gear: Gear = {
+  const belongings: Belongings = {
     inventory: [{ type: "axe", cell: { column: 4, row: 1 } }],
     equipment: { armour: "chainMail" },
   };
 
   it("equips the Inventory Item under it", () => {
-    const w = world(gear);
+    const w = world(belongings);
     const [axe] = inventoryOf(w);
 
     expect(inventoryRightClickOrder(w, onCell(5, 2))).toEqual({
@@ -348,7 +353,7 @@ describe("the order a right-click on the Inventory gives", () => {
   });
 
   it("unequips the Item in the slot under it", () => {
-    const w = world(gear);
+    const w = world(belongings);
 
     expect(inventoryRightClickOrder(w, onSlot("armour"))).toEqual({
       type: "UnequipItem",
@@ -358,25 +363,27 @@ describe("the order a right-click on the Inventory gives", () => {
   });
 
   it("orders nothing while an Item is held, or between the cells", () => {
-    const w = world(gear);
+    const w = world(belongings);
     step(w, [{ type: "LiftItem", from: "armour" }]);
 
     expect(inventoryRightClickOrder(w, onCell(5, 2))).toBeNull();
     expect(
-      inventoryRightClickOrder(world(gear), { inventory: null }),
+      inventoryRightClickOrder(world(belongings), { inventory: null }),
     ).toBeNull();
-    expect(inventoryRightClickOrder(world(gear), { drop: true })).toBeNull();
+    expect(
+      inventoryRightClickOrder(world(belongings), { drop: true }),
+    ).toBeNull();
   });
 });
 
 describe("the Item under a point", () => {
-  const gear: Gear = {
+  const belongings: Belongings = {
     inventory: [{ type: "axe", cell: { column: 4, row: 1 } }],
     equipment: { weapon: "shortSword" },
   };
 
   it("is the Inventory Item covering the cell, from any of its cells", () => {
-    const w = world(gear);
+    const w = world(belongings);
 
     for (const cell of [
       { column: 4, row: 1 },
@@ -390,7 +397,7 @@ describe("the Item under a point", () => {
   });
 
   it("is the Item in a slot, or nothing in an empty one", () => {
-    const w = world(gear);
+    const w = world(belongings);
 
     expect(itemUnder(w, { type: "slot", slot: "weapon" })?.type).toBe(
       "shortSword",

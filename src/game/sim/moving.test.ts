@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { ItemType } from "../tuning/items";
 import {
+  type Belongings,
+  belongingsOf,
   createWorld,
   cursorItemOf,
-  type Gear,
-  gearOf,
   groundItemsOf,
   inventoryOf,
   placement,
@@ -88,13 +88,13 @@ const at = (type: ItemType, column: number, row: number) => ({
  * open floor, or of `areas` if given.
  */
 function carrying(
-  inventory: Gear["inventory"],
+  inventory: Belongings["inventory"],
   areas: Record<string, unknown> = { town: map(["H.."]) },
 ): World {
   return createWorld({
     areas,
     seed: 1,
-    gear: { inventory, equipment: {} },
+    belongings: { inventory, equipment: {} },
   });
 }
 
@@ -374,13 +374,13 @@ describe("A held Item going back", () => {
 describe("The Save of a held Item", () => {
   it("keeps it at the spot it would go back to", () => {
     const world = carrying([at("ringOfLife", 0, 0), at("axe", 4, 0)]);
-    const before = gearOf(world);
+    const before = belongingsOf(world);
     lift(world, 4, 0);
 
-    expect(gearOf(world)).toEqual(before);
+    expect(belongingsOf(world)).toEqual(before);
 
     place(world, 0, 0);
-    expect(gearOf(world).inventory).toEqual([
+    expect(belongingsOf(world).inventory).toEqual([
       at("axe", 0, 0),
       // The Ring, swapped out, would go back where the Axe came from.
       at("ringOfLife", 4, 0),

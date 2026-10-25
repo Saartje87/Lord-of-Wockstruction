@@ -64,7 +64,7 @@ export default function GameCanvas() {
         tilesets,
         seed: Date.now(),
         progress: save?.progress,
-        gear: save?.gear,
+        belongings: save?.belongings,
       });
       const usedTilesets = Object.values(world.areas).map(
         (area) => area.tileset,

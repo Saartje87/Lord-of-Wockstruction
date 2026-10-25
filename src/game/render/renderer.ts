@@ -21,8 +21,10 @@ import {
   type EquipmentSlot,
   equipmentOf,
   FLINCH_STEPS,
+  groundItemsOf,
   HERO_FLINCH_STEPS,
   HIT_STEP,
+  type ItemId,
   inventoryOf,
   isInCombat,
   isRegenerating,
@@ -45,6 +47,12 @@ import {
   floatText,
 } from "./damageNumbers";
 import { experienceBar } from "./experienceBar";
+import {
+  GROUND_LABEL,
+  type GroundLabel,
+  groundLabelAt,
+  groundLabels,
+} from "./groundLabels";
 import {
   HERO_PANEL,
   heroPanelLayout,
@@ -313,6 +321,20 @@ const ITEM_COLOUR: Record<ItemKind, number> = {
   ring: 0x3a3a68,
   amulet: 0x5a3a5a,
 };
+/**
+ * A Ground Item: a small diamond on the floor tinted by its kind, `size`
+ * across (CSS px), under a dark label with its name, gold while hovered.
+ */
+const GROUND_ITEM = {
+  size: 14,
+  edge: 0xd8c890,
+  label: 0x000000,
+  labelAlpha: 0.7,
+  name: 0xe8e0c8,
+  hoveredName: 0xe8d27a,
+  textSize: 13,
+};
+
 /** The name shown in each empty Equipment slot. */
 const SLOT_NAMES: Record<EquipmentSlot, string> = {
   weapon: "Weapon",
@@ -379,6 +401,9 @@ export function createRenderer(app: Application, art: Art) {
   camera.addChild(marker);
   const telegraphs = new Graphics();
   camera.addChild(telegraphs);
+  // On the floor, under everyone standing.
+  const groundItems = new Graphics();
+  camera.addChild(groundItems);
   // Walls, props, the Hero, Monsters and Corpses, nearest the viewer last.
   const scene = new Container();
   scene.sortableChildren = true;
@@ -395,6 +420,12 @@ export function createRenderer(app: Application, art: Art) {
   // Over the scene: Life bars over heads and damage numbers.
   const overheads = new Graphics();
   camera.addChild(overheads);
+  // Ground Items' name labels, always shown.
+  const labelBacks = new Graphics();
+  camera.addChild(labelBacks);
+  const labelTexts = new Map<ItemId, Text>();
+  /** Where each Ground Item's label was last drawn, in camera space. */
+  let labels: GroundLabel[] = [];
   const numbers = new Container();
   camera.addChild(numbers);
   const floating: { text: Text; bornMs: number; at: Vec }[] = [];
@@ -481,6 +512,9 @@ export function createRenderer(app: Application, art: Art) {
       view.flash?.destroy();
     }
     monsters.clear();
+    // Item ids start over too.
+    for (const text of labelTexts.values()) text.destroy();
+    labelTexts.clear();
     hurtAtMs = levelAtMs = null;
     showArea(next.areas[next.areaName]);
   };
@@ -543,9 +577,72 @@ export function createRenderer(app: Application, art: Art) {
     return nearest?.id ?? null;
   };
 
+  /** The Ground Item whose label is under a canvas point (CSS px). */
+  const groundItemAt = (screen: Vec): ItemId | null =>
+    groundLabelAt(labels, {
+      x: screen.x - camera.position.x,
+      y: screen.y - camera.position.y,
+    });
+
+  /**
+   * Draws each Ground Item on the floor with its name label over it, gold
+   * for `hovered`, and drops the labels of Items no longer lying there.
+   */
+  const drawGroundItems = (world: World, hovered: ItemId | null) => {
+    const lying = groundItemsOf(world);
+    groundItems.clear();
+    labelBacks.clear();
+    const half = GROUND_ITEM.size / 2;
+    const sized = lying.map(({ item, pos }) => {
+      const at = toScreen(pos);
+      groundItems
+        .poly([
+          at.x,
+          at.y - half,
+          at.x + half,
+          at.y,
+          at.x,
+          at.y + half,
+          at.x - half,
+          at.y,
+        ])
+        .fill(ITEM_COLOUR[itemOf(item.type).kind])
+        .stroke({ color: GROUND_ITEM.edge, width: 1 });
+      let text = labelTexts.get(item.id);
+      if (!text) {
+        text = new Text({
+          text: itemOf(item.type).name,
+          style: { fontSize: GROUND_ITEM.textSize, fontFamily: SERIF },
+        });
+        text.anchor.set(0.5, 0.5);
+        labelTexts.set(item.id, text);
+        camera.addChild(text);
+      }
+      const width = text.width + 2 * GROUND_LABEL.padding;
+      return { id: item.id, at, width };
+    });
+    labels = groundLabels(sized);
+    for (const { id, rect } of labels) {
+      labelBacks
+        .rect(rect.x, rect.y, rect.w, rect.h)
+        .fill({ color: GROUND_ITEM.label, alpha: GROUND_ITEM.labelAlpha });
+      const text = labelTexts.get(id);
+      if (!text) continue;
+      text.style.fill =
+        id === hovered ? GROUND_ITEM.hoveredName : GROUND_ITEM.name;
+      text.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
+    }
+    for (const [id, text] of labelTexts) {
+      if (lying.some(({ item }) => item.id === id)) continue;
+      text.destroy();
+      labelTexts.delete(id);
+    }
+  };
+
   return {
     screenToTile,
     monsterAt,
+    groundItemAt,
 
     panelAt,
 
@@ -767,7 +864,10 @@ export function createRenderer(app: Application, art: Art) {
       const onWorld = onPanel ? null : pointer;
       // After moving the camera, so the highlight matches this frame.
       const cursor = onWorld && screenToTile(onWorld);
-      const hoveredId = onWorld && monsterAt(onWorld);
+      // A label over a Monster is what a click there picks.
+      const hoveredItem = onWorld && groundItemAt(onWorld);
+      drawGroundItems(world, hoveredItem);
+      const hoveredId = onWorld && !hoveredItem && monsterAt(onWorld);
       const hovered =
         world.monsters.find((monster) => monster.id === hoveredId) ?? null;
       const hoveredView = hovered && monsters.get(hovered.id);

@@ -1,5 +1,5 @@
 import { tileOf, type Vec } from "../sim/vec";
-import type { MonsterId, Order } from "../sim/world";
+import type { ItemId, MonsterId, Order } from "../sim/world";
 import { inputTuning } from "../tuning/input";
 
 /** Mouse state between frames. */
@@ -22,7 +22,10 @@ export type PointerInput = {
 
 type Holding =
   | { type: "steer" }
-  /** Held from a press on a panel, which orders nothing. */
+  /**
+   * Held from a press on a panel or a Ground Item, which orders nothing
+   * more.
+   */
   | { type: "panel" }
   | { type: "attack"; monster: MonsterId }
   | { type: "swing" };
@@ -36,6 +39,8 @@ export type PointerView<Panel> = {
   toTile(screen: Vec): Vec;
   /** The Monster drawn under a canvas point (CSS px), if any. */
   monsterAt(screen: Vec): MonsterId | null;
+  /** The Ground Item whose label is under a canvas point (CSS px), if any. */
+  groundItemAt(screen: Vec): ItemId | null;
   /**
    * What a canvas point (CSS px) hits of the panels and buttons over the
    * World, or null when it's on none of them.
@@ -114,8 +119,8 @@ export function cancel(input: PointerInput) {
  * fresh click on the floor, if any, to mark, and what a fresh click on a
  * panel hit, if any, for the panel to handle.
  *
- * A click attacks the Monster under it, or walks; Shift + click swings in
- * place. Holding the button repeats that every `retargetMs` towards the
+ * A click picks up the Ground Item whose label is under it, attacks the
+ * Monster under it, or walks; Shift + click swings in place. Holding the button repeats that every `retargetMs` towards the
  * cursor, keeps attacking the same Monster, and switches from walking to
  * attacking as soon as the cursor passes over a Monster. A click on a panel
  * orders nothing, nor does holding it on, and steering doesn't follow the
@@ -137,6 +142,11 @@ export function poll<Panel>(
       return { ...nothing, panel };
     }
     const monster = view.monsterAt(pressedAt);
+    const groundItem = input.shift ? null : view.groundItemAt(pressedAt);
+    if (groundItem !== null) {
+      input.holding = { type: "panel" };
+      return { ...nothing, orders: [{ type: "PickUp", groundItem }] };
+    }
     if (input.shift) {
       input.holding = { type: "swing" };
     } else if (monster !== null) {

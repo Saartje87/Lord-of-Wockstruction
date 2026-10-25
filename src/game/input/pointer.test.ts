@@ -14,6 +14,7 @@ import {
 const asTiles = {
   toTile: (screen: Vec) => screen,
   monsterAt: () => null,
+  groundItemAt: () => null,
   panelAt: () => null,
 };
 
@@ -167,6 +168,45 @@ describe("pointer input on Monsters", () => {
     ]);
     move(input, { x: 7, y: 5 });
     expect(poll(input, 32, withMonster).orders).toEqual([]);
+  });
+});
+
+/** Like `withMonster`, with Ground Item 3's label over the same tile. */
+const withGroundItem = {
+  ...withMonster,
+  groundItemAt: (screen: Vec) =>
+    Math.floor(screen.x) === 5 && Math.floor(screen.y) === 5 ? 3 : null,
+};
+
+describe("pointer input on Ground Items", () => {
+  it("picks up a clicked Ground Item, over a Monster, with no marker", () => {
+    const input = createPointerInput();
+
+    press(input, { x: 5.2, y: 5.7 });
+    const { orders, click } = poll(input, 0, withGroundItem);
+
+    expect(orders).toEqual([{ type: "PickUp", groundItem: 3 }]);
+    expect(click).toBeNull();
+  });
+
+  it("orders nothing more while the click is held", () => {
+    const input = createPointerInput();
+    press(input, { x: 5.5, y: 5.5 });
+    poll(input, 0, withGroundItem);
+
+    expect(poll(input, 120, withGroundItem).orders).toEqual([]);
+    move(input, { x: 8, y: 8 });
+    expect(poll(input, 240, withGroundItem).orders).toEqual([]);
+  });
+
+  it("swings in place on Shift + click, even on a Ground Item", () => {
+    const input = createPointerInput();
+
+    press(input, { x: 5.2, y: 5.7 }, { shift: true });
+
+    expect(poll(input, 0, withGroundItem).orders).toEqual([
+      { type: "SwingAt", target: { x: 5.2, y: 5.7 } },
+    ]);
   });
 });
 

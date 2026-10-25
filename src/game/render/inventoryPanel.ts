@@ -1,11 +1,13 @@
 import type { Vec } from "../sim/vec";
 import {
   type Cell,
+  cursorItemOf,
   damageWith,
   type EquipmentSlot,
   equipmentOf,
   type Item,
   inventoryItemAt,
+  type Order,
   type World,
 } from "../sim/world";
 import {
@@ -133,19 +135,26 @@ export type InventorySpot =
 export type InventoryHit = { inventory: InventorySpot | null };
 
 /**
+ * A point off the open Inventory panel while an Item is held, so not for the
+ * World either: a click there drops the Item.
+ */
+export type DropHit = { drop: true };
+
+/**
  * What a point hits of the Inventory panel, or null when it's off the
- * panel or the panel isn't `open`, so it's for the World. A point on the
- * line between two cells is in the right or lower one, and the grid's far
- * edges are in its last cells.
+ * panel or the panel isn't `open`, so it's for the World; but off the panel
+ * while `holding` an Item, a drop. A point on the line between two cells is
+ * in the right or lower one, and the grid's far edges are in its last cells.
  */
 export function inventoryHitAt(
   screen: { width: number; height: number },
   point: Vec,
   open: boolean,
-): InventoryHit | null {
+  holding = false,
+): InventoryHit | DropHit | null {
   if (!open) return null;
   const layout = inventoryPanelLayout(screen);
-  if (!inside(layout.panel, point)) return null;
+  if (!inside(layout.panel, point)) return holding ? { drop: true } : null;
   const { grid, cell } = layout;
   if (inside(grid, point)) {
     const { columns, rows } = inventoryTuning;
@@ -159,6 +168,51 @@ export function inventoryHitAt(
     }
   }
   return { inventory: null };
+}
+
+/**
+ * The cell where an Item of `type` held at `point` would go down: its
+ * top-left when centred on the point, on the nearest cell lines. It may hang
+ * off the grid.
+ */
+export function landingCell(
+  layout: InventoryPanelLayout,
+  point: Vec,
+  type: ItemType,
+): Cell {
+  const { grid, cell } = layout;
+  const { columns, rows } = itemOf(type).size;
+  const across = (point.x - grid.x) / cell;
+  const down = (point.y - grid.y) / cell;
+  return {
+    column: Math.floor(across - columns / 2 + 0.5),
+    row: Math.floor(down - rows / 2 + 0.5),
+  };
+}
+
+/**
+ * The order a click at `point` gives, for what it hit of the Inventory
+ * panel: with nothing held, lifting the Item on the cell; with an Item held,
+ * putting it down where it lands on the grid, or dropping it off the panel.
+ * Null when it gives none.
+ */
+export function inventoryOrder(
+  world: World,
+  screen: { width: number; height: number },
+  point: Vec,
+  hit: InventoryHit | DropHit,
+): Order | null {
+  const held = cursorItemOf(world);
+  if ("drop" in hit) return held && { type: "DropItem" };
+  const spot = hit.inventory;
+  if (spot?.type !== "cell") return null;
+  if (!held) {
+    return inventoryItemAt(world, spot.cell)
+      ? { type: "LiftItem", from: spot.cell }
+      : null;
+  }
+  const layout = inventoryPanelLayout(screen);
+  return { type: "PlaceItem", to: landingCell(layout, point, held.item.type) };
 }
 
 /** The Item at a spot on the panel, or null when there's none. */

@@ -14,6 +14,7 @@ import {
 import { clickPaused, createMenus, pressKey } from "./menus";
 import { gameTime } from "./pause";
 import { loadArt } from "./render/art";
+import { inventoryOrder } from "./render/inventoryPanel";
 import { createRenderer } from "./render/renderer";
 import {
   browserStorage,
@@ -103,6 +104,7 @@ export default function GameCanvas() {
 
       const tick = (realNow: number) => {
         const wasPaused = pause.paused;
+        const inventoryWasOpen = menus.inventoryOpen;
         let pressed = clickedAt !== null;
         let newHero = false;
         for (const key of keys) {
@@ -129,9 +131,14 @@ export default function GameCanvas() {
           world = createWorld({ areas, tilesets, seed: Date.now() });
           orders = [];
         }
+        // An Item held as the panel closes goes back where it came from.
+        if (inventoryWasOpen && !menus.inventoryOpen) {
+          orders.push({ type: "ReturnCursorItem" });
+        }
         // Stands still while paused, so the clock owes no steps for it and
         // the World and every effect hold still.
         const now = gameTime(pause, realNow);
+        const pressedAt = input.pressedAt;
         const {
           orders: newOrders,
           click,
@@ -145,6 +152,8 @@ export default function GameCanvas() {
         orders.push(...newOrders);
         // A click on a panel never orders the Hero about: on the Hero panel,
         // Level Up opens it and a + spends a point, while the game runs on.
+        // On the Inventory it lifts or puts down an Item, and with one held
+        // a click off the panels drops it.
         if (panel) {
           pressed = false;
           const button = "button" in panel ? panel.button : null;
@@ -152,6 +161,10 @@ export default function GameCanvas() {
           if (button?.type === "raise") {
             const { attribute } = button;
             orders.push({ type: "SpendAttributePoint", attribute });
+          }
+          if (!("button" in panel) && pressedAt) {
+            const order = inventoryOrder(world, app.screen, pressedAt, panel);
+            if (order) orders.push(order);
           }
         }
         if (pressed && world.death && !pause.paused) {

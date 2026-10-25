@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { createWorld, type Gear, type Progress } from "../sim/world";
+import { createWorld, type Gear, type Progress, step } from "../sim/world";
 import {
   inventoryHitAt,
+  inventoryOrder,
   inventoryPanelLayout,
   itemRect,
   itemTooltip,
   itemUnder,
+  landingCell,
 } from "./inventoryPanel";
 
 const WIDE = { width: 1280, height: 800 };
@@ -157,6 +159,109 @@ describe("what a point on the Inventory panel hits", () => {
     expect(inventoryHitAt(WIDE, { x: grid.x + 1, y: grid.y + 1 }, false)).toBe(
       null,
     );
+  });
+
+  it("is a drop outside the panel while an Item is held", () => {
+    const { panel } = inventoryPanelLayout(WIDE);
+
+    expect(inventoryHitAt(WIDE, { x: 100, y: 100 }, true, true)).toEqual({
+      drop: true,
+    });
+    expect(
+      inventoryHitAt(WIDE, { x: panel.x + 4, y: panel.y + 4 }, true, true),
+    ).toEqual({ inventory: null });
+  });
+});
+
+describe("where a held Item lands", () => {
+  const layout = inventoryPanelLayout(WIDE);
+  const { grid, cell } = layout;
+  /** The point `dx`, `dy` cells from the grid's top-left. */
+  const point = (dx: number, dy: number) => ({
+    x: grid.x + dx * cell,
+    y: grid.y + dy * cell,
+  });
+
+  it("is the cell under the pointer for a 1×1 Item", () => {
+    expect(landingCell(layout, point(3.5, 2.5), "ringOfLife")).toEqual({
+      column: 3,
+      row: 2,
+    });
+    // On the line between two cells, the right and lower one.
+    expect(landingCell(layout, point(3, 2), "ringOfLife")).toEqual({
+      column: 3,
+      row: 2,
+    });
+  });
+
+  it("centres a sized Item on the pointer", () => {
+    // The Axe is 2×3: centred on (5, 2.5), it covers columns 4–5, rows 1–3.
+    expect(landingCell(layout, point(5, 2.5), "axe")).toEqual({
+      column: 4,
+      row: 1,
+    });
+    expect(landingCell(layout, point(5.4, 2.9), "axe")).toEqual({
+      column: 4,
+      row: 1,
+    });
+  });
+
+  it("can hang off the grid, near its edges", () => {
+    expect(landingCell(layout, point(0.5, 0.5), "axe")).toEqual({
+      column: 0,
+      row: -1,
+    });
+  });
+});
+
+describe("the order a click on the Inventory gives", () => {
+  const layout = inventoryPanelLayout(WIDE);
+  const { grid, cell } = layout;
+  const centreOf = (column: number, row: number) => ({
+    x: grid.x + (column + 0.5) * cell,
+    y: grid.y + (row + 0.5) * cell,
+  });
+  const onCell = (column: number, row: number) => ({
+    inventory: { type: "cell" as const, cell: { column, row } },
+  });
+  const gear: Gear = {
+    inventory: [{ type: "axe", cell: { column: 4, row: 1 } }],
+    equipment: {},
+  };
+
+  it("lifts the Item under it with nothing held", () => {
+    expect(
+      inventoryOrder(world(gear), WIDE, centreOf(5, 3), onCell(5, 3)),
+    ).toEqual({ type: "LiftItem", from: { column: 5, row: 3 } });
+    expect(
+      inventoryOrder(world(gear), WIDE, centreOf(0, 0), onCell(0, 0)),
+    ).toBeNull();
+  });
+
+  it("puts the held Item down centred on the pointer", () => {
+    const w = world(gear);
+    step(w, [{ type: "LiftItem", from: { column: 4, row: 1 } }]);
+    const centre = { x: grid.x + 2 * cell, y: grid.y + 1.5 * cell };
+
+    expect(inventoryOrder(w, WIDE, centre, onCell(2, 1))).toEqual({
+      type: "PlaceItem",
+      to: { column: 1, row: 0 },
+    });
+  });
+
+  it("drops the held Item for a click outside the panel", () => {
+    const w = world(gear);
+    step(w, [{ type: "LiftItem", from: { column: 4, row: 1 } }]);
+
+    expect(inventoryOrder(w, WIDE, { x: 10, y: 10 }, { drop: true })).toEqual({
+      type: "DropItem",
+    });
+  });
+
+  it("orders nothing between the cells", () => {
+    expect(
+      inventoryOrder(world(gear), WIDE, { x: 0, y: 0 }, { inventory: null }),
+    ).toBeNull();
   });
 });
 

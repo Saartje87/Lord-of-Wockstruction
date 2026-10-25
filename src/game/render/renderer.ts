@@ -16,6 +16,7 @@ import { tileOf, type Vec } from "../sim/vec";
 import {
   ATTRIBUTES,
   areaFade,
+  cursorItemOf,
   DEATH_STEPS,
   EQUIPMENT_SLOTS,
   type EquipmentSlot,
@@ -30,6 +31,7 @@ import {
   isRegenerating,
   type MonsterId,
   maxLife,
+  placement,
   type SimEvent,
   SWING_STEPS,
   type World,
@@ -63,6 +65,7 @@ import {
   rowTop,
 } from "./heroPanel";
 import {
+  type DropHit,
   type InventoryHit,
   type InventorySpot,
   inventoryHitAt,
@@ -70,6 +73,7 @@ import {
   itemRect,
   itemTooltip,
   itemUnder,
+  landingCell,
 } from "./inventoryPanel";
 import { menuChoiceAt, PAUSE_MENU_LAYOUT, pauseMenuLayout } from "./pauseMenu";
 import type { Rect } from "./rect";
@@ -294,9 +298,14 @@ const HERO_PANEL_STYLE = {
  * The Inventory panel's look, in the Hero panel's colours; where things go
  * is `inventoryPanelLayout`. Each Item is a box tinted by its kind with its
  * name inside, and the tooltip sits `tooltipGap` over the hovered Item,
- * `tooltipPadding` around its lines (CSS px).
+ * `tooltipPadding` around its lines (CSS px). A held Item follows the
+ * cursor, over a highlight of where it would land: `fits` where it can go
+ * down, `refused` where it can't.
  */
 const INVENTORY_STYLE = {
+  fits: 0x3c8c3c,
+  refused: 0xa03028,
+  landingAlpha: 0.45,
   cell: 0x0e0b08,
   cellEdge: 0x2e2618,
   slotLabel: 0x6a6050,
@@ -492,11 +501,12 @@ export function createRenderer(app: Application, art: Art) {
    * button and the Inventory panel, as last drawn, or null when it's for
    * the World.
    */
-  const panelAt = (screen: Vec): PanelHit | InventoryHit | null => {
+  const panelAt = (screen: Vec): PanelHit | InventoryHit | DropHit | null => {
     if (!drawnWorld) return null;
+    const holding = cursorItemOf(drawnWorld) !== null;
     return (
       panelHitAt(app.screen, screen, drawnWorld, heroPanelOpenNow) ??
-      inventoryHitAt(app.screen, screen, inventoryOpenNow)
+      inventoryHitAt(app.screen, screen, inventoryOpenNow, holding)
     );
   };
 
@@ -919,7 +929,13 @@ export function createRenderer(app: Application, art: Art) {
       levelUp.draw(app.screen, world, nowMs);
       heroPanel.draw(app.screen, world, menus.heroPanelOpen);
       const spot = onPanel && "inventory" in onPanel ? onPanel.inventory : null;
-      inventoryPanel.draw(app.screen, world, menus.inventoryOpen, spot);
+      inventoryPanel.draw(
+        app.screen,
+        world,
+        menus.inventoryOpen,
+        spot,
+        pointer,
+      );
 
       const hurtLeft = hurtAtMs === null ? 0 : 1 - (nowMs - hurtAtMs) / HURT_MS;
       hurt.visible = hurtLeft > 0;
@@ -1511,14 +1527,38 @@ function inventoryPanelView() {
   layer.addChild(tooltipBox);
   /** Tooltip lines, made as more are needed, over its box. */
   const tooltipLines: Text[] = [];
+  /** The held Item, over everything else on the panel. */
+  const heldBox = new Graphics();
+  layer.addChild(heldBox);
+  const heldName = text(look.itemText, look.itemTextSize);
+
+  /** Draws an Item's box, tinted by its kind, with its name in `name`. */
+  const drawItem = (to: Graphics, name: Text, rect: Rect, type: ItemType) => {
+    const tuning = itemOf(type);
+    to.rect(rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2)
+      .fill({ color: ITEM_COLOUR[tuning.kind], alpha: look.itemAlpha })
+      .stroke({ color: look.itemEdge, width: 1 });
+    name.visible = true;
+    name.text = tuning.name;
+    name.style.wordWrap = true;
+    name.style.wordWrapWidth = rect.w - 4;
+    name.style.align = "center";
+    name.anchor.set(0.5);
+    name.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
+  };
 
   return {
     layer,
+    /**
+     * `hovered` is the spot under `pointer`, the cursor on the canvas (CSS
+     * px), if it's on the panel.
+     */
     draw(
       screen: { width: number; height: number },
       world: World,
       open: boolean,
       hovered: InventorySpot | null,
+      pointer: Vec | null,
     ) {
       layer.visible = open;
       if (!open) return;
@@ -1566,25 +1606,44 @@ function inventoryPanelView() {
         items.push({ rect: itemRect(layout, at, item.type), type: item.type });
       }
       items.forEach(({ rect, type }, i) => {
-        const tuning = itemOf(type);
-        graphics
-          .rect(rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2)
-          .fill({ color: ITEM_COLOUR[tuning.kind], alpha: look.itemAlpha })
-          .stroke({ color: look.itemEdge, width: 1 });
         names[i] ??= text(look.itemText, look.itemTextSize);
-        const name = names[i];
-        name.visible = true;
-        name.text = tuning.name;
-        name.style.wordWrap = true;
-        name.style.wordWrapWidth = rect.w - 4;
-        name.style.align = "center";
-        name.anchor.set(0.5);
-        name.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
+        drawItem(graphics, names[i], rect, type);
       });
       for (const name of names.slice(items.length)) name.visible = false;
 
       tooltipBox.clear();
       for (const line of tooltipLines) line.visible = false;
+      heldBox.clear();
+      heldName.visible = false;
+      const held = cursorItemOf(world);
+      if (held && pointer) {
+        const { type } = held.item;
+        if (hovered?.type === "cell") {
+          // Where it would land, kept to the grid where it hangs off.
+          const to = landingCell(layout, pointer, type);
+          const rect = itemRect(layout, to, type);
+          const x = Math.max(rect.x, grid.x);
+          const y = Math.max(rect.y, grid.y);
+          const w = Math.min(rect.x + rect.w, grid.x + grid.w) - x;
+          const h = Math.min(rect.y + rect.h, grid.y + grid.h) - y;
+          const colour = placement(world, to) ? look.fits : look.refused;
+          graphics
+            .rect(x, y, w, h)
+            .fill({ color: colour, alpha: look.landingAlpha });
+        }
+        const { columns, rows } = itemOf(type).size;
+        const rect = {
+          x: pointer.x - (columns * cell) / 2,
+          y: pointer.y - (rows * cell) / 2,
+          w: columns * cell,
+          h: rows * cell,
+        };
+        layer.setChildIndex(heldBox, layer.children.length - 1);
+        layer.setChildIndex(heldName, layer.children.length - 1);
+        drawItem(heldBox, heldName, rect, type);
+        // No tooltip while holding an Item, as in Diablo 2.
+        return;
+      }
       const item = hovered && itemUnder(world, hovered);
       if (!hovered || !item) return;
       const under =

@@ -144,15 +144,15 @@ describe("a kill worth several Levels", () => {
   });
 
   it("stops at Level 99, with Experience at the table's last value", () => {
-    monsterTuning.skeleton.experience = 2_000_000_000;
-    const w = world(3);
-    const events = kill(w, 2);
+    // One kill worth more than the whole table.
+    monsterTuning.skeleton.experience = 4_000_000_000;
+    const w = world(2);
+    const events = kill(w, 1);
     expect(ofType(events, "LevelReached")).toHaveLength(98);
     expect(w.hero.progress.level).toBe(99);
     expect(w.hero.progress.experience).toBe(3_520_485_254);
     expect(ofType(events, "ExperienceGained")).toEqual([
-      { type: "ExperienceGained", amount: 2_000_000_000 },
-      { type: "ExperienceGained", amount: 1_520_485_254 },
+      { type: "ExperienceGained", amount: 3_520_485_254 },
     ]);
 
     const after = kill(w, 1);

@@ -9,6 +9,9 @@ import { msToSteps, perStep } from "./units";
 import { validateAreas } from "./validate";
 import { angleBetween, distance, type Vec } from "./vec";
 
+const EXPERIENCE_TABLE = heroTuning.experienceTable;
+/** The most Experience the Hero can have: what the last Level needs. */
+const EXPERIENCE_CAP = EXPERIENCE_TABLE[EXPERIENCE_TABLE.length - 1];
 const WALK_PER_STEP = perStep(heroTuning.walkSpeed);
 /** How many steps a swing takes. */
 export const SWING_STEPS = msToSteps(heroTuning.swingMs);
@@ -38,6 +41,10 @@ export const FLINCH_STEPS = Object.fromEntries(
 
 export type Hero = {
   life: number;
+  /** From 1 up to the last Level in the Experience table. */
+  level: number;
+  /** All the Experience earned, never past the table's last value. */
+  experience: number;
   pos: Vec;
   /** Where the Hero was one step ago, for the renderer to interpolate from. */
   prevPos: Vec;
@@ -190,6 +197,9 @@ export type SimEvent =
   | { type: "HitLanded"; attacker: "hero"; target: MonsterId; damage: number }
   | { type: "HeroHit"; damage: number }
   | { type: "MonsterDied"; id: MonsterId }
+  | { type: "ExperienceGained"; amount: number }
+  /** The Hero reached Level `level`, with their Life already filled. */
+  | { type: "LevelReached"; level: number }
   | { type: "HeroDied" }
   /** The Hero arrived at Entry `entry` in Area `area`. */
   | { type: "AreaChanged"; area: string; entry: string };
@@ -230,6 +240,8 @@ export function createWorld(options: {
     death: null,
     hero: {
       life: heroTuning.life,
+      level: 1,
+      experience: 0,
       pos: { ...start },
       prevPos: { ...start },
       path: [],
@@ -263,11 +275,14 @@ export function isInCombat(world: World): boolean {
   );
 }
 
+/** The Hero's Life at full health, growing with their Level. */
+export function maxLife(world: World): number {
+  return heroTuning.life + heroTuning.lifePerLevel * (world.hero.level - 1);
+}
+
 /** Whether the Hero is regaining Life: alive, out of combat and below full. */
 export function isRegenerating(world: World): boolean {
-  return (
-    !world.death && !isInCombat(world) && world.hero.life < heroTuning.life
-  );
+  return !world.death && !isInCombat(world) && world.hero.life < maxLife(world);
 }
 
 /**
@@ -321,7 +336,7 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   hero.prevPos = { ...at };
   hero.facing = awayFromEdge(area, at);
   if (area.name === TOWN) {
-    hero.life = heroTuning.life;
+    hero.life = maxLife(world);
     hero.combat = 0;
   }
   world.death = null;
@@ -437,7 +452,7 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
     if (!world.death) hitHero(world, monster, events);
   }
   if (isRegenerating(world)) {
-    hero.life = Math.min(heroTuning.life, hero.life + REGEN_PER_STEP);
+    hero.life = Math.min(maxLife(world), hero.life + REGEN_PER_STEP);
   }
 
   world.tick += 1;
@@ -595,6 +610,7 @@ function hit(world: World, monster: Monster, events: SimEvent[]) {
       pos: monster.pos,
     });
     events.push({ type: "MonsterDied", id: monster.id });
+    gainExperience(world, monsterTuning[monster.type].experience, events);
     return;
   }
   noticeHit(world, monster);
@@ -633,6 +649,28 @@ function die(world: World, events: SimEvent[]) {
   for (const monster of world.monsters) sendHome(monster);
   stopHero(world.hero);
   events.push({ type: "HeroDied" });
+}
+
+/**
+ * Gives the Hero Experience, raising their Level as many times as it reaches
+ * and filling their Life on each. Experience stops at the table's last value,
+ * and only what was gained is reported.
+ */
+function gainExperience(world: World, amount: number, events: SimEvent[]) {
+  const { hero } = world;
+  const gained = Math.min(amount, EXPERIENCE_CAP - hero.experience);
+  if (gained <= 0) return;
+  hero.experience += gained;
+  events.push({ type: "ExperienceGained", amount: gained });
+  // `EXPERIENCE_TABLE[hero.level]` is what the next Level needs.
+  while (
+    hero.level < EXPERIENCE_TABLE.length &&
+    hero.experience >= EXPERIENCE_TABLE[hero.level]
+  ) {
+    hero.level += 1;
+    hero.life = maxLife(world);
+    events.push({ type: "LevelReached", level: hero.level });
+  }
 }
 
 function monsterById(world: World, id: MonsterId): Monster | undefined {

@@ -20,6 +20,7 @@ import {
   isInCombat,
   isRegenerating,
   type MonsterId,
+  maxLife,
   type SimEvent,
   SWING_STEPS,
   type World,
@@ -30,6 +31,7 @@ import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import { type Compass, compassOf, frameAt, swingFrame } from "./animation";
 import { type Animation, type Art, type CharacterArt, frameOf } from "./art";
 import { type DamageNumber, damageNumbers, floatAt } from "./damageNumbers";
+import { experienceBar } from "./experienceBar";
 
 const HOVER_LINE = 0xd8c48a;
 const MARKER_LINE = 0xe8d27a;
@@ -38,6 +40,19 @@ const MARKER_LINE = 0xe8d27a;
 const FLASH_MS = 120;
 /** How white a hit Monster turns at the start of its flash (0..1). */
 const FLASH_STRENGTH = 0.8;
+
+/**
+ * The Hero's flash on reaching a new Level: its length (ms), fading out, how
+ * strongly it washes them gold at the start (0..1), and a gold ring spreading
+ * out at their feet to `ringRadius` (tiles).
+ */
+const LEVEL_UP = {
+  ms: 800,
+  strength: 0.7,
+  colour: 0xffd75a,
+  ringRadius: 1.4,
+  ringWidth: 3,
+};
 
 /** The screen's red flash when the Hero is hit: its length (ms), fading out. */
 const HURT_MS = 150;
@@ -176,6 +191,22 @@ const BUBBLES = {
   /** Rises per second, bottom to surface. */
   rate: 0.6,
 };
+/**
+ * The Experience bar along the strip, right of the orb (CSS px): `gap` from
+ * the orb's rim, `right` from the screen's edge, with `Lv N` before it and
+ * `current / next` after it, each `textGap` from the bar.
+ */
+const EXPERIENCE_BAR = {
+  gap: 14,
+  right: 16,
+  height: 6,
+  textGap: 8,
+  textSize: 13,
+  textColour: 0xd8c890,
+  fill: 0xc8a040,
+  back: 0x2a241c,
+  edge: 0x4a4236,
+};
 /** The badge over the orb: its size, gap over the rim (CSS px) and colours. */
 const BADGE = { size: 13, gap: 4, combat: 0xd84a3a, regen: 0x9cd89c };
 
@@ -239,6 +270,11 @@ export function createRenderer(app: Application, art: Art) {
   camera.addChild(scene);
   const hero = characterView(art.hero, heroTuning.walkSpeed);
   scene.addChild(hero.sprite);
+  // Under the scene, so the ring spreads at the Hero's feet.
+  const levelRing = new Graphics();
+  camera.addChildAt(levelRing, camera.getChildIndex(scene));
+  const levelFlash = new ColorMatrixFilter({ resolution: "inherit" });
+  levelFlash.matrix = washTo(LEVEL_UP.colour);
   const outline = outlineView();
   scene.addChild(outline.layer);
   // Over the scene: Life bars over heads and damage numbers.
@@ -261,6 +297,8 @@ export function createRenderer(app: Application, art: Art) {
   app.stage.addChild(nameplateText);
   const orb = lifeOrbView();
   app.stage.addChild(orb.layer);
+  const experience = experienceBarView();
+  app.stage.addChild(experience.layer);
   // Over the whole screen, stretched to it each frame.
   const hurt = new Graphics().rect(0, 0, 1, 1).fill(HURT_COLOUR);
   hurt.visible = false;
@@ -289,6 +327,7 @@ export function createRenderer(app: Application, art: Art) {
   let hoveredTile: Vec | null = null;
   let markedAtMs: number | null = null;
   let hurtAtMs: number | null = null;
+  let levelAtMs: number | null = null;
 
   /**
    * Swaps in another Area's tiles and NPCs. Its Monsters and Corpses get
@@ -383,6 +422,7 @@ export function createRenderer(app: Application, art: Art) {
           if (view) view.diedAtMs = nowMs;
         }
         if (event.type === "HeroHit") hurtAtMs = nowMs;
+        if (event.type === "LevelReached") levelAtMs = nowMs;
       }
     },
 
@@ -450,6 +490,34 @@ export function createRenderer(app: Application, art: Art) {
         show(hero, "hit", heroCompass, frameAt(art.hero.timing.hit, ms));
       } else {
         walkOrStand(hero, world.hero, heroAt, heroCompass, nowMs);
+      }
+
+      const levelLeft =
+        levelAtMs === null ? 0 : 1 - (nowMs - levelAtMs) / LEVEL_UP.ms;
+      levelRing.clear();
+      if (levelLeft > 0) {
+        levelFlash.alpha = LEVEL_UP.strength * levelLeft;
+        hero.sprite.filters = [levelFlash];
+        const radius = LEVEL_UP.ringRadius * (1 - levelLeft);
+        levelRing
+          .poly(
+            [
+              { x: radius, y: 0 },
+              { x: 0, y: radius },
+              { x: -radius, y: 0 },
+              { x: 0, y: -radius },
+            ].flatMap((v) => {
+              const screen = toScreen(v);
+              return [at.x + screen.x, at.y + screen.y];
+            }),
+          )
+          .stroke({
+            color: LEVEL_UP.colour,
+            width: LEVEL_UP.ringWidth,
+            alpha: levelLeft,
+          });
+      } else if (hero.sprite.filters) {
+        hero.sprite.filters = null;
       }
 
       const seen = new Set<MonsterId>();
@@ -572,6 +640,7 @@ export function createRenderer(app: Application, art: Art) {
       }
 
       orb.draw(app.screen, world, nowMs);
+      experience.draw(app.screen, world);
 
       const hurtLeft = hurtAtMs === null ? 0 : 1 - (nowMs - hurtAtMs) / HURT_MS;
       hurt.visible = hurtLeft > 0;
@@ -682,13 +751,21 @@ function flash(view: MonsterView, nowMs: number) {
   }
   if (!view.flash) {
     view.flash = new ColorMatrixFilter({ resolution: "inherit" });
-    // Every colour to white, keeping alpha; `alpha` mixes it in.
-    view.flash.matrix = [
-      0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0,
-    ];
+    view.flash.matrix = washTo(0xffffff);
   }
   view.flash.alpha = FLASH_STRENGTH * left;
   if (!view.sprite.filters) view.sprite.filters = [view.flash];
+}
+
+/**
+ * A colour matrix turning every colour to `colour`, keeping alpha; a filter's
+ * `alpha` mixes it in.
+ */
+function washTo(colour: number): ColorMatrixFilter["matrix"] {
+  const r = ((colour >> 16) & 0xff) / 0xff;
+  const g = ((colour >> 8) & 0xff) / 0xff;
+  const b = (colour & 0xff) / 0xff;
+  return [0, 0, 0, 0, r, 0, 0, 0, 0, g, 0, 0, 0, 0, b, 0, 0, 0, 1, 0];
 }
 
 /**
@@ -846,7 +923,7 @@ function lifeOrbView() {
       graphics.circle(cx, cy, r).fill(ORB.empty);
 
       // One 1 px row at a time, so the surface can ripple.
-      const fraction = world.hero.life / heroTuning.life;
+      const fraction = world.hero.life / maxLife(world);
       const surface = cy + r - fraction * r * 2;
       const ripple = inCombat ? RIPPLE.combat : RIPPLE.calm;
       for (let y = Math.floor(surface); y < cy + r; y++) {
@@ -885,6 +962,48 @@ function lifeOrbView() {
         : `+${heroTuning.regenPerSecond} Life/s`;
       badge.style.fill = inCombat ? BADGE.combat : BADGE.regen;
       badge.position.set(cx, cy - r - ORB.rim - BADGE.gap);
+    },
+  };
+}
+
+/**
+ * The thin Experience bar along the strip, right of the Life orb, with
+ * `Lv N` before it and `current / next` Experience after it.
+ */
+function experienceBarView() {
+  const B = EXPERIENCE_BAR;
+  const layer = new Container();
+  const graphics = new Graphics();
+  const style = { fill: B.textColour, fontSize: B.textSize, fontFamily: SERIF };
+  const level = new Text({ text: "", style });
+  level.anchor.set(0, 0.5);
+  const amount = new Text({ text: "", style });
+  amount.anchor.set(1, 0.5);
+  layer.addChild(graphics, level, amount);
+
+  return {
+    layer,
+    draw(screen: { width: number; height: number }, world: World) {
+      const bar = experienceBar(world.hero.level, world.hero.experience);
+      const y = screen.height - (STRIP.height - STRIP.edge) / 2;
+      const left = ORB.left + 2 * (ORB.rim + ORB.radius) + B.gap;
+      const right = screen.width - B.right;
+      level.text = bar.level;
+      level.position.set(left, y);
+      amount.text = bar.experience;
+      amount.position.set(right, y);
+
+      const from = left + level.width + B.textGap;
+      const width = Math.max(0, right - amount.width - B.textGap - from);
+      const top = y - B.height / 2;
+      graphics.clear();
+      graphics
+        .rect(from, top, width, B.height)
+        .fill(B.back)
+        .stroke({ width: 1, color: B.edge });
+      if (bar.fill > 0) {
+        graphics.rect(from, top, width * bar.fill, B.height).fill(B.fill);
+      }
     },
   };
 }

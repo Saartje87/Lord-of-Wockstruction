@@ -1,4 +1,11 @@
-import type { Progress, SimEvent } from "./sim/world";
+import {
+  ATTRIBUTES,
+  FRESH_PROGRESS,
+  levelExperience,
+  nextLevelExperience,
+  type Progress,
+  type SimEvent,
+} from "./sim/world";
 import { heroTuning } from "./tuning/hero";
 
 /**
@@ -110,24 +117,18 @@ export function parseSave(text: string | null): Progress | null {
 }
 
 /** Every field of the stored progress, each a whole number. */
-const PROGRESS_FIELDS: readonly (keyof Progress)[] = [
-  "level",
-  "experience",
-  "strength",
-  "dexterity",
-  "vitality",
-  "attributePoints",
-];
+const PROGRESS_FIELDS = Object.keys(FRESH_PROGRESS) as (keyof Progress)[];
 
 /**
  * Whether a Level and Experience could have been earned: the Experience at
  * least what the Level needs and short of what the next one does.
  */
 function fitsTable(level: number, experience: number): boolean {
-  const table = heroTuning.experienceTable;
-  if (level < 1 || level > table.length) return false;
-  const next = level < table.length ? table[level] : table[level - 1] + 1;
-  return experience >= table[level - 1] && experience < next;
+  if (level < 1 || level > heroTuning.experienceTable.length) return false;
+  const next = nextLevelExperience(level);
+  // At the last Level, Experience stops at what it needs.
+  const most = next === null ? levelExperience(level) : next - 1;
+  return experience >= levelExperience(level) && experience <= most;
 }
 
 /**
@@ -136,17 +137,12 @@ function fitsTable(level: number, experience: number): boolean {
  * unspent adding up to what the Levels gained gave.
  */
 function fitsPoints(progress: Progress): boolean {
-  const raised =
-    progress.strength -
-    heroTuning.strength +
-    progress.dexterity -
-    heroTuning.dexterity +
-    progress.vitality -
-    heroTuning.vitality;
+  const raisedBy = ATTRIBUTES.map(
+    (attribute) => progress[attribute] - FRESH_PROGRESS[attribute],
+  );
+  const raised = raisedBy.reduce((sum, points) => sum + points, 0);
   return (
-    progress.strength >= heroTuning.strength &&
-    progress.dexterity >= heroTuning.dexterity &&
-    progress.vitality >= heroTuning.vitality &&
+    raisedBy.every((points) => points >= 0) &&
     progress.attributePoints >= 0 &&
     raised + progress.attributePoints ===
       heroTuning.attributePointsPerLevel * (progress.level - 1)

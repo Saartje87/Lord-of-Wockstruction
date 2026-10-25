@@ -4,7 +4,8 @@ import {
   attackRating,
   createWorld,
   damageRange,
-  hitChance,
+  heroChanceToHit,
+  heroDamage,
   maxLife,
   type Progress,
   progressOf,
@@ -173,18 +174,38 @@ describe("SpendAttributePoint", () => {
   });
 });
 
+/** The Hero's damage averaged over evenly spread rolls. */
+function averageDamage(w: World): number {
+  const rolls = 10_000;
+  let total = 0;
+  for (let i = 0; i < rolls; i++) total += heroDamage(w, (i + 0.5) / rolls);
+  return total / rolls;
+}
+
 describe("Strength", () => {
   it("adds 1% damage a point", () => {
     const w = world(1, UNSPENT);
     spend(w, "strength", 10);
 
-    expect(damageRange(w)).toEqual([22, 33]);
+    // 130% of 16.67–25.
+    const [min, max] = damageRange(w);
+    expect(min).toBeCloseTo(21.67, 2);
+    expect(max).toBeCloseTo(32.5, 2);
+  });
+
+  it("raises the average hit with every single point", () => {
+    const w = world(1, UNSPENT);
+    const before = averageDamage(w);
+
+    spend(w, "strength");
+
+    // 1% of the 20.8 a hit averages before Strength.
+    expect(averageDamage(w)).toBeCloseTo(before + 0.21, 1);
   });
 
   it("makes every hit deal its raised damage", () => {
     const w = world(1, { ...UNSPENT, strength: 120 });
-    expect(damageRange(w)).toEqual([37, 55]);
-
+    // 36.67–55, each hit rounded.
     const hits = kill(w, 1).filter((event) => event.type === "HitLanded");
     expect(hits.length).toBeGreaterThan(0);
     for (const hit of hits) {
@@ -210,12 +231,12 @@ describe("Vitality", () => {
 describe("Dexterity", () => {
   it("raises Attack Rating and so the chance to hit", () => {
     const w = world(1, UNSPENT);
-    const before = hitChance(w, "skeleton");
+    const before = heroChanceToHit(w, "skeleton");
 
     spend(w, "dexterity", 10);
 
     expect(attackRating(w)).toBe(150);
-    expect(hitChance(w, "skeleton")).toBeGreaterThan(before);
+    expect(heroChanceToHit(w, "skeleton")).toBeGreaterThan(before);
   });
 });
 

@@ -14,7 +14,7 @@ import {
 const asTiles = {
   toTile: (screen: Vec) => screen,
   monsterAt: () => null,
-  onPanel: () => false,
+  panelAt: () => null,
 };
 
 /** Like `asTiles`, with Monster 7 covering the tile (5, 5). */
@@ -173,11 +173,11 @@ describe("pointer input on Monsters", () => {
 /** Like `withMonster`, with a panel drawn over everything left of x = 4. */
 const withPanel = {
   ...withMonster,
-  onPanel: (screen: Vec) => screen.x < 4,
+  panelAt: (screen: Vec) => (screen.x < 4 ? "the panel" : null),
 };
 
 describe("pointer input on a panel", () => {
-  it("hands a click on it back, ordering nothing", () => {
+  it("hands back what a click on it hit, ordering nothing", () => {
     const input = createPointerInput();
 
     press(input, { x: 2, y: 5 });
@@ -185,7 +185,7 @@ describe("pointer input on a panel", () => {
     expect(poll(input, 0, withPanel)).toEqual({
       orders: [],
       click: null,
-      panel: { x: 2, y: 5 },
+      panel: "the panel",
     });
   });
 

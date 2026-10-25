@@ -7,12 +7,14 @@ import {
   Text,
 } from "pixi.js";
 import { toScreen, toTile } from "../iso";
+import type { MenuChoice, Menus } from "../menus";
 import type { Pause } from "../pause";
 import { type Area, isFloor } from "../sim/area";
 import { windUpProgress } from "../sim/monsters";
 import { STEP_MS } from "../sim/units";
 import { tileOf, type Vec } from "../sim/vec";
 import {
+  ATTRIBUTES,
   areaFade,
   DEATH_STEPS,
   FLINCH_STEPS,
@@ -31,18 +33,19 @@ import { inputTuning } from "../tuning/input";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import { type Compass, compassOf, frameAt, swingFrame } from "./animation";
 import { type Animation, type Art, type CharacterArt, frameOf } from "./art";
-import {
-  CHARACTER_PANEL,
-  characterLayout,
-  characterSheet,
-  PANEL_ROWS,
-  type PanelTarget,
-  panelTargetAt,
-  type Rect,
-  rowTop,
-} from "./characterPanel";
 import { type DamageNumber, damageNumbers, floatAt } from "./damageNumbers";
 import { experienceBar } from "./experienceBar";
+import {
+  HERO_PANEL,
+  heroPanelLayout,
+  heroSheet,
+  PANEL_ROWS,
+  type PanelHit,
+  panelHitAt,
+  rowTop,
+} from "./heroPanel";
+import { menuChoiceAt, PAUSE_MENU_LAYOUT, pauseMenuLayout } from "./pauseMenu";
+import type { Rect } from "./rect";
 
 const HOVER_LINE = 0xd8c48a;
 const MARKER_LINE = 0xe8d27a;
@@ -85,17 +88,18 @@ const DEATH_SCREEN = {
 };
 
 /**
- * The pause menu: a dark panel in the middle of a darkened screen, with the
- * art's credit, the New Hero option and a hint to resume. Asking to confirm
- * a New Hero, the question takes the place of the credit and the option.
+ * The pause menu's look: a dark panel in the middle of a darkened screen,
+ * with the art's credit, the New Hero button and a hint to resume. Asking to
+ * confirm a New Hero, the question takes the place of the credit, and Yes
+ * and No that of the button. Where things go is `PAUSE_MENU_LAYOUT`.
  */
 const PAUSE_MENU = {
   darkness: 0.6,
-  panel: { width: 460, height: 290, colour: 0x17130e, edge: 0x5a4a2e },
+  panel: { colour: 0x17130e, edge: 0x5a4a2e },
   title: { colour: 0xe8d27a, size: 40, top: 28 },
   credit: { colour: 0xd8d0b8, size: 15, top: 96, lineHeight: 22 },
-  option: { colour: 0xe8d27a, size: 17, top: 200 },
-  question: { colour: 0xd8d0b8, size: 17, top: 100, lineHeight: 28 },
+  button: { size: 17 },
+  question: { colour: 0xd8d0b8, size: 17, top: 110, lineHeight: 28 },
   hint: { colour: 0x9a9080, size: 14, bottom: 26 },
 };
 
@@ -239,11 +243,11 @@ const HUD_BUTTON = {
   edgeFaint: 0.3,
 };
 /**
- * The character panel's look, in the pause menu's colours; where things go is
- * `CHARACTER_PANEL`. Each rule sits `ruleGap` over the rows it heads, and
+ * The Hero panel's look, in the pause menu's colours; where things go is
+ * `HERO_PANEL`. Each rule sits `ruleGap` over the rows it heads, and
  * Attribute values keep `plusGap` from their + buttons (CSS px).
  */
-const CHARACTER_STYLE = {
+const HERO_PANEL_STYLE = {
   fill: 0x17130e,
   alpha: 0.94,
   edge: 0x5a4a2e,
@@ -352,8 +356,8 @@ export function createRenderer(app: Application, art: Art) {
   app.stage.addChild(experience.layer);
   const levelUp = levelUpButtonView();
   app.stage.addChild(levelUp.layer);
-  const character = characterPanelView();
-  app.stage.addChild(character.layer);
+  const heroPanel = heroPanelView();
+  app.stage.addChild(heroPanel.layer);
   // Over the whole screen, stretched to it each frame.
   const hurt = new Graphics().rect(0, 0, 1, 1).fill(HURT_COLOUR);
   hurt.visible = false;
@@ -384,9 +388,9 @@ export function createRenderer(app: Application, art: Art) {
   let hurtAtMs: number | null = null;
   let levelAtMs: number | null = null;
   /** The World last drawn; a New Hero brings another. */
-  let drawn: World | null = null;
-  /** Whether the character panel was open when last drawn. */
-  let characterOpenNow = false;
+  let drawnWorld: World | null = null;
+  /** Whether the Hero panel was open when last drawn. */
+  let heroPanelOpenNow = false;
 
   /**
    * Starts afresh for another World, whose Monster ids start over: drops
@@ -394,7 +398,7 @@ export function createRenderer(app: Application, art: Art) {
    * its Area.
    */
   const showWorld = (next: World) => {
-    drawn = next;
+    drawnWorld = next;
     for (const view of monsters.values()) {
       view.sprite.destroy();
       view.flash?.destroy();
@@ -467,15 +471,20 @@ export function createRenderer(app: Application, art: Art) {
     monsterAt,
 
     /**
-     * What a click on the canvas (CSS px) presses of the character panel
-     * and Level Up button, as last drawn, or null when it's for the World.
+     * What a click on the canvas (CSS px) hits of the Hero panel and Level
+     * Up button, as last drawn, or null when it's for the World.
      */
-    panelAt(screen: Vec): PanelTarget | null {
-      if (!drawn) return null;
-      return panelTargetAt(app.screen, screen, {
-        open: characterOpenNow,
-        points: drawn.hero.attributePoints,
-      });
+    panelAt(screen: Vec): PanelHit | null {
+      if (!drawnWorld) return null;
+      return panelHitAt(app.screen, screen, drawnWorld, heroPanelOpenNow);
+    },
+
+    /**
+     * The pause-menu button under a click on the canvas (CSS px), or null
+     * off them all; `confirming` while asking to confirm a New Hero.
+     */
+    menuChoiceAt(screen: Vec, confirming: boolean): MenuChoice | null {
+      return menuChoiceAt(app.screen, screen, confirming);
     },
 
     /** Turns a step's events into effects. */
@@ -523,20 +532,19 @@ export function createRenderer(app: Application, art: Art) {
     /**
      * `alpha` (0..1) is how far the frame is from the previous step to the
      * current one; `pointer` is the cursor on the canvas (CSS px), if on it.
-     * While paused, `pause` shows the pause menu over everything.
-     * `characterOpen` shows the character panel.
+     * `menus` shows the Hero panel while it's open, and the pause menu over
+     * everything while paused.
      */
     draw(
       world: World,
       alpha: number,
       pointer: Vec | null,
       nowMs: number,
-      pause: Pause,
-      characterOpen: boolean,
+      menus: Menus,
     ) {
       const active = world.areas[world.areaName];
-      characterOpenNow = characterOpen;
-      if (world !== drawn) showWorld(world);
+      heroPanelOpenNow = menus.heroPanelOpen;
+      if (world !== drawnWorld) showWorld(world);
       else if (active !== area) showArea(active);
       const heroAt = lerp(world.hero.prevPos, world.hero.pos, alpha);
       const at = toScreen(heroAt);
@@ -583,13 +591,13 @@ export function createRenderer(app: Application, art: Art) {
         walkOrStand(hero, world.hero, heroAt, heroCompass, nowMs);
       }
 
-      const levelLeft =
+      const levelUpLeft =
         levelAtMs === null ? 0 : 1 - (nowMs - levelAtMs) / LEVEL_UP.ms;
       levelRing.clear();
-      if (levelLeft > 0) {
-        levelFlash.alpha = LEVEL_UP.strength * levelLeft;
+      if (levelUpLeft > 0) {
+        levelFlash.alpha = LEVEL_UP.strength * levelUpLeft;
         hero.sprite.filters = [levelFlash];
-        const radius = LEVEL_UP.ringRadius * (1 - levelLeft);
+        const radius = LEVEL_UP.ringRadius * (1 - levelUpLeft);
         levelRing
           .poly(
             [
@@ -605,7 +613,7 @@ export function createRenderer(app: Application, art: Art) {
           .stroke({
             color: LEVEL_UP.colour,
             width: LEVEL_UP.ringWidth,
-            alpha: levelLeft,
+            alpha: levelUpLeft,
           });
       } else if (hero.sprite.filters) {
         hero.sprite.filters = null;
@@ -733,7 +741,7 @@ export function createRenderer(app: Application, art: Art) {
       orb.draw(app.screen, world, nowMs);
       experience.draw(app.screen, world);
       levelUp.draw(app.screen, world, nowMs);
-      character.draw(app.screen, world, characterOpen);
+      heroPanel.draw(app.screen, world, menus.heroPanelOpen);
 
       const hurtLeft = hurtAtMs === null ? 0 : 1 - (nowMs - hurtAtMs) / HURT_MS;
       hurt.visible = hurtLeft > 0;
@@ -751,7 +759,7 @@ export function createRenderer(app: Application, art: Art) {
         fade.scale.set(app.screen.width, app.screen.height);
       }
 
-      menu.draw(app.screen, pause.paused, pause.confirming, world.hero.level);
+      menu.draw(app.screen, menus.pause, world.hero.progress.level);
 
       const markerProgress =
         markedAtMs === null
@@ -1064,10 +1072,13 @@ function lifeOrbView() {
  * `Lv N` before it and `current / next` Experience after it.
  */
 function experienceBarView() {
-  const B = EXPERIENCE_BAR;
   const layer = new Container();
   const graphics = new Graphics();
-  const style = { fill: B.textColour, fontSize: B.textSize, fontFamily: SERIF };
+  const style = {
+    fill: EXPERIENCE_BAR.textColour,
+    fontSize: EXPERIENCE_BAR.textSize,
+    fontFamily: SERIF,
+  };
   const level = new Text({ text: "", style });
   level.anchor.set(0, 0.5);
   const amount = new Text({ text: "", style });
@@ -1077,25 +1088,33 @@ function experienceBarView() {
   return {
     layer,
     draw(screen: { width: number; height: number }, world: World) {
-      const bar = experienceBar(world.hero.level, world.hero.experience);
+      const bar = experienceBar(
+        world.hero.progress.level,
+        world.hero.progress.experience,
+      );
       const y = screen.height - (STRIP.height - STRIP.edge) / 2;
-      const left = ORB.left + 2 * (ORB.rim + ORB.radius) + B.gap;
-      const right = screen.width - B.right;
+      const left = ORB.left + 2 * (ORB.rim + ORB.radius) + EXPERIENCE_BAR.gap;
+      const right = screen.width - EXPERIENCE_BAR.right;
       level.text = bar.level;
       level.position.set(left, y);
       amount.text = bar.experience;
       amount.position.set(right, y);
 
-      const from = left + level.width + B.textGap;
-      const width = Math.max(0, right - amount.width - B.textGap - from);
-      const top = y - B.height / 2;
+      const from = left + level.width + EXPERIENCE_BAR.textGap;
+      const width = Math.max(
+        0,
+        right - amount.width - EXPERIENCE_BAR.textGap - from,
+      );
+      const top = y - EXPERIENCE_BAR.height / 2;
       graphics.clear();
       graphics
-        .rect(from, top, width, B.height)
-        .fill(B.back)
-        .stroke({ width: 1, color: B.edge });
+        .rect(from, top, width, EXPERIENCE_BAR.height)
+        .fill(EXPERIENCE_BAR.back)
+        .stroke({ width: 1, color: EXPERIENCE_BAR.edge });
       if (bar.fill > 0) {
-        graphics.rect(from, top, width * bar.fill, B.height).fill(B.fill);
+        graphics
+          .rect(from, top, width * bar.fill, EXPERIENCE_BAR.height)
+          .fill(EXPERIENCE_BAR.fill);
       }
     },
   };
@@ -1106,12 +1125,15 @@ function experienceBarView() {
  * unspent, its edge pulsing to catch the eye.
  */
 function levelUpButtonView() {
-  const L = HUD_BUTTON;
   const layer = new Container();
   const graphics = new Graphics();
   const label = new Text({
     text: "Level Up",
-    style: { fill: L.text, fontSize: L.textSize, fontFamily: SERIF },
+    style: {
+      fill: HUD_BUTTON.text,
+      fontSize: HUD_BUTTON.textSize,
+      fontFamily: SERIF,
+    },
   });
   label.anchor.set(0.5);
   layer.addChild(graphics, label);
@@ -1124,13 +1146,14 @@ function levelUpButtonView() {
       world: World,
       nowMs: number,
     ) {
-      layer.visible = world.hero.attributePoints > 0;
+      layer.visible = world.hero.progress.attributePoints > 0;
       if (!layer.visible) return;
-      const rect = characterLayout(screen).levelUp;
+      const rect = heroPanelLayout(screen).levelUp;
+      const { pulsesPerSecond, edgeFaint } = HUD_BUTTON;
       const pulse =
-        (Math.sin((nowMs / 1000) * L.pulsesPerSecond * 2 * Math.PI) + 1) / 2;
+        (Math.sin((nowMs / 1000) * pulsesPerSecond * 2 * Math.PI) + 1) / 2;
       graphics.clear();
-      button(graphics, rect, L.edgeFaint + pulse * (1 - L.edgeFaint));
+      button(graphics, rect, edgeFaint + pulse * (1 - edgeFaint));
       label.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
     },
   };
@@ -1145,18 +1168,17 @@ function button(graphics: Graphics, rect: Rect, edgeAlpha = 1) {
 }
 
 /**
- * The character panel: Level and Experience, each Attribute with a + button
- * while points are unspent, the unspent points, and what the Attributes add
- * up to.
+ * The Hero panel: Level and Experience, each Attribute with a + button while
+ * a point can be spent, the unspent points, and what the Attributes add up
+ * to.
  */
-function characterPanelView() {
-  const P = CHARACTER_PANEL;
-  const S = CHARACTER_STYLE;
+function heroPanelView() {
+  const style = HERO_PANEL_STYLE;
   const layer = new Container();
   const graphics = new Graphics();
   layer.addChild(graphics);
   layer.visible = false;
-  const text = (fill: number, size = S.textSize) => {
+  const text = (fill: number, size = style.textSize) => {
     const t = new Text({
       text: "",
       style: { fill, fontSize: size, fontFamily: SERIF },
@@ -1165,31 +1187,32 @@ function characterPanelView() {
     return t;
   };
 
-  const title = text(S.title, S.titleSize);
-  title.text = "Character";
+  const title = text(style.title, style.titleSize);
+  title.text = "Hero";
   title.anchor.set(0.5, 0);
-  const hint = text(S.hint, S.hintSize);
+  const hint = text(style.hint, style.hintSize);
   hint.text = "Press C to close";
   hint.anchor.set(0.5, 1);
   /** A row's name at its left and value at its right. */
   const row = () => {
-    const name = text(S.name);
+    const name = text(style.name);
     name.anchor.set(0, 0.5);
-    const value = text(S.value);
+    const value = text(style.value);
     value.anchor.set(1, 0.5);
     return { name, value };
   };
+  type Row = ReturnType<typeof row>;
   const level = row();
   const experience = row();
-  const attributes = [row(), row(), row()];
-  const points = row();
-  const stats = [row(), row(), row(), row()];
-  const pluses = attributes.map(() => {
-    const plus = text(S.title, S.plusSize);
+  const attributes = ATTRIBUTES.map(() => {
+    const plus = text(style.title, style.plusSize);
     plus.text = "+";
     plus.anchor.set(0.5);
-    return plus;
+    return { ...row(), plus };
   });
+  const points = row();
+  /** Made as the sheet first lists them. */
+  const derived: Row[] = [];
 
   return {
     layer,
@@ -1200,50 +1223,54 @@ function characterPanelView() {
     ) {
       layer.visible = open;
       if (!open) return;
-      const sheet = characterSheet(world);
-      const layout = characterLayout(screen);
+      const sheet = heroSheet(world);
+      const layout = heroPanelLayout(screen);
       const { panel } = layout;
-      const left = panel.x + P.padding;
-      const right = panel.x + panel.w - P.padding;
+      const left = panel.x + HERO_PANEL.padding;
+      const right = panel.x + panel.w - HERO_PANEL.padding;
       // Attribute values leave room for their + buttons.
-      const beforePlus = right - P.plus - S.plusGap;
+      const beforePlus = right - HERO_PANEL.plus - style.plusGap;
 
       graphics.clear();
       graphics
         .rect(panel.x, panel.y, panel.w, panel.h)
-        .fill({ color: S.fill, alpha: S.alpha })
-        .stroke({ color: S.edge, width: 2 });
-      title.position.set(panel.x + panel.w / 2, panel.y + P.padding);
-      hint.position.set(panel.x + panel.w / 2, panel.y + panel.h - P.padding);
+        .fill({ color: style.fill, alpha: style.alpha })
+        .stroke({ color: style.edge, width: 2 });
+      title.position.set(panel.x + panel.w / 2, panel.y + HERO_PANEL.padding);
+      hint.position.set(
+        panel.x + panel.w / 2,
+        panel.y + panel.h - HERO_PANEL.padding,
+      );
 
       const place = (
-        r: ReturnType<typeof row>,
+        shown: Row,
         at: number,
         name: string,
         value: string,
         valueRight = right,
       ) => {
-        const y = rowTop(at) + P.rowHeight / 2;
-        r.name.text = name;
-        r.name.position.set(left, y);
-        r.value.text = value;
-        r.value.position.set(valueRight, y);
+        const y = rowTop(at) + HERO_PANEL.rowHeight / 2;
+        shown.name.text = name;
+        shown.name.position.set(left, y);
+        shown.value.text = value;
+        shown.value.position.set(valueRight, y);
       };
       place(level, PANEL_ROWS.level, sheet.level, "");
       place(experience, PANEL_ROWS.experience, "Experience", sheet.experience);
       sheet.attributes.forEach((attribute, i) => {
+        const shown = attributes[i];
         place(
-          attributes[i],
+          shown,
           PANEL_ROWS.attributes + i,
           attribute.name,
           attribute.value,
           beforePlus,
         );
         const rect = layout.raise[attribute.attribute];
-        pluses[i].visible = sheet.canRaise;
+        shown.plus.visible = sheet.canRaise;
         if (sheet.canRaise) {
           button(graphics, rect);
-          pluses[i].position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
+          shown.plus.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
         }
       });
       place(
@@ -1253,13 +1280,14 @@ function characterPanelView() {
         sheet.attributePoints,
         beforePlus,
       );
-      points.value.style.fill = sheet.canRaise ? S.title : S.value;
-      sheet.stats.forEach((stat, i) => {
-        place(stats[i], PANEL_ROWS.stats + i, stat.name, stat.value);
+      points.value.style.fill = sheet.canRaise ? style.title : style.value;
+      sheet.derived.forEach((value, i) => {
+        derived[i] ??= row();
+        place(derived[i], PANEL_ROWS.derived + i, value.name, value.value);
       });
-      for (const at of [PANEL_ROWS.attributes, PANEL_ROWS.stats]) {
-        const y = rowTop(at) - S.ruleGap;
-        graphics.rect(left, y, right - left, 1).fill(S.edge);
+      for (const at of [PANEL_ROWS.attributes, PANEL_ROWS.derived]) {
+        const y = rowTop(at) - style.ruleGap;
+        graphics.rect(left, y, right - left, 1).fill(style.edge);
       }
     },
   };
@@ -1326,12 +1354,13 @@ function deathScreenView() {
  * `CREDITS.md` for the rest, and offers a New Hero.
  */
 function pauseMenuView() {
-  const { darkness, panel, title, credit, option, question, hint } = PAUSE_MENU;
+  const { darkness, panel, title, credit, question, hint } = PAUSE_MENU;
+  const { width, height } = PAUSE_MENU_LAYOUT;
   const layer = new Container();
   const dark = new Graphics().rect(0, 0, 1, 1).fill(0x000000);
   dark.alpha = darkness;
   const box = new Graphics()
-    .rect(-panel.width / 2, 0, panel.width, panel.height)
+    .rect(0, 0, width, height)
     .fill(panel.colour)
     .stroke({ color: panel.edge, width: 2 });
   const heading = new Text({
@@ -1339,7 +1368,7 @@ function pauseMenuView() {
     style: { fill: title.colour, fontSize: title.size, fontFamily: SERIF },
   });
   heading.anchor.set(0.5, 0);
-  heading.position.set(0, title.top);
+  heading.position.set(width / 2, title.top);
   const credits = new Text({
     text: [
       "Art from Flare: Empyrean Campaign",
@@ -1356,13 +1385,7 @@ function pauseMenuView() {
     },
   });
   credits.anchor.set(0.5, 0);
-  credits.position.set(0, credit.top);
-  const newHero = new Text({
-    text: "Press N for a New Hero",
-    style: { fill: option.colour, fontSize: option.size, fontFamily: SERIF },
-  });
-  newHero.anchor.set(0.5, 0);
-  newHero.position.set(0, option.top);
+  credits.position.set(width / 2, credit.top);
   const confirm = new Text({
     text: "",
     style: {
@@ -1374,52 +1397,79 @@ function pauseMenuView() {
     },
   });
   confirm.anchor.set(0.5, 0);
-  confirm.position.set(0, question.top);
+  confirm.position.set(width / 2, question.top);
   const resume = new Text({
-    text: "Click or press Esc to resume",
+    text: "",
     style: { fill: hint.colour, fontSize: hint.size, fontFamily: SERIF },
   });
   resume.anchor.set(0.5, 1);
-  resume.position.set(0, panel.height - hint.bottom);
+  resume.position.set(width / 2, height - hint.bottom);
   const content = new Container();
-  content.addChild(box, heading, credits, newHero, confirm, resume);
-  layer.addChild(dark, content);
+  content.addChild(box, heading, credits, confirm, resume);
+  // On the screen, where `pauseMenuLayout` puts them.
+  const buttons = new Graphics();
+  /** Made as the layout first lists them. */
+  const labels: Text[] = [];
+  layer.addChild(dark, content, buttons);
   layer.visible = false;
 
   return {
     layer,
     /**
-     * `confirming` asks whether to give up the Level `level` Hero for a New
-     * Hero.
+     * While confirming, asks whether to give up the Level `level` Hero for a
+     * New Hero.
      */
     draw(
       screen: { width: number; height: number },
-      paused: boolean,
-      confirming: boolean,
+      pause: Pause,
       level: number,
     ) {
-      layer.visible = paused;
-      if (!paused) return;
-      credits.visible = newHero.visible = !confirming;
+      layer.visible = pause.paused;
+      if (!pause.paused) return;
+      const { confirming } = pause;
+      credits.visible = !confirming;
       confirm.visible = confirming;
       if (confirming) {
         confirm.text = [
           "Start a New Hero?",
           `Your Level ${level} Hero will be lost for good.`,
-          "Press Y to confirm, or N or Esc to go back",
         ].join("\n");
       }
       // Esc goes back from the question rather than resuming.
       resume.text = confirming
-        ? "Click to resume"
-        : "Click or press Esc to resume";
+        ? "Click elsewhere to resume"
+        : "Click elsewhere or press Esc to resume";
       dark.scale.set(screen.width, screen.height);
-      content.position.set(
-        Math.round(screen.width / 2),
-        Math.round((screen.height - panel.height) / 2),
-      );
+      const layout = pauseMenuLayout(screen, confirming);
+      content.position.set(layout.panel.x, layout.panel.y);
+
+      buttons.clear();
+      for (const label of labels) label.visible = false;
+      layout.buttons.forEach(({ label: name, rect }, i) => {
+        button(buttons, rect);
+        labels[i] ??= menuLabel(layer);
+        const label = labels[i];
+        label.text = name;
+        label.visible = true;
+        label.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
+      });
     },
   };
+}
+
+/** A pause-menu button's label, centred where it's put, added to `layer`. */
+function menuLabel(layer: Container): Text {
+  const label = new Text({
+    text: "",
+    style: {
+      fill: HUD_BUTTON.text,
+      fontSize: PAUSE_MENU.button.size,
+      fontFamily: SERIF,
+    },
+  });
+  label.anchor.set(0.5);
+  layer.addChild(label);
+  return label;
 }
 
 /** The point `alpha` (0..1) of the way from `from` to `to`. */

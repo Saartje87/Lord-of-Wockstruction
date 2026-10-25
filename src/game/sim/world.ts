@@ -41,18 +41,8 @@ export const FLINCH_STEPS = Object.fromEntries(
 
 export type Hero = {
   life: number;
-  /** From 1 up to the last Level in the Experience table. */
-  level: number;
-  /** All the Experience earned, never past the table's last value. */
-  experience: number;
-  /** Raises damage. */
-  strength: number;
-  /** Raises Attack Rating. */
-  dexterity: number;
-  /** Raises max Life. */
-  vitality: number;
-  /** Attribute Points not spent yet. */
-  attributePoints: number;
+  /** Level, Experience and Attributes: what the Save keeps. */
+  progress: Progress;
   pos: Vec;
   /** Where the Hero was one step ago, for the renderer to interpolate from. */
   prevPos: Vec;
@@ -222,16 +212,25 @@ export type SimEvent =
 
 const TOWN = "town";
 
+/** The Hero's Attributes, in the order they're shown. */
+export const ATTRIBUTES = ["strength", "dexterity", "vitality"] as const;
+
 /** One of the Hero's Attributes. */
-export type Attribute = "strength" | "dexterity" | "vitality";
+export type Attribute = (typeof ATTRIBUTES)[number];
 
 /** What the Save keeps of the Hero. */
 export type Progress = {
+  /** From 1 up to the last Level in the Experience table. */
   level: number;
+  /** All the Experience earned, never past the table's last value. */
   experience: number;
+  /** Raises damage. */
   strength: number;
+  /** Raises Attack Rating. */
   dexterity: number;
+  /** Raises max Life. */
   vitality: number;
+  /** Attribute Points not spent yet. */
   attributePoints: number;
 };
 
@@ -283,7 +282,7 @@ export function createWorld(options: {
     hero: {
       // Filled to max Life below, once there's a World to ask.
       life: 0,
-      ...progress,
+      progress: { ...progress },
       pos: { ...start },
       prevPos: { ...start },
       path: [],
@@ -306,15 +305,7 @@ export function createWorld(options: {
 
 /** The Hero's progress, as the Save keeps it. */
 export function progressOf(world: World): Progress {
-  const { hero } = world;
-  return {
-    level: hero.level,
-    experience: hero.experience,
-    strength: hero.strength,
-    dexterity: hero.dexterity,
-    vitality: hero.vitality,
-    attributePoints: hero.attributePoints,
-  };
+  return { ...world.hero.progress };
 }
 
 /** The Monster states in which a Monster is going after the Hero. */
@@ -331,13 +322,26 @@ export function isInCombat(world: World): boolean {
   );
 }
 
-/** The Hero's Life at full health, growing with their Level and Vitality. */
+/** The Experience Level `level` needs: 0 for Level 1. */
+export function levelExperience(level: number): number {
+  return EXPERIENCE_TABLE[level - 1];
+}
+
+/**
+ * The Experience the Level after `level` needs, or null at the last Level,
+ * which has no next.
+ */
+export function nextLevelExperience(level: number): number | null {
+  return level < EXPERIENCE_TABLE.length ? EXPERIENCE_TABLE[level] : null;
+}
+
+/** The Hero's full Life, growing with their Level and Vitality. */
 export function maxLife(world: World): number {
-  const { hero } = world;
+  const { level, vitality } = world.hero.progress;
   return (
     heroTuning.life +
-    heroTuning.lifePerLevel * (hero.level - 1) +
-    heroTuning.lifePerVitality * hero.vitality
+    heroTuning.lifePerLevel * (level - 1) +
+    heroTuning.lifePerVitality * vitality
   );
 }
 
@@ -348,21 +352,31 @@ export function isRegenerating(world: World): boolean {
 
 /**
  * The least and most damage one of the Hero's hits deals, 1% more for each
- * point of Strength, each rounded to a whole number.
+ * point of Strength. Left unrounded, so every point counts: each hit rounds
+ * its own damage.
  */
 export function damageRange(world: World): [number, number] {
-  const scale = 1 + world.hero.strength / 100;
+  const scale = 1 + world.hero.progress.strength / 100;
   const [min, max] = heroTuning.damage;
-  return [Math.round(min * scale), Math.round(max * scale)];
+  return [min * scale, max * scale];
+}
+
+/**
+ * The damage one of the Hero's hits deals for a `roll` in [0, 1): that far
+ * through the damage range, rounded to a whole number.
+ */
+export function heroDamage(world: World, roll: number): number {
+  const [min, max] = damageRange(world);
+  return Math.round(min + roll * (max - min));
 }
 
 /** How accurate the Hero's swings are, from their Dexterity. */
 export function attackRating(world: World): number {
-  return world.hero.dexterity * heroTuning.attackRatingPerDexterity;
+  return world.hero.progress.dexterity * heroTuning.attackRatingPerDexterity;
 }
 
 /** The chance each of the Hero's swings hits a Monster of type `type`. */
-export function hitChance(world: World, type: MonsterType): number {
+export function heroChanceToHit(world: World, type: MonsterType): number {
   return chanceToHit(attackRating(world), monsterTuning[type].defense);
 }
 
@@ -523,13 +537,9 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
     return events;
   }
 
-  if (hero.flinch > 0) stepFlinch(world);
+  if (hero.flinch > 0) stepFlinch(world, events);
   for (const order of [...world.heldOrders, ...orders]) {
-    if (order.type === "SpendAttributePoint") {
-      spendAttributePoint(world, order.attribute, events);
-    } else {
-      give(world, order);
-    }
+    give(world, order, events);
   }
   world.heldOrders = [];
   // Swing from where the Hero stands if already in reach, or once walked
@@ -584,18 +594,23 @@ function spendAttributePoint(
   events: SimEvent[],
 ) {
   const { hero } = world;
-  if (hero.attributePoints === 0) return;
-  hero.attributePoints -= 1;
-  hero[attribute] += 1;
+  if (hero.progress.attributePoints === 0) return;
+  hero.progress.attributePoints -= 1;
+  hero.progress[attribute] += 1;
   if (attribute === "vitality") hero.life += heroTuning.lifePerVitality;
   events.push({ type: "AttributeRaised", attribute });
 }
 
-/** Applies an order, or buffers it during a flinch or a committed swing. */
-function give(world: World, order: Order) {
+/**
+ * Applies an order, or buffers it during a flinch or a committed swing. A
+ * point is spent at once, whatever the Hero is doing.
+ */
+function give(world: World, order: Order, events: SimEvent[]) {
   const { hero } = world;
-  // Only heeded while dead, and spent in `step` without waiting.
-  if (order.type === "Continue" || order.type === "SpendAttributePoint") {
+  // Only heeded while dead.
+  if (order.type === "Continue") return;
+  if (order.type === "SpendAttributePoint") {
+    spendAttributePoint(world, order.attribute, events);
     return;
   }
   if (hero.flinch > 0) {
@@ -663,22 +678,22 @@ function advanceSwing(world: World, swing: Swing, events: SimEvent[]) {
   if (swing.elapsed < SWING_STEPS) return;
 
   hero.swing = null;
-  giveBuffered(world);
+  giveBuffered(world, events);
 }
 
 /** Counts down the Hero's flinch, running the buffered order once it ends. */
-function stepFlinch(world: World) {
+function stepFlinch(world: World, events: SimEvent[]) {
   const { hero } = world;
   hero.flinch -= 1;
-  if (hero.flinch === 0) giveBuffered(world);
+  if (hero.flinch === 0) giveBuffered(world, events);
 }
 
 /** Gives the order buffered during a swing or a flinch, if any. */
-function giveBuffered(world: World) {
+function giveBuffered(world: World, events: SimEvent[]) {
   const { hero } = world;
   const buffered = hero.buffered;
   hero.buffered = null;
-  if (buffered) give(world, buffered);
+  if (buffered) give(world, buffered, events);
 }
 
 /**
@@ -706,7 +721,7 @@ function land(world: World, swing: Swing, events: SimEvent[]) {
   });
 
   for (const monster of victims) {
-    if (random(world.rng) < hitChance(world, monster.type)) {
+    if (random(world.rng) < heroChanceToHit(world, monster.type)) {
       world.hitstop = HITSTOP_STEPS;
       hit(world, monster, events);
     } else {
@@ -725,7 +740,7 @@ function miss(world: World, monster: Monster, events: SimEvent[]) {
 }
 
 function hit(world: World, monster: Monster, events: SimEvent[]) {
-  const damage = randomInt(world.rng, damageRange(world));
+  const damage = heroDamage(world, random(world.rng));
   monster.life = Math.max(0, monster.life - damage);
   world.hero.combat = COMBAT_STEPS;
   events.push({
@@ -791,19 +806,20 @@ function die(world: World, events: SimEvent[]) {
  */
 function gainExperience(world: World, amount: number, events: SimEvent[]) {
   const { hero } = world;
-  const gained = Math.min(amount, EXPERIENCE_CAP - hero.experience);
+  const { progress } = hero;
+  const gained = Math.min(amount, EXPERIENCE_CAP - progress.experience);
   if (gained <= 0) return;
-  hero.experience += gained;
+  progress.experience += gained;
   events.push({ type: "ExperienceGained", amount: gained });
-  // `EXPERIENCE_TABLE[hero.level]` is what the next Level needs.
-  while (
-    hero.level < EXPERIENCE_TABLE.length &&
-    hero.experience >= EXPERIENCE_TABLE[hero.level]
+  for (
+    let next = nextLevelExperience(progress.level);
+    next !== null && progress.experience >= next;
+    next = nextLevelExperience(progress.level)
   ) {
-    hero.level += 1;
-    hero.attributePoints += heroTuning.attributePointsPerLevel;
+    progress.level += 1;
+    progress.attributePoints += heroTuning.attributePointsPerLevel;
     hero.life = maxLife(world);
-    events.push({ type: "LevelReached", level: hero.level });
+    events.push({ type: "LevelReached", level: progress.level });
   }
 }
 

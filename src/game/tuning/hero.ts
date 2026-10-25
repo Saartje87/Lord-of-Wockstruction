@@ -35,7 +35,8 @@ export type HeroTuning = {
   arcDegrees: number;
   /**
    * Damage per hit before Strength, `[min, max]`. Each point of Strength
-   * adds 1% of it, and the hit rolls a whole number between the two.
+   * adds 1% of it, and the hit rolls between the two, rounded to a whole
+   * number.
    */
   damage: [number, number];
   /** Strength a fresh Hero starts with. */

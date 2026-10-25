@@ -11,7 +11,8 @@ import {
   poll,
   release,
 } from "./input/pointer";
-import { createPause, gameTime, pressKey, togglePause } from "./pause";
+import { clickPaused, createMenus, pressKey } from "./menus";
+import { gameTime } from "./pause";
 import { loadArt } from "./render/art";
 import { createRenderer } from "./render/renderer";
 import {
@@ -70,22 +71,22 @@ export default function GameCanvas() {
       const renderer = createRenderer(app, art);
       const clock = createClock();
       const input = createPointerInput();
-      const pause = createPause();
-      let characterOpen = false;
+      const menus = createMenus();
+      const { pause } = menus;
       let orders: Order[] = [];
       let last = performance.now();
 
       attachPointer(app.canvas, input, listeners.signal);
-      // Esc opens and closes the pause menu, and a click closes it too; the
-      // menu's own keys go to `pressKey`. C opens and closes the character
-      // panel. Any other click or key press goes on from the death screen,
-      // but for a click on the panel or the Level Up button.
-      let clicked = false;
+      // Keys and clicks on the pause menu go to the menus; a click anywhere
+      // else on it resumes. Any other click or key press goes on from the
+      // death screen, but for a click on the Hero panel or the Level Up
+      // button.
+      let clickedAt: Vec | null = null;
       let keys: string[] = [];
       app.canvas.addEventListener(
         "pointerdown",
-        () => {
-          clicked = true;
+        (e) => {
+          clickedAt = { x: e.offsetX, y: e.offsetY };
         },
         { signal: listeners.signal },
       );
@@ -98,25 +99,25 @@ export default function GameCanvas() {
       );
 
       const tick = (realNow: number) => {
-        let pressed =
-          clicked ||
-          keys.some((key) => key !== "Escape" && key.toLowerCase() !== "c");
         const wasPaused = pause.paused;
+        let pressed = clickedAt !== null;
         let newHero = false;
         for (const key of keys) {
-          if (pressKey(pause, key, realNow) === "newHero") newHero = true;
-          else if (!pause.paused && key.toLowerCase() === "c") {
-            characterOpen = !characterOpen;
-          }
+          const used = pressKey(menus, key, realNow);
+          if (used === null) pressed = true;
+          if (used === "newHero") newHero = true;
         }
-        if (clicked && wasPaused && pause.paused) togglePause(pause, realNow);
-        if (pause.paused !== wasPaused) {
-          // Neither the closing click nor a hold from before the pause
+        if (clickedAt && wasPaused && pause.paused) {
+          const choice = renderer.menuChoiceAt(clickedAt, pause.confirming);
+          if (clickPaused(menus, choice, realNow) === "newHero") newHero = true;
+        }
+        if (wasPaused || pause.paused) {
+          // Neither a click on the menu nor a hold from before the pause
           // orders the Hero about.
           cancel(input);
           pressed = false;
         }
-        clicked = false;
+        clickedAt = null;
         keys = [];
         if (newHero) {
           // Confirmed in the menu: the Save goes, and a fresh Level 1 Hero
@@ -124,12 +125,10 @@ export default function GameCanvas() {
           removeSave(storage);
           world = createWorld({ areas, tilesets, seed: Date.now() });
           orders = [];
-          characterOpen = false;
         }
         // Stands still while paused, so the clock owes no steps for it and
         // the World and every effect hold still.
         const now = gameTime(pause, realNow);
-        const onPanel = (screen: Vec) => renderer.panelAt(screen) !== null;
         const {
           orders: newOrders,
           click,
@@ -137,17 +136,16 @@ export default function GameCanvas() {
         } = poll(input, now, {
           toTile: renderer.screenToTile,
           monsterAt: renderer.monsterAt,
-          onPanel,
+          panelAt: renderer.panelAt,
         });
         orders.push(...newOrders);
         // A click on the panel never orders the Hero about: Level Up opens
         // it and a + spends a point, while the game runs on.
-        const pressedOnPanel = panel && renderer.panelAt(panel);
-        if (pressedOnPanel) {
+        if (panel) {
           pressed = false;
-          if (pressedOnPanel.type === "levelUp") characterOpen = true;
-          if (pressedOnPanel.type === "raise") {
-            const { attribute } = pressedOnPanel;
+          if (panel.button?.type === "levelUp") menus.heroPanelOpen = true;
+          if (panel.button?.type === "raise") {
+            const { attribute } = panel.button;
             orders.push({ type: "SpendAttributePoint", attribute });
           }
         }
@@ -173,10 +171,10 @@ export default function GameCanvas() {
         }
         // No hover outline or nameplate under the menu or the panel.
         const pointer =
-          pause.paused || (input.screen && onPanel(input.screen))
+          pause.paused || (input.screen && renderer.panelAt(input.screen))
             ? null
             : input.screen;
-        renderer.draw(world, alpha, pointer, now, pause, characterOpen);
+        renderer.draw(world, alpha, pointer, now, menus);
         app.render();
         frame = requestAnimationFrame(tick);
       };

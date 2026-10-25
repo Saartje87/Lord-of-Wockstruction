@@ -3,7 +3,7 @@ import {
   attackRating,
   chanceToHit,
   createWorld,
-  hitChance,
+  heroChanceToHit,
   isInCombat,
   type SimEvent,
   step,
@@ -114,7 +114,7 @@ describe("chance to hit", () => {
     const w = world(["H.S"]);
 
     expect(attackRating(w)).toBe(100);
-    expect(hitChance(w, "skeleton")).toBeCloseTo(0.85, 2);
+    expect(heroChanceToHit(w, "skeleton")).toBeCloseTo(0.85, 2);
   });
 
   it("follows 2 × AR / (AR + Defense)", () => {

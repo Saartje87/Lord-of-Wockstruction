@@ -27,14 +27,20 @@ type Holding =
   | { type: "attack"; monster: MonsterId }
   | { type: "swing" };
 
-/** How input sees the screen, as last drawn. */
-export type PointerView = {
+/**
+ * How input sees the screen, as last drawn. `Panel` is what a point on a
+ * panel or button over the World hits, which input only hands back.
+ */
+export type PointerView<Panel> = {
   /** Maps a canvas point (CSS px) to tile units. */
   toTile(screen: Vec): Vec;
   /** The Monster drawn under a canvas point (CSS px), if any. */
   monsterAt(screen: Vec): MonsterId | null;
-  /** Whether a canvas point (CSS px) is on a panel or button over the World. */
-  onPanel(screen: Vec): boolean;
+  /**
+   * What a canvas point (CSS px) hits of the panels and buttons over the
+   * World, or null when it's on none of them.
+   */
+  panelAt(screen: Vec): Panel | null;
 };
 
 export function createPointerInput(): PointerInput {
@@ -105,8 +111,8 @@ export function cancel(input: PointerInput) {
 
 /**
  * Called once per frame. Returns the orders for the sim, the target of a
- * fresh click on the floor, if any, to mark, and where a fresh click on a
- * panel was, if any, for the panel to handle.
+ * fresh click on the floor, if any, to mark, and what a fresh click on a
+ * panel hit, if any, for the panel to handle.
  *
  * A click attacks the Monster under it, or walks; Shift + click swings in
  * place. Holding the button repeats that every `retargetMs` towards the
@@ -115,19 +121,20 @@ export function cancel(input: PointerInput) {
  * orders nothing, nor does holding it on, and steering doesn't follow the
  * cursor onto a panel.
  */
-export function poll(
+export function poll<Panel>(
   input: PointerInput,
   nowMs: number,
-  view: PointerView,
-): { orders: Order[]; click: Vec | null; panel: Vec | null } {
-  const none = { orders: [], click: null, panel: null };
+  view: PointerView<Panel>,
+): { orders: Order[]; click: Vec | null; panel: Panel | null } {
+  const nothing = { orders: [], click: null, panel: null };
   const { pressedAt } = input;
   input.pressedAt = null;
   if (pressedAt) {
     input.lastOrderMs = nowMs;
-    if (view.onPanel(pressedAt)) {
+    const panel = view.panelAt(pressedAt);
+    if (panel !== null) {
       input.holding = { type: "panel" };
-      return { ...none, panel: pressedAt };
+      return { ...nothing, panel };
     }
     const monster = view.monsterAt(pressedAt);
     if (input.shift) {
@@ -137,15 +144,19 @@ export function poll(
     } else {
       input.holding = { type: "steer" };
       const target = tileCentre(view.toTile(pressedAt));
-      return { ...none, orders: [{ type: "MoveTo", target }], click: target };
+      return {
+        ...nothing,
+        orders: [{ type: "MoveTo", target }],
+        click: target,
+      };
     }
-    return { ...none, orders: [holdOrder(input.holding, view, pressedAt)] };
+    return { ...nothing, orders: [holdOrder(input.holding, view, pressedAt)] };
   }
 
-  if (!input.held || !input.screen) return none;
-  if (input.holding.type === "panel") return none;
-  if (input.holding.type === "steer" && view.onPanel(input.screen)) {
-    return none;
+  if (!input.held || !input.screen) return nothing;
+  if (input.holding.type === "panel") return nothing;
+  if (input.holding.type === "steer" && view.panelAt(input.screen) !== null) {
+    return nothing;
   }
   // Checked every frame, so a quick pass over a Monster isn't missed.
   const passed =
@@ -153,17 +164,18 @@ export function poll(
   if (passed !== null) {
     input.holding = { type: "attack", monster: passed };
   } else if (nowMs - input.lastOrderMs < inputTuning.retargetMs) {
-    return none;
+    return nothing;
   }
   input.lastOrderMs = nowMs;
   const order = holdOrder(input.holding, view, input.screen);
-  return { ...none, orders: [order] };
+  return { ...nothing, orders: [order] };
 }
 
 /** The order that holding the button gives with the cursor at `screen`. */
-function holdOrder(
+function holdOrder<Panel>(
   holding: Exclude<Holding, { type: "panel" }>,
-  view: PointerView,
+  view: PointerView<Panel>,
+
   screen: Vec,
 ): Order {
   switch (holding.type) {

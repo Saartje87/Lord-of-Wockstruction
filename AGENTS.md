@@ -21,3 +21,7 @@ The five default triage labels (`needs-triage`, `needs-info`, `ready-for-agent`,
 ### Domain docs
 
 Single-context: one root `GLOSSARY.md` plus `docs/adr/`. See `docs/agents/domain.md`.
+
+### From grilling to tickets
+
+When a grilling session reaches a shared understanding, stop once the glossary is updated. Ask the user to type `/mattpocock-skills:to-spec` and then `/mattpocock-skills:to-tickets`. Agents can't call these skills themselves, so never write the spec or tickets by hand instead.

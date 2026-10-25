@@ -1,16 +1,17 @@
 import { createPause, type Pause, togglePause } from "./pause";
 
 /**
- * What the player opens over the World, by key or by click: the pause menu
- * and the Hero panel.
+ * What the player opens over the World, by key or by click: the pause menu,
+ * the Hero panel and the Inventory panel.
  */
 export type Menus = {
   pause: Pause;
   heroPanelOpen: boolean;
+  inventoryOpen: boolean;
 };
 
 export function createMenus(): Menus {
-  return { pause: createPause(), heroPanelOpen: false };
+  return { pause: createPause(), heroPanelOpen: false, inventoryOpen: false };
 }
 
 /**
@@ -21,7 +22,8 @@ export type MenuChoice = "newHero" | "confirm" | "goBack";
 
 /**
  * A key pressed at real time `nowMs`, by `KeyboardEvent.key`. Esc opens and
- * closes the pause menu, and C the Hero panel while the game runs. In the
+ * closes the pause menu, and C the Hero panel and I the Inventory panel
+ * while the game runs. In the
  * menu, N asks to confirm a New Hero, and then Y confirms it while N or Esc
  * goes back. Returns `"newHero"` once confirmed, for the caller to start
  * one, `"handled"` for any other key the menus took, and null for a key
@@ -49,6 +51,10 @@ export function pressKey(
   }
   if (letter === "c") {
     menus.heroPanelOpen = !menus.heroPanelOpen;
+    return "handled";
+  }
+  if (letter === "i") {
+    menus.inventoryOpen = !menus.inventoryOpen;
     return "handled";
   }
   return null;
@@ -90,6 +96,7 @@ function choose(
       // Starts afresh with nothing open.
       togglePause(pause, nowMs);
       menus.heroPanelOpen = false;
+      menus.inventoryOpen = false;
       return "newHero";
   }
 }

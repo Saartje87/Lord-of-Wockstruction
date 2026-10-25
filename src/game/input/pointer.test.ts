@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { Vec } from "../sim/vec";
-import { createPointerInput, move, poll, press, release } from "./pointer";
+import {
+  cancel,
+  createPointerInput,
+  move,
+  poll,
+  press,
+  release,
+} from "./pointer";
 
 // Treat canvas pixels as tile units, so tests can speak in tiles, with no
 // Monster anywhere.
@@ -65,6 +72,17 @@ describe("pointer input", () => {
     expect(poll(input, 0, asTiles).orders).toEqual([
       { type: "MoveTo", target: { x: 3.5, y: 4.5 } },
     ]);
+  });
+
+  // The click that closes the pause menu.
+  it("orders nothing for a cancelled click, even while still held", () => {
+    const input = createPointerInput();
+
+    press(input, { x: 3, y: 4 });
+    cancel(input);
+
+    expect(poll(input, 0, asTiles)).toEqual({ orders: [], click: null });
+    expect(poll(input, 500, asTiles).orders).toEqual([]);
   });
 });
 

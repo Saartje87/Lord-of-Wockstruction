@@ -59,6 +59,18 @@ const DEATH_SCREEN = {
 };
 
 /**
+ * The pause menu: a dark panel in the middle of a darkened screen, with the
+ * art's credit and a hint to resume.
+ */
+const PAUSE_MENU = {
+  darkness: 0.6,
+  panel: { width: 460, height: 250, colour: 0x17130e, edge: 0x5a4a2e },
+  title: { colour: 0xe8d27a, size: 40, top: 28 },
+  credit: { colour: 0xd8d0b8, size: 15, top: 96, lineHeight: 22 },
+  hint: { colour: 0x9a9080, size: 14, bottom: 26 },
+};
+
+/**
  * A placeholder telegraph: a red wedge over a Monster's reach and arc, filling
  * outwards as it winds up.
  */
@@ -259,6 +271,8 @@ export function createRenderer(app: Application, art: Art) {
   const fade = new Graphics().rect(0, 0, 1, 1).fill(0x000000);
   fade.visible = false;
   app.stage.addChild(fade);
+  const menu = pauseMenuView();
+  app.stage.addChild(menu.layer);
 
   /** Living Monsters and Corpses by id. */
   const monsters = new Map<MonsterId, MonsterView>();
@@ -382,8 +396,15 @@ export function createRenderer(app: Application, art: Art) {
     /**
      * `alpha` (0..1) is how far the frame is from the previous step to the
      * current one; `pointer` is the cursor on the canvas (CSS px), if on it.
+     * `paused` shows the pause menu over everything.
      */
-    draw(world: World, alpha: number, pointer: Vec | null, nowMs: number) {
+    draw(
+      world: World,
+      alpha: number,
+      pointer: Vec | null,
+      nowMs: number,
+      paused: boolean,
+    ) {
       const active = world.areas[world.areaName];
       if (active !== area) showArea(active);
       const heroAt = lerp(world.hero.prevPos, world.hero.pos, alpha);
@@ -567,6 +588,8 @@ export function createRenderer(app: Application, art: Art) {
         fade.alpha = darkness;
         fade.scale.set(app.screen.width, app.screen.height);
       }
+
+      menu.draw(app.screen, paused);
 
       const markerProgress =
         markedAtMs === null
@@ -918,6 +941,67 @@ function deathScreenView() {
       );
       const { faintest } = DEATH_SCREEN;
       hint.alpha = faintest + ((1 - faintest) * (wave + 1)) / 2;
+    },
+  };
+}
+
+/**
+ * The menu over a paused game: it credits the Flare art and points to
+ * `CREDITS.md` for the rest.
+ */
+function pauseMenuView() {
+  const { darkness, panel, title, credit, hint } = PAUSE_MENU;
+  const layer = new Container();
+  const dark = new Graphics().rect(0, 0, 1, 1).fill(0x000000);
+  dark.alpha = darkness;
+  const box = new Graphics()
+    .rect(-panel.width / 2, 0, panel.width, panel.height)
+    .fill(panel.colour)
+    .stroke({ color: panel.edge, width: 2 });
+  const heading = new Text({
+    text: "Paused",
+    style: { fill: title.colour, fontSize: title.size, fontFamily: SERIF },
+  });
+  heading.anchor.set(0.5, 0);
+  heading.position.set(0, title.top);
+  const credits = new Text({
+    text: [
+      "Art from Flare: Empyrean Campaign",
+      "by Clint Bellanger and contributors",
+      "github.com/flareteam/flare-game · CC-BY-SA 3.0",
+      "Full credits in CREDITS.md",
+    ].join("\n"),
+    style: {
+      fill: credit.colour,
+      fontSize: credit.size,
+      fontFamily: SERIF,
+      align: "center",
+      lineHeight: credit.lineHeight,
+    },
+  });
+  credits.anchor.set(0.5, 0);
+  credits.position.set(0, credit.top);
+  const resume = new Text({
+    text: "Click or press Esc to resume",
+    style: { fill: hint.colour, fontSize: hint.size, fontFamily: SERIF },
+  });
+  resume.anchor.set(0.5, 1);
+  resume.position.set(0, panel.height - hint.bottom);
+  const content = new Container();
+  content.addChild(box, heading, credits, resume);
+  layer.addChild(dark, content);
+  layer.visible = false;
+
+  return {
+    layer,
+    draw(screen: { width: number; height: number }, paused: boolean) {
+      layer.visible = paused;
+      if (!paused) return;
+      dark.scale.set(screen.width, screen.height);
+      content.position.set(
+        Math.round(screen.width / 2),
+        Math.round((screen.height - panel.height) / 2),
+      );
     },
   };
 }

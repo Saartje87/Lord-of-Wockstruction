@@ -6,10 +6,12 @@ import { advance, createClock } from "./clock";
 import { areas, tilesets } from "./content";
 import {
   attachPointer,
+  cancel,
   createPointerInput,
   poll,
   release,
 } from "./input/pointer";
+import { createPause, gameTime, togglePause } from "./pause";
 import { loadArt } from "./render/art";
 import { createRenderer } from "./render/renderer";
 import { isFloor } from "./sim/area";
@@ -53,27 +55,52 @@ export default function GameCanvas() {
       const renderer = createRenderer(app, art);
       const clock = createClock();
       const input = createPointerInput();
+      const pause = createPause();
       let orders: Order[] = [];
       let last = performance.now();
 
       attachPointer(app.canvas, input, listeners.signal);
-      // Any click or key press goes on from the death screen.
-      let pressed = false;
-      const press = () => {
-        pressed = true;
-      };
-      app.canvas.addEventListener("pointerdown", press, {
-        signal: listeners.signal,
-      });
-      window.addEventListener("keydown", press, { signal: listeners.signal });
+      // Esc opens and closes the pause menu, and a click closes it too. Any
+      // other click or key press goes on from the death screen.
+      let clicked = false;
+      let keyed = false;
+      let escPressed = false;
+      app.canvas.addEventListener(
+        "pointerdown",
+        () => {
+          clicked = true;
+        },
+        { signal: listeners.signal },
+      );
+      window.addEventListener(
+        "keydown",
+        (e) => {
+          if (e.repeat) return;
+          if (e.key === "Escape") escPressed = true;
+          else keyed = true;
+        },
+        { signal: listeners.signal },
+      );
 
-      const tick = (now: number) => {
+      const tick = (realNow: number) => {
+        let pressed = clicked || keyed;
+        if (escPressed || (clicked && pause.paused)) {
+          togglePause(pause, realNow);
+          // Neither the closing click nor a hold from before the pause
+          // orders the Hero about.
+          cancel(input);
+          pressed = false;
+        }
+        clicked = keyed = escPressed = false;
+        // Stands still while paused, so the clock owes no steps for it and
+        // the World and every effect hold still.
+        const now = gameTime(pause, realNow);
         const { orders: newOrders, click } = poll(input, now, {
           toTile: renderer.screenToTile,
           monsterAt: renderer.monsterAt,
         });
         orders.push(...newOrders);
-        if (pressed && world.death) {
+        if (pressed && world.death && !pause.paused) {
           orders.push({ type: "Continue" });
           // So holding on after the click doesn't steer in Town.
           release(input);
@@ -91,7 +118,9 @@ export default function GameCanvas() {
           renderer.react(step(world, orders), now);
           orders = [];
         }
-        renderer.draw(world, alpha, input.screen, now);
+        // No hover outline or nameplate under the menu.
+        const pointer = pause.paused ? null : input.screen;
+        renderer.draw(world, alpha, pointer, now, pause.paused);
         app.render();
         frame = requestAnimationFrame(tick);
       };

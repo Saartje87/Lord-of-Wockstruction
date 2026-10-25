@@ -91,6 +91,15 @@ export function release(input: PointerInput) {
 }
 
 /**
+ * Forgets the button: a press not yet polled orders nothing, and holding on
+ * keeps doing nothing until the next press.
+ */
+export function cancel(input: PointerInput) {
+  input.pressedAt = null;
+  release(input);
+}
+
+/**
  * Called once per frame. Returns the orders for the sim, and the target of a
  * fresh click on the floor, if any, to mark.
  *

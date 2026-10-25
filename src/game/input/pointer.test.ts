@@ -2,8 +2,16 @@ import { describe, expect, it } from "vitest";
 import type { Vec } from "../sim/vec";
 import { createPointerInput, move, poll, press, release } from "./pointer";
 
-// Treat canvas pixels as tile units, so tests can speak in tiles.
-const asTiles = (screen: Vec) => screen;
+// Treat canvas pixels as tile units, so tests can speak in tiles, with no
+// Monster anywhere.
+const asTiles = { toTile: (screen: Vec) => screen, monsterAt: () => null };
+
+/** Like `asTiles`, with Monster 7 covering the tile (5, 5). */
+const withMonster = {
+  ...asTiles,
+  monsterAt: (screen: Vec) =>
+    Math.floor(screen.x) === 5 && Math.floor(screen.y) === 5 ? 7 : null,
+};
 
 describe("pointer input", () => {
   it("orders a walk to the centre of the clicked tile", () => {
@@ -57,5 +65,81 @@ describe("pointer input", () => {
     expect(poll(input, 0, asTiles).orders).toEqual([
       { type: "MoveTo", target: { x: 3.5, y: 4.5 } },
     ]);
+  });
+});
+
+describe("pointer input on Monsters", () => {
+  it("orders an Attack on a clicked Monster, with no click marker", () => {
+    const input = createPointerInput();
+
+    press(input, { x: 5.2, y: 5.7 });
+    const { orders, click } = poll(input, 0, withMonster);
+
+    expect(orders).toEqual([{ type: "Attack", monster: 7 }]);
+    expect(click).toBeNull();
+  });
+
+  it("swings in place at the exact cursor on Shift + click, even on a Monster", () => {
+    const input = createPointerInput();
+
+    press(input, { x: 5.2, y: 5.7 }, { shift: true });
+    const { orders, click } = poll(input, 0, withMonster);
+
+    expect(orders).toEqual([{ type: "SwingAt", target: { x: 5.2, y: 5.7 } }]);
+    expect(click).toBeNull();
+  });
+
+  it("keeps swinging towards the cursor while Shift + click is held", () => {
+    const input = createPointerInput();
+    press(input, { x: 2, y: 2 }, { shift: true });
+    poll(input, 0, asTiles);
+
+    move(input, { x: 3.3, y: 2 });
+
+    expect(poll(input, 120, asTiles).orders).toEqual([
+      { type: "SwingAt", target: { x: 3.3, y: 2 } },
+    ]);
+  });
+
+  it("keeps attacking the held Monster, even once the cursor leaves it", () => {
+    const input = createPointerInput();
+    press(input, { x: 5.5, y: 5.5 });
+    poll(input, 0, withMonster);
+
+    expect(poll(input, 120, withMonster).orders).toEqual([
+      { type: "Attack", monster: 7 },
+    ]);
+    move(input, { x: 1, y: 1 });
+    expect(poll(input, 240, withMonster).orders).toEqual([
+      { type: "Attack", monster: 7 },
+    ]);
+  });
+
+  it("switches from steering to attacking when the cursor passes a Monster", () => {
+    const input = createPointerInput();
+    press(input, { x: 3, y: 5 });
+    poll(input, 0, withMonster);
+
+    move(input, { x: 5.5, y: 5.5 });
+    expect(poll(input, 120, withMonster).orders).toEqual([
+      { type: "Attack", monster: 7 },
+    ]);
+    move(input, { x: 7, y: 5 });
+    expect(poll(input, 240, withMonster).orders).toEqual([
+      { type: "Attack", monster: 7 },
+    ]);
+  });
+
+  it("catches the cursor passing a Monster between two re-targets", () => {
+    const input = createPointerInput();
+    press(input, { x: 3, y: 5 });
+    poll(input, 0, withMonster);
+
+    move(input, { x: 5.5, y: 5.5 });
+    expect(poll(input, 16, withMonster).orders).toEqual([
+      { type: "Attack", monster: 7 },
+    ]);
+    move(input, { x: 7, y: 5 });
+    expect(poll(input, 32, withMonster).orders).toEqual([]);
   });
 });

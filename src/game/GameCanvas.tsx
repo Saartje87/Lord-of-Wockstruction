@@ -46,11 +46,10 @@ export default function GameCanvas() {
       attachPointer(app.canvas, input, listeners.signal);
 
       const tick = (now: number) => {
-        const { orders: newOrders, click } = poll(
-          input,
-          now,
-          renderer.screenToTile,
-        );
+        const { orders: newOrders, click } = poll(input, now, {
+          toTile: renderer.screenToTile,
+          monsterAt: renderer.monsterAt,
+        });
         orders.push(...newOrders);
         if (click && isFloor(area, click)) renderer.markClick(click, now);
 
@@ -58,7 +57,7 @@ export default function GameCanvas() {
         const { steps, alpha } = advance(clock, now - last);
         last = now;
         for (let i = 0; i < steps; i++) {
-          step(world, orders);
+          renderer.react(step(world, orders), now);
           orders = [];
         }
         renderer.draw(world, alpha, input.screen, now);

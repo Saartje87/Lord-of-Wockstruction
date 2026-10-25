@@ -10,6 +10,21 @@ for (let x = 3; x <= 8; x++) walls[2 * WIDTH + x] = WALL;
 for (let y = 3; y <= 5; y++) walls[y * WIDTH + 8] = WALL;
 for (let x = 2; x <= 5; x++) walls[7 * WIDTH + x] = WALL;
 
+/** A `monsterSpawn` of `count` Skeletons at a point in tile units. */
+function skeletons(x: number, y: number, count: number) {
+  return {
+    name: "",
+    type: "monsterSpawn",
+    point: true,
+    x: x * 32,
+    y: y * 32,
+    properties: [
+      { name: "monster", type: "string", value: "skeleton" },
+      { name: "count", type: "int", value: count },
+    ],
+  };
+}
+
 /**
  * A tiny inline Town in Tiled's `.tmj` shape, until real `.tmj` files are
  * authored. Isometric 64×32 tiles; Tiled measures object positions in
@@ -52,6 +67,12 @@ export const town = {
       type: "objectgroup",
       name: "entries",
       objects: [{ name: "start", type: "entry", point: true, x: 176, y: 144 }],
+    },
+    {
+      // Something to fight until the Combat Area exists.
+      type: "objectgroup",
+      name: "monsters",
+      objects: [skeletons(3, 5.5, 3), skeletons(10.5, 7.5, 1)],
     },
   ],
 };

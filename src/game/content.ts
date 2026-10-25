@@ -8,3 +8,9 @@ export const areas: Record<string, unknown> = { town, catacombs };
 
 /** The raw `.tsj` content of the shipped Areas' tilesets, by file name. */
 export const tilesets: Record<string, unknown> = { grassland, dungeon };
+
+/** Each shipped Area's display name, shown in a banner on arriving there. */
+export const areaDisplayNames: Record<string, string> = {
+  town: "Town",
+  catacombs: "Catacombs",
+};

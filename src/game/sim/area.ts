@@ -9,6 +9,18 @@ export type Area = {
   name: string;
   width: number;
   height: number;
+  /**
+   * The tileset the tile ids below come from, by name (`grassland`, …), or
+   * null when the Area has none.
+   */
+  tileset: string | null;
+  /**
+   * Row-major, `width * height` long: the tileset tile id drawn on the
+   * floor, or null where there is none. Ids equal Flare's tile ids.
+   */
+  floorTiles: (number | null)[];
+  /** Like `floorTiles`, for the walls and props drawn among characters. */
+  propTiles: (number | null)[];
   /** Row-major, `width * height` long; true where there is floor. */
   floor: boolean[];
   /**
@@ -29,15 +41,19 @@ type TmjLayer =
   | { type: "tilelayer"; name: string; data: number[] }
   | { type: "objectgroup"; name: string; objects: TmjObject[] };
 
-type TmjTileset = {
-  firstgid: number;
-  /** Set when the tileset is in its own file rather than embedded. */
-  source?: string;
+/** A tileset's own content, embedded in a map or in its own `.tsj` file. */
+type Tsj = {
+  name: string;
   tiles?: {
     id: number;
     properties?: { name: string; value: unknown }[];
   }[];
 };
+
+type TmjTileset =
+  | ({ firstgid: number; source?: undefined } & Tsj)
+  /** A tileset in its own file, a path relative to the map. */
+  | { firstgid: number; source: string };
 
 type TmjObject = {
   name: string;
@@ -81,13 +97,19 @@ function cellAt(area: Area, grid: boolean[], point: Vec): boolean {
 /**
  * Reads the `floor`, `walls & props` and `blocking override` tile layers and
  * the `entry` and `monsterSpawn` objects of a Tiled `.tmj` file. Only
- * uncompressed tile data and embedded tilesets are supported.
+ * uncompressed tile data and a single tileset are supported. A tileset in its
+ * own file is looked up in `tilesets` by its file name without extension
+ * (`../tilesets/grassland.tsj` is `grassland`).
  *
  * A tile on `walls & props` blocks when its tileset tile has `blocks` set. A
  * tile on `blocking override` replaces that with its own `blocks`: set for an
  * invisible wall, unset or false to unblock.
  */
-export function loadArea(name: string, content: unknown): Area {
+export function loadArea(
+  name: string,
+  content: unknown,
+  tilesets: Record<string, unknown> = {},
+): Area {
   const tmj = content as Tmj;
   const floorLayer = tmj.layers.find(
     (layer) => layer.type === "tilelayer" && layer.name === "floor",
@@ -95,7 +117,8 @@ export function loadArea(name: string, content: unknown): Area {
   if (floorLayer?.type !== "tilelayer") {
     throw new Error(`Area "${name}" has no "floor" tile layer`);
   }
-  const blocks = blockingGids(name, tmj.tilesets ?? []);
+  const tileset = readTileset(name, tmj.tilesets ?? [], tilesets);
+  const blocks = blockingGids(tileset);
   const tilesOf = (layerName: string) => {
     const layer = tmj.layers.find(
       (layer) => layer.type === "tilelayer" && layer.name === layerName,
@@ -104,6 +127,12 @@ export function loadArea(name: string, content: unknown): Area {
   };
   const walls = tilesOf("walls & props");
   const overrides = tilesOf("blocking override");
+  const firstgid = tileset?.firstgid ?? 1;
+  const tileIds = (data: number[] | null) =>
+    floorLayer.data.map((_, i) => {
+      const gid = (data?.[i] ?? 0) & GID_MASK;
+      return gid === 0 ? null : gid - firstgid;
+    });
   const floor = floorLayer.data.map((gid) => gid !== 0);
   const walkable = floor.map((hasFloor, i) => {
     const override = (overrides?.[i] ?? 0) & GID_MASK;
@@ -133,6 +162,9 @@ export function loadArea(name: string, content: unknown): Area {
     name,
     width: tmj.width,
     height: tmj.height,
+    tileset: tileset?.name ?? null,
+    floorTiles: tileIds(floorLayer.data),
+    propTiles: tileIds(walls),
     floor,
     walkable,
     entries,
@@ -157,19 +189,35 @@ function readSpawn(name: string, object: TmjObject, pos: Vec): Spawn {
   return { monster, count, pos };
 }
 
-/** The gids of every tileset tile whose `blocks` property is set. */
-function blockingGids(name: string, tilesets: TmjTileset[]): Set<number> {
+/** The Area's one tileset, with its content, or null when it has none. */
+function readTileset(
+  name: string,
+  refs: TmjTileset[],
+  files: Record<string, unknown>,
+): (Tsj & { firstgid: number }) | null {
+  if (refs.length > 1) {
+    throw new Error(`Area "${name}" uses ${refs.length} tilesets; use one`);
+  }
+  const ref = refs[0];
+  if (!ref) return null;
+  if (ref.source === undefined) return ref;
+  const file = ref.source.replace(/^.*\//, "").replace(/\.[^.]*$/, "");
+  const content = files[file] as Tsj | undefined;
+  if (!content) {
+    throw new Error(`Area "${name}" uses unknown tileset "${file}"`);
+  }
+  return { ...content, name: file, firstgid: ref.firstgid };
+}
+
+/** The gids of every tile in a tileset whose `blocks` property is set. */
+function blockingGids(
+  tileset: (Tsj & { firstgid: number }) | null,
+): Set<number> {
   const gids = new Set<number>();
-  for (const tileset of tilesets) {
-    if (tileset.source) {
-      throw new Error(
-        `Area "${name}" uses external tileset "${tileset.source}"; embed it`,
-      );
-    }
-    for (const tile of tileset.tiles ?? []) {
-      const property = tile.properties?.find((p) => p.name === "blocks");
-      if (property?.value === true) gids.add(tileset.firstgid + tile.id);
-    }
+  if (!tileset) return gids;
+  for (const tile of tileset.tiles ?? []) {
+    const property = tile.properties?.find((p) => p.name === "blocks");
+    if (property?.value === true) gids.add(tileset.firstgid + tile.id);
   }
   return gids;
 }

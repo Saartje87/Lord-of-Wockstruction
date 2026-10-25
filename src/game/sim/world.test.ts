@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { town } from "../areas/town";
+import town from "../../../content/areas/town.tmj";
+import grassland from "../../../content/tilesets/grassland.tsj";
 import { createWorld, type Order, step, type World } from "./world";
 
 // A 3×2 orthogonal Area with 32 px tiles and a `start` Entry in the middle
@@ -35,9 +36,33 @@ describe("createWorld", () => {
   });
 
   it("puts the Hero at `start` in the shipped Town", () => {
-    const world = createWorld({ areas: { town }, seed: 1 });
+    const world = createWorld({
+      areas: { town },
+      tilesets: { grassland },
+      seed: 1,
+    });
 
     expect(world.hero.pos).toEqual({ x: 5.5, y: 4.5 });
+  });
+
+  it("blocks the shipped Town's walls by their tileset, and not its plants", () => {
+    const world = createWorld({
+      areas: { town },
+      tilesets: { grassland },
+      seed: 1,
+    });
+    const area = world.areas.town;
+    const at = (x: number, y: number) => y * area.width + x;
+
+    expect(area.tileset).toBe("grassland");
+    // A rock pillar, a pine and a leafy tree.
+    expect(area.propTiles[at(4, 2)]).toBe(132);
+    expect(area.walkable[at(4, 2)]).toBe(false);
+    expect(area.walkable[at(8, 4)]).toBe(false);
+    expect(area.walkable[at(3, 7)]).toBe(false);
+    // A fern.
+    expect(area.propTiles[at(6, 6)]).toBe(120);
+    expect(area.walkable[at(6, 6)]).toBe(true);
   });
 
   it("throws naming the Area when it has no `start` Entry", () => {
@@ -58,6 +83,102 @@ describe("createWorld", () => {
     const world = createWorld({ areas: { town: iso }, seed: 1 });
 
     expect(world.hero.pos).toEqual({ x: 0.5, y: 1.5 });
+  });
+});
+
+describe("Area tiles", () => {
+  // A tileset whose first tile has id 16, as Flare's do.
+  const grassland = {
+    firstgid: 1,
+    name: "grassland",
+    tiles: [{ id: 16 }, { id: 17 }, { id: 132 }],
+  };
+  const gid = (id: number) => grassland.firstgid + id;
+
+  it("keeps floor and prop tiles as tileset tile ids, with null where empty", () => {
+    const map = {
+      ...tmj([start]),
+      tilesets: [grassland],
+      layers: [
+        {
+          type: "tilelayer",
+          name: "floor",
+          data: [gid(16), gid(17), gid(16), gid(16), gid(16), 0],
+        },
+        {
+          type: "tilelayer",
+          name: "walls & props",
+          data: [0, 0, gid(132), 0, 0, 0],
+        },
+        { type: "objectgroup", name: "objects", objects: [start] },
+      ],
+    };
+
+    const area = createWorld({ areas: { town: map }, seed: 1 }).areas.town;
+
+    expect(area.tileset).toBe("grassland");
+    expect(area.floorTiles).toEqual([16, 17, 16, 16, 16, null]);
+    expect(area.propTiles).toEqual([null, null, 132, null, null, null]);
+  });
+
+  it("reads a tileset from its own file, by the file's name", () => {
+    const tsj = {
+      type: "tileset",
+      name: "grassland",
+      tiles: [
+        {
+          id: 132,
+          properties: [{ name: "blocks", type: "bool", value: true }],
+        },
+      ],
+    };
+    const map = {
+      ...tmj([start]),
+      tilesets: [{ firstgid: 5, source: "../tilesets/grassland.tsj" }],
+      layers: [
+        { type: "tilelayer", name: "floor", data: [5, 5, 5, 5, 5, 0] },
+        {
+          type: "tilelayer",
+          name: "walls & props",
+          data: [0, 0, 5 + 132, 0, 0, 0],
+        },
+        { type: "objectgroup", name: "objects", objects: [start] },
+      ],
+    };
+
+    const world = createWorld({
+      areas: { town: map },
+      tilesets: { grassland: tsj },
+      seed: 1,
+    });
+
+    const area = world.areas.town;
+    expect(area.tileset).toBe("grassland");
+    expect(area.floorTiles).toEqual([0, 0, 0, 0, 0, null]);
+    expect(area.propTiles).toEqual([null, null, 132, null, null, null]);
+    expect(area.walkable).toEqual([true, true, false, true, true, false]);
+  });
+
+  it("throws naming the Area when its tileset file isn't given", () => {
+    const map = {
+      ...tmj([start]),
+      tilesets: [{ firstgid: 1, source: "../tilesets/cave.tsj" }],
+    };
+
+    expect(() => createWorld({ areas: { town: map }, seed: 1 })).toThrow(
+      'Area "town" uses unknown tileset "cave"',
+    );
+  });
+
+  it("throws naming the Area when it uses more than one tileset", () => {
+    const map = {
+      ...tmj([start]),
+      tilesets: [grassland, { ...grassland, firstgid: 500, name: "dungeon" }],
+    };
+
+    expect(() => createWorld({ areas: { town: map }, seed: 1 })).toThrow(
+      'Area "town" uses 2 tilesets; use one',
+    );
   });
 });
 

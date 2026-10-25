@@ -98,15 +98,17 @@ const TOWN = "town";
 
 /**
  * Builds a World from raw `.tmj` content keyed by Area name, with the Hero in
- * Town at its `start` Entry.
+ * Town at its `start` Entry. `tilesets` holds the raw `.tsj` content of the
+ * tilesets the Areas keep in their own files, keyed by file name.
  */
 export function createWorld(options: {
   areas: Record<string, unknown>;
+  tilesets?: Record<string, unknown>;
   seed: number;
 }): World {
   const areas: Record<string, Area> = {};
   for (const [name, content] of Object.entries(options.areas)) {
-    areas[name] = loadArea(name, content);
+    areas[name] = loadArea(name, content, options.tilesets);
   }
 
   const town = areas[TOWN];

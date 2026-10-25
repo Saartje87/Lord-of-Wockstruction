@@ -1,8 +1,11 @@
 import type { Vec } from "./sim/vec";
 
-/** Screen size of one floor diamond, in CSS pixels. */
-export const TILE_WIDTH = 64;
-export const TILE_HEIGHT = 32;
+/**
+ * Screen size of one floor diamond, in CSS pixels: Flare's tiles at their
+ * native size, so the art is drawn one pixel per CSS pixel.
+ */
+export const TILE_WIDTH = 192;
+export const TILE_HEIGHT = 96;
 
 /** Projects tile units to screen pixels; tile (0, 0) is the top corner. */
 export function toScreen(tile: Vec): Vec {

@@ -2,9 +2,11 @@
 
 import { Application } from "pixi.js";
 import { useEffect, useRef } from "react";
-import { town } from "./areas/town";
+import town from "../../content/areas/town.tmj";
+import grassland from "../../content/tilesets/grassland.tsj";
 import { advance, createClock } from "./clock";
 import { attachPointer, createPointerInput, poll } from "./input/pointer";
+import { loadArt } from "./render/art";
 import { createRenderer } from "./render/renderer";
 import { isFloor } from "./sim/area";
 import { createWorld, type Order, step } from "./sim/world";
@@ -31,13 +33,19 @@ export default function GameCanvas() {
       background: 0x0b0a08,
       autoStart: false,
     });
-    init.then(() => {
+    init.then(async () => {
+      if (cancelled) return;
+      const world = createWorld({
+        areas: { town },
+        tilesets: { grassland },
+        seed: Date.now(),
+      });
+      const area = world.areas[world.areaName];
+      const art = await loadArt(area.tileset, app.renderer.resolution);
       if (cancelled) return;
       container.appendChild(app.canvas);
 
-      const world = createWorld({ areas: { town }, seed: Date.now() });
-      const area = world.areas[world.areaName];
-      const renderer = createRenderer(app, area);
+      const renderer = createRenderer(app, area, art);
       const clock = createClock();
       const input = createPointerInput();
       let orders: Order[] = [];

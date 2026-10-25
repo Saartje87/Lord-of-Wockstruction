@@ -1,19 +1,15 @@
-import { type Application, Container, Graphics } from "pixi.js";
+import { type Application, Container, Graphics, Sprite } from "pixi.js";
 import { toScreen, toTile } from "../iso";
-import { type Area, isFloor, isWalkable } from "../sim/area";
+import { type Area, isFloor } from "../sim/area";
 import { tileOf, type Vec } from "../sim/vec";
 import type { MonsterId, SimEvent, World } from "../sim/world";
 import { heroTuning } from "../tuning/hero";
 import { inputTuning } from "../tuning/input";
+import { compassOf, frameAt } from "./animation";
+import { type Art, frameOf } from "./art";
 
-const FLOOR_FILL = 0x3a3428;
-const FLOOR_LINE = 0x241f17;
-const WALL_FILL = 0x6b5e48;
-const WALL_LINE = 0x8a7a5c;
 const HOVER_LINE = 0xd8c48a;
 const MARKER_LINE = 0xe8d27a;
-const HERO_FILL = 0xc9a24a;
-const FACING_FILL = 0xe8d27a;
 const BONE_FILL = 0xd9d2bf;
 const CORPSE_FILL = 0x8f8775;
 const SWING_FILL = 0x8899ff;
@@ -26,12 +22,18 @@ const FLINCH_LEAN = 0.25;
 /** A placeholder Monster's clickable box around its feet (CSS px). */
 const MONSTER_BOX = { left: -10, right: 10, top: -34, bottom: 6 };
 
+/**
+ * The Hero's walking speed (tiles/s) at which `run` plays at Flare's own
+ * rate; it plays faster or slower with the speed actually walked.
+ */
+const HERO_RUN_SPEED = heroTuning.walkSpeed;
+
 /** Draws an Area and the World in it into a Pixi stage, following the Hero. */
-export function createRenderer(app: Application, area: Area) {
+export function createRenderer(app: Application, area: Area, art: Art) {
   const camera = new Container();
   app.stage.addChild(camera);
 
-  camera.addChild(drawFloor(area));
+  camera.addChild(drawTiles(area, area.floorTiles, art));
   const hover = new Graphics();
   camera.addChild(hover);
   const marker = drawMarker();
@@ -41,12 +43,11 @@ export function createRenderer(app: Application, area: Area) {
   camera.addChild(corpses);
   const swing = new Graphics();
   camera.addChild(swing);
-  const facing = drawFacing();
-  camera.addChild(facing);
-  // The Hero and Monsters, drawn nearest the viewer last.
-  const characters = new Container({ sortableChildren: true });
+  // Walls, props, the Hero and Monsters, drawn nearest the viewer last.
+  const characters = drawTiles(area, area.propTiles, art);
+  characters.sortableChildren = true;
   camera.addChild(characters);
-  const hero = drawHero();
+  const hero = new Sprite(frameOf(art.hero, "stance", "s", 0));
   characters.addChild(hero);
 
   const monsters = new Map<MonsterId, Graphics>();
@@ -54,6 +55,9 @@ export function createRenderer(app: Application, area: Area) {
   const flashUntilMs = new Map<MonsterId, number>();
   let hoveredTile: Vec | null = null;
   let markedAtMs: number | null = null;
+  /** How far into `run` the Hero's feet are, as ms at `HERO_RUN_SPEED`. */
+  let heroRunMs = 0;
+  let heroDrawnAt: Vec | null = null;
 
   /** Maps a point on the canvas (CSS px) to tile units, as last drawn. */
   const screenToTile = (screen: Vec): Vec =>
@@ -109,25 +113,42 @@ export function createRenderer(app: Application, area: Area) {
      */
     draw(world: World, alpha: number, pointer: Vec | null, nowMs: number) {
       const { pos, prevPos } = world.hero;
-      const at = toScreen(lerp(prevPos, pos, alpha));
+      const heroAt = lerp(prevPos, pos, alpha);
+      const at = toScreen(heroAt);
 
-      // Snap the camera to device pixels so the floor stays crisp, and put
-      // the Hero exactly at the centre of the screen.
+      // Snap the camera and sprites to device pixels so the art stays
+      // crisp, with the Hero at the centre of the screen.
       const centre = { x: app.screen.width / 2, y: app.screen.height / 2 };
       const snap = (v: number) =>
         Math.round(v * app.renderer.resolution) / app.renderer.resolution;
       camera.position.set(snap(centre.x - at.x), snap(centre.y - at.y));
-      hero.position.set(
-        centre.x - camera.position.x,
-        centre.y - camera.position.y,
-      );
-      facing.position.copyFrom(hero.position);
-      const ahead = toScreen({
-        x: Math.cos(world.hero.facing),
-        y: Math.sin(world.hero.facing),
-      });
-      facing.rotation = Math.atan2(ahead.y, ahead.x);
-      hero.zIndex = hero.position.y;
+      hero.position.set(snap(at.x), snap(at.y));
+      hero.zIndex = at.y;
+
+      // The feet follow the ground actually covered, so they never slide.
+      const walking = pos.x !== prevPos.x || pos.y !== prevPos.y;
+      if (walking && heroDrawnAt) {
+        const covered = Math.hypot(
+          heroAt.x - heroDrawnAt.x,
+          heroAt.y - heroDrawnAt.y,
+        );
+        heroRunMs += (covered / HERO_RUN_SPEED) * 1000;
+      }
+      heroDrawnAt = heroAt;
+      const compass = compassOf(world.hero.facing);
+      hero.texture = walking
+        ? frameOf(
+            art.hero,
+            "run",
+            compass,
+            frameAt(art.hero.timing.run, heroRunMs),
+          )
+        : frameOf(
+            art.hero,
+            "stance",
+            compass,
+            frameAt(art.hero.timing.stance, nowMs),
+          );
       drawSwing(swing, world);
 
       for (const corpse of world.corpses) {
@@ -210,20 +231,28 @@ function diamond(i: number, j: number): number[] {
   ].flatMap(({ x, y }) => [x, y]);
 }
 
-function drawFloor(area: Area) {
-  const floor = new Graphics();
-  for (let y = 0; y < area.height; y++) {
-    for (let x = 0; x < area.width; x++) {
-      if (!isFloor(area, { x, y })) continue;
-      // Placeholder walls: flat, lighter diamonds until wall art lands.
-      const wall = !isWalkable(area, { x, y });
-      floor
-        .poly(diamond(x, y))
-        .fill(wall ? WALL_FILL : FLOOR_FILL)
-        .stroke({ color: wall ? WALL_LINE : FLOOR_LINE, width: 1 });
+/**
+ * One sprite per tile of a row-major grid of tile ids, each standing on the
+ * centre of its diamond and sorted by it.
+ */
+function drawTiles(area: Area, tiles: (number | null)[], art: Art) {
+  const layer = new Container();
+  tiles.forEach((id, i) => {
+    if (id === null) return;
+    const texture = art.tiles.get(id);
+    if (!texture) {
+      throw new Error(`Area "${area.name}" uses missing tile ${id}`);
     }
-  }
-  return floor;
+    const sprite = new Sprite(texture);
+    const at = toScreen({
+      x: (i % area.width) + 0.5,
+      y: Math.floor(i / area.width) + 0.5,
+    });
+    sprite.position.set(at.x, at.y);
+    sprite.zIndex = at.y;
+    layer.addChild(sprite);
+  });
+  return layer;
 }
 
 /** A diamond centred on its origin, the size of one tile. */
@@ -231,23 +260,6 @@ function drawMarker() {
   return new Graphics()
     .poly(diamond(-0.5, -0.5))
     .stroke({ color: MARKER_LINE, width: 2 });
-}
-
-/**
- * A placeholder direction indicator on the ground, pointing along +x from
- * its origin; rotate it to the facing as seen on screen.
- */
-function drawFacing() {
-  return new Graphics().poly([14, -4, 22, 0, 14, 4]).fill(FACING_FILL);
-}
-
-/** A placeholder Hero standing on its origin. */
-function drawHero() {
-  return new Graphics()
-    .ellipse(0, 0, 12, 6)
-    .fill({ color: 0x000000, alpha: 0.4 })
-    .roundRect(-8, -36, 16, 36, 6)
-    .fill(HERO_FILL);
 }
 
 /**

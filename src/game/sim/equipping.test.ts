@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import type { ItemType } from "../tuning/items";
 import {
   createWorld,
+  cursorItemOf,
   type Gear,
   equipmentOf,
+  gearOf,
   inventoryOf,
   type SimEvent,
   step,
@@ -65,6 +67,119 @@ const ofType = <T extends SimEvent["type"]>(events: SimEvent[], type: T) =>
   events.filter(
     (event): event is Extract<SimEvent, { type: T }> => event.type === type,
   );
+
+describe("Putting a held Item into a slot", () => {
+  it("equips it into an empty slot of its kind", () => {
+    const world = wearing({}, [at("amuletOfVitality", 5, 3)]);
+    step(world, [{ type: "LiftItem", from: { column: 5, row: 3 } }]);
+    const amulet = cursorItemOf(world)?.item;
+
+    const events = step(world, [{ type: "PlaceItem", to: "amulet" }]);
+
+    expect(worn(world).amulet).toBe("amuletOfVitality");
+    expect(cursorItemOf(world)).toBeNull();
+    expect(layout(world)).toEqual([]);
+    expect(ofType(events, "ItemEquipped")).toEqual([
+      { type: "ItemEquipped", item: amulet, slot: "amulet" },
+    ]);
+  });
+
+  it("is refused by a slot of the wrong kind", () => {
+    const world = wearing({}, [at("amuletOfVitality", 5, 3)]);
+    step(world, [{ type: "LiftItem", from: { column: 5, row: 3 } }]);
+    const held = cursorItemOf(world);
+
+    const events = step(world, [{ type: "PlaceItem", to: "ring1" }]);
+
+    expect(events).toEqual([]);
+    expect(worn(world).ring1).toBeNull();
+    expect(cursorItemOf(world)).toEqual(held);
+  });
+
+  it("swaps what was there onto the cursor, to go back where the held Item came from", () => {
+    const world = wearing({ weapon: "shortSword" }, [at("axe", 6, 1)]);
+    step(world, [{ type: "LiftItem", from: { column: 6, row: 1 } }]);
+
+    step(world, [{ type: "PlaceItem", to: "weapon" }]);
+
+    expect(worn(world).weapon).toBe("axe");
+    expect(cursorItemOf(world)).toMatchObject({
+      item: { type: "shortSword" },
+      from: { column: 6, row: 1 },
+    });
+    step(world, [{ type: "ReturnCursorItem" }]);
+    expect(layout(world)).toEqual([at("shortSword", 6, 1)]);
+  });
+
+  it("puts a Ring into either Ring slot", () => {
+    const world = wearing({}, [at("ringOfLife", 0, 0)]);
+    step(world, [{ type: "LiftItem", from: { column: 0, row: 0 } }]);
+
+    step(world, [{ type: "PlaceItem", to: "ring2" }]);
+
+    expect(worn(world).ring2).toBe("ringOfLife");
+    expect(worn(world).ring1).toBeNull();
+  });
+});
+
+describe("Lifting an Equipped Item", () => {
+  it("takes it out of its slot onto the cursor", () => {
+    const world = wearing({ armour: "chainMail" });
+    const chainMail = equipmentOf(world).armour;
+
+    const events = step(world, [{ type: "LiftItem", from: "armour" }]);
+
+    expect(worn(world).armour).toBeNull();
+    expect(cursorItemOf(world)).toEqual({ item: chainMail, from: "armour" });
+    expect(ofType(events, "ItemUnequipped")).toEqual([
+      { type: "ItemUnequipped", item: chainMail, slot: "armour" },
+    ]);
+  });
+
+  it("goes back into its slot when returned, and the Save keeps it there", () => {
+    const world = wearing({ armour: "chainMail" });
+    step(world, [{ type: "LiftItem", from: "armour" }]);
+
+    expect(gearOf(world).equipment.armour).toBe("chainMail");
+    step(world, [{ type: "ReturnCursorItem" }]);
+
+    expect(worn(world).armour).toBe("chainMail");
+    expect(cursorItemOf(world)).toBeNull();
+  });
+
+  it("swaps with a grid Item, which goes back into the slot if it fits there", () => {
+    const world = wearing({ armour: "chainMail" }, [at("leatherArmour", 0, 0)]);
+    step(world, [{ type: "LiftItem", from: "armour" }]);
+
+    step(world, [{ type: "PlaceItem", to: { column: 0, row: 0 } }]);
+
+    expect(layout(world)).toEqual([at("chainMail", 0, 0)]);
+    expect(cursorItemOf(world)).toMatchObject({
+      item: { type: "leatherArmour" },
+      from: "armour",
+    });
+  });
+
+  it("swaps with a grid Item of another kind, which goes to the first free spot", () => {
+    const world = wearing({ armour: "chainMail" }, [at("ringOfLife", 3, 0)]);
+    step(world, [{ type: "LiftItem", from: "armour" }]);
+
+    step(world, [{ type: "PlaceItem", to: { column: 3, row: 0 } }]);
+
+    expect(layout(world)).toEqual([at("chainMail", 3, 0)]);
+    expect(cursorItemOf(world)).toMatchObject({
+      item: { type: "ringOfLife" },
+      from: { column: 0, row: 0 },
+    });
+  });
+
+  it("does nothing for an empty slot", () => {
+    const world = wearing({});
+
+    expect(step(world, [{ type: "LiftItem", from: "ring1" }])).toEqual([]);
+    expect(cursorItemOf(world)).toBeNull();
+  });
+});
 
 describe("Unequipping an Item (right-click)", () => {
   it("moves it to the first free spot in the Inventory", () => {

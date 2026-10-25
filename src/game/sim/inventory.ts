@@ -18,11 +18,20 @@ export type Cell = { column: number; row: number };
 /** An Item in the Inventory, with `cell` its top-left cell. */
 export type PlacedItem = { item: Item; cell: Cell };
 
+/** Where an Item can be: an Inventory cell (its top-left) or an Equipment slot. */
+export type ItemSpot = Cell | EquipmentSlot;
+
+/** Whether a spot is an Equipment slot rather than a cell. */
+export function isSlot(spot: ItemSpot): spot is EquipmentSlot {
+  return typeof spot === "string";
+}
+
 /**
- * The Item held on the cursor, with `from` the top-left cell it goes back to
- * if it's never put down, kept free for it all the while it's held.
+ * The Item held on the cursor, with `from` the top-left cell or the slot it
+ * goes back to if it's never put down, kept free for it all the while it's
+ * held.
  */
-export type CursorItem = { item: Item; from: Cell };
+export type CursorItem = { item: Item; from: ItemSpot };
 
 /** The Hero's Equipment slots, in the order they're listed. */
 export const EQUIPMENT_SLOTS = [

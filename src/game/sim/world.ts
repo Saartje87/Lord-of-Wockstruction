@@ -16,7 +16,9 @@ import {
   type Gear,
   type Item,
   type ItemId,
+  type ItemSpot,
   inTheWay,
+  isSlot,
   onGrid,
   type PlacedItem,
   SLOT_KINDS,
@@ -225,18 +227,19 @@ export type Order =
   /** Swing in place towards a point, hitting every Monster in the arc. */
   | { type: "SwingAt"; target: Vec }
   /**
-   * Lift the Inventory Item covering `from` onto the cursor, if it's empty.
-   * This and the other orders moving Items happen at once, whatever the Hero
-   * is doing.
+   * Lift the Inventory Item covering cell `from`, or the Item Equipped in
+   * slot `from`, onto the cursor, if it's empty. This and the other orders
+   * moving Items happen at once, whatever the Hero is doing.
    */
-  | { type: "LiftItem"; from: Cell }
+  | { type: "LiftItem"; from: ItemSpot }
   /**
-   * Put the cursor Item down with its top-left at `to`: into free cells, or
-   * over exactly one Item, which is swapped onto the cursor. Refused off the
-   * grid, over two or more Items, or when a swapped-out Item couldn't go
-   * back anywhere (see `placement`).
+   * Put the cursor Item down with its top-left at cell `to`, or into slot
+   * `to`: into free cells or an empty slot, or over exactly one Item, which
+   * is swapped onto the cursor. Refused off the grid, over two or more
+   * Items, into a slot of another kind, or when a swapped-out Item couldn't
+   * go back anywhere (see `placement`).
    */
-  | { type: "PlaceItem"; to: Cell }
+  | { type: "PlaceItem"; to: ItemSpot }
   /** Lay the cursor Item on the ground at the Hero's feet. */
   | { type: "DropItem" }
   /**
@@ -309,9 +312,10 @@ export type {
   Gear,
   Item,
   ItemId,
+  ItemSpot,
   PlacedItem,
 } from "./inventory";
-export { EQUIPMENT_SLOTS } from "./inventory";
+export { EQUIPMENT_SLOTS, isSlot } from "./inventory";
 
 /** Level, Experience and Attributes: what the Save keeps besides gear. */
 export type Progress = {
@@ -424,15 +428,16 @@ export function progressOf(world: World): Progress {
 
 /**
  * The Hero's Inventory and Equipment by Item type, as the Save keeps them:
- * a held Item is back at the cell it was lifted from.
+ * a held Item is back at the cell or slot it was lifted from.
  */
 export function gearOf(world: World): Gear {
-  const { equipment } = world.hero;
+  const { equipment, cursor } = world.hero;
   const worn: Gear["equipment"] = {};
   for (const slot of EQUIPMENT_SLOTS) {
     const item = equipment[slot];
     if (item) worn[slot] = item.type;
   }
+  if (cursor && isSlot(cursor.from)) worn[cursor.from] = cursor.item.type;
   return {
     inventory: taken(world.hero).map(({ type, cell }) => ({
       type,
@@ -470,7 +475,12 @@ function copyPlaced({ item, cell }: PlacedItem): PlacedItem {
 /** The Item held on the cursor and the cell it was lifted from, or null. */
 export function cursorItemOf(world: World): CursorItem | null {
   const { cursor } = world.hero;
-  return cursor && { item: { ...cursor.item }, from: { ...cursor.from } };
+  return cursor && { item: { ...cursor.item }, from: copySpot(cursor.from) };
+}
+
+/** A copy of a spot, so a query's answer can't change the World. */
+function copySpot(spot: ItemSpot): ItemSpot {
+  return isSlot(spot) ? spot : { ...spot };
 }
 
 /** The Ground Items lying in the active Area. */
@@ -890,12 +900,24 @@ function give(world: World, order: Order, events: SimEvent[]) {
   }
 }
 
-/** Lifts the Inventory Item covering `cell` onto an empty cursor. */
-function liftItem(world: World, cell: Cell, events: SimEvent[]) {
+/**
+ * Lifts the Inventory Item covering cell `from`, or the Item Equipped in
+ * slot `from`, onto an empty cursor.
+ */
+function liftItem(world: World, from: ItemSpot, events: SimEvent[]) {
   const { hero } = world;
   if (hero.cursor) return;
+  if (isSlot(from)) {
+    const item = hero.equipment[from];
+    if (!item) return;
+    hero.equipment[from] = null;
+    hero.cursor = { item, from };
+    events.push({ type: "ItemUnequipped", item: { ...item }, slot: from });
+    events.push({ type: "InventoryChanged" });
+    return;
+  }
   const placed = hero.inventory.find(({ item, cell: at }) =>
-    covers(item.type, at, cell),
+    covers(item.type, at, from),
   );
   if (!placed) return;
   hero.inventory = hero.inventory.filter((other) => other !== placed);
@@ -904,20 +926,29 @@ function liftItem(world: World, cell: Cell, events: SimEvent[]) {
 }
 
 /**
- * What putting the cursor Item down at `to` would do: the Item it would swap
- * onto the cursor, if any, and that Item's cell to go back to.
+ * What putting the cursor Item down would do: the Item it would swap onto
+ * the cursor, if any, and the spot that Item would go back to.
  */
-type Placing = { out: PlacedItem; home: Cell } | { out: null };
+type Placing = { out: Item; home: ItemSpot } | { out: null };
 
 /**
- * How the cursor Item would go down with its top-left at `to`, or null when
- * it can't. A swapped-out Item goes back to where the cursor Item was lifted
- * from if it fits there, or else to the first free spot; with neither, the
- * swap is refused, so a held Item always has somewhere to go back to.
+ * How the cursor Item would go down at `to`, or null when it can't: on the
+ * grid with its top-left at a cell, or into a slot of its kind. A
+ * swapped-out Item goes back to where the cursor Item was lifted from if it
+ * fits there, or else to the first free spot; with neither, the swap is
+ * refused, so a held Item always has somewhere to go back to.
  */
-function planPlacing(world: World, to: Cell): Placing | null {
-  const { cursor, inventory } = world.hero;
-  if (!cursor || !onGrid(cursor.item.type, to)) return null;
+function planPlacing(world: World, to: ItemSpot): Placing | null {
+  const { cursor, inventory, equipment } = world.hero;
+  if (!cursor) return null;
+  if (isSlot(to)) {
+    if (itemOf(cursor.item.type).kind !== SLOT_KINDS[to]) return null;
+    const out = equipment[to];
+    if (!out) return { out: null };
+    const home = homeFor(out.type, cursor.from, typed(inventory));
+    return home && { out, home };
+  }
+  if (!onGrid(cursor.item.type, to)) return null;
   const blocking = inTheWay(typed(inventory), cursor.item.type, to);
   if (blocking.length === 0) return { out: null };
   if (blocking.length > 1) return null;
@@ -926,10 +957,23 @@ function planPlacing(world: World, to: Cell): Placing | null {
     ...typed(inventory.filter((other) => other !== out)),
     { type: cursor.item.type, cell: to },
   ];
-  const home = fitsAt(after, out.item.type, cursor.from)
-    ? cursor.from
-    : firstFreeCell(after, out.item.type);
-  return home && { out, home };
+  const home = homeFor(out.item.type, cursor.from, after);
+  return home && { out: out.item, home };
+}
+
+/**
+ * Where an Item of `type` swapped onto the cursor goes back to: `from` if it
+ * fits there among `placed`, else the first free spot, or null for none.
+ */
+function homeFor(
+  type: ItemType,
+  from: ItemSpot,
+  placed: readonly { type: ItemType; cell: Cell }[],
+): ItemSpot | null {
+  const fits = isSlot(from)
+    ? itemOf(type).kind === SLOT_KINDS[from]
+    : fitsAt(placed, type, from);
+  return fits ? from : firstFreeCell(placed, type);
 }
 
 /** Placed Items by type and cell, each with the Item it stands for. */
@@ -942,25 +986,34 @@ function typed(inventory: readonly PlacedItem[]) {
 }
 
 /**
- * What putting the cursor Item down with its top-left at `to` would do:
- * `"fits"` into free cells, `"swap"` with the one Item in the way, or null
- * when it's refused or the cursor is empty.
+ * What putting the cursor Item down at `to` (a cell for its top-left, or a
+ * slot) would do: `"fits"` into free cells or an empty slot, `"swap"` with
+ * the one Item in the way, or null when it's refused or the cursor is empty.
  */
-export function placement(world: World, to: Cell): "fits" | "swap" | null {
+export function placement(world: World, to: ItemSpot): "fits" | "swap" | null {
   const placing = planPlacing(world, to);
   if (!placing) return null;
   return placing.out ? "swap" : "fits";
 }
 
 /** Puts the cursor Item down at `to`, unless that's refused. */
-function placeItem(world: World, to: Cell, events: SimEvent[]) {
+function placeItem(world: World, to: ItemSpot, events: SimEvent[]) {
   const { hero } = world;
   const placing = planPlacing(world, to);
   if (!hero.cursor || !placing) return;
-  const placed = { item: hero.cursor.item, cell: { ...to } };
+  const { item } = hero.cursor;
   const { out } = placing;
-  hero.inventory = [...hero.inventory.filter((other) => other !== out), placed];
-  hero.cursor = out && { item: out.item, from: placing.home };
+  if (isSlot(to)) {
+    hero.equipment[to] = item;
+    if (out) events.push({ type: "ItemUnequipped", item: { ...out }, slot: to });
+    events.push({ type: "ItemEquipped", item: { ...item }, slot: to });
+  } else {
+    hero.inventory = [
+      ...hero.inventory.filter((other) => other.item !== out),
+      { item, cell: { ...to } },
+    ];
+  }
+  hero.cursor = out && { item: out, from: placing.home };
   events.push({ type: "InventoryChanged" });
 }
 
@@ -1034,11 +1087,17 @@ function slotFor(equipment: Equipment, type: ItemType): EquipmentSlot {
   return fitting.find((slot) => !equipment[slot]) ?? fitting[0];
 }
 
-/** Puts the cursor Item back at the cell it was lifted from, kept free. */
+/** Puts the cursor Item back at the cell or slot it was lifted from, kept free. */
 function returnCursorItem(world: World, events: SimEvent[]) {
   const { hero } = world;
   if (!hero.cursor) return;
-  hero.inventory.push({ item: hero.cursor.item, cell: hero.cursor.from });
+  const { item, from } = hero.cursor;
+  if (isSlot(from)) {
+    hero.equipment[from] = item;
+    events.push({ type: "ItemEquipped", item: { ...item }, slot: from });
+  } else {
+    hero.inventory.push({ item, cell: from });
+  }
   hero.cursor = null;
   events.push({ type: "InventoryChanged" });
 }
@@ -1050,7 +1109,9 @@ function returnCursorItem(world: World, events: SimEvent[]) {
 function taken(hero: Hero): { type: ItemType; cell: Cell }[] {
   const { inventory, cursor } = hero;
   const placed = inventory.map(({ item, cell }) => ({ type: item.type, cell }));
-  if (cursor) placed.push({ type: cursor.item.type, cell: cursor.from });
+  if (cursor && !isSlot(cursor.from)) {
+    placed.push({ type: cursor.item.type, cell: cursor.from });
+  }
   return placed;
 }
 

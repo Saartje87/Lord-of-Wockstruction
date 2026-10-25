@@ -1,10 +1,11 @@
 import { heroTuning } from "../tuning/hero";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import { type Area, isWalkable, loadArea, type Spawn } from "./area";
+import { noticeHit, stepMonsters, wanderPause } from "./monsters";
 import { findPath } from "./path";
 import { createRng, type Rng, random, randomInt } from "./random";
 import { msToSteps, perStep } from "./units";
-import type { Vec } from "./vec";
+import { distance, type Vec } from "./vec";
 
 const WALK_PER_STEP = perStep(heroTuning.walkSpeed);
 /** How many steps a swing takes. */
@@ -59,7 +60,27 @@ export type Monster = {
   life: number;
   /** Steps of flinching left; 0 when not flinching. */
   flinch: number;
+  state: MonsterState;
+  /** Where it was placed: it strolls around here and walks back here. */
+  home: Vec;
+  /**
+   * Waypoints around walls to where it is going, empty on a clear line; or,
+   * while wandering, the one point it strolls to.
+   */
+  path: Vec[];
+  /** Steps until it re-plans `path`. */
+  replan: number;
+  /** Steps left in which it can't notice the Hero, after getting home. */
+  grace: number;
+  /** While idle, steps left before it strolls again. */
+  pause: number;
 };
+
+/**
+ * `idle` and `wander` stroll around the spawn, `chase` goes after the Hero
+ * and `return` walks home after giving up.
+ */
+export type MonsterState = "idle" | "wander" | "chase" | "return";
 
 /** What remains of a dead Monster: inert, not clickable, not blocking. */
 export type Corpse = { id: MonsterId; type: MonsterType; pos: Vec };
@@ -169,6 +190,13 @@ function placePack(world: World, area: Area, spawn: Spawn) {
       prevPos: { ...pos },
       life: monsterTuning[spawn.monster].life,
       flinch: 0,
+      state: "idle",
+      home: { ...pos },
+      path: [],
+      replan: 0,
+      grace: 0,
+      // So a pack doesn't set off strolling in step.
+      pause: wanderPause(world, spawn.monster),
     });
   }
 }
@@ -201,6 +229,7 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   approach(world);
   walk(hero);
   approach(world);
+  stepMonsters(world);
 
   world.tick += 1;
   return events;
@@ -318,17 +347,16 @@ function hit(world: World, monster: Monster, events: SimEvent[]) {
       pos: monster.pos,
     });
     events.push({ type: "MonsterDied", id: monster.id });
-  } else if (random(world.rng) < monsterTuning[monster.type].flinchChance) {
+    return;
+  }
+  noticeHit(world, monster);
+  if (random(world.rng) < monsterTuning[monster.type].flinchChance) {
     monster.flinch = FLINCH_STEPS[monster.type];
   }
 }
 
 function monsterById(world: World, id: MonsterId): Monster | undefined {
   return world.monsters.find((monster) => monster.id === id);
-}
-
-function distance(a: Vec, b: Vec): number {
-  return Math.hypot(b.x - a.x, b.y - a.y);
 }
 
 /** The absolute difference between two angles, in [0, π]. */

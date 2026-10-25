@@ -21,6 +21,8 @@ export type MonsterTuning = {
   wanderPauseMs: [number, number];
   /** How near the Hero must come to be noticed (tiles). */
   aggroRadius: number;
+  /** While walking around walls, how often a Monster re-plans its path (ms). */
+  replanMs: number;
   /** Whether walls hide the Hero from a Monster. */
   needsSight: boolean;
   /** How near idle Monsters must be to wake with one that notices (tiles). */
@@ -63,6 +65,7 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
     wanderSpeed: 0.35,
     wanderPauseMs: [1000, 3500],
     aggroRadius: 7,
+    replanMs: 400,
     needsSight: true,
     spreadRadius: 1.5,
     reach: 1.2,

@@ -116,7 +116,7 @@ function astar(
  * Whether a body of `radius` can walk the straight line from `a` to `b`: the
  * line and its two edges `radius` either side touch only walkable tiles.
  */
-function isClear(area: Area, a: Vec, b: Vec, radius: number): boolean {
+export function isClear(area: Area, a: Vec, b: Vec, radius: number): boolean {
   const length = Math.hypot(b.x - a.x, b.y - a.y);
   if (length === 0) return isWalkable(area, a);
   // A hair under `radius`, so a body exactly `radius` from a wall (where a
@@ -132,6 +132,11 @@ function isClear(area: Area, a: Vec, b: Vec, radius: number): boolean {
       { x: b.x + ox * side, y: b.y + oy * side },
     ),
   );
+}
+
+/** Whether nothing blocks the line of sight from `a` to `b`. */
+export function canSee(area: Area, a: Vec, b: Vec): boolean {
+  return touchesOnlyWalkable(area, a, b);
 }
 
 /**

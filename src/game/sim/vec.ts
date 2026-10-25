@@ -5,3 +5,7 @@ export type Vec = { x: number; y: number };
 export function tileOf(point: Vec): Vec {
   return { x: Math.floor(point.x), y: Math.floor(point.y) };
 }
+
+export function distance(a: Vec, b: Vec): number {
+  return Math.hypot(b.x - a.x, b.y - a.y);
+}

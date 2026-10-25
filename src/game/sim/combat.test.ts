@@ -304,12 +304,15 @@ function fight(world: World, id: number, limit = 600): SimEvent[] {
 describe("Attack", () => {
   it("walks into reach of the Skeleton and swings at it", () => {
     const world = withSkeletons([[5.5, 1.5]]);
+    const [skeleton] = world.monsters;
     step(world, [attack(1)]);
     while (!world.hero.swing) step(world, []);
 
+    // It comes to meet the Hero.
     const { x, y } = world.hero.pos;
-    expect(Math.hypot(5.5 - x, 1.5 - y)).toBeLessThanOrEqual(1);
-    expect(Math.hypot(5.5 - x, 1.5 - y)).toBeGreaterThan(0.9);
+    const gap = Math.hypot(skeleton.pos.x - x, skeleton.pos.y - y);
+    expect(gap).toBeLessThanOrEqual(1);
+    expect(gap).toBeGreaterThan(0.9);
     expect(stepTimes(world, 8)[7]).toContainEqual(
       expect.objectContaining({ type: "HitLanded", target: 1 }),
     );

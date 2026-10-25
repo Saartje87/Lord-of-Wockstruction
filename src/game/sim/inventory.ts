@@ -113,7 +113,7 @@ export function isValidGear(gear: Gear): boolean {
   );
   const equippedFine = Object.entries(equipment).every(
     ([slot, type]) =>
-      slot in SLOT_KINDS &&
+      Object.hasOwn(SLOT_KINDS, slot) &&
       known(type) &&
       itemTuning[type].kind === SLOT_KINDS[slot as EquipmentSlot],
   );

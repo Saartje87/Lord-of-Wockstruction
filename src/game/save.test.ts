@@ -8,7 +8,7 @@ import {
   type SaveStorage,
   writeSave,
 } from "./save";
-import type { Progress } from "./sim/world";
+import type { Gear, Progress } from "./sim/world";
 
 /** Storage kept in a Map, standing in for the browser's. */
 function memoryStorage(): SaveStorage & { keys(): string[] } {
@@ -23,6 +23,30 @@ function memoryStorage(): SaveStorage & { keys(): string[] } {
     },
     keys: () => [...stored.keys()],
   };
+}
+
+/** A New Hero's gear: the Short Sword Equipped and nothing carried. */
+const SWORD_ONLY: Gear = { inventory: [], equipment: { weapon: "shortSword" } };
+
+/** Some gear carried and worn, as a Hero might have it later on. */
+const GEARED: Gear = {
+  inventory: [
+    { type: "shortSword", cell: { column: 0, row: 0 } },
+    { type: "chainMail", cell: { column: 8, row: 1 } },
+    { type: "ringOfLife", cell: { column: 1, row: 3 } },
+  ],
+  equipment: {
+    weapon: "axe",
+    armour: "leatherArmour",
+    amulet: "amuletOfVitality",
+    ring1: "ringOfStrength",
+    ring2: "ringOfDexterity",
+  },
+};
+
+/** A Save of `progress`, with only the Short Sword unless `gear` is given. */
+function save(progress: Progress, gear: Gear = SWORD_ONLY) {
+  return { progress, gear };
 }
 
 /**
@@ -80,16 +104,18 @@ describe("the Save in storage", () => {
 
   it("reads back what was last written, under one key", () => {
     const storage = memoryStorage();
-    writeSave(storage, progress(2, 600));
-    writeSave(storage, progress(3, 1_600, { strength: 24 }));
+    writeSave(storage, save(progress(2, 600)));
+    writeSave(storage, save(progress(3, 1_600, { strength: 24 }), GEARED));
 
-    expect(readSave(storage)).toEqual(progress(3, 1_600, { strength: 24 }));
+    expect(readSave(storage)).toEqual(
+      save(progress(3, 1_600, { strength: 24 }), GEARED),
+    );
     expect(storage.keys()).toHaveLength(1);
   });
 
   it("is no Save once removed", () => {
     const storage = memoryStorage();
-    writeSave(storage, progress(2, 600));
+    writeSave(storage, save(progress(2, 600)));
 
     removeSave(storage);
 
@@ -99,7 +125,7 @@ describe("the Save in storage", () => {
 
   it("is no Save when what's stored is corrupt", () => {
     const storage = memoryStorage();
-    writeSave(storage, progress(2, 600));
+    writeSave(storage, save(progress(2, 600)));
     const [key] = storage.keys();
     storage.set(key, "{level: 2");
 
@@ -109,18 +135,28 @@ describe("the Save in storage", () => {
 
 describe("stored text", () => {
   it("round-trips the Hero's progress", () => {
-    const kept = progress(12, 100_000, {
-      strength: 35,
-      dexterity: 30,
-      vitality: 40,
-    });
+    const kept = save(
+      progress(12, 100_000, { strength: 35, dexterity: 30, vitality: 40 }),
+    );
+
+    expect(parseSave(encodeSave(kept))).toEqual(kept);
+  });
+
+  it("round-trips the Inventory and Equipment", () => {
+    const kept = save(progress(2, 600), GEARED);
+
+    expect(parseSave(encodeSave(kept))).toEqual(kept);
+  });
+
+  it("round-trips a Hero with nothing Equipped", () => {
+    const kept = save(progress(2, 600), { inventory: [], equipment: {} });
 
     expect(parseSave(encodeSave(kept))).toEqual(kept);
   });
 
   it("carries a version number", () => {
-    expect(JSON.parse(encodeSave(progress(1, 0)))).toMatchObject({
-      version: 2,
+    expect(JSON.parse(encodeSave(save(progress(1, 0))))).toMatchObject({
+      version: 3,
     });
   });
 
@@ -132,39 +168,94 @@ describe("stored text", () => {
     ["that isn't JSON", "{level: 2"],
     ["that isn't an object", "42"],
     ["of null", "null"],
-    ["without a version", stored(undefined, progress(2, 500))],
-    ["without Experience", v2({ experience: undefined })],
-    ["without Strength", v2({ strength: undefined })],
-    ["without unspent points", v2({ attributePoints: undefined })],
-    ["with a Level that isn't a whole number", v2({ level: 2.5 })],
-    ["with a Level below 1", v2(progress(0, 0))],
-    ["with a Level above 99", v2(progress(100, 3_520_485_254))],
-    ["with negative Experience", v2(progress(1, -1))],
-    ["with Experience past the cap", v2(progress(99, 3_520_485_255))],
-    ["with too little Experience for its Level", v2(progress(2, 499))],
-    ["with enough Experience for the next Level", v2(progress(2, 1_500))],
-    ["with Dexterity that isn't a whole number", v2({ dexterity: 20.5 })],
-    ["with Vitality below where a Hero starts", v2({ vitality: 19 })],
-    ["with negative unspent points", v2({ attributePoints: -1 })],
-    ["with more points than its Level gave", v2({ attributePoints: 6 })],
-    ["with fewer points than its Level gave", v2({ attributePoints: 4 })],
-    ["with more spent than its Level gave", v2({ strength: 21 })],
+    ["without a version", stored(undefined, fields(progress(2, 500)))],
+    ["without Experience", v3({ experience: undefined })],
+    ["without Strength", v3({ strength: undefined })],
+    ["without unspent points", v3({ attributePoints: undefined })],
+    ["with a Level that isn't a whole number", v3({ level: 2.5 })],
+    ["with a Level below 1", v3(progress(0, 0))],
+    ["with a Level above 99", v3(progress(100, 3_520_485_254))],
+    ["with negative Experience", v3(progress(1, -1))],
+    ["with Experience past the cap", v3(progress(99, 3_520_485_255))],
+    ["with too little Experience for its Level", v3(progress(2, 499))],
+    ["with enough Experience for the next Level", v3(progress(2, 1_500))],
+    ["with Dexterity that isn't a whole number", v3({ dexterity: 20.5 })],
+    ["with Vitality below where a Hero starts", v3({ vitality: 19 })],
+    ["with negative unspent points", v3({ attributePoints: -1 })],
+    ["with more points than its Level gave", v3({ attributePoints: 6 })],
+    ["with fewer points than its Level gave", v3({ attributePoints: 4 })],
+    ["with more spent than its Level gave", v3({ strength: 21 })],
+    ["without an Inventory", v3({ inventory: undefined })],
+    ["without Equipment", v3({ equipment: undefined })],
+    ["with an Inventory that isn't a list", v3({ inventory: {} })],
+    ["with Equipment that isn't an object", v3({ equipment: [] })],
+    [
+      "with an unknown Item type",
+      v3({ inventory: [{ type: "bow", cell: { column: 0, row: 0 } }] }),
+    ],
+    ["with an Item without a cell", v3({ inventory: [{ type: "axe" }] })],
+    [
+      "with an Item off the grid's left",
+      v3({ inventory: [{ type: "axe", cell: { column: -1, row: 0 } }] }),
+    ],
+    [
+      // The Axe is 2×3: from column 9 it hangs off the right edge.
+      "with an Item hanging off the grid's right",
+      v3({ inventory: [{ type: "axe", cell: { column: 9, row: 0 } }] }),
+    ],
+    [
+      // The Short Sword is 1×3: from row 2 it hangs off the bottom.
+      "with an Item hanging off the grid's bottom",
+      v3({ inventory: [{ type: "shortSword", cell: { column: 0, row: 2 } }] }),
+    ],
+    [
+      "with an Item at a cell that isn't whole",
+      v3({
+        inventory: [{ type: "ringOfLife", cell: { column: 0.5, row: 0 } }],
+      }),
+    ],
+    [
+      "with overlapping Items",
+      v3({
+        inventory: [
+          { type: "axe", cell: { column: 0, row: 0 } },
+          { type: "ringOfLife", cell: { column: 1, row: 2 } },
+        ],
+      }),
+    ],
+    [
+      "with an Item in a slot of another kind",
+      v3({ equipment: { weapon: "leatherArmour" } }),
+    ],
+    ["with a Ring as the Amulet", v3({ equipment: { amulet: "ringOfLife" } })],
+    ["with an unknown slot", v3({ equipment: { helm: "chainMail" } })],
+    ["with an unknown Equipped type", v3({ equipment: { weapon: "bow" } })],
   ])("gives no Save for text %s", (_, text) => {
     expect(parseSave(text)).toBeNull();
   });
 
   it("gives no Save for another version", () => {
-    expect(parseSave(stored(1, progress(2, 500)))).toBeNull();
-    expect(parseSave(stored(3, progress(2, 500)))).toBeNull();
+    expect(parseSave(stored(2, fields(progress(2, 500))))).toBeNull();
+    expect(parseSave(stored(4, fields(progress(2, 500))))).toBeNull();
+  });
+
+  // What Saves before Items held, so a Hero from then starts afresh.
+  it("gives no Save for version 2 progress without gear", () => {
+    expect(parseSave(stored(2, progress(2, 500)))).toBeNull();
   });
 });
 
+/** The stored fields of a Save of `progress` with only the Short Sword. */
+function fields(kept: Progress): object {
+  return { ...kept, ...SWORD_ONLY };
+}
+
 /**
- * Version 2 stored text for a Level 2 Hero with 500 Experience and their 5
- * points unspent, with `changes` made to it.
+ * Version 3 stored text for a Level 2 Hero with 500 Experience, their 5
+ * points unspent and only the Short Sword, with `changes` made to it.
  */
-function v2(changes: Partial<Record<keyof Progress, number | undefined>>) {
-  return stored(2, { ...progress(2, 500), ...changes });
+function v3(changes: Record<string, unknown>) {
+  return stored(3, { ...fields(progress(2, 500)), ...changes });
 }
 
 /** Stored text of `version` holding `fields`. */

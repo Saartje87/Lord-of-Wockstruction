@@ -14,12 +14,15 @@ How to see the game running, for acceptance criteria that only show on screen (H
 
 ## Skip the grind
 
-The Save lives in `localStorage` under `wiablo.save` as JSON. Write one and reload to start at any Level; `parseSave` in `src/game/save.ts` lists the fields and the checks a Save must pass (points raised plus unspent equal 5 × (Level − 1)). For example, a Level 3 Hero with 10 unspent points:
+The Save lives in `localStorage` under `wiablo.save` as JSON. Write one and reload to start at any Level; `parseSave` in `src/game/save.ts` lists the fields and the checks a Save must pass (points raised plus unspent equal 5 × (Level − 1); Items on the grid, not overlapping, and in slots of their kind). For example, a Level 3 Hero with 10 unspent points:
 
 ```js
 localStorage.setItem("wiablo.save", JSON.stringify({
-  version: 2, level: 3, experience: 2000,
+  version: 3, level: 3, experience: 2000,
   strength: 20, dexterity: 20, vitality: 20, attributePoints: 10,
+  // Item types are the keys of `itemTuning` in src/game/tuning/items.ts.
+  inventory: [{ type: "axe", cell: { column: 0, row: 0 } }],
+  equipment: { weapon: "shortSword" },
 }));
 location.reload();
 ```

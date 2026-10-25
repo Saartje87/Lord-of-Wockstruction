@@ -20,11 +20,12 @@ import {
   changesProgress,
   readSave,
   removeSave,
+  saveOf,
   writeSave,
 } from "./save";
 import { isFloor } from "./sim/area";
 import type { Vec } from "./sim/vec";
-import { createWorld, type Order, progressOf, step } from "./sim/world";
+import { createWorld, type Order, step } from "./sim/world";
 
 /** Mounts the Pixi Application and runs the fixed-step loop. */
 export default function GameCanvas() {
@@ -52,11 +53,13 @@ export default function GameCanvas() {
       if (cancelled) return;
       const storage = browserStorage();
       // The Save's Hero, or a fresh one when there's no Save.
+      const save = readSave(storage);
       let world = createWorld({
         areas,
         tilesets,
         seed: Date.now(),
-        progress: readSave(storage),
+        progress: save?.progress,
+        gear: save?.gear,
       });
       const usedTilesets = Object.values(world.areas).map(
         (area) => area.tileset,
@@ -165,7 +168,7 @@ export default function GameCanvas() {
         last = now;
         for (let i = 0; i < steps; i++) {
           const events = step(world, orders);
-          if (changesProgress(events)) writeSave(storage, progressOf(world));
+          if (changesProgress(events)) writeSave(storage, saveOf(world));
           renderer.react(events, now);
           orders = [];
         }

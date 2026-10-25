@@ -10,7 +10,7 @@ import {
 } from "../sim/inventory";
 import { inside, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
-import { damageWith, type Order, type World } from "../sim/world";
+import type { Order, World } from "../sim/world";
 import {
   type Bonus,
   type ItemType,
@@ -244,15 +244,16 @@ const BONUS_NAMES: Record<Bonus, string> = {
 };
 
 /**
- * The lines of an Item's tooltip: its name, then a Weapon's damage as the
- * Hero would deal it, an Armour's Defense, and its bonuses.
+ * The lines of an Item's tooltip, all of them the Item's own fixed values,
+ * as in Diablo 2: its name, then a Weapon's damage before the Hero's
+ * Strength, an Armour's Defense, and its bonuses.
  */
-export function itemTooltip(world: World, type: ItemType): string[] {
+export function itemTooltip(type: ItemType): string[] {
   const item = itemOf(type);
   const lines = [item.name];
   if (item.damage) {
     // Each hit rounds its own damage, so the range shows rounded too.
-    const [min, max] = damageWith(world, type);
+    const [min, max] = item.damage;
     lines.push(`Damage: ${Math.round(min)}–${Math.round(max)}`);
   }
   if (item.defense !== undefined) lines.push(`Defense: ${item.defense}`);

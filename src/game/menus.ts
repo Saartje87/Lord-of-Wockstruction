@@ -1,4 +1,5 @@
 import { createPause, type Pause, togglePause } from "./pause";
+import type { SimEvent } from "./sim/world";
 
 /**
  * What the player opens over the World, by key or by click: the pause menu,
@@ -15,6 +16,12 @@ export function createMenus(): Menus {
 }
 
 /**
+ * What the menus are told of the World: whether the Hero lies dead, from
+ * their Death until they arrive back in Town. The panels stay shut then.
+ */
+export type HeroState = { heroDead: boolean };
+
+/**
  * The pause menu's buttons: New Hero asks to confirm one, and then
  * `confirm` starts it while `goBack` returns to the menu.
  */
@@ -23,7 +30,8 @@ export type MenuChoice = "newHero" | "confirm" | "goBack";
 /**
  * A key pressed at real time `nowMs`, by `KeyboardEvent.key`. Esc opens and
  * closes the pause menu, and C the Hero panel and I the Inventory panel
- * while the game runs. In the
+ * while the game runs; while `hero` lies dead, C and I are taken but open
+ * nothing. In the
  * menu, N asks to confirm a New Hero, and then Y confirms it while N or Esc
  * goes back. Returns `"newHero"` once confirmed, for the caller to start
  * one, `"handled"` for any other key the menus took, and null for a key
@@ -33,6 +41,7 @@ export function pressKey(
   menus: Menus,
   key: string,
   nowMs: number,
+  hero: HeroState,
 ): "newHero" | "handled" | null {
   const { pause } = menus;
   const letter = key.toLowerCase();
@@ -49,6 +58,7 @@ export function pressKey(
     if (letter === "n") choose(menus, "newHero", nowMs);
     return "handled";
   }
+  if ((letter === "c" || letter === "i") && hero.heroDead) return "handled";
   if (letter === "c") {
     menus.heroPanelOpen = !menus.heroPanelOpen;
     return "handled";
@@ -58,6 +68,27 @@ export function pressKey(
     return "handled";
   }
   return null;
+}
+
+/**
+ * A click on the Level Up button, which opens the Hero panel, but for
+ * nothing while `hero` lies dead.
+ */
+export function clickLevelUp(menus: Menus, hero: HeroState) {
+  if (!hero.heroDead) menus.heroPanelOpen = true;
+}
+
+/**
+ * Follows what happened in a step of the World: the Hero's Death closes the
+ * Hero and Inventory panels.
+ */
+export function reactMenus(menus: Menus, events: readonly SimEvent[]) {
+  for (const event of events) {
+    if (event.type === "HeroDied") {
+      menus.heroPanelOpen = false;
+      menus.inventoryOpen = false;
+    }
+  }
 }
 
 /**

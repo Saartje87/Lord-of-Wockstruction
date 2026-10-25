@@ -1,6 +1,6 @@
 import { areaTuning } from "../tuning/areas";
 import { heroTuning } from "../tuning/hero";
-import { type Bonus, dropTuning, type ItemType, itemOf } from "../tuning/items";
+import { type Bonus, dropTuning, itemOf } from "../tuning/items";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import { type Area, exitAt, isWalkable, loadArea, type Spawn } from "./area";
 import {
@@ -502,20 +502,10 @@ export function isRegenerating(world: World): boolean {
  * Left unrounded, so every point counts: each hit rounds its own damage.
  */
 export function damageRange(world: World): [number, number] {
-  return damageWith(world, world.hero.equipment.weapon?.type ?? null);
-}
-
-/**
- * The least and most damage the Hero's hits would deal with a Weapon of
- * `weapon` type, or a punch for null, 1% more for each point of Strength.
- */
-export function damageWith(
-  world: World,
-  weapon: ItemType | null,
-): [number, number] {
+  const weapon = world.hero.equipment.weapon;
   const scale = 1 + attributesOf(world).strength / 100;
   const [min, max] =
-    (weapon && itemOf(weapon).damage) ?? heroTuning.unarmedDamage;
+    (weapon && itemOf(weapon.type).damage) ?? heroTuning.unarmedDamage;
   return [min * scale, max * scale];
 }
 

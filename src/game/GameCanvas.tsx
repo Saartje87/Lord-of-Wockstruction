@@ -12,7 +12,14 @@ import {
   release,
   takeRightClick,
 } from "./input/pointer";
-import { clickPaused, createMenus, pressKey } from "./menus";
+import {
+  clickLevelUp,
+  clickPaused,
+  createMenus,
+  type Menus,
+  pressKey,
+  reactMenus,
+} from "./menus";
 import { gameTime } from "./pause";
 import { loadArt } from "./render/art";
 import {
@@ -87,7 +94,7 @@ export default function GameCanvas() {
       attachPointer(app.canvas, input, listeners.signal);
       // Keys and clicks on the pause menu go to the menus; a click anywhere
       // else on it resumes. Any other click or key press goes on from the
-      // death screen, but for a click on the Hero panel or the Level Up
+      // Hero's Death, but for a click on the Hero panel or the Level Up
       // button.
       let clickedAt: Vec | null = null;
       let keys: string[] = [];
@@ -112,7 +119,8 @@ export default function GameCanvas() {
         let pressed = clickedAt !== null;
         let newHero = false;
         for (const key of keys) {
-          const used = pressKey(menus, key, realNow);
+          const hero = { heroDead: world.death !== null };
+          const used = pressKey(menus, key, realNow, hero);
           if (used === null) pressed = true;
           if (used === "newHero") newHero = true;
         }
@@ -135,10 +143,7 @@ export default function GameCanvas() {
           world = createWorld({ areas, tilesets, seed: Date.now() });
           orders = [];
         }
-        // An Item held as the panel closes goes back where it came from.
-        if (inventoryWasOpen && !menus.inventoryOpen) {
-          orders.push({ type: "ReturnCursorItem" });
-        }
+        returnOnShut(orders, inventoryWasOpen, menus);
         // Stands still while paused, so the clock owes no steps for it and
         // the World and every effect hold still.
         const now = gameTime(pause, realNow);
@@ -155,14 +160,17 @@ export default function GameCanvas() {
           panelAt: renderer.panelAt,
         });
         orders.push(...newOrders);
-        // A click on a panel never orders the Hero about: on the Hero panel,
-        // Level Up opens it and a + spends a point, while the game runs on.
+        // A click on a panel never orders the Hero about, nor goes on from
+        // their Death: on the Hero panel, Level Up opens it (but for a dead
+        // Hero) and a + spends a point, while the game runs on.
         // On the Inventory it lifts or puts down an Item, and with one held
         // a click off the panels drops it.
         if (panel) {
           pressed = false;
           const button = "button" in panel ? panel.button : null;
-          if (button?.type === "levelUp") menus.heroPanelOpen = true;
+          if (button?.type === "levelUp") {
+            clickLevelUp(menus, { heroDead: world.death !== null });
+          }
           if (button?.type === "raise") {
             const { attribute } = button;
             orders.push({ type: "SpendAttributePoint", attribute });
@@ -198,7 +206,13 @@ export default function GameCanvas() {
           const events = step(world, orders);
           if (changesSave(events)) writeSave(storage, saveOf(world));
           renderer.react(events, now);
+          // The Hero's Death closes the panels. The World has already put
+          // back an Item held then, so the return sent as the Inventory
+          // shuts finds nothing to do, and is harmless.
+          const inventoryOpen = menus.inventoryOpen;
+          reactMenus(menus, events);
           orders = [];
+          returnOnShut(orders, inventoryOpen, menus);
         }
         // No hover outline, nameplate or tooltip under the menu.
         const pointer = pause.paused ? null : input.screen;
@@ -222,4 +236,14 @@ export default function GameCanvas() {
   }, []);
 
   return <div ref={host} />;
+}
+
+/**
+ * Orders an Item held as the Inventory shuts back where it came from, if it
+ * `wasOpen` and the menus have it shut now.
+ */
+function returnOnShut(orders: Order[], wasOpen: boolean, menus: Menus) {
+  if (wasOpen && !menus.inventoryOpen) {
+    orders.push({ type: "ReturnCursorItem" });
+  }
 }

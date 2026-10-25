@@ -14,6 +14,11 @@ Issues and specs for this repo live as Tickets in the Tandembike project **Wiabl
 - **Status**: move to In progress when starting and Done when finished (`update_ticket`).
 - **Close as won't-do**: label `wontfix`, comment why, then `archive_ticket`.
 
+## Specs and cycles
+
+- **A spec is an Epic** titled `Spec: <name>`. The tickets split from it are its children (`epicNumber`).
+- **Plan new tickets into the Active cycle**, the Epic included: find it with `list_cycles` (projectId 2), then `plan_tickets`.
+
 ## When a skill says "publish to the issue tracker"
 
 Create a Tandembike ticket in Wiablo.

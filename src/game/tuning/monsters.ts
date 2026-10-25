@@ -132,6 +132,20 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
   },
 };
 
+/**
+ * The share of a kill's Experience the Hero gains, by how many Levels the
+ * Monster Level is below the Hero's Level: index 0 is a Monster at the Hero's
+ * Level, 1 is one Level below, and so on. Further below than the last entry
+ * gives the last entry. A Monster above the Hero's Level gives it all, with
+ * no bonus.
+ */
+export const experienceDropOff: readonly number[] = [
+  // Full Experience up to 5 Levels below...
+  1, 1, 1, 1, 1, 1,
+  // ...then a steep fall to 5% at 10 or more below.
+  0.81, 0.62, 0.43, 0.24, 0.05,
+];
+
 export function isMonsterType(value: unknown): value is MonsterType {
   return typeof value === "string" && Object.hasOwn(monsterTuning, value);
 }

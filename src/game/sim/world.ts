@@ -30,11 +30,11 @@ import {
   taken,
 } from "./inventory";
 import {
+  killExperience,
   type MonsterOfLevel,
   monsterAttackRating,
   monsterDamageRange,
   monsterDefense,
-  monsterExperience,
   monsterMaxLife,
   noticeHit,
   sendHome,
@@ -1021,7 +1021,11 @@ function hit(world: World, monster: Monster, events: SimEvent[]) {
       pos: monster.pos,
     });
     events.push({ type: "MonsterDied", id: monster.id });
-    gainExperience(world, monsterExperience(monster), events);
+    gainExperience(
+      world,
+      killExperience(monster, world.hero.progress.level),
+      events,
+    );
     rollDrop(world, monster.pos, events);
     return;
   }

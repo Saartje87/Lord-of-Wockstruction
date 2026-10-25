@@ -142,13 +142,14 @@ export default function GameCanvas() {
           panelAt: renderer.panelAt,
         });
         orders.push(...newOrders);
-        // A click on the panel never orders the Hero about: Level Up opens
-        // it and a + spends a point, while the game runs on.
+        // A click on a panel never orders the Hero about: on the Hero panel,
+        // Level Up opens it and a + spends a point, while the game runs on.
         if (panel) {
           pressed = false;
-          if (panel.button?.type === "levelUp") menus.heroPanelOpen = true;
-          if (panel.button?.type === "raise") {
-            const { attribute } = panel.button;
+          const button = "button" in panel ? panel.button : null;
+          if (button?.type === "levelUp") menus.heroPanelOpen = true;
+          if (button?.type === "raise") {
+            const { attribute } = button;
             orders.push({ type: "SpendAttributePoint", attribute });
           }
         }
@@ -172,11 +173,8 @@ export default function GameCanvas() {
           renderer.react(events, now);
           orders = [];
         }
-        // No hover outline or nameplate under the menu or the panel.
-        const pointer =
-          pause.paused || (input.screen && renderer.panelAt(input.screen))
-            ? null
-            : input.screen;
+        // No hover outline, nameplate or tooltip under the menu.
+        const pointer = pause.paused ? null : input.screen;
         renderer.draw(world, alpha, pointer, now, menus);
         app.render();
         frame = requestAnimationFrame(tick);

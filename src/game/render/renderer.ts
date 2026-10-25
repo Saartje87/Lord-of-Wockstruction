@@ -17,9 +17,13 @@ import {
   ATTRIBUTES,
   areaFade,
   DEATH_STEPS,
+  EQUIPMENT_SLOTS,
+  type EquipmentSlot,
+  equipmentOf,
   FLINCH_STEPS,
   HERO_FLINCH_STEPS,
   HIT_STEP,
+  inventoryOf,
   isInCombat,
   isRegenerating,
   type MonsterId,
@@ -30,6 +34,7 @@ import {
 } from "../sim/world";
 import { heroTuning } from "../tuning/hero";
 import { inputTuning } from "../tuning/input";
+import { type ItemKind, type ItemType, itemOf } from "../tuning/items";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import { type Compass, compassOf, frameAt, swingFrame } from "./animation";
 import { type Animation, type Art, type CharacterArt, frameOf } from "./art";
@@ -44,6 +49,15 @@ import {
   panelHitAt,
   rowTop,
 } from "./heroPanel";
+import {
+  type InventoryHit,
+  type InventorySpot,
+  inventoryHitAt,
+  inventoryPanelLayout,
+  itemRect,
+  itemTooltip,
+  itemUnder,
+} from "./inventoryPanel";
 import { menuChoiceAt, PAUSE_MENU_LAYOUT, pauseMenuLayout } from "./pauseMenu";
 import type { Rect } from "./rect";
 
@@ -262,6 +276,46 @@ const HERO_PANEL_STYLE = {
   hintSize: 13,
   ruleGap: 4,
 };
+/**
+ * The Inventory panel's look, in the Hero panel's colours; where things go
+ * is `inventoryPanelLayout`. Each Item is a box tinted by its kind with its
+ * name inside, and the tooltip sits `tooltipGap` over the hovered Item,
+ * `tooltipPadding` around its lines (CSS px).
+ */
+const INVENTORY_STYLE = {
+  cell: 0x0e0b08,
+  cellEdge: 0x2e2618,
+  slotLabel: 0x6a6050,
+  slotLabelSize: 12,
+  itemEdge: 0x8a7a50,
+  itemAlpha: 0.9,
+  itemText: 0xe8e0c8,
+  itemTextSize: 11,
+  tooltip: 0x000000,
+  tooltipAlpha: 0.85,
+  tooltipName: 0xe8d27a,
+  tooltipLine: 0xe8e0c8,
+  tooltipSize: 14,
+  tooltipLineHeight: 19,
+  tooltipPadding: 8,
+  tooltipGap: 6,
+};
+/** The tint of each kind of Item on the Inventory panel. */
+const ITEM_COLOUR: Record<ItemKind, number> = {
+  weapon: 0x4a4a52,
+  armour: 0x5a4028,
+  ring: 0x3a3a68,
+  amulet: 0x5a3a5a,
+};
+/** The name shown in each empty Equipment slot. */
+const SLOT_NAMES: Record<EquipmentSlot, string> = {
+  weapon: "Weapon",
+  armour: "Armour",
+  amulet: "Amulet",
+  ring1: "Ring",
+  ring2: "Ring",
+};
+
 /** The badge over the orb: its size, gap over the rim (CSS px) and colours. */
 const BADGE = { size: 13, gap: 4, combat: 0xd84a3a, regen: 0x9cd89c };
 
@@ -358,6 +412,8 @@ export function createRenderer(app: Application, art: Art) {
   app.stage.addChild(levelUp.layer);
   const heroPanel = heroPanelView();
   app.stage.addChild(heroPanel.layer);
+  const inventoryPanel = inventoryPanelView();
+  app.stage.addChild(inventoryPanel.layer);
   // Over the whole screen, stretched to it each frame.
   const hurt = new Graphics().rect(0, 0, 1, 1).fill(HURT_COLOUR);
   hurt.visible = false;
@@ -391,6 +447,21 @@ export function createRenderer(app: Application, art: Art) {
   let drawnWorld: World | null = null;
   /** Whether the Hero panel was open when last drawn. */
   let heroPanelOpenNow = false;
+  /** Whether the Inventory panel was open when last drawn. */
+  let inventoryOpenNow = false;
+
+  /**
+   * What a point on the canvas (CSS px) hits of the Hero panel, the Level Up
+   * button and the Inventory panel, as last drawn, or null when it's for
+   * the World.
+   */
+  const panelAt = (screen: Vec): PanelHit | InventoryHit | null => {
+    if (!drawnWorld) return null;
+    return (
+      panelHitAt(app.screen, screen, drawnWorld, heroPanelOpenNow) ??
+      inventoryHitAt(app.screen, screen, inventoryOpenNow)
+    );
+  };
 
   /**
    * Starts afresh for another World, whose Monster ids start over: drops
@@ -470,14 +541,7 @@ export function createRenderer(app: Application, art: Art) {
     screenToTile,
     monsterAt,
 
-    /**
-     * What a click on the canvas (CSS px) hits of the Hero panel and Level
-     * Up button, as last drawn, or null when it's for the World.
-     */
-    panelAt(screen: Vec): PanelHit | null {
-      if (!drawnWorld) return null;
-      return panelHitAt(app.screen, screen, drawnWorld, heroPanelOpenNow);
-    },
+    panelAt,
 
     /**
      * The pause-menu button under a click on the canvas (CSS px), or null
@@ -531,8 +595,10 @@ export function createRenderer(app: Application, art: Art) {
 
     /**
      * `alpha` (0..1) is how far the frame is from the previous step to the
-     * current one; `pointer` is the cursor on the canvas (CSS px), if on it.
-     * `menus` shows the Hero panel while it's open, and the pause menu over
+     * current one; `pointer` is the cursor on the canvas (CSS px), if on it,
+     * which outlines what it's over in the World, or off a panel, shows the
+     * tooltip of the Item it's over on one. `menus` shows the Hero and
+     * Inventory panels while they're open, and the pause menu over
      * everything while paused.
      */
     draw(
@@ -544,6 +610,7 @@ export function createRenderer(app: Application, art: Art) {
     ) {
       const active = world.areas[world.areaName];
       heroPanelOpenNow = menus.heroPanelOpen;
+      inventoryOpenNow = menus.inventoryOpen;
       if (world !== drawnWorld) showWorld(world);
       else if (active !== area) showArea(active);
       const heroAt = lerp(world.hero.prevPos, world.hero.pos, alpha);
@@ -689,9 +756,12 @@ export function createRenderer(app: Application, art: Art) {
         text.alpha = float.alpha;
       }
 
+      // No hover outline or nameplate under a panel.
+      const onPanel = pointer && panelAt(pointer);
+      const onWorld = onPanel ? null : pointer;
       // After moving the camera, so the highlight matches this frame.
-      const cursor = pointer && screenToTile(pointer);
-      const hoveredId = pointer && monsterAt(pointer);
+      const cursor = onWorld && screenToTile(onWorld);
+      const hoveredId = onWorld && monsterAt(onWorld);
       const hovered =
         world.monsters.find((monster) => monster.id === hoveredId) ?? null;
       const hoveredView = hovered && monsters.get(hovered.id);
@@ -742,6 +812,8 @@ export function createRenderer(app: Application, art: Art) {
       experience.draw(app.screen, world);
       levelUp.draw(app.screen, world, nowMs);
       heroPanel.draw(app.screen, world, menus.heroPanelOpen);
+      const spot = onPanel && "inventory" in onPanel ? onPanel.inventory : null;
+      inventoryPanel.draw(app.screen, world, menus.inventoryOpen, spot);
 
       const hurtLeft = hurtAtMs === null ? 0 : 1 - (nowMs - hurtAtMs) / HURT_MS;
       hurt.visible = hurtLeft > 0;
@@ -1289,6 +1361,165 @@ function heroPanelView() {
         const y = rowTop(at) - style.ruleGap;
         graphics.rect(left, y, right - left, 1).fill(style.edge);
       }
+    },
+  };
+}
+
+/**
+ * The Inventory panel: the Equipment slots over the 10×4 grid, each Item
+ * drawn at its size, and the tooltip of the Item under the cursor.
+ */
+function inventoryPanelView() {
+  const style = HERO_PANEL_STYLE;
+  const look = INVENTORY_STYLE;
+  const layer = new Container();
+  const graphics = new Graphics();
+  layer.addChild(graphics);
+  layer.visible = false;
+  const text = (fill: number, size: number) => {
+    const t = new Text({
+      text: "",
+      style: { fill, fontSize: size, fontFamily: SERIF },
+    });
+    layer.addChild(t);
+    return t;
+  };
+
+  const title = text(style.title, style.titleSize);
+  title.text = "Inventory";
+  title.anchor.set(0.5, 0);
+  const hint = text(style.hint, style.hintSize);
+  hint.text = "Press I to close";
+  hint.anchor.set(0.5, 1);
+  const slotLabels = Object.fromEntries(
+    EQUIPMENT_SLOTS.map((slot) => {
+      const label = text(look.slotLabel, look.slotLabelSize);
+      label.text = SLOT_NAMES[slot];
+      label.anchor.set(0.5);
+      return [slot, label];
+    }),
+  ) as Record<EquipmentSlot, Text>;
+  /** Item names, one per Item drawn, made as more are needed. */
+  const names: Text[] = [];
+  const tooltipBox = new Graphics();
+  layer.addChild(tooltipBox);
+  /** Tooltip lines, made as more are needed, over its box. */
+  const tooltipLines: Text[] = [];
+
+  return {
+    layer,
+    draw(
+      screen: { width: number; height: number },
+      world: World,
+      open: boolean,
+      hovered: InventorySpot | null,
+    ) {
+      layer.visible = open;
+      if (!open) return;
+      const layout = inventoryPanelLayout(screen);
+      const { panel, grid, cell, slots } = layout;
+
+      graphics.clear();
+      graphics
+        .rect(panel.x, panel.y, panel.w, panel.h)
+        .fill({ color: style.fill, alpha: style.alpha })
+        .stroke({ color: style.edge, width: 2 });
+      title.position.set(panel.x + panel.w / 2, panel.y + HERO_PANEL.padding);
+      hint.position.set(
+        panel.x + panel.w / 2,
+        panel.y + panel.h - HERO_PANEL.padding,
+      );
+
+      const box = (rect: Rect) =>
+        graphics
+          .rect(rect.x, rect.y, rect.w, rect.h)
+          .fill(look.cell)
+          .stroke({ color: look.cellEdge, width: 1 });
+      for (let column = 0; column < grid.w / cell; column++) {
+        for (let row = 0; row < grid.h / cell; row++) {
+          box({
+            x: grid.x + column * cell,
+            y: grid.y + row * cell,
+            w: cell,
+            h: cell,
+          });
+        }
+      }
+
+      const items: { rect: Rect; type: ItemType }[] = [];
+      const equipment = equipmentOf(world);
+      for (const slot of EQUIPMENT_SLOTS) {
+        const rect = slots[slot];
+        box(rect);
+        const item = equipment[slot];
+        slotLabels[slot].visible = item === null;
+        slotLabels[slot].position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
+        if (item) items.push({ rect, type: item.type });
+      }
+      for (const { item, cell: at } of inventoryOf(world)) {
+        items.push({ rect: itemRect(layout, at, item.type), type: item.type });
+      }
+      items.forEach(({ rect, type }, i) => {
+        const tuning = itemOf(type);
+        graphics
+          .rect(rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2)
+          .fill({ color: ITEM_COLOUR[tuning.kind], alpha: look.itemAlpha })
+          .stroke({ color: look.itemEdge, width: 1 });
+        names[i] ??= text(look.itemText, look.itemTextSize);
+        const name = names[i];
+        name.visible = true;
+        name.text = tuning.name;
+        name.style.wordWrap = true;
+        name.style.wordWrapWidth = rect.w - 4;
+        name.style.align = "center";
+        name.anchor.set(0.5);
+        name.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
+      });
+      for (const name of names.slice(items.length)) name.visible = false;
+
+      tooltipBox.clear();
+      for (const line of tooltipLines) line.visible = false;
+      const item = hovered && itemUnder(world, hovered);
+      if (!hovered || !item) return;
+      const under =
+        hovered.type === "slot"
+          ? slots[hovered.slot]
+          : itemRect(
+              layout,
+              inventoryOf(world).find((placed) => placed.item.id === item.id)
+                ?.cell ?? hovered.cell,
+              item.type,
+            );
+      const lines = itemTooltip(world, item.type);
+      lines.forEach((line, i) => {
+        tooltipLines[i] ??= text(look.tooltipLine, look.tooltipSize);
+        const shown = tooltipLines[i];
+        // Over the box, which is made before any line.
+        layer.setChildIndex(shown, layer.children.length - 1);
+        shown.visible = true;
+        shown.text = line;
+        shown.style.fill = i === 0 ? look.tooltipName : look.tooltipLine;
+        shown.anchor.set(0.5, 0);
+      });
+      const shown = tooltipLines.slice(0, lines.length);
+      const pad = look.tooltipPadding;
+      const w = Math.max(...shown.map((line) => line.width)) + 2 * pad;
+      const h = lines.length * look.tooltipLineHeight + 2 * pad;
+      // Over the Item, or under it where there's no room above, and kept on
+      // the screen.
+      const above = under.y - look.tooltipGap - h;
+      const y = above >= 0 ? above : under.y + under.h + look.tooltipGap;
+      const x = Math.min(
+        screen.width - w,
+        Math.max(0, under.x + under.w / 2 - w / 2),
+      );
+      tooltipBox
+        .rect(x, y, w, h)
+        .fill({ color: look.tooltip, alpha: look.tooltipAlpha })
+        .stroke({ color: style.edge, width: 1 });
+      shown.forEach((line, i) => {
+        line.position.set(x + w / 2, y + pad + i * look.tooltipLineHeight);
+      });
     },
   };
 }

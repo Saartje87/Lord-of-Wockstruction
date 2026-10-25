@@ -244,8 +244,9 @@ export type {
   ItemId,
   PlacedItem,
 } from "./inventory";
+export { EQUIPMENT_SLOTS } from "./inventory";
 
-/** Level, Experience and Attributes: what the Save keeps of the Hero besides their gear. */
+/** Level, Experience and Attributes: what the Save keeps besides gear. */
 export type Progress = {
   /** From 1 up to the last Level in the Experience table. */
   level: number;

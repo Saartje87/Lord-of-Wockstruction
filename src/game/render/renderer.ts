@@ -1639,6 +1639,16 @@ function inventoryPanelView() {
             .rect(x, y, w, h)
             .fill({ color: colour, alpha: look.landingAlpha });
         }
+        if (hovered?.type === "slot") {
+          // Whether the slot takes it.
+          const rect = slots[hovered.slot];
+          const colour = placement(world, hovered.slot)
+            ? look.fits
+            : look.refused;
+          graphics
+            .rect(rect.x, rect.y, rect.w, rect.h)
+            .fill({ color: colour, alpha: look.landingAlpha });
+        }
         const { columns, rows } = itemOf(type).size;
         const rect = {
           x: pointer.x - (columns * cell) / 2,

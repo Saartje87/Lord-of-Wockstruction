@@ -1,9 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { createWorld, type Gear, type Progress, step } from "../sim/world";
+import {
+  createWorld,
+  type EquipmentSlot,
+  type Gear,
+  inventoryOf,
+  type Progress,
+  step,
+} from "../sim/world";
 import {
   inventoryHitAt,
   inventoryOrder,
   inventoryPanelLayout,
+  inventoryRightClickOrder,
   itemRect,
   itemTooltip,
   itemUnder,
@@ -262,6 +270,76 @@ describe("the order a click on the Inventory gives", () => {
     expect(
       inventoryOrder(world(gear), WIDE, { x: 0, y: 0 }, { inventory: null }),
     ).toBeNull();
+  });
+
+  const onSlot = (slot: EquipmentSlot) => ({
+    inventory: { type: "slot" as const, slot },
+  });
+
+  it("lifts the Item out of a slot with nothing held, and nothing from an empty one", () => {
+    const w = world({ inventory: [], equipment: { weapon: "axe" } });
+    const point = { x: 0, y: 0 };
+
+    expect(inventoryOrder(w, WIDE, point, onSlot("weapon"))).toEqual({
+      type: "LiftItem",
+      from: "weapon",
+    });
+    expect(inventoryOrder(w, WIDE, point, onSlot("armour"))).toBeNull();
+  });
+
+  it("puts the held Item into a clicked slot", () => {
+    const w = world(gear);
+    step(w, [{ type: "LiftItem", from: { column: 4, row: 1 } }]);
+
+    expect(inventoryOrder(w, WIDE, { x: 0, y: 0 }, onSlot("weapon"))).toEqual({
+      type: "PlaceItem",
+      to: "weapon",
+    });
+  });
+});
+
+describe("the order a right-click on the Inventory gives", () => {
+  const onCell = (column: number, row: number) => ({
+    inventory: { type: "cell" as const, cell: { column, row } },
+  });
+  const onSlot = (slot: EquipmentSlot) => ({
+    inventory: { type: "slot" as const, slot },
+  });
+  const gear: Gear = {
+    inventory: [{ type: "axe", cell: { column: 4, row: 1 } }],
+    equipment: { armour: "chainMail" },
+  };
+
+  it("equips the Inventory Item under it", () => {
+    const w = world(gear);
+    const [axe] = inventoryOf(w);
+
+    expect(inventoryRightClickOrder(w, onCell(5, 2))).toEqual({
+      type: "EquipItem",
+      item: axe.item.id,
+    });
+    expect(inventoryRightClickOrder(w, onCell(0, 0))).toBeNull();
+  });
+
+  it("unequips the Item in the slot under it", () => {
+    const w = world(gear);
+
+    expect(inventoryRightClickOrder(w, onSlot("armour"))).toEqual({
+      type: "UnequipItem",
+      slot: "armour",
+    });
+    expect(inventoryRightClickOrder(w, onSlot("weapon"))).toBeNull();
+  });
+
+  it("orders nothing while an Item is held, or between the cells", () => {
+    const w = world(gear);
+    step(w, [{ type: "LiftItem", from: "armour" }]);
+
+    expect(inventoryRightClickOrder(w, onCell(5, 2))).toBeNull();
+    expect(
+      inventoryRightClickOrder(world(gear), { inventory: null }),
+    ).toBeNull();
+    expect(inventoryRightClickOrder(world(gear), { drop: true })).toBeNull();
   });
 });
 

@@ -1,11 +1,6 @@
 import { areaTuning } from "../tuning/areas";
 import { heroTuning } from "../tuning/hero";
-import {
-  type Bonus,
-  dropTuning,
-  type ItemType,
-  itemOf,
-} from "../tuning/items";
+import { type Bonus, dropTuning, type ItemType, itemOf } from "../tuning/items";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import { type Area, exitAt, isWalkable, loadArea, type Spawn } from "./area";
 import {
@@ -1065,7 +1060,8 @@ function placeItem(world: World, to: ItemSpot, events: SimEvent[]) {
   const { out } = placing;
   if (isSlot(to)) {
     hero.equipment[to] = item;
-    if (out) events.push({ type: "ItemUnequipped", item: { ...out }, slot: to });
+    if (out)
+      events.push({ type: "ItemUnequipped", item: { ...out }, slot: to });
     events.push({ type: "ItemEquipped", item: { ...item }, slot: to });
   } else {
     hero.inventory = [

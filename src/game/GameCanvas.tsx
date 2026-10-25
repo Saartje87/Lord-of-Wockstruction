@@ -10,11 +10,15 @@ import {
   createPointerInput,
   poll,
   release,
+  takeRightClick,
 } from "./input/pointer";
 import { clickPaused, createMenus, pressKey } from "./menus";
 import { gameTime } from "./pause";
 import { loadArt } from "./render/art";
-import { inventoryOrder } from "./render/inventoryPanel";
+import {
+  inventoryOrder,
+  inventoryRightClickOrder,
+} from "./render/inventoryPanel";
 import { createRenderer } from "./render/renderer";
 import {
   browserStorage,
@@ -166,6 +170,14 @@ export default function GameCanvas() {
             const order = inventoryOrder(world, app.screen, pressedAt, panel);
             if (order) orders.push(order);
           }
+        }
+        // A right-click on the Inventory equips or unequips the Item under
+        // it; anywhere else it does nothing.
+        const rightAt = takeRightClick(input);
+        const rightHit = rightAt && renderer.panelAt(rightAt);
+        if (rightHit && !("button" in rightHit)) {
+          const order = inventoryRightClickOrder(world, rightHit);
+          if (order) orders.push(order);
         }
         if (pressed && world.death && !pause.paused) {
           orders.push({ type: "Continue" });

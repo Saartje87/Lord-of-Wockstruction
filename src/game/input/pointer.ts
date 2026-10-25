@@ -11,6 +11,8 @@ export type PointerInput = {
    * released and the pointer has left again since.
    */
   pressedAt: Vec | null;
+  /** Where the right button last went down, until taken. */
+  rightPressedAt: Vec | null;
   /** Whether Shift was down when the button went down. */
   shift: boolean;
   held: boolean;
@@ -52,6 +54,7 @@ export function createPointerInput(): PointerInput {
   return {
     screen: null,
     pressedAt: null,
+    rightPressedAt: null,
     shift: false,
     held: false,
     holding: { type: "steer" },
@@ -70,7 +73,10 @@ export function attachPointer(
     listener: (e: HTMLElementEventMap[K]) => void,
   ) => canvas.addEventListener(type, listener, { signal });
 
+  // The right button is for the panels, not the browser's menu.
+  on("contextmenu", (e) => e.preventDefault());
   on("pointerdown", (e) => {
+    if (e.button === 2) pressRight(input, { x: e.offsetX, y: e.offsetY });
     if (e.button !== 0) return;
     // Keep receiving moves and the release while held outside the canvas.
     canvas.setPointerCapture(e.pointerId);
@@ -96,6 +102,21 @@ export function press(
   input.held = true;
 }
 
+/** The right button went down at `screen`. */
+export function pressRight(input: PointerInput, screen: Vec) {
+  input.rightPressedAt = screen;
+}
+
+/**
+ * Where the right button went down since this was last called, if it did,
+ * for the panels to handle: it never orders the Hero about.
+ */
+export function takeRightClick(input: PointerInput): Vec | null {
+  const at = input.rightPressedAt;
+  input.rightPressedAt = null;
+  return at;
+}
+
 /** The cursor moved on the canvas, or left it (null). */
 export function move(input: PointerInput, screen: Vec | null) {
   input.screen = screen;
@@ -111,6 +132,7 @@ export function release(input: PointerInput) {
  */
 export function cancel(input: PointerInput) {
   input.pressedAt = null;
+  input.rightPressedAt = null;
   release(input);
 }
 

@@ -6,8 +6,8 @@ import {
   createWorld,
   cursorItemOf,
   damageRange,
-  type Gear,
   equipmentOf,
+  type Gear,
   gearOf,
   heroDefense,
   inventoryOf,
@@ -46,7 +46,11 @@ function wearing(
   equipment: Gear["equipment"],
   inventory: Gear["inventory"] = [],
 ): World {
-  return createWorld({ areas: { town }, seed: 1, gear: { inventory, equipment } });
+  return createWorld({
+    areas: { town },
+    seed: 1,
+    gear: { inventory, equipment },
+  });
 }
 
 /** The Items on the grid by type and top-left cell. */
@@ -121,7 +125,10 @@ describe("Equipped bonuses", () => {
 
   it("add +Attack Rating and +Defense", () => {
     itemOf("ringOfDexterity").bonuses = { attackRating: 30, defense: 7 };
-    const world = wearing({ ring1: "ringOfDexterity", armour: "leatherArmour" });
+    const world = wearing({
+      ring1: "ringOfDexterity",
+      armour: "leatherArmour",
+    });
 
     expect(attackRating(world)).toBe(130);
     expect(heroDefense(world)).toBe(15 + 7);
@@ -336,7 +343,9 @@ describe("Equipping a Ring", () => {
   });
 
   it("goes into the right Ring slot when only that one is empty", () => {
-    const world = wearing({ ring1: "ringOfLife" }, [at("ringOfStrength", 0, 0)]);
+    const world = wearing({ ring1: "ringOfLife" }, [
+      at("ringOfStrength", 0, 0),
+    ]);
 
     step(world, [{ type: "EquipItem", item: idOf(world, "ringOfStrength") }]);
 
@@ -367,7 +376,11 @@ describe("Equipping an Inventory Item (right-click)", () => {
     expect(worn(world).armour).toBe("leatherArmour");
     expect(layout(world)).toEqual([]);
     expect(ofType(events, "ItemEquipped")).toEqual([
-      { type: "ItemEquipped", item: { id: item, type: "leatherArmour" }, slot: "armour" },
+      {
+        type: "ItemEquipped",
+        item: { id: item, type: "leatherArmour" },
+        slot: "armour",
+      },
     ]);
     expect(ofType(events, "InventoryChanged")).toHaveLength(1);
   });
@@ -403,9 +416,13 @@ describe("Equipping an Inventory Item (right-click)", () => {
   it("is refused when what was there fits nowhere", () => {
     const rings = [];
     for (let column = 1; column < 10; column++) {
-      for (let row = 0; row < 4; row++) rings.push(at("ringOfLife", column, row));
+      for (let row = 0; row < 4; row++)
+        rings.push(at("ringOfLife", column, row));
     }
-    const world = wearing({ weapon: "axe" }, [at("shortSword", 0, 0), ...rings]);
+    const world = wearing({ weapon: "axe" }, [
+      at("shortSword", 0, 0),
+      ...rings,
+    ]);
     const before = layout(world);
 
     const events = step(world, [

@@ -192,9 +192,9 @@ export function landingCell(
 
 /**
  * The order a click at `point` gives, for what it hit of the Inventory
- * panel: with nothing held, lifting the Item on the cell; with an Item held,
- * putting it down where it lands on the grid, or dropping it off the panel.
- * Null when it gives none.
+ * panel: with nothing held, lifting the Item on the cell or in the slot;
+ * with an Item held, putting it down where it lands on the grid or into the
+ * slot, or dropping it off the panel. Null when it gives none.
  */
 export function inventoryOrder(
   world: World,
@@ -205,14 +205,32 @@ export function inventoryOrder(
   const held = cursorItemOf(world);
   if ("drop" in hit) return held && { type: "DropItem" };
   const spot = hit.inventory;
-  if (spot?.type !== "cell") return null;
+  if (!spot) return null;
+  const from = spot.type === "slot" ? spot.slot : spot.cell;
   if (!held) {
-    return inventoryItemAt(world, spot.cell)
-      ? { type: "LiftItem", from: spot.cell }
-      : null;
+    return itemUnder(world, spot) ? { type: "LiftItem", from } : null;
   }
+  if (spot.type === "slot") return { type: "PlaceItem", to: spot.slot };
   const layout = inventoryPanelLayout(screen);
   return { type: "PlaceItem", to: landingCell(layout, point, held.item.type) };
+}
+
+/**
+ * The order a right-click gives, for what it hit of the Inventory panel:
+ * equipping the Inventory Item under it, or unequipping the Item in the
+ * slot. Null when it gives none, as with an Item held.
+ */
+export function inventoryRightClickOrder(
+  world: World,
+  hit: InventoryHit | DropHit,
+): Order | null {
+  if ("drop" in hit || !hit.inventory || cursorItemOf(world)) return null;
+  const spot = hit.inventory;
+  const item = itemUnder(world, spot);
+  if (!item) return null;
+  return spot.type === "slot"
+    ? { type: "UnequipItem", slot: spot.slot }
+    : { type: "EquipItem", item: item.id };
 }
 
 /** The Item at a spot on the panel, or null when there's none. */

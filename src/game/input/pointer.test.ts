@@ -6,7 +6,9 @@ import {
   move,
   poll,
   press,
+  pressRight,
   release,
+  takeRightClick,
 } from "./pointer";
 
 // Treat canvas pixels as tile units, so tests can speak in tiles, with no
@@ -259,5 +261,28 @@ describe("pointer input on a panel", () => {
     expect(poll(input, 240, withPanel).orders).toEqual([
       { type: "MoveTo", target: { x: 7.5, y: 6.5 } },
     ]);
+  });
+});
+
+describe("right-clicks", () => {
+  it("are handed back once, ordering nothing", () => {
+    const input = createPointerInput();
+    pressRight(input, { x: 2, y: 5 });
+
+    expect(poll(input, 0, asTiles)).toEqual({
+      orders: [],
+      click: null,
+      panel: null,
+    });
+    expect(takeRightClick(input)).toEqual({ x: 2, y: 5 });
+    expect(takeRightClick(input)).toBeNull();
+  });
+
+  it("are forgotten by a cancel", () => {
+    const input = createPointerInput();
+    pressRight(input, { x: 2, y: 5 });
+    cancel(input);
+
+    expect(takeRightClick(input)).toBeNull();
   });
 });

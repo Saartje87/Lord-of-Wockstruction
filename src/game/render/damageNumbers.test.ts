@@ -50,12 +50,19 @@ describe("damageNumbers", () => {
       { on: "hero", kind: "noRoom" },
     ]);
   });
+
+  it("shows a Monster's Miss over the Hero", () => {
+    expect(damageNumbers([{ type: "Missed", target: "hero" }])).toEqual([
+      { on: "hero", kind: "miss" },
+    ]);
+  });
 });
 
 describe("floatText", () => {
   it("is the damage, Miss or No room", () => {
     expect(floatText({ on: 1, damage: 22, kind: "hit" })).toBe("22");
     expect(floatText({ on: 1, kind: "miss" })).toBe("Miss");
+    expect(floatText({ on: "hero", kind: "miss" })).toBe("Miss");
     expect(floatText({ on: "hero", kind: "noRoom" })).toBe("No room");
   });
 });

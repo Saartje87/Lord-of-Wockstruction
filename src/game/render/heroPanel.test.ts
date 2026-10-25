@@ -94,7 +94,7 @@ describe("heroSheet with Items Equipped", () => {
     expect(sheet.derived).toEqual([
       { name: "Life", value: "115" },
       { name: "Damage", value: "21–31" },
-      { name: "Defense", value: "35" },
+      { name: "Defense", value: "40" },
       { name: "Attack Rating", value: "100" },
       { name: "Chance to hit a Skeleton", value: "85%" },
     ]);

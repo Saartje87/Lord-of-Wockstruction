@@ -131,7 +131,7 @@ describe("Equipped bonuses", () => {
     });
 
     expect(attackRating(world)).toBe(130);
-    expect(heroDefense(world)).toBe(15 + 7);
+    expect(heroDefense(world)).toBe(27 + 7);
   });
 
   it("stop counting once the Item comes off, and Life above the new max drops to it", () => {
@@ -159,7 +159,7 @@ describe("Hero Defense", () => {
   });
 
   it("is the Armour's base Defense", () => {
-    expect(heroDefense(wearing({ armour: "chainMail" }))).toBe(35);
+    expect(heroDefense(wearing({ armour: "chainMail" }))).toBe(40);
   });
 });
 

@@ -386,7 +386,7 @@ describe("an Item's tooltip", () => {
   it("names an Armour and its Defense", () => {
     expect(itemTooltip(world(), "chainMail")).toEqual([
       "Chain Mail",
-      "Defense: 35",
+      "Defense: 40",
     ]);
   });
 

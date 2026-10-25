@@ -50,14 +50,16 @@ export const itemTuning = {
     name: "Leather Armour",
     kind: "armour",
     size: { columns: 2, rows: 3 },
-    defense: 15,
+    // A Skeleton's 20 Attack Rating hits it 85% of the time.
+    defense: 27,
     bonuses: {},
   },
   chainMail: {
     name: "Chain Mail",
     kind: "armour",
     size: { columns: 2, rows: 3 },
-    defense: 35,
+    // A Skeleton hits it two times in three.
+    defense: 40,
     bonuses: {},
   },
   ringOfStrength: {

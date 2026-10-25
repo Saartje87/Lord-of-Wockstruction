@@ -272,8 +272,11 @@ export type Order =
 /** What happened during a step. */
 export type SimEvent =
   | { type: "HitLanded"; attacker: "hero"; target: MonsterId; damage: number }
-  /** A swing of the Hero's failed its chance to hit. */
-  | { type: "Missed"; target: MonsterId }
+  /**
+   * A swing of the Hero's failed its chance to hit a Monster, or a Monster's
+   * attack failed to hit the Hero.
+   */
+  | { type: "Missed"; target: MonsterId | "hero" }
   | { type: "HeroHit"; damage: number }
   | { type: "MonsterDied"; id: MonsterId }
   /** A dying Monster or the Hero dropped `item`, which now lies at `pos`. */
@@ -1340,9 +1343,21 @@ function rollDrop(world: World, pos: Vec, events: SimEvent[]) {
   events.push({ type: "ItemDropped", item: { ...item }, pos: { ...pos } });
 }
 
-/** Lands a Monster's attack on the Hero. */
+/**
+ * Lands a Monster's attack on the Hero. A Hero with 0 Defense is always hit;
+ * above it the attack can Miss, which deals no damage, so it neither flinches
+ * the Hero nor keeps them In Combat.
+ */
 function hitHero(world: World, monster: Monster, events: SimEvent[]) {
   const { hero } = world;
+  const defense = heroDefense(world);
+  if (defense > 0) {
+    const { attackRating } = monsterTuning[monster.type];
+    if (random(world.rng) >= chanceToHit(attackRating, defense)) {
+      events.push({ type: "Missed", target: "hero" });
+      return;
+    }
+  }
   const damage = randomInt(world.rng, monsterTuning[monster.type].damage);
   hero.life = Math.max(0, hero.life - damage);
   hero.combat = COMBAT_STEPS;

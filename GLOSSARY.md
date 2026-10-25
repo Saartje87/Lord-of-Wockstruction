@@ -63,3 +63,35 @@ _Avoid_: Aggro, engaged
 **Corpse**:
 What remains of a dead Monster, lying in its Area until the Hero leaves.
 _Avoid_: Body, remains
+
+**Experience**:
+What the Hero earns by killing Monsters; enough of it raises the Hero's Level.
+_Avoid_: XP, EXP
+
+**Level**:
+How far the Hero has advanced, from 1 up, raised by earning Experience; reaching a new Level also fills the Hero's Life.
+_Avoid_: Character level, rank (and never a place: that's an Area)
+
+**Attribute**:
+One of the Hero's three permanent traits, Strength, Dexterity and Vitality, raised only by spending Attribute Points.
+_Avoid_: Stat
+
+**Attribute Point**:
+What the Hero gains five of on each new Level, kept until the player spends it to raise an Attribute by one; a spent point can't be taken back.
+_Avoid_: Stat point
+
+**Attack Rating**:
+How accurate the Hero's swings are, raised by Dexterity; set against a Monster's Defense it gives the chance to hit.
+_Avoid_: Accuracy, to-hit
+
+**Defense**:
+How hard a Monster is to hit, set against the Hero's Attack Rating.
+_Avoid_: Armor, AC, evasion
+
+**Miss**:
+A swing that plays out in full but deals no damage because it failed its chance to hit.
+_Avoid_: Dodge, whiff
+
+**Save**:
+The Hero's kept progress (Level, Experience, Attributes and unspent Attribute Points), written whenever it changes; there is only one, and loading it starts the Hero in Town.
+_Avoid_: Save file, slot, profile, checkpoint

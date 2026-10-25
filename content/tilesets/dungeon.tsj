@@ -1,0 +1,2479 @@
+{
+  "type": "tileset",
+  "version": "1.10",
+  "name": "dungeon",
+  "tilewidth": 864,
+  "tileheight": 788,
+  "tilecount": 189,
+  "columns": 0,
+  "margin": 0,
+  "spacing": 0,
+  "grid": {
+    "orientation": "isometric",
+    "width": 192,
+    "height": 96
+  },
+  "tileoffset": {
+    "x": -96,
+    "y": 271
+  },
+  "tiles": [
+    {
+      "id": 16,
+      "image": "dungeon/16.png",
+      "imagewidth": 288,
+      "imageheight": 367,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "image": "dungeon/17.png",
+      "imagewidth": 288,
+      "imageheight": 366,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "image": "dungeon/18.png",
+      "imagewidth": 288,
+      "imageheight": 366,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "image": "dungeon/19.png",
+      "imagewidth": 288,
+      "imageheight": 367,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "image": "dungeon/20.png",
+      "imagewidth": 288,
+      "imageheight": 367,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "image": "dungeon/21.png",
+      "imagewidth": 288,
+      "imageheight": 367,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "image": "dungeon/22.png",
+      "imagewidth": 288,
+      "imageheight": 367,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "image": "dungeon/23.png",
+      "imagewidth": 288,
+      "imageheight": 367,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "image": "dungeon/24.png",
+      "imagewidth": 288,
+      "imageheight": 367,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "image": "dungeon/25.png",
+      "imagewidth": 288,
+      "imageheight": 367,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "image": "dungeon/26.png",
+      "imagewidth": 288,
+      "imageheight": 367,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "image": "dungeon/27.png",
+      "imagewidth": 288,
+      "imageheight": 367,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "image": "dungeon/28.png",
+      "imagewidth": 288,
+      "imageheight": 367,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "image": "dungeon/29.png",
+      "imagewidth": 288,
+      "imageheight": 367,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "image": "dungeon/30.png",
+      "imagewidth": 288,
+      "imageheight": 367,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "image": "dungeon/31.png",
+      "imagewidth": 288,
+      "imageheight": 367,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 32,
+      "image": "dungeon/32.png",
+      "imagewidth": 288,
+      "imageheight": 367,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 33,
+      "image": "dungeon/33.png",
+      "imagewidth": 288,
+      "imageheight": 367,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 34,
+      "image": "dungeon/34.png",
+      "imagewidth": 288,
+      "imageheight": 367,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 35,
+      "image": "dungeon/35.png",
+      "imagewidth": 288,
+      "imageheight": 367,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 36,
+      "image": "dungeon/36.png",
+      "imagewidth": 288,
+      "imageheight": 366,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 37,
+      "image": "dungeon/37.png",
+      "imagewidth": 288,
+      "imageheight": 366,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 38,
+      "image": "dungeon/38.png",
+      "imagewidth": 288,
+      "imageheight": 366,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 39,
+      "image": "dungeon/39.png",
+      "imagewidth": 288,
+      "imageheight": 366,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 40,
+      "image": "dungeon/40.png",
+      "imagewidth": 288,
+      "imageheight": 366,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 41,
+      "image": "dungeon/41.png",
+      "imagewidth": 288,
+      "imageheight": 366,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 42,
+      "image": "dungeon/42.png",
+      "imagewidth": 288,
+      "imageheight": 367,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 43,
+      "image": "dungeon/43.png",
+      "imagewidth": 288,
+      "imageheight": 367,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 44,
+      "image": "dungeon/44.png",
+      "imagewidth": 288,
+      "imageheight": 367,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 45,
+      "image": "dungeon/45.png",
+      "imagewidth": 288,
+      "imageheight": 366,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 46,
+      "image": "dungeon/46.png",
+      "imagewidth": 288,
+      "imageheight": 367,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 47,
+      "image": "dungeon/47.png",
+      "imagewidth": 288,
+      "imageheight": 367,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 48,
+      "image": "dungeon/48.png",
+      "imagewidth": 288,
+      "imageheight": 367,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 49,
+      "image": "dungeon/49.png",
+      "imagewidth": 192,
+      "imageheight": 367,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 50,
+      "image": "dungeon/50.png",
+      "imagewidth": 288,
+      "imageheight": 367,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 51,
+      "image": "dungeon/51.png",
+      "imagewidth": 280,
+      "imageheight": 365,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 52,
+      "image": "dungeon/52.png",
+      "imagewidth": 280,
+      "imageheight": 365,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 56,
+      "image": "dungeon/56.png",
+      "imagewidth": 288,
+      "imageheight": 367,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 57,
+      "image": "dungeon/57.png",
+      "imagewidth": 288,
+      "imageheight": 366,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 58,
+      "image": "dungeon/58.png",
+      "imagewidth": 288,
+      "imageheight": 366,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 59,
+      "image": "dungeon/59.png",
+      "imagewidth": 288,
+      "imageheight": 367,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 60,
+      "image": "dungeon/60.png",
+      "imagewidth": 288,
+      "imageheight": 367,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 61,
+      "image": "dungeon/61.png",
+      "imagewidth": 288,
+      "imageheight": 366,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 62,
+      "image": "dungeon/62.png",
+      "imagewidth": 288,
+      "imageheight": 366,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 63,
+      "image": "dungeon/63.png",
+      "imagewidth": 288,
+      "imageheight": 367,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 64,
+      "image": "dungeon/64.png",
+      "imagewidth": 274,
+      "imageheight": 606,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 65,
+      "image": "dungeon/65.png",
+      "imagewidth": 288,
+      "imageheight": 606,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 66,
+      "image": "dungeon/66.png",
+      "imagewidth": 288,
+      "imageheight": 585,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 67,
+      "image": "dungeon/67.png",
+      "imagewidth": 274,
+      "imageheight": 586,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 68,
+      "image": "dungeon/68.png",
+      "imagewidth": 274,
+      "imageheight": 606,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 69,
+      "image": "dungeon/69.png",
+      "imagewidth": 288,
+      "imageheight": 606,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 70,
+      "image": "dungeon/70.png",
+      "imagewidth": 288,
+      "imageheight": 586,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 71,
+      "image": "dungeon/71.png",
+      "imagewidth": 274,
+      "imageheight": 586,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 72,
+      "image": "dungeon/72.png",
+      "imagewidth": 208,
+      "imageheight": 586,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 73,
+      "image": "dungeon/73.png",
+      "imagewidth": 274,
+      "imageheight": 606,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 74,
+      "image": "dungeon/74.png",
+      "imagewidth": 288,
+      "imageheight": 585,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 75,
+      "image": "dungeon/75.png",
+      "imagewidth": 274,
+      "imageheight": 558,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 76,
+      "image": "dungeon/76.png",
+      "imagewidth": 274,
+      "imageheight": 606,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 77,
+      "image": "dungeon/77.png",
+      "imagewidth": 288,
+      "imageheight": 606,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 78,
+      "image": "dungeon/78.png",
+      "imagewidth": 288,
+      "imageheight": 606,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 79,
+      "image": "dungeon/79.png",
+      "imagewidth": 288,
+      "imageheight": 586,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 80,
+      "image": "dungeon/80.png",
+      "imagewidth": 274,
+      "imageheight": 464,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 81,
+      "image": "dungeon/81.png",
+      "imagewidth": 288,
+      "imageheight": 464,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 82,
+      "image": "dungeon/82.png",
+      "imagewidth": 288,
+      "imageheight": 447,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 83,
+      "image": "dungeon/83.png",
+      "imagewidth": 274,
+      "imageheight": 447,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 88,
+      "image": "dungeon/88.png",
+      "imagewidth": 208,
+      "imageheight": 448,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 89,
+      "image": "dungeon/89.png",
+      "imagewidth": 275,
+      "imageheight": 464,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 90,
+      "image": "dungeon/90.png",
+      "imagewidth": 288,
+      "imageheight": 447,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 91,
+      "image": "dungeon/91.png",
+      "imagewidth": 273,
+      "imageheight": 407,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 92,
+      "image": "dungeon/92.png",
+      "imagewidth": 274,
+      "imageheight": 464,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 93,
+      "image": "dungeon/93.png",
+      "imagewidth": 288,
+      "imageheight": 464,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 94,
+      "image": "dungeon/94.png",
+      "imagewidth": 288,
+      "imageheight": 464,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 95,
+      "image": "dungeon/95.png",
+      "imagewidth": 288,
+      "imageheight": 447,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 96,
+      "image": "dungeon/96.png",
+      "imagewidth": 274,
+      "imageheight": 606,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 97,
+      "image": "dungeon/97.png",
+      "imagewidth": 288,
+      "imageheight": 606,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 98,
+      "image": "dungeon/98.png",
+      "imagewidth": 274,
+      "imageheight": 606,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 99,
+      "image": "dungeon/99.png",
+      "imagewidth": 288,
+      "imageheight": 606,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 100,
+      "image": "dungeon/100.png",
+      "imagewidth": 274,
+      "imageheight": 606,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 101,
+      "image": "dungeon/101.png",
+      "imagewidth": 288,
+      "imageheight": 606,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 102,
+      "image": "dungeon/102.png",
+      "imagewidth": 274,
+      "imageheight": 606,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 103,
+      "image": "dungeon/103.png",
+      "imagewidth": 288,
+      "imageheight": 606,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 104,
+      "image": "dungeon/104.png",
+      "imagewidth": 274,
+      "imageheight": 606,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 105,
+      "image": "dungeon/105.png",
+      "imagewidth": 288,
+      "imageheight": 606,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 106,
+      "image": "dungeon/106.png",
+      "imagewidth": 274,
+      "imageheight": 606,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 107,
+      "image": "dungeon/107.png",
+      "imagewidth": 288,
+      "imageheight": 606,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 108,
+      "image": "dungeon/108.png",
+      "imagewidth": 274,
+      "imageheight": 606,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 109,
+      "image": "dungeon/109.png",
+      "imagewidth": 288,
+      "imageheight": 606,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 110,
+      "image": "dungeon/110.png",
+      "imagewidth": 288,
+      "imageheight": 569,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 111,
+      "image": "dungeon/111.png",
+      "imagewidth": 288,
+      "imageheight": 571,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 112,
+      "image": "dungeon/112.png",
+      "imagewidth": 274,
+      "imageheight": 606,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 113,
+      "image": "dungeon/113.png",
+      "imagewidth": 288,
+      "imageheight": 606,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 114,
+      "image": "dungeon/114.png",
+      "imagewidth": 274,
+      "imageheight": 606,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 115,
+      "image": "dungeon/115.png",
+      "imagewidth": 288,
+      "imageheight": 606,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 116,
+      "image": "dungeon/116.png",
+      "imagewidth": 288,
+      "imageheight": 585,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 117,
+      "image": "dungeon/117.png",
+      "imagewidth": 274,
+      "imageheight": 586,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 118,
+      "image": "dungeon/118.png",
+      "imagewidth": 245,
+      "imageheight": 391,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 119,
+      "image": "dungeon/119.png",
+      "imagewidth": 264,
+      "imageheight": 391,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 120,
+      "image": "dungeon/120.png",
+      "imagewidth": 267,
+      "imageheight": 391,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 121,
+      "image": "dungeon/121.png",
+      "imagewidth": 245,
+      "imageheight": 391,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 122,
+      "image": "dungeon/122.png",
+      "imagewidth": 264,
+      "imageheight": 391,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 123,
+      "image": "dungeon/123.png",
+      "imagewidth": 267,
+      "imageheight": 391,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 124,
+      "image": "dungeon/124.png",
+      "imagewidth": 243,
+      "imageheight": 391,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 125,
+      "image": "dungeon/125.png",
+      "imagewidth": 264,
+      "imageheight": 391,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 126,
+      "image": "dungeon/126.png",
+      "imagewidth": 267,
+      "imageheight": 391,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 127,
+      "image": "dungeon/127.png",
+      "imagewidth": 267,
+      "imageheight": 391,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 128,
+      "image": "dungeon/128.png",
+      "imagewidth": 279,
+      "imageheight": 516,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 129,
+      "image": "dungeon/129.png",
+      "imagewidth": 278,
+      "imageheight": 516,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 130,
+      "image": "dungeon/130.png",
+      "imagewidth": 275,
+      "imageheight": 514,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 131,
+      "image": "dungeon/131.png",
+      "imagewidth": 276,
+      "imageheight": 514,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 132,
+      "image": "dungeon/132.png",
+      "imagewidth": 287,
+      "imageheight": 498,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 133,
+      "image": "dungeon/133.png",
+      "imagewidth": 288,
+      "imageheight": 498,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 134,
+      "image": "dungeon/134.png",
+      "imagewidth": 288,
+      "imageheight": 415,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 135,
+      "image": "dungeon/135.png",
+      "imagewidth": 287,
+      "imageheight": 415,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 136,
+      "image": "dungeon/136.png",
+      "imagewidth": 267,
+      "imageheight": 389,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 137,
+      "image": "dungeon/137.png",
+      "imagewidth": 268,
+      "imageheight": 389,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 144,
+      "image": "dungeon/144.png",
+      "imagewidth": 245,
+      "imageheight": 385,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 145,
+      "image": "dungeon/145.png",
+      "imagewidth": 243,
+      "imageheight": 385,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 146,
+      "image": "dungeon/146.png",
+      "imagewidth": 249,
+      "imageheight": 412,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 147,
+      "image": "dungeon/147.png",
+      "imagewidth": 257,
+      "imageheight": 402,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 148,
+      "image": "dungeon/148.png",
+      "imagewidth": 264,
+      "imageheight": 448,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 149,
+      "image": "dungeon/149.png",
+      "imagewidth": 271,
+      "imageheight": 448,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 150,
+      "image": "dungeon/150.png",
+      "imagewidth": 240,
+      "imageheight": 385,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 151,
+      "image": "dungeon/151.png",
+      "imagewidth": 247,
+      "imageheight": 381,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 160,
+      "image": "dungeon/160.png",
+      "imagewidth": 239,
+      "imageheight": 405,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 161,
+      "image": "dungeon/161.png",
+      "imagewidth": 273,
+      "imageheight": 405,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 162,
+      "image": "dungeon/162.png",
+      "imagewidth": 247,
+      "imageheight": 412,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 163,
+      "image": "dungeon/163.png",
+      "imagewidth": 264,
+      "imageheight": 410,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 164,
+      "image": "dungeon/164.png",
+      "imagewidth": 265,
+      "imageheight": 448,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 165,
+      "image": "dungeon/165.png",
+      "imagewidth": 271,
+      "imageheight": 448,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 166,
+      "image": "dungeon/166.png",
+      "imagewidth": 221,
+      "imageheight": 366,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 167,
+      "image": "dungeon/167.png",
+      "imagewidth": 288,
+      "imageheight": 655,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 176,
+      "image": "dungeon/176.png",
+      "imagewidth": 229,
+      "imageheight": 333,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 177,
+      "image": "dungeon/177.png",
+      "imagewidth": 219,
+      "imageheight": 350,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 178,
+      "image": "dungeon/178.png",
+      "imagewidth": 231,
+      "imageheight": 352,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 179,
+      "image": "dungeon/179.png",
+      "imagewidth": 231,
+      "imageheight": 348,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 180,
+      "image": "dungeon/180.png",
+      "imagewidth": 203,
+      "imageheight": 359,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 181,
+      "image": "dungeon/181.png",
+      "imagewidth": 257,
+      "imageheight": 341,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 182,
+      "image": "dungeon/182.png",
+      "imagewidth": 288,
+      "imageheight": 344,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 183,
+      "image": "dungeon/183.png",
+      "imagewidth": 287,
+      "imageheight": 347,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 192,
+      "image": "dungeon/192.png",
+      "imagewidth": 246,
+      "imageheight": 643,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 193,
+      "image": "dungeon/193.png",
+      "imagewidth": 384,
+      "imageheight": 643,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 194,
+      "image": "dungeon/194.png",
+      "imagewidth": 288,
+      "imageheight": 526,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 195,
+      "image": "dungeon/195.png",
+      "imagewidth": 288,
+      "imageheight": 440,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 196,
+      "image": "dungeon/196.png",
+      "imagewidth": 192,
+      "imageheight": 440,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 197,
+      "image": "dungeon/197.png",
+      "imagewidth": 288,
+      "imageheight": 526,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 198,
+      "image": "dungeon/198.png",
+      "imagewidth": 192,
+      "imageheight": 439,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 199,
+      "image": "dungeon/199.png",
+      "imagewidth": 288,
+      "imageheight": 539,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 200,
+      "image": "dungeon/200.png",
+      "imagewidth": 288,
+      "imageheight": 539,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 201,
+      "image": "dungeon/201.png",
+      "imagewidth": 288,
+      "imageheight": 439,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 202,
+      "image": "dungeon/202.png",
+      "imagewidth": 192,
+      "imageheight": 450,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 203,
+      "image": "dungeon/203.png",
+      "imagewidth": 288,
+      "imageheight": 526,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 204,
+      "image": "dungeon/204.png",
+      "imagewidth": 288,
+      "imageheight": 526,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 205,
+      "image": "dungeon/205.png",
+      "imagewidth": 288,
+      "imageheight": 450,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 208,
+      "image": "dungeon/208.png",
+      "imagewidth": 288,
+      "imageheight": 611,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 209,
+      "image": "dungeon/209.png",
+      "imagewidth": 288,
+      "imageheight": 606,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 210,
+      "image": "dungeon/210.png",
+      "imagewidth": 288,
+      "imageheight": 593,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 211,
+      "image": "dungeon/211.png",
+      "imagewidth": 288,
+      "imageheight": 648,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 212,
+      "image": "dungeon/212.png",
+      "imagewidth": 288,
+      "imageheight": 606,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 213,
+      "image": "dungeon/213.png",
+      "imagewidth": 288,
+      "imageheight": 611,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 214,
+      "image": "dungeon/214.png",
+      "imagewidth": 288,
+      "imageheight": 648,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 215,
+      "image": "dungeon/215.png",
+      "imagewidth": 288,
+      "imageheight": 593,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 216,
+      "image": "dungeon/216.png",
+      "imagewidth": 288,
+      "imageheight": 611,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 217,
+      "image": "dungeon/217.png",
+      "imagewidth": 288,
+      "imageheight": 556,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 218,
+      "image": "dungeon/218.png",
+      "imagewidth": 288,
+      "imageheight": 593,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 219,
+      "image": "dungeon/219.png",
+      "imagewidth": 288,
+      "imageheight": 648,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 220,
+      "image": "dungeon/220.png",
+      "imagewidth": 288,
+      "imageheight": 556,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 221,
+      "image": "dungeon/221.png",
+      "imagewidth": 288,
+      "imageheight": 611,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 222,
+      "image": "dungeon/222.png",
+      "imagewidth": 288,
+      "imageheight": 648,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 223,
+      "image": "dungeon/223.png",
+      "imagewidth": 288,
+      "imageheight": 655,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 240,
+      "image": "dungeon/240.png",
+      "imagewidth": 287,
+      "imageheight": 573,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 241,
+      "image": "dungeon/241.png",
+      "imagewidth": 240,
+      "imageheight": 551,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 242,
+      "image": "dungeon/242.png",
+      "imagewidth": 287,
+      "imageheight": 573,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 243,
+      "image": "dungeon/243.png",
+      "imagewidth": 287,
+      "imageheight": 573,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 244,
+      "image": "dungeon/244.png",
+      "imagewidth": 240,
+      "imageheight": 573,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 245,
+      "image": "dungeon/245.png",
+      "imagewidth": 287,
+      "imageheight": 551,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 264,
+      "image": "dungeon/264.png",
+      "imagewidth": 480,
+      "imageheight": 415,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 265,
+      "image": "dungeon/265.png",
+      "imagewidth": 480,
+      "imageheight": 415,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 280,
+      "image": "dungeon/280.png",
+      "imagewidth": 195,
+      "imageheight": 648,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 281,
+      "image": "dungeon/281.png",
+      "imagewidth": 231,
+      "imageheight": 604,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 282,
+      "image": "dungeon/282.png",
+      "imagewidth": 291,
+      "imageheight": 604,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 283,
+      "image": "dungeon/283.png",
+      "imagewidth": 327,
+      "imageheight": 648,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 284,
+      "image": "dungeon/284.png",
+      "imagewidth": 796,
+      "imageheight": 788,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 285,
+      "image": "dungeon/285.png",
+      "imagewidth": 809,
+      "imageheight": 788,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 286,
+      "image": "dungeon/286.png",
+      "imagewidth": 864,
+      "imageheight": 514,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 287,
+      "image": "dungeon/287.png",
+      "imagewidth": 864,
+      "imageheight": 514,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": 288,
+      "image": "dungeon/288.png",
+      "imagewidth": 276,
+      "imageheight": 426,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 289,
+      "image": "dungeon/289.png",
+      "imagewidth": 288,
+      "imageheight": 454,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 290,
+      "image": "dungeon/290.png",
+      "imagewidth": 279,
+      "imageheight": 426,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": 291,
+      "image": "dungeon/291.png",
+      "imagewidth": 261,
+      "imageheight": 454,
+      "properties": [
+        {
+          "name": "blocks",
+          "type": "bool",
+          "value": true
+        }
+      ]
+    }
+  ]
+}

@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "biome check",
     "format": "biome format --write",
-    "test": "vitest run"
+    "test": "vitest run",
+    "import:flare": "node scripts/import-flare/main.mts"
   },
   "dependencies": {
     "next": "16.4.3",
@@ -19,8 +20,10 @@
   "devDependencies": {
     "@biomejs/biome": "2.4.2",
     "@types/node": "^24.19.2",
+    "@types/pngjs": "^6.0.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "pngjs": "^7.0.0",
     "typescript": "^5",
     "vitest": "^5.0.5"
   }

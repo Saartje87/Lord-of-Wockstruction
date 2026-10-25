@@ -20,6 +20,12 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Art and credits
+
+The art is from [Flare](https://github.com/flareteam/flare-game), under CC-BY-SA 3.0. See [CREDITS.md](CREDITS.md) for the full attribution.
+
+`npm run import:flare` re-imports it from a pinned Flare commit (see `scripts/import-flare/main.mts`). Run it by hand and commit what it writes: `public/assets/`, `content/tilesets/` and `CREDITS.md`. The build never runs it.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

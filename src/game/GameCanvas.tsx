@@ -12,7 +12,13 @@ import {
   release,
   takeRightClick,
 } from "./input/pointer";
-import { clickPaused, createMenus, pressKey } from "./menus";
+import {
+  clickLevelUp,
+  clickPaused,
+  createMenus,
+  pressKey,
+  reactMenus,
+} from "./menus";
 import { gameTime } from "./pause";
 import { loadArt } from "./render/art";
 import {
@@ -155,14 +161,15 @@ export default function GameCanvas() {
           panelAt: renderer.panelAt,
         });
         orders.push(...newOrders);
-        // A click on a panel never orders the Hero about: on the Hero panel,
-        // Level Up opens it and a + spends a point, while the game runs on.
+        // A click on a panel never orders the Hero about, nor goes on from
+        // the death screen: on the Hero panel, Level Up opens it (but for
+        // a dead Hero) and a + spends a point, while the game runs on.
         // On the Inventory it lifts or puts down an Item, and with one held
         // a click off the panels drops it.
         if (panel) {
           pressed = false;
           const button = "button" in panel ? panel.button : null;
-          if (button?.type === "levelUp") menus.heroPanelOpen = true;
+          if (button?.type === "levelUp") clickLevelUp(menus);
           if (button?.type === "raise") {
             const { attribute } = button;
             orders.push({ type: "SpendAttributePoint", attribute });
@@ -198,7 +205,14 @@ export default function GameCanvas() {
           const events = step(world, orders);
           if (changesSave(events)) writeSave(storage, saveOf(world));
           renderer.react(events, now);
+          // The Hero's Death closes the panels; the World has already put
+          // back an Item held then.
+          const inventoryOpen = menus.inventoryOpen;
+          reactMenus(menus, events);
           orders = [];
+          if (inventoryOpen && !menus.inventoryOpen) {
+            orders.push({ type: "ReturnCursorItem" });
+          }
         }
         // No hover outline, nameplate or tooltip under the menu.
         const pointer = pause.paused ? null : input.screen;

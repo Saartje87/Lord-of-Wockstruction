@@ -336,7 +336,10 @@ describe("A held Item going back", () => {
   it("goes back when the Hero walks into an Exit", () => {
     const areas = {
       town: map(["H.E"], { exitTo: "cave" }),
-      cave: map(["H.."]),
+      cave: {
+        ...map(["H.."]),
+        properties: [{ name: "areaLevel", type: "int", value: 1 }],
+      },
     };
     const world = carrying([at("axe", 2, 1)], areas);
     lift(world, 2, 1);

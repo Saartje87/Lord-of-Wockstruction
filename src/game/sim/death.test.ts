@@ -7,6 +7,14 @@ import {
   type World,
 } from "./world";
 
+/** A map made a Combat Area by giving it Area Level 1. */
+function combatArea(map: object) {
+  return {
+    ...map,
+    properties: [{ name: "areaLevel", type: "int", value: 1 }],
+  };
+}
+
 /**
  * An orthogonal Area of open floor drawn row by row: `.` floor, `H` the
  * Hero's `start` and `S` a pack of `pack` Skeletons, centred on their tile.
@@ -91,17 +99,19 @@ const town = map(
   ],
   [exit(3, 1, "cave", "from-town"), entry("from-cave", 2, 1)],
 );
-const cave = map(
-  [
-    "..........", //
-    ".H........",
-    "..........",
-    "....S.....",
-    "..........",
-    "..........",
-  ],
-  [exit(0, 3, "town", "from-cave"), entry("from-town", 2, 3)],
-  7,
+const cave = combatArea(
+  map(
+    [
+      "..........", //
+      ".H........",
+      "..........",
+      "....S.....",
+      "..........",
+      "..........",
+    ],
+    [exit(0, 3, "town", "from-cave"), entry("from-town", 2, 3)],
+    7,
+  ),
 );
 
 /** A World with the Hero just arrived in the cave. */

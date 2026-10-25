@@ -21,7 +21,7 @@ import {
   isSlot,
   placement,
 } from "../sim/inventory";
-import { windUpProgress } from "../sim/monsters";
+import { monsterMaxLife, windUpProgress } from "../sim/monsters";
 import type { Rect } from "../sim/rect";
 import { STEP_MS } from "../sim/units";
 import { tileOf, type Vec } from "../sim/vec";
@@ -902,7 +902,7 @@ export function createRenderer(
 
       overheads.clear();
       for (const monster of world.monsters) {
-        const { life } = monsterTuning[monster.type];
+        const life = monsterMaxLife(monster);
         if (monster.life >= life) continue;
         const { sprite } = viewOf(monster.id, monster.type);
         lifeBar(overheads, {
@@ -945,7 +945,7 @@ export function createRenderer(
       nameplate.clear();
       nameplateText.visible = hovered !== null;
       if (hovered) {
-        const tuning = monsterTuning[hovered.type];
+        const { name } = monsterTuning[hovered.type];
         const centre = app.screen.width / 2;
         nameplate
           .rect(
@@ -964,9 +964,9 @@ export function createRenderer(
             NAMEPLATE.barBottom,
           width: NAMEPLATE.bar,
           height: NAMEPLATE.barHeight,
-          fraction: hovered.life / tuning.life,
+          fraction: hovered.life / monsterMaxLife(hovered),
         });
-        nameplateText.text = tuning.name;
+        nameplateText.text = name;
         nameplateText.position.set(centre, NAMEPLATE.top + NAMEPLATE.nameTop);
       }
 

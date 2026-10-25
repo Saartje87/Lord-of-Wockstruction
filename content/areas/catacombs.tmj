@@ -12,6 +12,13 @@
  "compressionlevel": -1,
  "nextlayerid": 5,
  "nextobjectid": 8,
+ "properties": [
+  {
+   "name": "areaLevel",
+   "type": "int",
+   "value": 1
+  }
+ ],
  "tilesets": [
   {
    "firstgid": 1,

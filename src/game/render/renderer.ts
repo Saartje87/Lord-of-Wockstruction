@@ -111,8 +111,9 @@ const HURT_STRENGTH = 0.3;
 const HURT_COLOUR = 0xff0000;
 
 /**
- * The death screen: it darkens to `darkness` over `DEATH_STEPS`, then shows
- * "You died" over a hint that pulses `pulsesPerSecond` times a second.
+ * The Hero's Death on screen: it darkens to `darkness` over `DEATH_STEPS`,
+ * then shows "You died" over a hint that pulses `pulsesPerSecond` times a
+ * second.
  */
 const DEATH_SCREEN = {
   darkness: 0.55,
@@ -950,7 +951,7 @@ export function createRenderer(app: Application, art: Art) {
 
       orb.draw(app.screen, world, nowMs);
       experience.draw(app.screen, world);
-      levelUp.draw(app.screen, world, nowMs, menus.heroDead);
+      levelUp.draw(app.screen, world, nowMs);
       heroPanel.draw(app.screen, world, menus.heroPanelOpen);
       const spot = onPanel && "inventory" in onPanel ? onPanel.inventory : null;
       inventoryPanel.draw(
@@ -1340,7 +1341,8 @@ function experienceBarView() {
 
 /**
  * The Level Up button by the Life orb, shown while Attribute Points are
- * unspent but not over the death screen, its edge pulsing to catch the eye.
+ * unspent but not while the Hero lies dead, its edge pulsing to catch the
+ * eye.
  */
 function levelUpButtonView() {
   const layer = new Container();
@@ -1363,9 +1365,8 @@ function levelUpButtonView() {
       screen: { width: number; height: number },
       world: World,
       nowMs: number,
-      heroDead: boolean,
     ) {
-      layer.visible = !heroDead && world.hero.progress.attributePoints > 0;
+      layer.visible = !world.death && world.hero.progress.attributePoints > 0;
       if (!layer.visible) return;
       const rect = heroPanelLayout(screen).levelUp;
       const { pulsesPerSecond, edgeFaint } = HUD_BUTTON;

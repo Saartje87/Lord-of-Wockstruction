@@ -22,6 +22,14 @@ The five default triage labels (`needs-triage`, `needs-info`, `ready-for-agent`,
 
 Single-context: one root `GLOSSARY.md` plus `docs/adr/`. See `docs/agents/domain.md`.
 
+### Checks
+
+`npm run check` runs lint, typecheck and tests, as CI does.
+
+### Playtesting
+
+Seeing the game run (on-screen criteria, dev servers in worktrees, starting at a given Level): see `docs/agents/playtesting.md`.
+
 ### From grilling to tickets
 
 When a grilling session reaches a shared understanding, stop once the glossary is updated. Ask the user to type `/mattpocock-skills:to-spec` and then `/mattpocock-skills:to-tickets`. Agents can't call these skills themselves, so never write the spec or tickets by hand instead.

@@ -11,7 +11,7 @@
  "infinite": false,
  "compressionlevel": -1,
  "nextlayerid": 5,
- "nextobjectid": 8,
+ "nextobjectid": 10,
  "properties": [
   {
    "name": "areaLevel",
@@ -3100,7 +3100,7 @@
     46,
     18,
     17,
-    19,
+    287,
     17,
     18,
     46,
@@ -12505,6 +12505,41 @@
        "value": "skeleton"
       }
      ]
+    },
+    {
+     "id": 8,
+     "name": "",
+     "type": "exit",
+     "x": 5280,
+     "y": 4224,
+     "width": 384,
+     "height": 384,
+     "rotation": 0,
+     "visible": true,
+     "properties": [
+      {
+       "name": "area",
+       "type": "string",
+       "value": "crypt"
+      },
+      {
+       "name": "entry",
+       "type": "string",
+       "value": "from-catacombs"
+      }
+     ]
+    },
+    {
+     "id": 9,
+     "name": "from-crypt",
+     "type": "entry",
+     "x": 5520.0,
+     "y": 4752.0,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true
     }
    ]
   }

@@ -9,6 +9,7 @@ import {
   covers,
   EQUIPMENT_SLOTS,
   type Equipment,
+  type EquipmentSlot,
   FRESH_GEAR,
   firstFreeCell,
   fitsAt,
@@ -18,6 +19,7 @@ import {
   inTheWay,
   onGrid,
   type PlacedItem,
+  SLOT_KINDS,
 } from "./inventory";
 import { noticeHit, sendHome, stepMonsters, wanderPause } from "./monsters";
 import { findPath } from "./path";
@@ -242,6 +244,13 @@ export type Order =
    * panel closes. Death and leaving the Area do the same by themselves.
    */
   | { type: "ReturnCursorItem" }
+  /**
+   * Equip the Inventory Item `item` into the slot of its kind (a Ring into
+   * the first empty Ring slot, else the left one), whatever was there going
+   * into the space it leaves (see `equipItem`). Ignored while an Item is
+   * held.
+   */
+  | { type: "EquipItem"; item: ItemId }
   /** Walk to a Ground Item and pick it up, if there's room for it. */
   | { type: "PickUp"; groundItem: ItemId }
   /** Go back to Town after dying. */
@@ -265,8 +274,12 @@ export type SimEvent =
   | { type: "ItemPickedUp"; item: Item; cell: Cell }
   /** The Hero got to a Ground Item with no room for it in the Inventory. */
   | { type: "NoRoom" }
-  /** An Item moved in the Inventory, onto the cursor or off it. */
+  /** An Item moved in the Inventory or Equipment, onto the cursor or off it. */
   | { type: "InventoryChanged" }
+  /** `item` went into Equipment slot `slot`. */
+  | { type: "ItemEquipped"; item: Item; slot: EquipmentSlot }
+  /** `item` came out of Equipment slot `slot`. */
+  | { type: "ItemUnequipped"; item: Item; slot: EquipmentSlot }
   | { type: "ExperienceGained"; amount: number }
   /** The Hero reached Level `level`, with their Life already filled. */
   | { type: "LevelReached"; level: number }
@@ -816,6 +829,10 @@ function give(world: World, order: Order, events: SimEvent[]) {
     dropItem(world, events);
     return;
   }
+  if (order.type === "EquipItem") {
+    equipItem(world, order.item, events);
+    return;
+  }
   if (order.type === "ReturnCursorItem") {
     returnCursorItem(world, events);
     return;
@@ -948,6 +965,45 @@ function dropItem(world: World, events: SimEvent[]) {
   world.groundItems.push({ item, pos });
   events.push({ type: "ItemDropped", item: { ...item }, pos: { ...pos } });
   events.push({ type: "InventoryChanged" });
+}
+
+/**
+ * Equips an Inventory Item into the slot of its kind. What was there goes
+ * where the Item was if it fits there, or else to the first free spot; with
+ * neither, it's refused.
+ */
+function equipItem(world: World, id: ItemId, events: SimEvent[]) {
+  const { hero } = world;
+  if (hero.cursor) return;
+  const placed = hero.inventory.find(({ item }) => item.id === id);
+  if (!placed) return;
+  const slot = slotFor(hero.equipment, placed.item.type);
+  const rest = hero.inventory.filter((other) => other !== placed);
+  const out = hero.equipment[slot];
+  if (out) {
+    const left = typed(rest);
+    const home = fitsAt(left, out.type, placed.cell)
+      ? placed.cell
+      : firstFreeCell(left, out.type);
+    if (!home) return;
+    rest.push({ item: out, cell: { ...home } });
+    events.push({ type: "ItemUnequipped", item: { ...out }, slot });
+  }
+  hero.inventory = rest;
+  hero.equipment[slot] = placed.item;
+  events.push({ type: "ItemEquipped", item: { ...placed.item }, slot });
+  events.push({ type: "InventoryChanged" });
+}
+
+/**
+ * The slot an Item of `type` is Equipped into: the first empty one of its
+ * kind, or else the first of its kind, so a Ring goes into the empty Ring
+ * slot or else the left one.
+ */
+function slotFor(equipment: Equipment, type: ItemType): EquipmentSlot {
+  const { kind } = itemOf(type);
+  const fitting = EQUIPMENT_SLOTS.filter((slot) => SLOT_KINDS[slot] === kind);
+  return fitting.find((slot) => !equipment[slot]) ?? fitting[0];
 }
 
 /** Puts the cursor Item back at the cell it was lifted from, kept free. */

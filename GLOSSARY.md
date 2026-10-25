@@ -81,17 +81,41 @@ What the Hero gains five of on each new Level, kept until the player spends it t
 _Avoid_: Stat point
 
 **Attack Rating**:
-How accurate the Hero's swings are, raised by Dexterity; set against a Monster's Defense it gives the chance to hit.
+How accurate a Hero's or Monster's attacks are (the Hero's raised by Dexterity); set against the target's Defense it gives the chance to hit.
 _Avoid_: Accuracy, to-hit
 
 **Defense**:
-How hard a Monster is to hit, set against the Hero's Attack Rating.
-_Avoid_: Armor, AC, evasion
+How hard the Hero or a Monster is to hit, set against the attacker's Attack Rating; the Hero's comes from their Equipped Armour.
+_Avoid_: Armor (that's the Item), AC, evasion
 
 **Miss**:
 A swing that plays out in full but deals no damage because it failed its chance to hit.
 _Avoid_: Dodge, whiff
 
 **Save**:
-The Hero's kept progress (Level, Experience, Attributes and unspent Attribute Points), written whenever it changes; there is only one, and loading it starts the Hero in Town.
+The Hero's kept progress (Level, Experience, Attributes, unspent Attribute Points, Inventory and Equipment), written whenever it changes; there is only one, and loading it starts the Hero in Town.
 _Avoid_: Save file, slot, profile, checkpoint
+
+**Item**:
+A thing the Hero can pick up, carry in the Inventory and, if it fits a slot, Equip; each Item has a fixed size in Inventory cells and fixed bonuses.
+_Avoid_: Loot, gear, object
+
+**Ground Item**:
+An Item lying in an Area, dropped by a Monster or by the player, until the Hero picks it up or leaves the Area.
+_Avoid_: Drop, loot
+
+**Inventory**:
+The Hero's grid of cells holding the Items they carry but have not Equipped; Items take up rectangles of cells and can't overlap.
+_Avoid_: Bag, backpack, stash (and never the Equipment slots)
+
+**Equipment**:
+The Hero's slots for worn Items: Weapon, Armour, two Rings and an Amulet; an Item in one of them is Equipped and its bonuses count.
+_Avoid_: Gear, paper doll, loadout
+
+**Weapon**:
+The Item kind Equipped in the Weapon slot, setting the Hero's damage.
+_Avoid_: Sword (that's one Weapon)
+
+**Armour**:
+The Item kind Equipped in the Armour slot, giving the Hero Defense.
+_Avoid_: Armor, body armour, chest

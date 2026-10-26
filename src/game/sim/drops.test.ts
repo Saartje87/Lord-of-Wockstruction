@@ -374,6 +374,44 @@ describe("Picking up a Potion", () => {
     ]);
   });
 
+  it("passes over a Belt Column with room whose bottom Potion is another type", () => {
+    beltTuning.rowsWithoutBelt = 2;
+    const belt: ItemType[][] = [["lifePotion"], [], ["manaPotion"], []];
+    const world = dropping("manaPotion", belted(belt));
+    const { item } = killForDrop(world);
+
+    const events = pickUp(world, item.id);
+
+    expect(ofType(events, "PotionPickedUp")).toEqual([
+      { type: "PotionPickedUp", item, column: 2 },
+    ]);
+    expect(beltTypesOf(world)).toEqual([
+      ["lifePotion"],
+      [],
+      ["manaPotion", "manaPotion"],
+      [],
+    ]);
+  });
+
+  it("puts it in an empty Belt Column rather than on another type", () => {
+    beltTuning.rowsWithoutBelt = 2;
+    const belt: ItemType[][] = [["lifePotion"], [], [], []];
+    const world = dropping("rejuvenationPotion", belted(belt));
+    const { item } = killForDrop(world);
+
+    const events = pickUp(world, item.id);
+
+    expect(ofType(events, "PotionPickedUp")).toEqual([
+      { type: "PotionPickedUp", item, column: 1 },
+    ]);
+    expect(beltTypesOf(world)).toEqual([
+      ["lifePotion"],
+      ["rejuvenationPotion"],
+      [],
+      [],
+    ]);
+  });
+
   it("puts it in the Inventory when the Belt is full", () => {
     const full: ItemType[][] = [
       ["lifePotion"],

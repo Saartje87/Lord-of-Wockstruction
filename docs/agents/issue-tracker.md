@@ -17,6 +17,8 @@ Issues and specs for this repo live as Tickets in the Tandembike project **Wiabl
 ## Specs and cycles
 
 - **A spec is an Epic** titled `Spec: <name>`. The tickets split from it are its children (`epicNumber`).
+- **The Epic is the source of truth for its tickets.** Where a ticket or its acceptance criteria say less than a spec line, build the spec line and comment on the ticket saying so.
+- **Tickets that rewrite the same module go in sequence**, with a blocker between them, even when their features are independent.
 - **Plan new tickets into the Active cycle**, the Epic included: find it with `list_cycles` (projectId 2), then `plan_tickets`.
 
 ## When a skill says "publish to the issue tracker"

@@ -21,6 +21,8 @@ import {
   takeRightClick,
 } from "./input/pointer";
 import {
+  acceptPendingPoints,
+  addPendingPoint,
   clickClose,
   clickLevelUp,
   clickPaused,
@@ -28,6 +30,7 @@ import {
   type Menus,
   pressKey,
   reactMenus,
+  removePendingPoint,
 } from "./menus";
 import { gameTime } from "./pause";
 import { loadArt } from "./render/art";
@@ -188,8 +191,10 @@ export default function GameCanvas() {
         orders.push(...newOrders);
         // A press on a panel's button never orders the Hero about, nor goes
         // on from their Death: Level Up opens the Hero or Skill Tree panel
-        // (but for a dead Hero), a + on either spends a point, and a panel's
-        // × shuts it as its key does, while the game runs on.
+        // (but for a dead Hero), a + on the Skill Tree spends a point while
+        // the Hero panel's +, − and Accept plan and spend Pending Attribute
+        // Points, and a panel's × shuts it as its key does, while the game
+        // runs on.
         if (panel && "button" in panel) {
           const { button } = panel;
           if (button?.type === "levelUp") {
@@ -197,9 +202,21 @@ export default function GameCanvas() {
             const heroDead = world.death !== null;
             clickLevelUp(menus, { heroDead, attributePoints, skillPoints });
           }
+          // + and − only plan Pending Attribute Points; Accept spends them.
           if (button?.type === "raise") {
-            const { attribute } = button;
-            orders.push({ type: "SpendAttributePoint", attribute });
+            const { attributePoints } = world.hero.progress;
+            const heroDead = world.death !== null;
+            addPendingPoint(menus, button.attribute, {
+              heroDead,
+              attributePoints,
+            });
+          }
+          if (button?.type === "lower") {
+            removePendingPoint(menus, button.attribute);
+          }
+          if (button?.type === "accept") {
+            const accept = acceptPendingPoints(menus);
+            if (accept) orders.push(accept);
           }
           if (button?.type === "close") clickClose(menus, button.panel);
           if (button?.type === "learn") {

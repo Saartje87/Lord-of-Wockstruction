@@ -327,17 +327,20 @@ export type Order =
   /** Swing in place towards a point, hitting every Monster in the arc. */
   | { type: "SwingAt"; target: Vec }
   /**
-   * Lift the Inventory Item covering cell `from`, or the Item Equipped in
-   * slot `from`, onto the cursor, if it's empty. This and the other orders
+   * Lift the Inventory Item covering cell `from`, the Item Equipped in slot
+   * `from` or the Potion in Belt Column cell `from` (the ones above dropping
+   * down a row), onto the cursor, if it's empty. This and the other orders
    * moving Items happen at once, whatever the Hero is doing.
    */
   | { type: "LiftItem"; from: ItemSpot }
   /**
-   * Put the cursor Item down with its top-left at cell `to`, or into slot
-   * `to`: into free cells or an empty slot, or over exactly one Item, which
-   * is swapped onto the cursor. Refused off the grid, over two or more
-   * Items, into a slot of another kind, or when a swapped-out Item couldn't
-   * go back anywhere (see `placement`).
+   * Put the cursor Item down with its top-left at cell `to`, into slot
+   * `to`, or into the Belt Column of Belt Column cell `to` at its lowest
+   * free row: into free cells or an empty slot, or over exactly one Item,
+   * which is swapped onto the cursor. Refused off the grid, over two or
+   * more Items, into a slot of another kind, into the Belt for anything but
+   * a Potion or into a full Belt Column, or when a swapped-out Item
+   * couldn't go back anywhere (see `placement`).
    */
   | { type: "PlaceItem"; to: ItemSpot }
   /** Lay the cursor Item on the ground at the Hero's feet. */

@@ -10,6 +10,7 @@ import { toScreen, toTile } from "../iso";
 import type { MenuChoice, Menus } from "../menus";
 import type { Pause } from "../pause";
 import { type Area, isFloor } from "../sim/area";
+import { beltOf, beltRows, isBeltCell } from "../sim/belt";
 import {
   cursorItemOf,
   EQUIPMENT_SLOTS,
@@ -18,6 +19,7 @@ import {
   type ItemId,
   type ItemSpot,
   inventoryOf,
+  isCell,
   isSlot,
   placement,
 } from "../sim/inventory";
@@ -659,7 +661,7 @@ export function createRenderer(
       skillTreeHitAt(app.screen, screen, drawnWorld, skillTreeOpenNow) ??
       skillBarHitAt(app.screen, screen) ??
       beltStripHitAt(app.screen, screen) ??
-      inventoryHitAt(app.screen, screen, inventoryOpenNow, holding)
+      inventoryHitAt(app.screen, screen, inventoryOpenNow, holding, beltRows())
     );
   };
 
@@ -2136,7 +2138,7 @@ function inventoryPanelView() {
     ) {
       layer.visible = open;
       if (!open) return;
-      const layout = inventoryPanelLayout(screen);
+      const layout = inventoryPanelLayout(screen, beltRows());
       const { panel, grid, cell, slots } = layout;
 
       graphics.clear();
@@ -2182,6 +2184,14 @@ function inventoryPanelView() {
       for (const { item, cell: at } of inventoryOf(world)) {
         items.push({ rect: itemRect(layout, at, item.type), type: item.type });
       }
+      const potions = beltOf(world);
+      layout.belt.forEach((cells, column) => {
+        cells.forEach((rect, row) => {
+          box(rect);
+          const potion = potions[column]?.[row];
+          if (potion) items.push({ rect, type: potion.type });
+        });
+      });
       items.forEach(({ rect, type }, i) => {
         names[i] ??= text(look.itemText, look.itemTextSize);
         drawItem(graphics, names[i], rect, type);
@@ -2195,7 +2205,22 @@ function inventoryPanelView() {
       const held = cursorItemOf(world);
       if (held && pointer) {
         const { type } = held.item;
-        if (hovered && !isSlot(hovered)) {
+        if (hovered && isBeltCell(hovered)) {
+          // The column's lowest free row where it takes it, else the whole
+          // column, refusing it.
+          const cells = layout.belt[hovered.beltColumn];
+          const lands = beltOf(world)[hovered.beltColumn].length;
+          const fits = placement(world, hovered) !== null;
+          const top = cells[cells.length - 1];
+          const rect = fits
+            ? cells[lands]
+            : { ...top, h: cells[0].y + cells[0].h - top.y };
+          graphics.rect(rect.x, rect.y, rect.w, rect.h).fill({
+            color: fits ? look.fits : look.refused,
+            alpha: look.landingAlpha,
+          });
+        }
+        if (hovered && isCell(hovered)) {
           // Where it would land, kept to the grid where it hangs off.
           const to = landingCell(layout, pointer, type);
           const rect = itemRect(layout, to, type);
@@ -2233,12 +2258,14 @@ function inventoryPanelView() {
       if (!hovered || !item) return;
       const under = isSlot(hovered)
         ? slots[hovered]
-        : itemRect(
-            layout,
-            inventoryOf(world).find((placed) => placed.item.id === item.id)
-              ?.cell ?? hovered,
-            item.type,
-          );
+        : isBeltCell(hovered)
+          ? layout.belt[hovered.beltColumn][hovered.row]
+          : itemRect(
+              layout,
+              inventoryOf(world).find((placed) => placed.item.id === item.id)
+                ?.cell ?? hovered,
+              item.type,
+            );
       const lines = itemTooltip(item.type);
       lines.forEach((line, i) => {
         tooltipLines[i] ??= text(look.tooltipLine, look.tooltipSize);

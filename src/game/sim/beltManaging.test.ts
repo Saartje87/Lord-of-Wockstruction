@@ -55,7 +55,12 @@ afterEach(() => {
 describe("lifting a Potion out of a Belt Column", () => {
   it("makes it the Held Item, the Potions above dropping down a row", () => {
     beltTuning.rowsWithoutBelt = 4;
-    const world = carrying([["lifePotion", "lifePotion", "lifePotion"], [], [], []]);
+    const world = carrying([
+      ["lifePotion", "lifePotion", "lifePotion"],
+      [],
+      [],
+      [],
+    ]);
     const [, lifted] = beltOf(world)[0];
 
     const events = step(world, [{ type: "LiftItem", from: belt(0, 1) }]);
@@ -196,9 +201,12 @@ describe("moving Potions between the Belt, the Inventory and the ground", () => 
 describe("a Held Item lifted from the Belt", () => {
   it("is kept by the Save as still in its Belt Column, at its row", () => {
     beltTuning.rowsWithoutBelt = 3;
-    const world = carrying(
-      [["lifePotion", "lifePotion", "lifePotion"], [], [], []],
-    );
+    const world = carrying([
+      ["lifePotion", "lifePotion", "lifePotion"],
+      [],
+      [],
+      [],
+    ]);
 
     step(world, [{ type: "LiftItem", from: belt(0, 1) }]);
 
@@ -207,9 +215,12 @@ describe("a Held Item lifted from the Belt", () => {
 
   it("goes back to its row when it's never put down", () => {
     beltTuning.rowsWithoutBelt = 3;
-    const world = carrying(
-      [["lifePotion", "lifePotion", "lifePotion"], [], [], []],
-    );
+    const world = carrying([
+      ["lifePotion", "lifePotion", "lifePotion"],
+      [],
+      [],
+      [],
+    ]);
     const before = beltOf(world)[0];
 
     step(world, [{ type: "LiftItem", from: belt(0, 1) }]);
@@ -220,10 +231,18 @@ describe("a Held Item lifted from the Belt", () => {
   });
 
   it("keeps its row: a Potion picked up meanwhile can't take it", () => {
-    const world = carrying([["lifePotion"], ["lifePotion"], [], ["lifePotion"]]);
+    const world = carrying([
+      ["lifePotion"],
+      ["lifePotion"],
+      [],
+      ["lifePotion"],
+    ]);
     // Leave a Potion from the second column lying at the Hero's feet.
     step(world, [{ type: "LiftItem", from: belt(1, 0) }]);
-    const [dropped] = ofType(step(world, [{ type: "DropItem" }]), "ItemDropped");
+    const [dropped] = ofType(
+      step(world, [{ type: "DropItem" }]),
+      "ItemDropped",
+    );
     step(world, [{ type: "LiftItem", from: belt(0, 0) }]);
 
     const events = step(world, [
@@ -244,12 +263,16 @@ describe("a Held Item lifted from the Belt", () => {
 
   it("counts as the bottom Potion of its column for a Potion picked up meanwhile", () => {
     beltTuning.rowsWithoutBelt = 2;
-    const world = carrying([["lifePotion"], [], [], []], [
-      { type: "lifePotion", cell: { column: 0, row: 0 } },
-    ]);
+    const world = carrying(
+      [["lifePotion"], [], [], []],
+      [{ type: "lifePotion", cell: { column: 0, row: 0 } }],
+    );
     // Leave the Inventory Potion lying at the Hero's feet.
     step(world, [{ type: "LiftItem", from: { column: 0, row: 0 } }]);
-    const [dropped] = ofType(step(world, [{ type: "DropItem" }]), "ItemDropped");
+    const [dropped] = ofType(
+      step(world, [{ type: "DropItem" }]),
+      "ItemDropped",
+    );
     step(world, [{ type: "LiftItem", from: belt(0, 0) }]);
 
     const events = step(world, [

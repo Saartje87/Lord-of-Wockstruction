@@ -62,6 +62,43 @@ describe("the Inventory panel's layout", () => {
     }
   });
 
+  it("puts every Belt Column between the Equipment slots and the grid", () => {
+    for (const rows of [1, 4]) {
+      const { belt, grid, slots, cell } = inventoryPanelLayout(WIDE, rows);
+
+      expect(belt).toHaveLength(4);
+      for (const column of belt) {
+        expect(column).toHaveLength(rows);
+        for (const rect of column) {
+          expect(rect.w).toBe(cell);
+          expect(rect.h).toBe(cell);
+          expect(rect.y + rect.h).toBeLessThan(grid.y);
+          for (const slot of Object.values(slots)) {
+            expect(rect.y).toBeGreaterThan(slot.y + slot.h);
+          }
+        }
+      }
+    }
+  });
+
+  it("stacks a Belt Column's rows from the bottom up, its columns side by side", () => {
+    const { belt, cell } = inventoryPanelLayout(WIDE, 3);
+
+    expect(belt[0][1].y).toBe(belt[0][0].y - cell);
+    expect(belt[0][2].y).toBe(belt[0][0].y - 2 * cell);
+    expect(belt[1][0].x).toBe(belt[0][0].x + cell);
+    expect(belt[3][0].y).toBe(belt[0][0].y);
+  });
+
+  it("grows to fit more rows of Belt Columns, on a narrow screen too", () => {
+    const one = inventoryPanelLayout(NARROW, 1);
+    const four = inventoryPanelLayout(NARROW, 4);
+
+    expect(four.grid.y).toBe(one.grid.y + 3 * one.cell);
+    expect(four.panel.h).toBe(one.panel.h + 3 * one.cell);
+    expect(four.panel.y + four.panel.h).toBeLessThan(NARROW.height);
+  });
+
   it("shrinks its cells to fit a narrow screen", () => {
     expect(inventoryPanelLayout(WIDE).cell).toBe(36);
     expect(inventoryPanelLayout(NARROW).cell).toBe(34);
@@ -140,14 +177,15 @@ describe("what a point on the Inventory panel hits", () => {
   });
 
   // Worked out by hand from INVENTORY_PANEL, so they don't lean on the
-  // layout they test. Wide: 36 px cells, the grid's top-left at (886, 272)
+  // layout they test. Wide: 36 px cells, the grid's top-left at (886, 326)
   // and the slots' area at (886, 74). Narrow: 34 px cells, the grid at
-  // (426, 262) and the slots' area at (426, 74).
+  // (426, 314) and the slots' area at (426, 74). One row of Belt Columns sits
+  // between them: wide at (994, 272), narrow at (528, 262).
   it.each([
-    ["wide", WIDE, { x: 900, y: 290 }, { column: 0, row: 0 }],
-    ["wide", WIDE, { x: 1143, y: 349 }, { column: 7, row: 2 }],
-    ["narrow", NARROW, { x: 430, y: 265 }, { column: 0, row: 0 }],
-    ["narrow", NARROW, { x: 750, y: 380 }, { column: 9, row: 3 }],
+    ["wide", WIDE, { x: 900, y: 344 }, { column: 0, row: 0 }],
+    ["wide", WIDE, { x: 1143, y: 403 }, { column: 7, row: 2 }],
+    ["narrow", NARROW, { x: 430, y: 317 }, { column: 0, row: 0 }],
+    ["narrow", NARROW, { x: 750, y: 432 }, { column: 9, row: 3 }],
   ])("maps a %s screen's point %o to its cell", (_, screen, point, cell) => {
     expect(inventoryHitAt(screen, point, true)).toEqual({
       inventory: cell,
@@ -162,6 +200,29 @@ describe("what a point on the Inventory panel hits", () => {
   ] as const)("maps a %s screen's point %o to its slot", (_, screen, point, slot) => {
     expect(inventoryHitAt(screen, point, true)).toEqual({
       inventory: slot,
+    });
+  });
+
+  it.each([
+    ["wide", WIDE, { x: 1000, y: 290 }, { beltColumn: 0, row: 0 }],
+    ["wide", WIDE, { x: 1137, y: 307 }, { beltColumn: 3, row: 0 }],
+    ["narrow", NARROW, { x: 600, y: 270 }, { beltColumn: 2, row: 0 }],
+  ])("maps a %s screen's point %o to its Belt Column cell", (_, screen, point, spot) => {
+    expect(inventoryHitAt(screen, point, true)).toEqual({ inventory: spot });
+  });
+
+  it("finds each Belt Column cell with more rows, row 0 at the bottom", () => {
+    const { belt } = inventoryPanelLayout(WIDE, 3);
+    const centre = (rect: { x: number; y: number; w: number; h: number }) => ({
+      x: rect.x + rect.w / 2,
+      y: rect.y + rect.h / 2,
+    });
+
+    expect(inventoryHitAt(WIDE, centre(belt[1][2]), true, false, 3)).toEqual({
+      inventory: { beltColumn: 1, row: 2 },
+    });
+    expect(inventoryHitAt(WIDE, centre(belt[3][0]), true, false, 3)).toEqual({
+      inventory: { beltColumn: 3, row: 0 },
     });
   });
 
@@ -316,6 +377,38 @@ describe("the order a click on the Inventory gives", () => {
     expect(inventoryOrder(w, WIDE, point, onSlot("armour"))).toBeNull();
   });
 
+  const onBelt = (beltColumn: number, row: number) => ({
+    inventory: { beltColumn, row },
+  });
+
+  it("lifts the Potion out of a Belt Column cell, and nothing from an empty one", () => {
+    const w = world({
+      inventory: [],
+      equipment: {},
+      belt: [["lifePotion"], [], [], []],
+    });
+    const point = { x: 0, y: 0 };
+
+    expect(inventoryOrder(w, WIDE, point, onBelt(0, 0))).toEqual({
+      type: "LiftItem",
+      from: { beltColumn: 0, row: 0 },
+    });
+    expect(inventoryOrder(w, WIDE, point, onBelt(1, 0))).toBeNull();
+  });
+
+  it("puts the held Item into a clicked Belt Column", () => {
+    const w = world({
+      inventory: [{ type: "manaPotion", cell: { column: 0, row: 0 } }],
+      equipment: {},
+    });
+    step(w, [{ type: "LiftItem", from: { column: 0, row: 0 } }]);
+
+    expect(inventoryOrder(w, WIDE, { x: 0, y: 0 }, onBelt(2, 0))).toEqual({
+      type: "PlaceItem",
+      to: { beltColumn: 2, row: 0 },
+    });
+  });
+
   it("puts the held Item into a clicked slot", () => {
     const w = world(belongings);
     step(w, [{ type: "LiftItem", from: { column: 4, row: 1 } }]);
@@ -348,6 +441,31 @@ describe("the order a right-click on the Inventory gives", () => {
       item: axe.item.id,
     });
     expect(inventoryRightClickOrder(w, onCell(0, 0))).toBeNull();
+  });
+
+  it("drinks the Inventory Potion under it", () => {
+    const w = world({
+      inventory: [{ type: "lifePotion", cell: { column: 1, row: 2 } }],
+      equipment: {},
+    });
+    const [potion] = inventoryOf(w);
+
+    expect(inventoryRightClickOrder(w, onCell(1, 2))).toEqual({
+      type: "DrinkItem",
+      item: potion.item.id,
+    });
+  });
+
+  it("orders nothing on a Belt Column cell", () => {
+    const w = world({
+      inventory: [],
+      equipment: {},
+      belt: [["lifePotion"], [], [], []],
+    });
+
+    expect(
+      inventoryRightClickOrder(w, { inventory: { beltColumn: 0, row: 0 } }),
+    ).toBeNull();
   });
 
   it("unequips the Item in the slot under it", () => {
@@ -397,6 +515,13 @@ describe("the Item under a point", () => {
 
     expect(itemUnder(w, "weapon")?.type).toBe("shortSword");
     expect(itemUnder(w, "armour")).toBeNull();
+  });
+
+  it("is the Potion in a Belt Column cell, or nothing in an empty one", () => {
+    const w = world({ ...belongings, belt: [["manaPotion"], [], [], []] });
+
+    expect(itemUnder(w, { beltColumn: 0, row: 0 })?.type).toBe("manaPotion");
+    expect(itemUnder(w, { beltColumn: 1, row: 0 })).toBeNull();
   });
 });
 

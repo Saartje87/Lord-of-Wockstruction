@@ -1,4 +1,4 @@
-import type { Panel } from "../menus";
+import type { HeroState, Menus, Panel } from "../menus";
 import { inside, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
 import { BELT_STRIP } from "./beltStrip";
@@ -46,4 +46,27 @@ export function panelButtonHitAt(
   const { buttons } = panelButtonsLayout(screen);
   const panel = PANEL_BUTTONS.find((name) => inside(buttons[name], point));
   return panel ? { button: { type: "panelButton", panel } } : null;
+}
+
+/**
+ * What a Panel button shows: its panel, lit while that panel is open
+ * however it was opened, and dimmed while the Hero lies in Death.
+ */
+export type PanelButtonSheet = { panel: Panel; lit: boolean; dimmed: boolean };
+
+/** What the Panel buttons show, from left to right. */
+export function panelButtonsSheet(
+  menus: Menus,
+  hero: HeroState,
+): PanelButtonSheet[] {
+  const open: Record<Panel, boolean> = {
+    hero: menus.heroPanelOpen,
+    inventory: menus.inventoryOpen,
+    skillTree: menus.skillTreeOpen,
+  };
+  return PANEL_BUTTONS.map((panel) => ({
+    panel,
+    lit: open[panel],
+    dimmed: hero.heroDead,
+  }));
 }

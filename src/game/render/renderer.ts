@@ -8,7 +8,13 @@ import {
 } from "pixi.js";
 import type { CursorHit } from "../cursor";
 import { toScreen, toTile } from "../iso";
-import type { MenuChoice, Menus, Panel, PendingPoints } from "../menus";
+import type {
+  HeroState,
+  MenuChoice,
+  Menus,
+  Panel,
+  PendingPoints,
+} from "../menus";
 import type { Pause } from "../pause";
 import { type Area, isFloor } from "../sim/area";
 import { beltOf, beltRows, isBeltCell } from "../sim/belt";
@@ -99,9 +105,9 @@ import {
 import { itemColour } from "./itemArt";
 import { type Orb, orbFill } from "./orbs";
 import {
-  PANEL_BUTTONS,
   panelButtonHitAt,
   panelButtonsLayout,
+  panelButtonsSheet,
 } from "./panelButtons";
 import { menuChoiceAt, PAUSE_MENU_LAYOUT, pauseMenuLayout } from "./pauseMenu";
 import {
@@ -1195,7 +1201,7 @@ export function createRenderer(
       orb.draw(app.screen, world, nowMs);
       skillBar.draw(app.screen, world, heldSkillSlot);
       beltStrip.draw(app.screen, world);
-      panelButtons.draw(app.screen);
+      panelButtons.draw(app.screen, menus, { heroDead: world.death !== null });
       experience.draw(app.screen, world);
       levelUp.draw(app.screen, world, nowMs);
       heroPanel.draw(
@@ -1697,7 +1703,9 @@ function beltStripView() {
 
 /**
  * The Panel buttons right of the Skill Bar, in its look: a stone-framed
- * square each, with a simple icon of its panel.
+ * square each, with a simple icon of its panel. A lit one, its panel open,
+ * is pressed in with a gold frame and a bright icon; all are faded while
+ * the Hero lies in Death.
  */
 function panelButtonsView() {
   const style = SKILL_BAR_STYLE;
@@ -1707,20 +1715,46 @@ function panelButtonsView() {
 
   return {
     layer,
-    draw(screen: { width: number; height: number }) {
+    draw(
+      screen: { width: number; height: number },
+      menus: Menus,
+      hero: HeroState,
+    ) {
       const { buttons } = panelButtonsLayout(screen);
       graphics.clear();
-      for (const panel of PANEL_BUTTONS) {
-        const rect = buttons[panel];
+      for (const shown of panelButtonsSheet(menus, hero)) {
+        const rect = buttons[shown.panel];
+        const alpha = shown.dimmed ? style.dimmed : 1;
         graphics
           .rect(rect.x, rect.y, rect.w, rect.h)
-          .fill(style.fill)
-          .stroke({ color: style.edge, width: 1.5 });
-        // The stone frame's inner bevel.
+          .fill({ color: shown.lit ? style.skill : style.fill, alpha })
+          .stroke({
+            color: shown.lit ? style.skillEdge : style.edge,
+            width: 1.5,
+            alpha,
+          });
+        // The stone frame's inner bevel, deeper when pressed in.
+        const bevel = shown.lit ? 4 : 3;
         graphics
-          .rect(rect.x + 3, rect.y + 3, rect.w - 6, rect.h - 6)
-          .stroke({ color: style.edge, width: 1, alpha: 0.6 });
-        panelIcon(graphics, panel, rect, style.key);
+          .rect(
+            rect.x + bevel,
+            rect.y + bevel,
+            rect.w - 2 * bevel,
+            rect.h - 2 * bevel,
+          )
+          .stroke({
+            color: shown.lit ? style.skillEdge : style.edge,
+            width: 1,
+            alpha: 0.6 * alpha,
+          });
+        panelIcon(
+          graphics,
+          shown.panel,
+          // Pressed in: the icon sits a pixel lower.
+          shown.lit ? { ...rect, y: rect.y + 1 } : rect,
+          shown.lit ? style.name : style.key,
+          alpha,
+        );
       }
     },
   };
@@ -1736,21 +1770,23 @@ function panelIcon(
   panel: Panel,
   rect: Rect,
   colour: number,
+  alpha: number,
 ) {
+  const fill = { color: colour, alpha };
   const x = rect.x + rect.w / 2;
   const y = rect.y + rect.h / 2;
   if (panel === "hero") {
-    graphics.circle(x, y - 8, 5).fill(colour);
+    graphics.circle(x, y - 8, 5).fill(fill);
     graphics
       .poly([x - 9, y + 12, x - 6, y - 1, x + 6, y - 1, x + 9, y + 12])
-      .fill(colour);
+      .fill(fill);
   }
   if (panel === "inventory") {
     graphics
       .roundRect(x - 10, y - 5, 20, 17, 4)
-      .fill(colour)
+      .fill(fill)
       .rect(x - 5, y - 11, 10, 6)
-      .stroke({ color: colour, width: 2 });
+      .stroke({ color: colour, width: 2, alpha });
   }
   if (panel === "skillTree") {
     graphics
@@ -1758,10 +1794,10 @@ function panelIcon(
       .lineTo(x - 8, y + 8)
       .moveTo(x, y - 9)
       .lineTo(x + 8, y + 8)
-      .stroke({ color: colour, width: 2 });
-    graphics.circle(x, y - 9, 4).fill(colour);
-    graphics.circle(x - 8, y + 8, 4).fill(colour);
-    graphics.circle(x + 8, y + 8, 4).fill(colour);
+      .stroke({ color: colour, width: 2, alpha });
+    graphics.circle(x, y - 9, 4).fill(fill);
+    graphics.circle(x - 8, y + 8, 4).fill(fill);
+    graphics.circle(x + 8, y + 8, 4).fill(fill);
   }
 }
 

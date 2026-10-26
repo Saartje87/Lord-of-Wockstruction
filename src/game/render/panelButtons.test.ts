@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
+import {
+  clickLevelUp,
+  clickPanelButton,
+  createMenus,
+  pressKey,
+} from "../menus";
 import { overlaps } from "../sim/rect";
 import { beltStripLayout } from "./beltStrip";
-import { panelButtonHitAt, panelButtonsLayout } from "./panelButtons";
+import {
+  panelButtonHitAt,
+  panelButtonsLayout,
+  panelButtonsSheet,
+} from "./panelButtons";
 import { skillBarLayout } from "./skillBar";
 
 describe("the Panel buttons' layout", () => {
@@ -73,5 +83,66 @@ describe("a click on the Panel buttons", () => {
       panelButtonHitAt(screen, { x: hero.x + 10, y: hero.y - 5 }),
     ).toBeNull();
     expect(panelButtonHitAt(screen, { x: 640, y: 300 })).toBeNull();
+  });
+});
+
+describe("the Panel buttons' sheet", () => {
+  const alive = { heroDead: false };
+
+  it("shows a Panel button lit while its panel is opened by key", () => {
+    const menus = createMenus();
+
+    pressKey(menus, "i", 1000, alive);
+
+    expect(panelButtonsSheet(menus, alive)).toEqual([
+      { panel: "hero", lit: false, dimmed: false },
+      { panel: "inventory", lit: true, dimmed: false },
+      { panel: "skillTree", lit: false, dimmed: false },
+    ]);
+  });
+
+  it("shows a Panel button lit while its panel is opened by its Panel button", () => {
+    const menus = createMenus();
+
+    clickPanelButton(menus, "hero", alive);
+
+    expect(panelButtonsSheet(menus, alive).map(({ lit }) => lit)).toEqual([
+      true,
+      false,
+      false,
+    ]);
+  });
+
+  it("shows the Hero and Skill Tree buttons lit while Level Up opened their panels", () => {
+    const menus = createMenus();
+
+    clickLevelUp(menus, { ...alive, attributePoints: 5, skillPoints: 1 });
+
+    expect(panelButtonsSheet(menus, alive).map(({ lit }) => lit)).toEqual([
+      true,
+      false,
+      true,
+    ]);
+  });
+
+  it("shows a Panel button unlit once its panel shuts", () => {
+    const menus = createMenus();
+
+    pressKey(menus, "t", 1000, alive);
+    clickPanelButton(menus, "skillTree", alive);
+
+    expect(panelButtonsSheet(menus, alive).map(({ lit }) => lit)).toEqual([
+      false,
+      false,
+      false,
+    ]);
+  });
+
+  it("shows every Panel button dimmed while the Hero lies in Death", () => {
+    const menus = createMenus();
+
+    expect(
+      panelButtonsSheet(menus, { heroDead: true }).map(({ dimmed }) => dimmed),
+    ).toEqual([true, true, true]);
   });
 });

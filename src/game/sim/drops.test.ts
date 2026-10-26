@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { dropTuning, ITEM_TYPES, type ItemType } from "../tuning/items";
+import {
+  beltTuning,
+  dropTuning,
+  ITEM_TYPES,
+  type ItemType,
+  isPotion,
+  potionDropTuning,
+} from "../tuning/items";
+import { beltTypesOf } from "./belt";
 import { type Belongings, inventoryOf } from "./inventory";
 import { combatArea } from "./testAreas";
 import {
@@ -128,7 +136,9 @@ describe("Drops", () => {
     const types = new Set<ItemType>();
     const kills = 200;
     for (let seed = 1; seed <= kills; seed++) {
-      const dropped = ofType(kill(town({ seed }), 1), "ItemDropped");
+      const dropped = ofType(kill(town({ seed }), 1), "ItemDropped").filter(
+        ({ item }) => !isPotion(item.type),
+      );
       expect(dropped.length).toBeLessThanOrEqual(1);
       drops += dropped.length;
       for (const { item } of dropped) types.add(item.type);
@@ -136,8 +146,39 @@ describe("Drops", () => {
 
     expect(drops / kills).toBeGreaterThan(0.18);
     expect(drops / kills).toBeLessThan(0.32);
-    const notPotions = ITEM_TYPES.filter((type) => type !== "lifePotion");
+    const notPotions = ITEM_TYPES.filter((type) => !isPotion(type));
     expect([...types].sort()).toEqual(notPotions.sort());
+  });
+
+  it("include Potions on a roll of their own, more often than other Items", () => {
+    let potions = 0;
+    let others = 0;
+    const types = new Set<ItemType>();
+    for (let seed = 1; seed <= 200; seed++) {
+      const dropped = ofType(kill(town({ seed }), 1), "ItemDropped");
+      const potion = dropped.filter(({ item }) => isPotion(item.type));
+      expect(potion.length).toBeLessThanOrEqual(1);
+      potions += potion.length;
+      others += dropped.length - potion.length;
+      for (const { item } of potion) types.add(item.type);
+    }
+
+    expect(potions).toBeGreaterThan(others);
+    expect([...types].sort()).toEqual(ITEM_TYPES.filter(isPotion).sort());
+  });
+
+  it("drop a Potion even when no other Item drops", () => {
+    dropTuning.chance = 0;
+    potionDropTuning.chance = 1;
+    const world = town();
+
+    const dropped = ofType(kill(world, 1), "ItemDropped");
+
+    expect(dropped).toHaveLength(1);
+    expect(isPotion(dropped[0].item.type)).toBe(true);
+    expect(groundItemsOf(world)).toEqual([
+      { item: dropped[0].item, pos: dropped[0].pos },
+    ]);
   });
 
   it("lie where the Monster died as Ground Items", () => {
@@ -158,18 +199,25 @@ describe("Drops", () => {
 
 /** The tuning tests change, put back after each. */
 const tuned = { ...dropTuning };
+const tunedPotions = { ...potionDropTuning };
+const tunedBelt = { ...beltTuning };
 afterEach(() => {
   Object.assign(dropTuning, tuned);
+  Object.assign(potionDropTuning, tunedPotions);
+  Object.assign(beltTuning, tunedBelt);
 });
 
-/** A Town where every kill drops an Item of `type`. */
+/** A Town where every kill drops just one Item, of `type`. */
 function dropping(
   type: ItemType = "ringOfLife",
   belongings?: Belongings,
   pack = 1,
 ) {
-  dropTuning.chance = 1;
+  const potion = isPotion(type);
+  dropTuning.chance = potion ? 0 : 1;
   dropTuning.items = [type];
+  potionDropTuning.chance = potion ? 1 : 0;
+  potionDropTuning.items = [type];
   return town({ belongings, pack });
 }
 
@@ -185,7 +233,10 @@ function pickUp(world: World, groundItem: number): SimEvent[] {
   const events = step(world, [{ type: "PickUp", groundItem }]);
   for (let i = 0; i < 60 * 10; i++) {
     const done = events.some(
-      (event) => event.type === "ItemPickedUp" || event.type === "NoRoom",
+      (event) =>
+        event.type === "ItemPickedUp" ||
+        event.type === "PotionPickedUp" ||
+        event.type === "NoRoom",
     );
     if (done) return events;
     events.push(...step(world, []));
@@ -277,9 +328,103 @@ describe("Picking up", () => {
   });
 });
 
+/** Belongings with nothing but `belt` in the Belt Columns. */
+function belted(belt: ItemType[][], inventory: Belongings["inventory"] = []) {
+  return { inventory, equipment: {}, belt };
+}
+
+describe("Picking up a Potion", () => {
+  it("puts it in the leftmost Belt Column with room whose bottom Potion is the same type", () => {
+    beltTuning.rowsWithoutBelt = 2;
+    const belt: ItemType[][] = [[], ["lifePotion"], ["lifePotion"], []];
+    const world = dropping("lifePotion", belted(belt));
+    const { item } = killForDrop(world);
+
+    const events = pickUp(world, item.id);
+
+    expect(ofType(events, "PotionPickedUp")).toEqual([
+      { type: "PotionPickedUp", item, column: 1 },
+    ]);
+    expect(ofType(events, "BeltChanged")).toEqual([{ type: "BeltChanged" }]);
+    expect(beltTypesOf(world)).toEqual([
+      [],
+      ["lifePotion", "lifePotion"],
+      ["lifePotion"],
+      [],
+    ]);
+    expect(groundItemsOf(world)).toEqual([]);
+    expect(inventoryOf(world)).toEqual([]);
+  });
+
+  it("puts it in the leftmost empty Belt Column when none of its type has room", () => {
+    const belt: ItemType[][] = [["lifePotion"], [], ["lifePotion"], []];
+    const world = dropping("lifePotion", belted(belt));
+    const { item } = killForDrop(world);
+
+    const events = pickUp(world, item.id);
+
+    expect(ofType(events, "PotionPickedUp")).toEqual([
+      { type: "PotionPickedUp", item, column: 1 },
+    ]);
+    expect(beltTypesOf(world)).toEqual([
+      ["lifePotion"],
+      ["lifePotion"],
+      ["lifePotion"],
+      [],
+    ]);
+  });
+
+  it("puts it in the Inventory when the Belt is full", () => {
+    const full: ItemType[][] = [
+      ["lifePotion"],
+      ["lifePotion"],
+      ["lifePotion"],
+      ["lifePotion"],
+    ];
+    const world = dropping("lifePotion", belted(full));
+    const { item } = killForDrop(world);
+
+    const events = pickUp(world, item.id);
+
+    expect(ofType(events, "ItemPickedUp")).toEqual([
+      { type: "ItemPickedUp", item, cell: { column: 0, row: 0 } },
+    ]);
+    expect(ofType(events, "PotionPickedUp")).toEqual([]);
+    expect(beltTypesOf(world)).toEqual(full);
+    expect(inventoryOf(world)).toEqual([{ item, cell: { column: 0, row: 0 } }]);
+  });
+
+  it("leaves it on the ground with No room when the Belt and Inventory are full", () => {
+    const full: ItemType[][] = [
+      ["lifePotion"],
+      ["lifePotion"],
+      ["lifePotion"],
+      ["lifePotion"],
+    ];
+    const inventory = [0, 1, 2, 3].flatMap((row) =>
+      inRow("ringOfLife", row, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
+    );
+    const world = dropping("lifePotion", belted(full, inventory));
+    const dropped = killForDrop(world);
+    const before = inventoryOf(world);
+
+    const events = pickUp(world, dropped.item.id);
+
+    expect(ofType(events, "NoRoom")).toEqual([{ type: "NoRoom" }]);
+    expect(ofType(events, "PotionPickedUp")).toEqual([]);
+    expect(ofType(events, "ItemPickedUp")).toEqual([]);
+    expect(groundItemsOf(world)).toEqual([
+      { item: dropped.item, pos: dropped.pos },
+    ]);
+    expect(beltTypesOf(world)).toEqual(full);
+    expect(inventoryOf(world)).toEqual(before);
+  });
+});
+
 describe("Leaving the Area", () => {
   it("clears its Ground Items, which aren't there on coming back", () => {
     dropTuning.chance = 1;
+    potionDropTuning.chance = 0;
     const world = createWorld({
       areas: {
         town: map(["H.S.E"], { exitTo: "cave" }),

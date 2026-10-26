@@ -1,6 +1,12 @@
 import { areaTuning } from "../tuning/areas";
 import { heroTuning } from "../tuning/hero";
-import { type Bonus, dropTuning, itemOf } from "../tuning/items";
+import {
+  type Bonus,
+  dropTuning,
+  isPotion,
+  itemOf,
+  potionDropTuning,
+} from "../tuning/items";
 import { minionTuning } from "../tuning/minions";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import { type Skill, skillTuning } from "../tuning/skills";
@@ -12,7 +18,7 @@ import {
   type Spawn,
   TOWN,
 } from "./area";
-import { type BeltColumns, emptyBelt } from "./belt";
+import { type BeltColumns, beltColumnFor, emptyBelt } from "./belt";
 import {
   type Belongings,
   type Cell,
@@ -408,6 +414,8 @@ export type SimEvent =
   | { type: "ItemDropped"; item: Item; pos: Vec }
   /** The Hero picked up `item`, which now has its top-left at `cell`. */
   | { type: "ItemPickedUp"; item: Item; cell: Cell }
+  /** The Hero picked up the Potion `item` into the top of Belt Column `column`. */
+  | { type: "PotionPickedUp"; item: Item; column: number }
   /** The Hero got to a Ground Item with no room for it in the Inventory. */
   | { type: "NoRoom" }
   /** An Item moved in the Inventory or Equipment, onto the cursor or off it. */
@@ -1245,8 +1253,9 @@ function approach(world: World) {
 }
 
 /**
- * Picks up the Ground Item the Hero walks to once it is in reach: into the
- * first free spot of the Inventory, or left lying with `NoRoom`.
+ * Picks up the Ground Item the Hero walks to once it is in reach: a Potion
+ * into a Belt Column with room, else into the first free spot of the
+ * Inventory, or left lying with `NoRoom`.
  */
 function reachGroundItem(world: World, events: SimEvent[]) {
   const { hero } = world;
@@ -1264,6 +1273,16 @@ function reachGroundItem(world: World, events: SimEvent[]) {
   }
   hero.pickingUp = null;
   hero.path = [];
+  const column = isPotion(lying.item.type)
+    ? beltColumnFor(world, lying.item.type)
+    : null;
+  if (column !== null) {
+    world.groundItems = world.groundItems.filter((other) => other !== lying);
+    hero.belt[column].push(lying.item);
+    events.push({ type: "PotionPickedUp", item: { ...lying.item }, column });
+    events.push({ type: "BeltChanged" });
+    return;
+  }
   const cell = firstFreeCell(taken(hero), lying.item.type);
   if (!cell) {
     events.push({ type: "NoRoom" });
@@ -1434,16 +1453,18 @@ function minionStrike(
 }
 
 /**
- * Rolls a dying Monster's drop: by `dropTuning.chance`, one Item of a type
- * picked with equal odds, lying where it died.
+ * Rolls a dying Monster's drops, each lying where it died: by
+ * `dropTuning.chance` one Item, then by `potionDropTuning.chance` one Potion,
+ * each of a type picked with equal odds.
  */
 function rollDrop(world: World, pos: Vec, events: SimEvent[]) {
-  if (random(world.rng) >= dropTuning.chance) return;
-  const { items } = dropTuning;
-  const type = items[randomInt(world.rng, [0, items.length - 1])];
-  const item = { id: world.nextItemId++, type };
-  world.groundItems.push({ item, pos: { ...pos } });
-  events.push({ type: "ItemDropped", item: { ...item }, pos: { ...pos } });
+  for (const { chance, items } of [dropTuning, potionDropTuning]) {
+    if (random(world.rng) >= chance) continue;
+    const type = items[randomInt(world.rng, [0, items.length - 1])];
+    const item = { id: world.nextItemId++, type };
+    world.groundItems.push({ item, pos: { ...pos } });
+    events.push({ type: "ItemDropped", item: { ...item }, pos: { ...pos } });
+  }
 }
 
 /**

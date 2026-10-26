@@ -76,3 +76,18 @@ export function takeFromBelt(world: World, column: number): Item | null {
   const potions = world.hero.belt[column];
   return potions?.shift() ?? null;
 }
+
+/**
+ * The Belt Column a picked-up Potion of `type` goes into: the leftmost with
+ * room whose bottom Potion is the same type, else the leftmost empty one, or
+ * null when neither is there.
+ */
+export function beltColumnFor(world: World, type: ItemType): number | null {
+  const { belt } = world.hero;
+  const sameType = belt.findIndex(
+    (column) => column.length < beltRows() && column[0]?.type === type,
+  );
+  if (sameType !== -1) return sameType;
+  const empty = belt.findIndex((column) => column.length === 0);
+  return empty === -1 ? null : empty;
+}

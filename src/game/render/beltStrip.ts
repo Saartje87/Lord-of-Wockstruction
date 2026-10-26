@@ -31,20 +31,24 @@ export function beltStripLayout(screen: { width: number; height: number }): {
 }
 
 /**
- * A click on a Belt Column's square of the Belt strip: no button, but not
- * for the World either.
+ * A point on a Belt Column's square of the Belt strip: no button, but not
+ * for the World either. Lifting there takes the column's bottom Potion, and
+ * putting a Potion down there puts it in at the lowest free row.
  */
-export type BeltStripHit = { button: null };
+export type BeltStripHit = { button: null; beltColumn: number };
 
-/** What a click at `point` hits of the Belt strip, or null off its squares. */
+/**
+ * What a point hits of the Belt strip: the Belt Column whose square it is
+ * on, or null off its squares.
+ */
 export function beltStripHitAt(
   screen: { width: number; height: number },
   point: Vec,
 ): BeltStripHit | null {
-  const onStrip = beltStripLayout(screen).columns.some((rect) =>
+  const beltColumn = beltStripLayout(screen).columns.findIndex((rect) =>
     inside(rect, point),
   );
-  return onStrip ? { button: null } : null;
+  return beltColumn === -1 ? null : { button: null, beltColumn };
 }
 
 /**

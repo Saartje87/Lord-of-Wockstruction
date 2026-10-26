@@ -257,9 +257,24 @@ export function inventoryOrder(
   if (!held) {
     return itemUnder(world, spot) ? { type: "LiftItem", from: spot } : null;
   }
+  return putDownOrder(world, screen, point, spot, held.item.type);
+}
+
+/**
+ * The order that puts a held Item of `type` down at `point`, on `spot` of
+ * the Inventory panel: where it lands on the grid, or into the slot or Belt
+ * Column.
+ */
+export function putDownOrder(
+  world: World,
+  screen: { width: number; height: number },
+  point: Vec,
+  spot: ItemSpot,
+  type: ItemType,
+): Order {
   if (!isCell(spot)) return { type: "PlaceItem", to: spot };
   const layout = inventoryPanelLayout(screen, beltRows(world));
-  return { type: "PlaceItem", to: landingCell(layout, point, held.item.type) };
+  return { type: "PlaceItem", to: landingCell(layout, point, type) };
 }
 
 /**

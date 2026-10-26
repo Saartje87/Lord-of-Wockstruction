@@ -7,12 +7,7 @@ import {
   type Progress,
   type World,
 } from "../sim/world";
-import {
-  skillBarHitAt,
-  skillBarLayout,
-  skillBarSheet,
-  skillDropOrder,
-} from "./skillBar";
+import { skillBarHitAt, skillBarLayout, skillBarSheet } from "./skillBar";
 
 const town = {
   orientation: "orthogonal",
@@ -83,6 +78,18 @@ describe("the Skill Bar's sheet", () => {
     w.hero.mana = 14.9;
     expect(skillBarSheet(w)[1].dimmed).toBe(true);
   });
+
+  it("dims the slot a Held Skill was picked up from, still showing its Skill", () => {
+    const sheet = skillBarSheet(world(GOLEM_IN_KEY2), "key2");
+
+    expect(sheet[1]).toEqual({
+      slot: "key2",
+      key: "W",
+      name: "Golem",
+      dimmed: true,
+    });
+    expect(sheet.filter((shown) => shown.dimmed)).toHaveLength(1);
+  });
 });
 
 describe("a click on the Skill Bar", () => {
@@ -101,23 +108,5 @@ describe("a click on the Skill Bar", () => {
 
   it("is for the World off the slots", () => {
     expect(skillBarHitAt(screen, { x: 640, y: 300 })).toBeNull();
-  });
-});
-
-describe("dropping a dragged Skill", () => {
-  it("onto a slot puts it there", () => {
-    const { slots } = skillBarLayout(screen);
-    const at = { x: slots.key4.x + 2, y: slots.key4.y + slots.key4.h - 2 };
-
-    expect(skillDropOrder(screen, at, "golem")).toEqual({
-      type: "PutSkillOnBar",
-      skill: "golem",
-      slot: "key4",
-    });
-  });
-
-  it("anywhere else, or off the canvas, does nothing", () => {
-    expect(skillDropOrder(screen, { x: 640, y: 300 }, "golem")).toBeNull();
-    expect(skillDropOrder(screen, null, "golem")).toBeNull();
   });
 });

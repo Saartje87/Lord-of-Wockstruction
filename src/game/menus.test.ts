@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  acceptPendingPoints,
+  addPendingPoint,
   clickClose,
   clickLevelUp,
   clickPaused,
   createMenus,
   pressKey,
   reactMenus,
+  removePendingPoint,
+  unplacedPoints,
 } from "./menus";
 import { togglePause } from "./pause";
 
@@ -405,5 +409,156 @@ describe("the Hero's Death", () => {
     pressKey(menus, "i", 4000, alive);
     expect(menus.heroPanelOpen).toBe(true);
     expect(menus.inventoryOpen).toBe(true);
+  });
+});
+
+/** A living Hero with `attributePoints` unspent, as the menus are told. */
+const unspent = (attributePoints: number) => ({
+  heroDead: false,
+  attributePoints,
+});
+
+/** The menus with the Hero panel open and `points` pending on Strength. */
+function pendingOnStrength(points: number) {
+  const menus = createMenus();
+  pressKey(menus, "c", 1000, alive);
+  for (let i = 0; i < points; i++) {
+    addPendingPoint(menus, "strength", unspent(5));
+  }
+  return menus;
+}
+
+describe("Pending Attribute Points", () => {
+  it("start at none", () => {
+    const menus = createMenus();
+
+    expect(menus.pendingPoints).toEqual({
+      strength: 0,
+      dexterity: 0,
+      vitality: 0,
+      energy: 0,
+    });
+    expect(unplacedPoints(menus, 5)).toBe(5);
+  });
+
+  it("are added by + one at a time, leaving fewer points to place", () => {
+    const menus = createMenus();
+
+    addPendingPoint(menus, "strength", unspent(5));
+    addPendingPoint(menus, "strength", unspent(5));
+    addPendingPoint(menus, "energy", unspent(5));
+
+    expect(menus.pendingPoints).toMatchObject({ strength: 2, energy: 1 });
+    expect(unplacedPoints(menus, 5)).toBe(2);
+  });
+
+  it("can't be added beyond the unspent points", () => {
+    const menus = createMenus();
+
+    for (let i = 0; i < 3; i++) addPendingPoint(menus, "vitality", unspent(2));
+
+    expect(menus.pendingPoints.vitality).toBe(2);
+    expect(unplacedPoints(menus, 2)).toBe(0);
+  });
+
+  it("can't be added while the Hero lies dead", () => {
+    const menus = createMenus();
+
+    addPendingPoint(menus, "strength", { heroDead: true, attributePoints: 5 });
+
+    expect(menus.pendingPoints.strength).toBe(0);
+  });
+
+  it("are taken back off by −, leaving more points to place", () => {
+    const menus = pendingOnStrength(2);
+
+    removePendingPoint(menus, "strength");
+
+    expect(menus.pendingPoints.strength).toBe(1);
+    expect(unplacedPoints(menus, 5)).toBe(4);
+  });
+
+  it("can't be taken off an Attribute with none, below its accepted value", () => {
+    const menus = pendingOnStrength(1);
+
+    removePendingPoint(menus, "dexterity");
+    removePendingPoint(menus, "strength");
+    removePendingPoint(menus, "strength");
+
+    expect(menus.pendingPoints).toMatchObject({ strength: 0, dexterity: 0 });
+    expect(unplacedPoints(menus, 5)).toBe(5);
+  });
+
+  it("are spent all at once by Accept, in one order, and cleared", () => {
+    const menus = pendingOnStrength(2);
+    addPendingPoint(menus, "energy", unspent(5));
+
+    expect(acceptPendingPoints(menus)).toEqual({
+      type: "SpendAttributePoints",
+      points: { strength: 2, dexterity: 0, vitality: 0, energy: 1 },
+    });
+    expect(menus.pendingPoints).toMatchObject({ strength: 0, energy: 0 });
+  });
+
+  it("make Accept order nothing while none are pending", () => {
+    const menus = createMenus();
+
+    expect(acceptPendingPoints(menus)).toBeNull();
+  });
+
+  it("leave more points to place once a Level is gained", () => {
+    const menus = createMenus();
+    for (let i = 0; i < 5; i++) addPendingPoint(menus, "strength", unspent(5));
+
+    addPendingPoint(menus, "dexterity", unspent(10));
+
+    expect(menus.pendingPoints).toMatchObject({ strength: 5, dexterity: 1 });
+    expect(unplacedPoints(menus, 10)).toBe(4);
+  });
+
+  it("are cancelled as C shuts the Hero panel", () => {
+    const menus = pendingOnStrength(2);
+
+    pressKey(menus, "c", 2000, alive);
+
+    expect(menus.pendingPoints.strength).toBe(0);
+  });
+
+  it("are cancelled as the × shuts the Hero panel", () => {
+    const menus = pendingOnStrength(2);
+
+    clickClose(menus, "hero");
+
+    expect(menus.pendingPoints.strength).toBe(0);
+  });
+
+  it("are cancelled by the Hero's Death", () => {
+    const menus = pendingOnStrength(2);
+
+    reactMenus(menus, [{ type: "HeroDied" }]);
+
+    expect(menus.pendingPoints.strength).toBe(0);
+  });
+
+  it("are cancelled by a New Hero", () => {
+    const menus = pendingOnStrength(2);
+    pressKey(menus, "Escape", 2000, alive);
+    pressKey(menus, "n", 3000, alive);
+
+    expect(pressKey(menus, "y", 4000, alive)).toBe("newHero");
+    expect(menus.pendingPoints.strength).toBe(0);
+  });
+
+  it("stay as other panels open and shut, or the game pauses", () => {
+    const menus = pendingOnStrength(2);
+
+    pressKey(menus, "i", 2000, alive);
+    pressKey(menus, "t", 2000, alive);
+    clickClose(menus, "skillTree");
+    pressKey(menus, "Escape", 3000, alive);
+    pressKey(menus, "Escape", 4000, alive);
+
+    expect(menus.heroPanelOpen).toBe(true);
+    expect(menus.pendingPoints.strength).toBe(2);
   });
 });

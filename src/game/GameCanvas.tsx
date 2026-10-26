@@ -4,16 +4,26 @@ import { Application } from "pixi.js";
 import { useEffect, useRef } from "react";
 import { advance, createClock } from "./clock";
 import { areaDisplayNames, areas, tilesets } from "./content";
+import {
+  createCursor,
+  forTheWorld,
+  pressCursor,
+  releaseCursor,
+  settleCursor,
+} from "./cursor";
 import { castKeyOrder, drinkKeyOrder } from "./input/keys";
 import {
   attachPointer,
   cancel,
+  claimPress,
   createPointerInput,
   poll,
-  release,
+  takeRelease,
   takeRightClick,
 } from "./input/pointer";
 import {
+  acceptPendingPoints,
+  addPendingPoint,
   clickClose,
   clickLevelUp,
   clickPaused,
@@ -21,15 +31,12 @@ import {
   type Menus,
   pressKey,
   reactMenus,
+  removePendingPoint,
 } from "./menus";
 import { gameTime } from "./pause";
 import { loadArt } from "./render/art";
-import {
-  inventoryOrder,
-  inventoryRightClickOrder,
-} from "./render/inventoryPanel";
+import { inventoryRightClickOrder } from "./render/inventoryPanel";
 import { createRenderer } from "./render/renderer";
-import { skillDropOrder } from "./render/skillBar";
 import {
   browserStorage,
   changesSave,
@@ -41,7 +48,6 @@ import {
 import { isFloor } from "./sim/area";
 import type { Vec } from "./sim/vec";
 import { createWorld, type Order, step } from "./sim/world";
-import type { Skill } from "./tuning/skills";
 
 /** Mounts the Pixi Application and runs the fixed-step loop. */
 export default function GameCanvas() {
@@ -94,8 +100,8 @@ export default function GameCanvas() {
       const { pause } = menus;
       let orders: Order[] = [];
       let last = performance.now();
-      /** The Skill being dragged from the Skill Tree, while the button is held. */
-      let dragged: Skill | null = null;
+      /** What the cursor holds besides the Held Item. */
+      let cursor = createCursor();
 
       attachPointer(app.canvas, input, listeners.signal);
       // Keys and clicks on the pause menu go to the menus; a click anywhere
@@ -161,55 +167,77 @@ export default function GameCanvas() {
         // Stands still while paused, so the clock owes no steps for it and
         // the World and every effect hold still.
         const now = gameTime(pause, realNow);
+        const scene = { world, screen: app.screen };
+        // The cursor sees a press first: one on the panels and HUD, or one
+        // that puts down or drops what it holds, is not for the World.
         const pressedAt = input.pressedAt;
-        const {
-          orders: newOrders,
-          click,
-          panel,
-        } = poll(input, now, {
+        const panel = pressedAt && renderer.panelAt(pressedAt);
+        // A press with a Held Skill only puts it down or lets go of it.
+        const heldSkillAtPress = cursor.heldSkill;
+        if (pressedAt) {
+          const press = { at: pressedAt, hit: panel };
+          const outcome = pressCursor(cursor, press, scene);
+          cursor = outcome.cursor;
+          orders.push(...outcome.orders);
+          if (outcome.taken) {
+            claimPress(input);
+            pressed = false;
+          }
+        }
+        const { orders: newOrders, click } = poll(input, now, {
           toTile: renderer.screenToTile,
           monsterAt: renderer.monsterAt,
           groundLabelAt: renderer.groundLabelAt,
           groundItemAt: renderer.groundItemAt,
-          panelAt: renderer.panelAt,
+          panelAt: (at) => forTheWorld(renderer.panelAt(at)),
         });
         orders.push(...newOrders);
-        // A click on a panel never orders the Hero about, nor goes on from
-        // their Death: Level Up opens the Hero or Skill Tree panel (but for
-        // a dead Hero), a + on either spends a point, and a panel's × shuts
-        // it as its key does, while the game runs on. On the Inventory it
-        // lifts or puts down an Item, and with one held a click off the
-        // panels drops it.
-        if (panel) {
-          pressed = false;
-          const button = "button" in panel ? panel.button : null;
+        // A press on a panel's button never orders the Hero about, nor goes
+        // on from their Death: Level Up opens the Hero or Skill Tree panel
+        // (but for a dead Hero), a + on the Skill Tree spends a point while
+        // the Hero panel's +, − and Accept plan and spend Pending Attribute
+        // Points, and a panel's × shuts it as its key does, while the game
+        // runs on. A press that let go of a Held Skill does none of that.
+        if (panel && "button" in panel && heldSkillAtPress === null) {
+          const { button } = panel;
           if (button?.type === "levelUp") {
             const { attributePoints, skillPoints } = world.hero.progress;
             const heroDead = world.death !== null;
             clickLevelUp(menus, { heroDead, attributePoints, skillPoints });
           }
+          // + and − only plan Pending Attribute Points; Accept spends them.
           if (button?.type === "raise") {
-            const { attribute } = button;
-            orders.push({ type: "SpendAttributePoint", attribute });
+            const { attributePoints } = world.hero.progress;
+            const heroDead = world.death !== null;
+            addPendingPoint(menus, button.attribute, {
+              heroDead,
+              attributePoints,
+            });
+          }
+          if (button?.type === "lower") {
+            removePendingPoint(menus, button.attribute);
+          }
+          if (button?.type === "accept") {
+            const accept = acceptPendingPoints(menus);
+            if (accept) orders.push(accept);
           }
           if (button?.type === "close") clickClose(menus, button.panel);
           if (button?.type === "learn") {
             orders.push({ type: "SpendSkillPoint", skill: button.skill });
           }
-          if (button?.type === "dragSkill") dragged = button.skill;
-          if (!("button" in panel) && pressedAt) {
-            const order = inventoryOrder(world, app.screen, pressedAt, panel);
-            if (order) orders.push(order);
-          }
         }
-        // A Skill dragged from the Skill Tree goes where the button is let
-        // go: into the Skill Bar slot there, or back, off the slots. A pause
-        // or the Hero's Death drops it.
-        if (dragged && (pause.paused || world.death)) dragged = null;
-        if (dragged && !input.held) {
-          const order = skillDropOrder(app.screen, input.screen, dragged);
-          if (order) orders.push(order);
-          dragged = null;
+        // A pause or the Hero's Death lets go of a Held Skill, before its
+        // release could land it.
+        const heroDead = world.death !== null;
+        cursor = settleCursor(cursor, { paused: pause.paused, heroDead });
+        // Where the left button went up, even off the canvas.
+        const released = takeRelease(input);
+        if (released) {
+          const hit = released.at && renderer.panelAt(released.at);
+          const release = { ...released, hit };
+          const outcome = releaseCursor(cursor, release, scene);
+          cursor = outcome.cursor;
+          orders.push(...outcome.orders);
         }
         // A right-click on the Inventory equips or unequips the Item under
         // it, and on any other panel does nothing; off the panels, `poll`
@@ -226,7 +254,7 @@ export default function GameCanvas() {
         if (pressed && world.death && !pause.paused) {
           orders.push({ type: "Continue" });
           // So holding on after the click doesn't steer in Town.
-          release(input);
+          claimPress(input);
         }
         pressed = false;
         const area = world.areas[world.areaName];
@@ -251,7 +279,15 @@ export default function GameCanvas() {
         }
         // No hover outline, nameplate or tooltip under the menu.
         const pointer = pause.paused ? null : input.screen;
-        renderer.draw(world, alpha, pointer, now, menus, dragged);
+        renderer.draw(
+          world,
+          alpha,
+          pointer,
+          now,
+          menus,
+          cursor.heldSkill,
+          cursor.heldSkillSlot,
+        );
         app.render();
         frame = requestAnimationFrame(tick);
       };

@@ -6,8 +6,9 @@ import {
   Sprite,
   Text,
 } from "pixi.js";
+import type { CursorHit } from "../cursor";
 import { toScreen, toTile } from "../iso";
-import type { MenuChoice, Menus } from "../menus";
+import type { MenuChoice, Menus, PendingPoints } from "../menus";
 import type { Pause } from "../pause";
 import { type Area, isFloor } from "../sim/area";
 import { beltOf, beltRows, isBeltCell } from "../sim/belt";
@@ -26,6 +27,7 @@ import {
 import { minionWindUpProgress } from "../sim/minions";
 import { monsterMaxLife, windUpProgress } from "../sim/monsters";
 import type { Rect } from "../sim/rect";
+import type { SkillBarSlot } from "../sim/skillBar";
 import { STEP_MS } from "../sim/units";
 import { tileOf, type Vec } from "../sim/vec";
 import {
@@ -54,12 +56,7 @@ import { type Skill, skillTuning } from "../tuning/skills";
 import { type Compass, compassOf, frameAt, swingFrame } from "./animation";
 import { arrivedInDisplayName, bannerOpacityAt } from "./areaBanner";
 import { type Animation, type Art, type CharacterArt, frameOf } from "./art";
-import {
-  type BeltStripHit,
-  beltStripHitAt,
-  beltStripLayout,
-  beltStripSheet,
-} from "./beltStrip";
+import { beltStripHitAt, beltStripLayout, beltStripSheet } from "./beltStrip";
 import { CLOSE_BUTTON } from "./closeButton";
 import {
   type DamageNumber,
@@ -81,7 +78,6 @@ import {
   heroPanelLayout,
   heroSheet,
   PANEL_ROWS,
-  type PanelHit,
   panelHitAt,
   rowTop,
 } from "./heroPanel";
@@ -92,10 +88,7 @@ import {
   type Pickable,
 } from "./hover";
 import {
-  type DropHit,
   INVENTORY_PANEL,
-  type InventoryCloseHit,
-  type InventoryHit,
   inventoryHitAt,
   inventoryPanelLayout,
   itemRect,
@@ -108,7 +101,6 @@ import { type Orb, orbFill } from "./orbs";
 import { menuChoiceAt, PAUSE_MENU_LAYOUT, pauseMenuLayout } from "./pauseMenu";
 import {
   SKILL_BAR,
-  type SkillBarHit,
   skillBarHitAt,
   skillBarLayout,
   skillBarSheet,
@@ -116,7 +108,6 @@ import {
 import {
   SKILL_TREE_PANEL,
   SKILL_TREE_ROWS,
-  type SkillTreeHit,
   skillRow,
   skillTreeHitAt,
   skillTreePanelLayout,
@@ -370,7 +361,9 @@ const HUD_BUTTON = {
 /**
  * The Hero panel's look, in the pause menu's colours; where things go is
  * `HERO_PANEL`. Each rule sits `ruleGap` over the rows it heads, and
- * Attribute values keep `plusGap` from their + buttons (CSS px).
+ * Attribute values keep `plusGap` from their − buttons (CSS px). Values the
+ * Pending Attribute Points change show in `changed`, Diablo 2's blue for a
+ * raised Attribute.
  */
 const HERO_PANEL_STYLE = {
   fill: 0x17130e,
@@ -380,6 +373,7 @@ const HERO_PANEL_STYLE = {
   titleSize: 22,
   name: 0xb8ae98,
   value: 0xe8e0c8,
+  changed: 0x8fa8ff,
   textSize: 15,
   plusSize: 18,
   plusGap: 10,
@@ -564,8 +558,9 @@ export function createRenderer(
   app.stage.addChild(inventoryPanel.layer);
   const skillTreePanel = skillTreePanelView();
   app.stage.addChild(skillTreePanel.layer);
-  const draggedSkill = draggedSkillView();
-  app.stage.addChild(draggedSkill.layer);
+  app.stage.addChild(inventoryPanel.heldLayer);
+  const heldSkillView = createHeldSkillView();
+  app.stage.addChild(heldSkillView.layer);
   // Over the whole screen, stretched to it each frame.
   const banner = new Text({
     text: "",
@@ -637,6 +632,8 @@ export function createRenderer(
   let drawnWorld: World | null = null;
   /** Whether the Hero panel was open when last drawn. */
   let heroPanelOpenNow = false;
+  /** The Pending Attribute Points when last drawn. */
+  let pendingPointsNow: PendingPoints | undefined;
   /** Whether the Inventory panel was open when last drawn. */
   let inventoryOpenNow = false;
   /** Whether the Skill Tree panel was open when last drawn. */
@@ -647,21 +644,17 @@ export function createRenderer(
    * button, the Skill Tree panel and the Inventory panel, as last drawn, or
    * null when it's for the World.
    */
-  const panelAt = (
-    screen: Vec,
-  ):
-    | PanelHit
-    | SkillTreeHit
-    | SkillBarHit
-    | BeltStripHit
-    | InventoryHit
-    | InventoryCloseHit
-    | DropHit
-    | null => {
+  const panelAt = (screen: Vec): CursorHit | null => {
     if (!drawnWorld) return null;
     const holding = cursorItemOf(drawnWorld) !== null;
     return (
-      panelHitAt(app.screen, screen, drawnWorld, heroPanelOpenNow) ??
+      panelHitAt(
+        app.screen,
+        screen,
+        drawnWorld,
+        heroPanelOpenNow,
+        pendingPointsNow,
+      ) ??
       skillTreeHitAt(app.screen, screen, drawnWorld, skillTreeOpenNow) ??
       skillBarHitAt(app.screen, screen) ??
       beltStripHitAt(app.screen, screen) ??
@@ -909,8 +902,9 @@ export function createRenderer(
      * which outlines what it's over in the World, or off a panel, shows the
      * tooltip of the Item it's over on one. `menus` shows the Hero and
      * Inventory panels while they're open, and the pause menu over
-     * everything while paused. `dragged` is the Skill being dragged from
-     * the Skill Tree, if any, drawn at the pointer.
+     * everything while paused. `heldSkill` is the Held Skill, if any, drawn
+     * at the pointer, and `heldSkillSlot` the Skill Bar slot it was picked
+     * up from, drawn dimmed.
      */
     draw(
       world: World,
@@ -918,10 +912,12 @@ export function createRenderer(
       pointer: Vec | null,
       nowMs: number,
       menus: Menus,
-      dragged: Skill | null = null,
+      heldSkill: Skill | null = null,
+      heldSkillSlot: SkillBarSlot | null = null,
     ) {
       const active = world.areas[world.areaName];
       heroPanelOpenNow = menus.heroPanelOpen;
+      pendingPointsNow = { ...menus.pendingPoints };
       inventoryOpenNow = menus.inventoryOpen;
       skillTreeOpenNow = menus.skillTreeOpen;
       if (world !== drawnWorld) {
@@ -1188,13 +1184,18 @@ export function createRenderer(
       }
 
       orb.draw(app.screen, world, nowMs);
-      skillBar.draw(app.screen, world);
+      skillBar.draw(app.screen, world, heldSkillSlot);
       beltStrip.draw(app.screen, world);
       experience.draw(app.screen, world);
       levelUp.draw(app.screen, world, nowMs);
-      heroPanel.draw(app.screen, world, menus.heroPanelOpen);
+      heroPanel.draw(
+        app.screen,
+        world,
+        menus.heroPanelOpen,
+        menus.pendingPoints,
+      );
       skillTreePanel.draw(app.screen, world, menus.skillTreeOpen);
-      draggedSkill.draw(dragged, pointer);
+      heldSkillView.draw(heldSkill, pointer);
       const spot = onPanel && "inventory" in onPanel ? onPanel.inventory : null;
       inventoryPanel.draw(
         app.screen,
@@ -1560,7 +1561,8 @@ function orbsView() {
 
 /**
  * The Skill Bar between the orbs: each slot's key in its corner and its
- * Skill's name, dimmed while the Hero lacks the Mana for it.
+ * Skill's name, dimmed while the Hero lacks the Mana for it or while it's
+ * the Held Skill.
  */
 function skillBarView() {
   const style = SKILL_BAR_STYLE;
@@ -1580,10 +1582,14 @@ function skillBarView() {
 
   return {
     layer,
-    draw(screen: { width: number; height: number }, world: World) {
+    draw(
+      screen: { width: number; height: number },
+      world: World,
+      heldFrom: SkillBarSlot | null,
+    ) {
       const { slots } = skillBarLayout(screen);
       graphics.clear();
-      skillBarSheet(world).forEach((shown, index) => {
+      skillBarSheet(world, heldFrom).forEach((shown, index) => {
         if (!labels[index]) {
           const key = text(style.key, style.keySize);
           key.anchor.set(1, 0);
@@ -1680,10 +1686,10 @@ function beltStripView() {
 }
 
 /**
- * A Skill being dragged from the Skill Tree, drawn as it shows in a Skill
- * Bar slot, centred on the pointer.
+ * The Held Skill, drawn as it shows in a Skill Bar slot, centred on the
+ * pointer.
  */
-function draggedSkillView() {
+function createHeldSkillView() {
   const style = SKILL_BAR_STYLE;
   const layer = new Container();
   const graphics = new Graphics();
@@ -1834,8 +1840,9 @@ function closeButton(graphics: Graphics, rect: Rect) {
 
 /**
  * The Hero panel: Level and Experience, each Attribute with a + button while
- * a point can be spent, the unspent points, and what the Attributes add up
- * to.
+ * a point is left to place and a − while it has Pending Attribute Points,
+ * the unspent points with Accept while any are pending, and what the
+ * Attributes add up to, the pending points previewed in each.
  */
 function heroPanelView() {
   const style = HERO_PANEL_STYLE;
@@ -1873,9 +1880,15 @@ function heroPanelView() {
     const plus = text(style.title, style.plusSize);
     plus.text = "+";
     plus.anchor.set(0.5);
-    return { ...row(), plus };
+    const minus = text(style.title, style.plusSize);
+    minus.text = "−";
+    minus.anchor.set(0.5);
+    return { ...row(), plus, minus };
   });
   const points = row();
+  const accept = text(HUD_BUTTON.text, HUD_BUTTON.textSize);
+  accept.text = "Accept";
+  accept.anchor.set(0.5);
   /** Made as the sheet first lists them. */
   const derived: Row[] = [];
 
@@ -1885,16 +1898,17 @@ function heroPanelView() {
       screen: { width: number; height: number },
       world: World,
       open: boolean,
+      pending: PendingPoints,
     ) {
       layer.visible = open;
       if (!open) return;
-      const sheet = heroSheet(world);
+      const sheet = heroSheet(world, pending);
       const layout = heroPanelLayout(screen);
       const { panel } = layout;
       const left = panel.x + HERO_PANEL.padding;
       const right = panel.x + panel.w - HERO_PANEL.padding;
-      // Attribute values leave room for their + buttons.
-      const beforePlus = right - HERO_PANEL.plus - style.plusGap;
+      // Attribute values leave room for their − and + buttons.
+      const beforeButtons = layout.accept.x - style.plusGap;
 
       graphics.clear();
       graphics
@@ -1920,6 +1934,14 @@ function heroPanelView() {
         shown.name.position.set(left, y);
         shown.value.text = value;
         shown.value.position.set(valueRight, y);
+        shown.value.style.fill = style.value;
+      };
+      /** Draws a HUD button at `rect` with `label` centred on it. */
+      const placeButton = (label: Text, rect: Rect, shown: boolean) => {
+        label.visible = shown;
+        if (!shown) return;
+        button(graphics, rect);
+        label.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
       };
       place(level, PANEL_ROWS.level, sheet.level, "");
       place(experience, PANEL_ROWS.experience, "Experience", sheet.experience);
@@ -1930,26 +1952,29 @@ function heroPanelView() {
           PANEL_ROWS.attributes + i,
           attribute.name,
           attribute.value,
-          beforePlus,
+          beforeButtons,
         );
-        const rect = layout.raise[attribute.attribute];
-        shown.plus.visible = sheet.canRaise;
-        if (sheet.canRaise) {
-          button(graphics, rect);
-          shown.plus.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
-        }
+        if (attribute.changed) shown.value.style.fill = style.changed;
+        const { attribute: name } = attribute;
+        placeButton(shown.plus, layout.raise[name], sheet.canRaise);
+        placeButton(shown.minus, layout.lower[name], attribute.canLower);
       });
       place(
         points,
         PANEL_ROWS.attributePoints,
         "Attribute Points",
-        sheet.attributePoints,
-        beforePlus,
+        sheet.attributePoints.value,
+        beforeButtons,
       );
-      points.value.style.fill = sheet.canRaise ? style.title : style.value;
+      if (sheet.canRaise) points.value.style.fill = style.title;
+      if (sheet.attributePoints.changed) {
+        points.value.style.fill = style.changed;
+      }
+      placeButton(accept, layout.accept, sheet.canAccept);
       sheet.derived.forEach((value, i) => {
         derived[i] ??= row();
         place(derived[i], PANEL_ROWS.derived + i, value.name, value.value);
+        if (value.changed) derived[i].value.style.fill = style.changed;
       });
       for (const at of [PANEL_ROWS.attributes, PANEL_ROWS.derived]) {
         const y = rowTop(at) - style.ruleGap;
@@ -2128,10 +2153,21 @@ function inventoryPanelView() {
   layer.addChild(tooltipBox);
   /** Tooltip lines, made as more are needed, over its box. */
   const tooltipLines: Text[] = [];
-  /** The held Item, over everything else on the panel. */
+  /**
+   * The Held Item on the cursor, over the panels, drawn even with the panel
+   * shut after a lift from the Belt strip.
+   */
+  const heldLayer = new Container();
   const heldBox = new Graphics();
-  layer.addChild(heldBox);
-  const heldName = text(look.itemText, look.itemTextSize);
+  const heldName = new Text({
+    text: "",
+    style: {
+      fill: look.itemText,
+      fontSize: look.itemTextSize,
+      fontFamily: SERIF,
+    },
+  });
+  heldLayer.addChild(heldBox, heldName);
 
   /** Draws an Item's box, tinted as its type, with its name in `name`. */
   const drawItem = (
@@ -2154,8 +2190,26 @@ function inventoryPanelView() {
     name.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
   };
 
+  /** Draws the Held Item, if any, centred on `pointer`, cells `cell` big. */
+  const drawHeld = (world: World, pointer: Vec | null, cell: number) => {
+    heldBox.clear();
+    heldName.visible = false;
+    const held = cursorItemOf(world);
+    if (!held || !pointer) return;
+    const { type } = held.item;
+    const { columns, rows } = itemOf(type).size;
+    const rect = {
+      x: pointer.x - (columns * cell) / 2,
+      y: pointer.y - (rows * cell) / 2,
+      w: columns * cell,
+      h: rows * cell,
+    };
+    drawItem(heldBox, heldName, rect, type, look.heldAlpha);
+  };
+
   return {
     layer,
+    heldLayer,
     /**
      * `hovered` is the spot under `pointer`, the cursor on the canvas (CSS
      * px), if it's on the panel.
@@ -2167,10 +2221,11 @@ function inventoryPanelView() {
       hovered: ItemSpot | null,
       pointer: Vec | null,
     ) {
-      layer.visible = open;
-      if (!open) return;
       const layout = inventoryPanelLayout(screen, beltRows(world));
       const { panel, grid, cell, slots } = layout;
+      drawHeld(world, pointer, cell);
+      layer.visible = open;
+      if (!open) return;
 
       graphics.clear();
       graphics
@@ -2232,8 +2287,6 @@ function inventoryPanelView() {
 
       tooltipBox.clear();
       for (const line of tooltipLines) line.visible = false;
-      heldBox.clear();
-      heldName.visible = false;
       const held = cursorItemOf(world);
       if (held && pointer) {
         const { type } = held.item;
@@ -2273,16 +2326,6 @@ function inventoryPanelView() {
             .rect(rect.x, rect.y, rect.w, rect.h)
             .fill({ color: colour, alpha: look.landingAlpha });
         }
-        const { columns, rows } = itemOf(type).size;
-        const rect = {
-          x: pointer.x - (columns * cell) / 2,
-          y: pointer.y - (rows * cell) / 2,
-          w: columns * cell,
-          h: rows * cell,
-        };
-        layer.setChildIndex(heldBox, layer.children.length - 1);
-        layer.setChildIndex(heldName, layer.children.length - 1);
-        drawItem(heldBox, heldName, rect, type, look.heldAlpha);
         // No tooltip while holding an Item, as in Diablo 2.
         return;
       }

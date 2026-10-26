@@ -94,11 +94,12 @@ const at = (type: ItemType, column: number, row: number) => ({
 function carrying(
   inventory: Belongings["inventory"],
   areas: Record<string, unknown> = { town: map(["H.."]) },
+  belt: ItemType[][] = emptyBelt(),
 ): World {
   return createWorld({
     areas,
     seed: 1,
-    belongings: { inventory, equipment: {}, belt: emptyBelt() },
+    belongings: { inventory, equipment: {}, belt },
   });
 }
 
@@ -351,6 +352,29 @@ describe("A held Item going back", () => {
 
     expect(cursorItemOf(world)).toBeNull();
     expect(layout(world)).toEqual([at("axe", 2, 1)]);
+  });
+
+  it("goes back to its Belt Column when the Hero dies or walks into an Exit, if it was a Potion lifted from the bottom row", () => {
+    const deadly = { town: map(["H.S"], { pack: 7 }) };
+    const exit = {
+      town: map(["H.E"], { exitTo: "cave" }),
+      cave: combatArea(map(["H.."])),
+    };
+    for (const areas of [deadly, exit]) {
+      const world = carrying([], areas, [["lifePotion"], [], [], []]);
+      step(world, [{ type: "LiftItem", from: { beltColumn: 0, row: 0 } }]);
+      if (areas === exit) {
+        step(world, [{ type: "MoveTo", target: { x: 2.5, y: 0.5 } }]);
+      }
+
+      for (let i = 0; world.death === null && world.areaChange === null; i++) {
+        if (i > 60 * 60) throw new Error("The Hero neither died nor left");
+        step(world, []);
+      }
+
+      expect(cursorItemOf(world)).toBeNull();
+      expect(belongingsOf(world).belt[0]).toEqual(["lifePotion"]);
+    }
   });
 
   it("keeps its spot free from Items picked up meanwhile", () => {

@@ -1,3 +1,9 @@
+import {
+  hasPendingPoints,
+  noPendingPoints,
+  type PendingPoints,
+  pendingTotal,
+} from "../menus";
 import { inside, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
 import {
@@ -12,6 +18,7 @@ import {
   maxMana,
   monsterLevelIn,
   type World,
+  withAttributePointsSpent,
 } from "../sim/world";
 import { type CloseButton, closeButtonRect, closeHitAt } from "./closeButton";
 import { experienceBar } from "./experienceBar";
@@ -19,7 +26,9 @@ import { experienceBar } from "./experienceBar";
 /**
  * The Hero panel at the top left (CSS px): `left` and `top` from the
  * screen's corner, its rows `rowHeight` apart from `firstRow` down, and each
- * Attribute's + button `plus` square at the right of its row.
+ * Attribute's + button `plus` square at the right of its row, its − button
+ * the same size `buttonGap` to the left. Accept spans both on the unspent
+ * points' row.
  */
 export const HERO_PANEL = {
   left: 16,
@@ -30,6 +39,7 @@ export const HERO_PANEL = {
   firstRow: 56,
   rowHeight: 28,
   plus: 22,
+  buttonGap: 6,
 };
 
 /**
@@ -63,24 +73,76 @@ const ATTRIBUTE_NAMES: Record<Attribute, string> = {
   energy: "Energy",
 };
 
-/** What the Hero panel shows of the Hero, as text. */
+/**
+ * What the Hero panel shows of the Hero, as text, with the Pending Attribute
+ * Points counted: each value `changed` where they change it, to highlight.
+ */
 export type HeroSheet = {
   level: string;
   experience: string;
-  attributes: { attribute: Attribute; name: string; value: string }[];
-  attributePoints: string;
-  /** Whether a point can be spent now, so + buttons show. */
+  attributes: {
+    attribute: Attribute;
+    name: string;
+    value: string;
+    changed: boolean;
+    /** Whether it has Pending Attribute Points, so its − button shows. */
+    canLower: boolean;
+  }[];
+  /** The unspent points left to place. */
+  attributePoints: { value: string; changed: boolean };
+  /** Whether a point can be placed now, so + buttons show. */
   canRaise: boolean;
+  /** Whether points are pending, so Accept shows. */
+  canAccept: boolean;
   /**
    * What the Attributes and Equipped Items add up to: max Life, current
    * and max Mana, the damage range, Defense, Attack Rating and the chance to hit a Skeleton of the
    * Area the Hero is in.
    */
-  derived: { name: string; value: string }[];
+  derived: { name: string; value: string; changed: boolean }[];
 };
 
-export function heroSheet(world: World): HeroSheet {
+const NO_PENDING: Readonly<PendingPoints> = noPendingPoints();
+
+/**
+ * The Hero panel's sheet for `world` with `pending` Pending Attribute Points
+ * on top, worked out by the World's own queries on the World as it would be
+ * once they're accepted.
+ */
+export function heroSheet(
+  world: World,
+  pending: Readonly<PendingPoints> = NO_PENDING,
+): HeroSheet {
   const { progress } = world.hero;
+  const preview = withAttributePointsSpent(world, pending);
+  const before = sheetValues(world);
+  const after = sheetValues(preview);
+  return {
+    level: `Level ${progress.level}`,
+    experience: experienceBar(progress.level, progress.experience).experience,
+    attributes: ATTRIBUTES.map((attribute, i) => ({
+      attribute,
+      name: ATTRIBUTE_NAMES[attribute],
+      value: after.attributes[i],
+      changed: after.attributes[i] !== before.attributes[i],
+      canLower: pending[attribute] > 0,
+    })),
+    attributePoints: {
+      value: after.attributePoints,
+      changed: after.attributePoints !== before.attributePoints,
+    },
+    canRaise: canRaise(world, pending),
+    canAccept: hasPendingPoints(pending),
+    derived: after.derived.map(({ name, value }, i) => ({
+      name,
+      value,
+      changed: value !== before.derived[i].value,
+    })),
+  };
+}
+
+/** The values the sheet shows that Attribute Points change, as text. */
+function sheetValues(world: World) {
   const [min, max] = damageRange(world);
   // As they count, with the Equipped Items' bonuses.
   const attributes = attributesOf(world);
@@ -90,15 +152,8 @@ export function heroSheet(world: World): HeroSheet {
     monsterLevel: monsterLevelIn(world.areas[world.areaName]),
   };
   return {
-    level: `Level ${progress.level}`,
-    experience: experienceBar(progress.level, progress.experience).experience,
-    attributes: ATTRIBUTES.map((attribute) => ({
-      attribute,
-      name: ATTRIBUTE_NAMES[attribute],
-      value: String(attributes[attribute]),
-    })),
-    attributePoints: String(progress.attributePoints),
-    canRaise: canRaise(world),
+    attributes: ATTRIBUTES.map((attribute) => String(attributes[attribute])),
+    attributePoints: String(world.hero.progress.attributePoints),
     derived: [
       { name: "Life", value: String(maxLife(world)) },
       {
@@ -117,9 +172,13 @@ export function heroSheet(world: World): HeroSheet {
   };
 }
 
-/** Whether the + buttons are there: points are unspent and the Hero lives. */
-function canRaise(world: World): boolean {
-  return world.hero.progress.attributePoints > 0 && !world.death;
+/**
+ * Whether the + buttons are there: some unspent points aren't `pending`
+ * and the Hero lives.
+ */
+function canRaise(world: World, pending: Readonly<PendingPoints>): boolean {
+  const unspent = world.hero.progress.attributePoints;
+  return unspent - pendingTotal(pending) > 0 && !world.death;
 }
 
 /**
@@ -132,13 +191,15 @@ export function hasUnspentPoints(world: World): boolean {
 }
 
 /**
- * Where the panel, its × close button, its + buttons and the Level Up button
- * are drawn.
+ * Where the panel, its × close button, its + and − buttons, Accept and the
+ * Level Up button are drawn.
  */
 export function heroPanelLayout(screen: { width: number; height: number }): {
   panel: Rect;
   closeButton: Rect;
   raise: Record<Attribute, Rect>;
+  lower: Record<Attribute, Rect>;
+  accept: Rect;
   levelUp: Rect;
 } {
   const panel = {
@@ -147,20 +208,32 @@ export function heroPanelLayout(screen: { width: number; height: number }): {
     w: HERO_PANEL.width,
     h: HERO_PANEL.height,
   };
-  const plusAt = (i: number): Rect => ({
-    x: panel.x + panel.w - HERO_PANEL.padding - HERO_PANEL.plus,
-    y:
-      rowTop(PANEL_ROWS.attributes + i) +
-      (HERO_PANEL.rowHeight - HERO_PANEL.plus) / 2,
-    w: HERO_PANEL.plus,
+  const plusX = panel.x + panel.w - HERO_PANEL.padding - HERO_PANEL.plus;
+  const minusX = plusX - HERO_PANEL.buttonGap - HERO_PANEL.plus;
+  /** A button `x` across on row `row`, centred in it. */
+  const buttonAt = (x: number, row: number, w = HERO_PANEL.plus): Rect => ({
+    x,
+    y: rowTop(row) + (HERO_PANEL.rowHeight - HERO_PANEL.plus) / 2,
+    w,
     h: HERO_PANEL.plus,
   });
+  const perAttribute = (x: number) =>
+    Object.fromEntries(
+      ATTRIBUTES.map((attribute, i) => [
+        attribute,
+        buttonAt(x, PANEL_ROWS.attributes + i),
+      ]),
+    ) as Record<Attribute, Rect>;
   return {
     panel,
     closeButton: closeButtonRect(panel),
-    raise: Object.fromEntries(
-      ATTRIBUTES.map((attribute, i) => [attribute, plusAt(i)]),
-    ) as Record<Attribute, Rect>,
+    raise: perAttribute(plusX),
+    lower: perAttribute(minusX),
+    accept: buttonAt(
+      minusX,
+      PANEL_ROWS.attributePoints,
+      plusX + HERO_PANEL.plus - minusX,
+    ),
     levelUp: {
       x: LEVEL_UP_BUTTON.left,
       y: screen.height - LEVEL_UP_BUTTON.bottom - LEVEL_UP_BUTTON.height,
@@ -175,10 +248,15 @@ export function rowTop(row: number): number {
   return HERO_PANEL.top + HERO_PANEL.firstRow + row * HERO_PANEL.rowHeight;
 }
 
-/** A button a click can press: Level Up, an Attribute's + or the ×. */
+/**
+ * A button a click can press: Level Up, an Attribute's + or −, Accept or
+ * the ×.
+ */
 export type PanelButton =
   | { type: "levelUp" }
   | { type: "raise"; attribute: Attribute }
+  | { type: "lower"; attribute: Attribute }
+  | { type: "accept" }
   | CloseButton;
 
 /**
@@ -189,15 +267,17 @@ export type PanelHit = { button: PanelButton | null };
 
 /**
  * What a click at `point` hits, or null when it's on neither the panel nor
- * the Level Up button, so it's for the World. The Level Up button is there
- * only while Attribute or Skill Points are unspent, the panel only while
- * `open`, its × with it, and its + buttons only while a point can be spent.
+ * the Level Up button. The Level Up button is there only while Attribute or
+ * Skill Points are unspent, pending or not; the panel only while `open`, its
+ * × with it; its + buttons only while a point is left to place, each − only
+ * on an Attribute with `pending` points, and Accept only while any are.
  */
 export function panelHitAt(
   screen: { width: number; height: number },
   point: Vec,
   world: World,
   open: boolean,
+  pending: Readonly<PendingPoints> = NO_PENDING,
 ): PanelHit | null {
   const layout = heroPanelLayout(screen);
   if (hasUnspentPoints(world) && inside(layout.levelUp, point)) {
@@ -206,12 +286,18 @@ export function panelHitAt(
   if (!open || !inside(layout.panel, point)) return null;
   const closeHit = closeHitAt(layout, point, "hero");
   if (closeHit) return closeHit;
-  if (canRaise(world)) {
-    for (const attribute of ATTRIBUTES) {
-      if (inside(layout.raise[attribute], point)) {
-        return { button: { type: "raise", attribute } };
-      }
+  const raisable = canRaise(world, pending);
+  for (const attribute of ATTRIBUTES) {
+    if (raisable && inside(layout.raise[attribute], point)) {
+      return { button: { type: "raise", attribute } };
     }
+    const lowerable = pending[attribute] > 0;
+    if (lowerable && inside(layout.lower[attribute], point)) {
+      return { button: { type: "lower", attribute } };
+    }
+  }
+  if (hasPendingPoints(pending) && inside(layout.accept, point)) {
+    return { button: { type: "accept" } };
   }
   return { button: null };
 }

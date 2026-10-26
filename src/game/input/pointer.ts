@@ -12,6 +12,8 @@ export type PointerInput = {
    * released and the pointer has left again since.
    */
   pressedAt: Vec | null;
+  /** Where the button went up since last taken (see `takeRelease`). */
+  releasedAt: Release | null;
   /** Where the right button last went down, until taken. */
   rightPressedAt: Vec | null;
   /** Whether Shift was down when the button went down. */
@@ -23,13 +25,19 @@ export type PointerInput = {
   lastOrderMs: number;
 };
 
+/**
+ * Where the left button went up: the point on the canvas (CSS px), or null
+ * when it went up off the canvas.
+ */
+export type Release = { at: Vec | null };
+
 type Holding =
   | { type: "steer" }
   /**
-   * Held from a press on a panel or a Ground Item, which orders nothing
-   * more.
+   * Held from a press on a panel or a Ground Item, or one claimed, which
+   * orders nothing more.
    */
-  | { type: "panel" }
+  | { type: "nothing" }
   | { type: "attack"; monster: MonsterId }
   | { type: "swing" };
 
@@ -60,6 +68,7 @@ export function createPointerInput(): PointerInput {
   return {
     screen: null,
     pressedAt: null,
+    releasedAt: null,
     rightPressedAt: null,
     shift: false,
     held: false,
@@ -89,10 +98,19 @@ export function attachPointer(
     press(input, { x: e.offsetX, y: e.offsetY }, { shift: e.shiftKey });
   });
   on("pointerup", (e) => {
-    if (e.button === 0) release(input);
+    if (e.button !== 0) return;
+    // Held outside the canvas, the pointer is captured and still reports
+    // here, from beyond its edges.
+    const at = { x: e.offsetX, y: e.offsetY };
+    const onCanvas =
+      at.x >= 0 &&
+      at.y >= 0 &&
+      at.x < canvas.clientWidth &&
+      at.y < canvas.clientHeight;
+    release(input, onCanvas ? at : null);
   });
-  on("pointercancel", () => release(input));
-  on("lostpointercapture", () => release(input));
+  on("pointercancel", () => release(input, null));
+  on("lostpointercapture", () => release(input, null));
   on("pointermove", (e) => move(input, { x: e.offsetX, y: e.offsetY }));
   on("pointerleave", () => move(input, null));
 }
@@ -129,18 +147,46 @@ export function move(input: PointerInput, screen: Vec | null) {
   input.screen = screen;
 }
 
-export function release(input: PointerInput) {
+/**
+ * The left button went up at `at`, or off the canvas (null). Only the first
+ * release after a press counts: the browser may report another as it lets
+ * go of the pointer.
+ */
+export function release(input: PointerInput, at: Vec | null) {
+  if (!input.held) return;
   input.held = false;
+  input.releasedAt = { at };
 }
 
 /**
- * Forgets the button: a press not yet polled orders nothing, and holding on
- * keeps doing nothing until the next press.
+ * Where the left button went up since this was last called, if it did,
+ * even within the frame it went down.
+ */
+export function takeRelease(input: PointerInput): Release | null {
+  const released = input.releasedAt;
+  input.releasedAt = null;
+  return released;
+}
+
+/**
+ * Something other than the World took the press, such as the cursor: a
+ * press not yet polled orders nothing, and holding on keeps doing nothing
+ * until the next press. Its release is still reported.
+ */
+export function claimPress(input: PointerInput) {
+  input.pressedAt = null;
+  input.holding = { type: "nothing" };
+}
+
+/**
+ * Forgets the button: a press not yet polled orders nothing, its release
+ * isn't reported, and holding on keeps doing nothing until the next press.
  */
 export function cancel(input: PointerInput) {
   input.pressedAt = null;
+  input.releasedAt = null;
   input.rightPressedAt = null;
-  release(input);
+  input.held = false;
 }
 
 /**
@@ -185,7 +231,7 @@ function pollLeft<Panel>(
     input.lastOrderMs = nowMs;
     const panel = view.panelAt(pressedAt);
     if (panel !== null) {
-      input.holding = { type: "panel" };
+      input.holding = { type: "nothing" };
       return { ...nothing, panel };
     }
     const monster = view.monsterAt(pressedAt);
@@ -195,7 +241,7 @@ function pollLeft<Panel>(
       : (view.groundLabelAt(pressedAt) ??
         (monster === null ? view.groundItemAt(pressedAt) : null));
     if (groundItem !== null) {
-      input.holding = { type: "panel" };
+      input.holding = { type: "nothing" };
       return { ...nothing, orders: [{ type: "PickUp", groundItem }] };
     }
     if (input.shift) {
@@ -215,7 +261,7 @@ function pollLeft<Panel>(
   }
 
   if (!input.held || !input.screen) return nothing;
-  if (input.holding.type === "panel") return nothing;
+  if (input.holding.type === "nothing") return nothing;
   if (input.holding.type === "steer" && view.panelAt(input.screen) !== null) {
     return nothing;
   }
@@ -234,7 +280,7 @@ function pollLeft<Panel>(
 
 /** The order that holding the button gives with the cursor at `screen`. */
 function holdOrder<Panel>(
-  holding: Exclude<Holding, { type: "panel" }>,
+  holding: Exclude<Holding, { type: "nothing" }>,
   view: PointerView<Panel>,
 
   screen: Vec,

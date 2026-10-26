@@ -1,4 +1,5 @@
 import type { Skill } from "../tuning/skills";
+import type { World } from "./world";
 
 /** The Skill Bar's keyed slots, cast by keys Q, W, E and R in turn. */
 export const KEYED_SLOTS = ["key1", "key2", "key3", "key4"] as const;
@@ -23,6 +24,11 @@ export function slotKey(slot: KeyedSlot): string {
 /** The Skill in each slot of the Skill Bar, or null for an empty one. */
 export type SkillBar = Record<SkillBarSlot, Skill | null>;
 
+/** The Skill in the Hero's Skill Bar slot `slot`, or null for an empty one. */
+export function skillInSlot(world: World, slot: SkillBarSlot): Skill | null {
+  return world.hero.progress.skillBar[slot];
+}
+
 /** A Skill Bar with every slot empty, as a New Hero has. */
 export function emptySkillBar(): SkillBar {
   return { right: null, key1: null, key2: null, key3: null, key4: null };
@@ -38,19 +44,20 @@ export function placeLearnedSkill(bar: SkillBar, skill: Skill): SkillBar {
 }
 
 /**
- * The Skill Bar with `skill` put into `slot`, replacing whatever was there
- * and leaving empty the slot it was in, if any.
+ * The Skill Bar with `skill` put into `slot`. The Skill it displaces from
+ * `slot` goes into the slot `skill` was in, if it was on the bar, and
+ * otherwise falls off the bar. A Skill is never in two slots.
  */
 export function putSkillOnBar(
   bar: SkillBar,
   skill: Skill,
   slot: SkillBarSlot,
 ): SkillBar {
-  const moved = Object.fromEntries(
-    SKILL_BAR_SLOTS.map((name) => [
-      name,
-      bar[name] === skill ? null : bar[name],
-    ]),
-  ) as SkillBar;
-  return { ...moved, [slot]: skill };
+  const from = SKILL_BAR_SLOTS.find((name) => bar[name] === skill);
+  const displaced = bar[slot];
+  return {
+    ...bar,
+    ...(from ? { [from]: displaced } : {}),
+    [slot]: skill,
+  };
 }

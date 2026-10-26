@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 import type { Vec } from "../sim/vec";
 import {
   cancel,
+  claimPress,
   createPointerInput,
   move,
   poll,
   press,
   pressRight,
   release,
+  takeRelease,
   takeRightClick,
 } from "./pointer";
 
@@ -52,7 +54,7 @@ describe("pointer input", () => {
     ]);
     expect(held.click).toBeNull();
 
-    release(input);
+    release(input, { x: 2, y: 1 });
     move(input, { x: 3, y: 1 });
     expect(poll(input, 1300, asTiles).orders).toEqual([]);
   });
@@ -61,7 +63,7 @@ describe("pointer input", () => {
     const input = createPointerInput();
 
     press(input, { x: 3, y: 4 });
-    release(input);
+    release(input, { x: 3, y: 4 });
 
     expect(poll(input, 0, asTiles).orders).toEqual([
       { type: "MoveTo", target: { x: 3.5, y: 4.5 } },
@@ -74,7 +76,7 @@ describe("pointer input", () => {
     const input = createPointerInput();
 
     press(input, { x: 3, y: 4 });
-    release(input);
+    release(input, { x: 3, y: 4 });
     move(input, null);
 
     expect(poll(input, 0, asTiles).orders).toEqual([
@@ -368,5 +370,103 @@ describe("right-clicks", () => {
     cancel(input);
 
     expect(takeRightClick(input)).toBeNull();
+  });
+});
+
+describe("releases", () => {
+  it("are reported once, where the button went up", () => {
+    const input = createPointerInput();
+    press(input, { x: 3, y: 4 });
+    poll(input, 0, asTiles);
+
+    release(input, { x: 6, y: 2 });
+
+    expect(takeRelease(input)).toEqual({ at: { x: 6, y: 2 } });
+    expect(takeRelease(input)).toBeNull();
+  });
+
+  it("are reported with no point when the button went up off the canvas", () => {
+    const input = createPointerInput();
+    press(input, { x: 3, y: 4 });
+
+    release(input, null);
+
+    expect(takeRelease(input)).toEqual({ at: null });
+  });
+
+  it("are reported alongside a press within the same frame", () => {
+    const input = createPointerInput();
+
+    press(input, { x: 3, y: 4 });
+    release(input, { x: 3, y: 4 });
+
+    expect(poll(input, 0, asTiles).orders).toEqual([
+      { type: "MoveTo", target: { x: 3.5, y: 4.5 } },
+    ]);
+    expect(takeRelease(input)).toEqual({ at: { x: 3, y: 4 } });
+  });
+
+  // The browser follows a release with a lost pointer capture.
+  it("are reported only for the first release of a press", () => {
+    const input = createPointerInput();
+    press(input, { x: 3, y: 4 });
+
+    release(input, { x: 5, y: 5 });
+    release(input, null);
+
+    expect(takeRelease(input)).toEqual({ at: { x: 5, y: 5 } });
+    expect(takeRelease(input)).toBeNull();
+  });
+
+  it("are not reported with no press before them", () => {
+    const input = createPointerInput();
+
+    release(input, { x: 5, y: 5 });
+
+    expect(takeRelease(input)).toBeNull();
+  });
+
+  it("are forgotten by a cancel", () => {
+    const input = createPointerInput();
+    press(input, { x: 3, y: 4 });
+    release(input, { x: 3, y: 4 });
+
+    cancel(input);
+
+    expect(takeRelease(input)).toBeNull();
+  });
+});
+
+describe("a claimed press", () => {
+  it("orders nothing, even while held", () => {
+    const input = createPointerInput();
+    press(input, { x: 3, y: 4 });
+
+    claimPress(input);
+
+    expect(poll(input, 0, asTiles).orders).toEqual([]);
+    move(input, { x: 6, y: 4 });
+    expect(poll(input, 500, asTiles).orders).toEqual([]);
+  });
+
+  it("stops holding on from ordering once it has been polled", () => {
+    const input = createPointerInput();
+    press(input, { x: 3, y: 4 });
+    poll(input, 0, asTiles);
+
+    claimPress(input);
+
+    move(input, { x: 6, y: 4 });
+    expect(poll(input, 500, asTiles).orders).toEqual([]);
+  });
+
+  it("still reports its release", () => {
+    const input = createPointerInput();
+    press(input, { x: 3, y: 4 });
+    claimPress(input);
+
+    release(input, { x: 7, y: 1 });
+
+    expect(takeRelease(input)).toEqual({ at: { x: 7, y: 1 } });
   });
 });

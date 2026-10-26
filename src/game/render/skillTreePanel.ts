@@ -145,7 +145,7 @@ export function skillTreePanelLayout(screen: { width: number }): {
 export type SkillTreeHit = {
   button:
     | { type: "learn"; skill: Skill }
-    | { type: "dragSkill"; skill: Skill }
+    | { type: "pickUpSkill"; skill: Skill }
     | CloseButton
     | null;
 };
@@ -172,7 +172,7 @@ export function skillTreeHitAt(
     }
     const learned = world.hero.progress.skillLevels[skill] > 0;
     if (learned && inside(layout.skills[skill], point)) {
-      return { button: { type: "dragSkill", skill } };
+      return { button: { type: "pickUpSkill", skill } };
     }
   }
   return { button: null };

@@ -1,6 +1,6 @@
 import type { Skill } from "../tuning/skills";
 
-/** The Skill Bar's keyed slots, cast by keys 1–4 in turn. */
+/** The Skill Bar's keyed slots, cast by keys Q, W, E and R in turn. */
 export const KEYED_SLOTS = ["key1", "key2", "key3", "key4"] as const;
 
 /** One of the Skill Bar's keyed slots. */
@@ -12,9 +12,12 @@ export const SKILL_BAR_SLOTS = ["right", ...KEYED_SLOTS] as const;
 /** One slot of the Skill Bar. */
 export type SkillBarSlot = (typeof SKILL_BAR_SLOTS)[number];
 
-/** The key that casts a keyed slot, as `KeyboardEvent.key`: "1" to "4". */
+/** The keys that cast the keyed slots, in turn. */
+const SLOT_KEYS = ["Q", "W", "E", "R"] as const;
+
+/** The key that casts a keyed slot, upper case: "Q", "W", "E" or "R". */
 export function slotKey(slot: KeyedSlot): string {
-  return String(KEYED_SLOTS.indexOf(slot) + 1);
+  return SLOT_KEYS[KEYED_SLOTS.indexOf(slot)];
 }
 
 /** The Skill in each slot of the Skill Bar, or null for an empty one. */

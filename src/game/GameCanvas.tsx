@@ -128,7 +128,7 @@ export default function GameCanvas() {
           const used = pressKey(menus, key, realNow, hero);
           if (used === null) {
             pressed = true;
-            // Keys 1–4 cast at the cursor.
+            // Keys Q/W/E/R cast at the cursor.
             const cursor = input.screen && renderer.screenToTile(input.screen);
             const cast = castKeyOrder(key, cursor);
             if (cast) orders.push(cast);

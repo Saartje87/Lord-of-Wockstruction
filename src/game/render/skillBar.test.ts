@@ -47,7 +47,7 @@ function world(progress?: Progress): World {
 const screen = { width: 1280, height: 720 };
 
 describe("the Skill Bar's layout", () => {
-  it("sits centred between the orbs, keyed slots 1–4 then the right-click slot", () => {
+  it("sits centred between the orbs, keyed slots Q/W/E/R then the right-click slot", () => {
     const { slots } = skillBarLayout(screen);
     const order = ["key1", "key2", "key3", "key4", "right"] as const;
 
@@ -67,10 +67,10 @@ describe("the Skill Bar's layout", () => {
 describe("the Skill Bar's sheet", () => {
   it("shows each slot's key and Skill, empty slots without one", () => {
     expect(skillBarSheet(world(GOLEM_IN_KEY2))).toEqual([
-      { slot: "key1", key: "1", name: null, dimmed: false },
-      { slot: "key2", key: "2", name: "Golem", dimmed: false },
-      { slot: "key3", key: "3", name: null, dimmed: false },
-      { slot: "key4", key: "4", name: null, dimmed: false },
+      { slot: "key1", key: "Q", name: null, dimmed: false },
+      { slot: "key2", key: "W", name: "Golem", dimmed: false },
+      { slot: "key3", key: "E", name: null, dimmed: false },
+      { slot: "key4", key: "R", name: null, dimmed: false },
       { slot: "right", key: "RMB", name: null, dimmed: false },
     ]);
   });

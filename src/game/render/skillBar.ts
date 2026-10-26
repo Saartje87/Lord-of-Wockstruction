@@ -17,7 +17,7 @@ import { type Skill, skillTuning } from "../tuning/skills";
  */
 export const SKILL_BAR = { slot: 44, gap: 6, rightGap: 16, bottom: 42 };
 
-/** The Skill Bar's slots from left to right: keys 1–4, then right-click. */
+/** The Skill Bar's slots from left to right: keys Q/W/E/R, then right-click. */
 const SHOWN_ORDER: readonly SkillBarSlot[] = [...KEYED_SLOTS, "right"];
 
 /** The key shown on a slot. */

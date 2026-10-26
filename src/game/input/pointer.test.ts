@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import type { Vec } from "../sim/vec";
-import { inputTuning } from "../tuning/input";
 import {
   cancel,
   claimPress,
@@ -382,7 +381,7 @@ describe("releases", () => {
 
     release(input, { x: 6, y: 2 });
 
-    expect(takeRelease(input)).toEqual({ at: { x: 6, y: 2 }, dragged: false });
+    expect(takeRelease(input)).toEqual({ at: { x: 6, y: 2 } });
     expect(takeRelease(input)).toBeNull();
   });
 
@@ -392,7 +391,7 @@ describe("releases", () => {
 
     release(input, null);
 
-    expect(takeRelease(input)).toEqual({ at: null, dragged: false });
+    expect(takeRelease(input)).toEqual({ at: null });
   });
 
   it("are reported alongside a press within the same frame", () => {
@@ -404,7 +403,7 @@ describe("releases", () => {
     expect(poll(input, 0, asTiles).orders).toEqual([
       { type: "MoveTo", target: { x: 3.5, y: 4.5 } },
     ]);
-    expect(takeRelease(input)).toEqual({ at: { x: 3, y: 4 }, dragged: false });
+    expect(takeRelease(input)).toEqual({ at: { x: 3, y: 4 } });
   });
 
   // The browser follows a release with a lost pointer capture.
@@ -415,7 +414,7 @@ describe("releases", () => {
     release(input, { x: 5, y: 5 });
     release(input, null);
 
-    expect(takeRelease(input)).toEqual({ at: { x: 5, y: 5 }, dragged: false });
+    expect(takeRelease(input)).toEqual({ at: { x: 5, y: 5 } });
     expect(takeRelease(input)).toBeNull();
   });
 
@@ -435,72 +434,6 @@ describe("releases", () => {
     cancel(input);
 
     expect(takeRelease(input)).toBeNull();
-  });
-});
-
-describe("drags", () => {
-  const { dragThresholdPx } = inputTuning;
-
-  it("are not counted for a wobble below the drag threshold", () => {
-    const input = createPointerInput();
-    press(input, { x: 100, y: 100 });
-
-    move(input, { x: 100 + dragThresholdPx - 1, y: 100 });
-    release(input, { x: 100 + dragThresholdPx - 1, y: 100 });
-
-    expect(takeRelease(input)?.dragged).toBe(false);
-  });
-
-  it("are counted once the pointer moves past the drag threshold", () => {
-    const input = createPointerInput();
-    press(input, { x: 100, y: 100 });
-
-    move(input, { x: 100, y: 100 + dragThresholdPx });
-    release(input, { x: 100, y: 100 + dragThresholdPx });
-
-    expect(takeRelease(input)?.dragged).toBe(true);
-  });
-
-  it("are counted even when the pointer comes back to where it was pressed", () => {
-    const input = createPointerInput();
-    press(input, { x: 100, y: 100 });
-
-    move(input, { x: 140, y: 100 });
-    release(input, { x: 100, y: 100 });
-
-    expect(takeRelease(input)?.dragged).toBe(true);
-  });
-
-  it("are counted for a release past the threshold with no move seen", () => {
-    const input = createPointerInput();
-    press(input, { x: 100, y: 100 });
-
-    release(input, { x: 140, y: 100 });
-
-    expect(takeRelease(input)?.dragged).toBe(true);
-  });
-
-  it("are counted for a release off the canvas after moving away", () => {
-    const input = createPointerInput();
-    press(input, { x: 100, y: 100 });
-
-    move(input, { x: 140, y: 100 });
-    release(input, null);
-
-    expect(takeRelease(input)).toEqual({ at: null, dragged: true });
-  });
-
-  it("start afresh with each press", () => {
-    const input = createPointerInput();
-    press(input, { x: 100, y: 100 });
-    move(input, { x: 140, y: 100 });
-    release(input, { x: 140, y: 100 });
-    takeRelease(input);
-
-    press(input, { x: 140, y: 100 });
-    release(input, { x: 140, y: 100 });
-
-    expect(takeRelease(input)?.dragged).toBe(false);
   });
 });
 
@@ -534,6 +467,6 @@ describe("a claimed press", () => {
 
     release(input, { x: 7, y: 1 });
 
-    expect(takeRelease(input)).toEqual({ at: { x: 7, y: 1 }, dragged: false });
+    expect(takeRelease(input)).toEqual({ at: { x: 7, y: 1 } });
   });
 });

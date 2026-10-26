@@ -14,13 +14,6 @@ export type PointerInput = {
   pressedAt: Vec | null;
   /** Where the button went up since last taken (see `takeRelease`). */
   releasedAt: Release | null;
-  /**
-   * Where the button last went down, kept while it's held, for telling a
-   * drag from a click.
-   */
-  downAt: Vec | null;
-  /** Whether the pointer has moved past the drag threshold since `downAt`. */
-  dragged: boolean;
   /** Where the right button last went down, until taken. */
   rightPressedAt: Vec | null;
   /** Whether Shift was down when the button went down. */
@@ -34,10 +27,9 @@ export type PointerInput = {
 
 /**
  * Where the left button went up: the point on the canvas (CSS px), or null
- * when it went up off the canvas; and whether the pointer was `dragged`
- * past the drag threshold since the button went down, or this is a click.
+ * when it went up off the canvas.
  */
-export type Release = { at: Vec | null; dragged: boolean };
+export type Release = { at: Vec | null };
 
 type Holding =
   | { type: "steer" }
@@ -77,8 +69,6 @@ export function createPointerInput(): PointerInput {
     screen: null,
     pressedAt: null,
     releasedAt: null,
-    downAt: null,
-    dragged: false,
     rightPressedAt: null,
     shift: false,
     held: false,
@@ -132,8 +122,6 @@ export function press(
 ) {
   input.screen = screen;
   input.pressedAt = screen;
-  input.downAt = screen;
-  input.dragged = false;
   input.shift = shift;
   input.held = true;
 }
@@ -157,15 +145,6 @@ export function takeRightClick(input: PointerInput): Vec | null {
 /** The cursor moved on the canvas, or left it (null). */
 export function move(input: PointerInput, screen: Vec | null) {
   input.screen = screen;
-  noteDrag(input, screen);
-}
-
-/** Marks the press as dragged once the pointer at `screen` is far enough. */
-function noteDrag(input: PointerInput, screen: Vec | null) {
-  if (!input.held || !input.downAt || !screen) return;
-  const dx = screen.x - input.downAt.x;
-  const dy = screen.y - input.downAt.y;
-  if (Math.hypot(dx, dy) >= inputTuning.dragThresholdPx) input.dragged = true;
 }
 
 /**
@@ -175,9 +154,8 @@ function noteDrag(input: PointerInput, screen: Vec | null) {
  */
 export function release(input: PointerInput, at: Vec | null) {
   if (!input.held) return;
-  noteDrag(input, at);
   input.held = false;
-  input.releasedAt = { at, dragged: input.dragged };
+  input.releasedAt = { at };
 }
 
 /**

@@ -99,7 +99,7 @@ describe("the cursor with Items", () => {
 
     const { orders } = releaseCursor(
       createCursor(),
-      { at: centreOf(8, 2), hit: onCell(8, 2), dragged: false },
+      { at: centreOf(8, 2), hit: onCell(8, 2) },
       at,
     );
 
@@ -186,7 +186,7 @@ describe("the cursor with Skills", () => {
 
     const { cursor, orders } = releaseCursor(
       held,
-      { at: { x: 600, y: 740 }, hit: ON_KEY4, dragged: true },
+      { at: { x: 600, y: 740 }, hit: ON_KEY4 },
       at,
     );
 
@@ -206,7 +206,7 @@ describe("the cursor with Skills", () => {
 
     const { cursor, orders, taken } = releaseCursor(
       held,
-      { at: { x: 1002, y: 101 }, hit: ON_GOLEM, dragged: false },
+      { at: { x: 1002, y: 101 }, hit: ON_GOLEM },
       at,
     );
 
@@ -224,11 +224,7 @@ describe("the cursor with Skills", () => {
       { at: null, hit: null },
       { at: centreOf(0, 0), hit: onCell(0, 0) },
     ]) {
-      const { cursor, orders } = releaseCursor(
-        held,
-        { ...release, dragged: true },
-        at,
-      );
+      const { cursor, orders } = releaseCursor(held, { ...release }, at);
 
       expect(orders).toEqual([]);
       expect(cursor.heldSkill).toBeNull();
@@ -280,7 +276,7 @@ describe("the cursor with Skills", () => {
 
     const { cursor, orders } = releaseCursor(
       after,
-      { at: { x: 600, y: 740 }, hit: ON_KEY4, dragged: false },
+      { at: { x: 600, y: 740 }, hit: ON_KEY4 },
       at,
     );
 
@@ -306,7 +302,7 @@ describe("the cursor with Skills", () => {
   it("orders nothing for a release with nothing held", () => {
     const { cursor, orders } = releaseCursor(
       createCursor(),
-      { at: { x: 600, y: 740 }, hit: ON_KEY4, dragged: true },
+      { at: { x: 600, y: 740 }, hit: ON_KEY4 },
       scene(),
     );
 
@@ -399,7 +395,7 @@ describe("the cursor on the Skill Bar", () => {
 
     const { cursor, orders, taken } = releaseCursor(
       held,
-      { at: { x: 701, y: 741 }, hit: ON_RIGHT, dragged: false },
+      { at: { x: 701, y: 741 }, hit: ON_RIGHT },
       at,
     );
 
@@ -418,7 +414,7 @@ describe("the cursor on the Skill Bar", () => {
 
     const { cursor, orders } = releaseCursor(
       held,
-      { at: { x: 500, y: 740 }, hit: ON_KEY1, dragged: true },
+      { at: { x: 500, y: 740 }, hit: ON_KEY1 },
       at,
     );
     step(at.world, orders);
@@ -434,7 +430,7 @@ describe("the cursor on the Skill Bar", () => {
     const at = learned();
     const press = { at: { x: 700, y: 740 }, hit: ON_RIGHT };
     let { cursor } = pressCursor(createCursor(), press, at);
-    cursor = releaseCursor(cursor, { ...press, dragged: false }, at).cursor;
+    cursor = releaseCursor(cursor, { ...press }, at).cursor;
 
     const landed = pressCursor(
       cursor,
@@ -466,7 +462,7 @@ describe("the cursor on the Skill Bar", () => {
     const at = learned();
     const { cursor, orders } = releaseCursor(
       { ...createCursor(), heldSkill: "golem", heldSkillSlot: "right" },
-      { ...OVER_THE_WORLD, dragged: true },
+      { ...OVER_THE_WORLD },
       at,
     );
 
@@ -485,7 +481,7 @@ describe("the cursor on the Skill Bar", () => {
     expect(
       pressCursor(held, { at: { x: 500, y: 740 }, hit: ON_KEY1 }, at).cursor,
     ).toEqual(createCursor());
-    const release = { ...OVER_THE_WORLD, dragged: true };
+    const release = { ...OVER_THE_WORLD };
     expect(releaseCursor(held, release, at).cursor).toEqual(createCursor());
     expect(settleCursor(held, { paused: true, heroDead: false })).toEqual(
       createCursor(),
@@ -554,21 +550,17 @@ const packedWorld = () =>
 
 /**
  * Presses at `from`, lets a step pass as a frame would, then lets go at
- * `to`, `dragged` past the drag threshold unless told otherwise, and steps
- * the release's orders. Hands back those orders and the World after them.
+ * `to`, and steps the release's orders. Hands back those orders and the World after them.
  */
 function drag(
   from: { at: Vec; hit: CursorHit },
   to: { at: Vec | null; hit: CursorHit | null },
-  {
-    dragged = true,
-    world = packedWorld(),
-  }: { dragged?: boolean; world?: World } = {},
+  { world = packedWorld() }: { world?: World } = {},
 ) {
   const scene = { world, screen: SCREEN };
   const pressed = pressCursor(createCursor(), from, scene);
   step(world, pressed.orders);
-  const released = releaseCursor(pressed.cursor, { ...to, dragged }, scene);
+  const released = releaseCursor(pressed.cursor, to, scene);
   step(world, released.orders);
   return { orders: released.orders, cursor: released.cursor, world };
 }
@@ -667,7 +659,7 @@ describe("dragging an Item", () => {
     );
     const released = releaseCursor(
       pressed.cursor,
-      { ...at({ column: 7, row: 2 }), dragged: true },
+      { ...at({ column: 7, row: 2 }) },
       scene,
     );
     step(world, [...pressed.orders, ...released.orders]);
@@ -689,7 +681,7 @@ describe("dragging an Item", () => {
     // there but a point over the World.
     const released = releaseCursor(
       pressed.cursor,
-      { at: { x: 10, y: 10 }, hit: null, dragged: true },
+      { at: { x: 10, y: 10 }, hit: null },
       scene,
     );
 
@@ -708,22 +700,10 @@ describe("clicking an Item", () => {
     expect(heldType(world)).toBe("axe");
   });
 
-  it("moves it when let go over another cell without passing the drag threshold", () => {
-    const { world } = drag(
-      at({ column: 4, row: 1 }),
-      at({ column: 7, row: 2 }),
-      { dragged: false },
-    );
-
-    expect(typeAt(world, 7, 1)).toBe("axe");
-    expect(heldType(world)).toBeUndefined();
-  });
-
   it("puts it down on the next press, a drag after it ordering nothing more", () => {
     const { world, cursor } = drag(
       at({ column: 4, row: 1 }),
       at({ column: 4, row: 1 }),
-      { dragged: false },
     );
     const scene = { world, screen: SCREEN };
 
@@ -731,7 +711,7 @@ describe("clicking an Item", () => {
     step(world, pressed.orders);
     const released = releaseCursor(
       pressed.cursor,
-      { ...at({ column: 0, row: 3 }), dragged: true },
+      { ...at({ column: 0, row: 3 }) },
       scene,
     );
     step(world, released.orders);
@@ -796,7 +776,6 @@ describe("the cursor on the Belt strip", () => {
 
   it("puts a held Potion into the Belt Column clicked next, at its lowest free row", () => {
     const { world, cursor } = drag(onStrip(0), onStrip(0), {
-      dragged: false,
       world: beltedWorld(),
     });
     expect(heldType(world)).toBe("lifePotion");
@@ -862,7 +841,7 @@ describe("the cursor on the Belt strip", () => {
     expect(typeAt(world, 9, 3)).toBeUndefined();
     expect(beltTypes(world)[3]).toEqual(["lifePotion"]);
 
-    const clicked = drag(onStrip(3), onStrip(3), { world, dragged: false });
+    const clicked = drag(onStrip(3), onStrip(3), { world });
     const { orders } = pressCursor(clicked.cursor, at({ column: 7, row: 3 }), {
       world,
       screen: SCREEN,
@@ -897,7 +876,6 @@ describe("the cursor on the Belt strip", () => {
   it("drops a held Potion on the next click over the World with the Inventory panel shut, so the Hero doesn't walk", () => {
     const { world, cursor } = drag(onStrip(0), onStrip(0), {
       world: beltedWorld(),
-      dragged: false,
     });
 
     const { orders, taken } = pressCursor(cursor, OVER_THE_WORLD, {

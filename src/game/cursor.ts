@@ -53,12 +53,8 @@ export type CursorHit =
 /** Where a press or release was, and what it hit there. */
 export type CursorPoint<At = Vec> = { at: At; hit: CursorHit | null };
 
-/**
- * Where the left button went up, or off the canvas (null), what it hit
- * there, and whether the pointer was `dragged` past the drag threshold since
- * it went down, or this ends a click.
- */
-export type CursorRelease = CursorPoint<Vec | null> & { dragged: boolean };
+/** Where the left button went up, or off the canvas (null), and what it hit there. */
+export type CursorRelease = CursorPoint<Vec | null>;
 
 /** What the cursor works with: the World and the screen as last drawn. */
 export type CursorScene = {

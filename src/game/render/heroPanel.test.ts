@@ -1,8 +1,25 @@
 import { describe, expect, it } from "vitest";
+import {
+  acceptPendingPoints,
+  addPendingPoint,
+  createMenus,
+  pressKey,
+} from "../menus";
+import { changesSave, saveOf } from "../save";
 import { emptyBelt } from "../sim/belt";
 import { inventoryOf } from "../sim/inventory";
+import { inside as insidePoint, overlaps, type Rect } from "../sim/rect";
 import { emptySkillBar } from "../sim/skillBar";
-import { createWorld, type Progress, step, type World } from "../sim/world";
+import {
+  type Attribute,
+  attackRating,
+  createWorld,
+  maxLife,
+  maxMana,
+  type Progress,
+  step,
+  type World,
+} from "../sim/world";
 import {
   heroPanelLayout,
   heroSheet,
@@ -10,6 +27,14 @@ import {
   panelHitAt,
   rowTop,
 } from "./heroPanel";
+
+/** Whether `rect` lies wholly inside `outer`. */
+function inside(outer: Rect, rect: Rect): boolean {
+  return (
+    insidePoint(outer, { x: rect.x, y: rect.y }) &&
+    insidePoint(outer, { x: rect.x + rect.w, y: rect.y + rect.h })
+  );
+}
 
 /** The top of the panel's first row, Level, under the title. */
 const firstRowTop = () => rowTop(PANEL_ROWS.level);
@@ -104,12 +129,12 @@ describe("heroSheet with Items Equipped", () => {
       "20",
     ]);
     expect(sheet.derived).toEqual([
-      { name: "Life", value: "115" },
-      { name: "Mana", value: "40 / 40" },
-      { name: "Damage", value: "21–31" },
-      { name: "Defense", value: "40" },
-      { name: "Attack Rating", value: "100" },
-      { name: "Chance to hit a Skeleton", value: "85%" },
+      { name: "Life", value: "115", changed: false },
+      { name: "Mana", value: "40 / 40", changed: false },
+      { name: "Damage", value: "21–31", changed: false },
+      { name: "Defense", value: "40", changed: false },
+      { name: "Attack Rating", value: "100", changed: false },
+      { name: "Chance to hit a Skeleton", value: "85%", changed: false },
     ]);
   });
 });
@@ -120,20 +145,45 @@ describe("heroSheet", () => {
       level: "Level 1",
       experience: "0 / 500",
       attributes: [
-        { attribute: "strength", name: "Strength", value: "20" },
-        { attribute: "dexterity", name: "Dexterity", value: "20" },
-        { attribute: "vitality", name: "Vitality", value: "20" },
-        { attribute: "energy", name: "Energy", value: "20" },
+        {
+          attribute: "strength",
+          name: "Strength",
+          value: "20",
+          changed: false,
+          canLower: false,
+        },
+        {
+          attribute: "dexterity",
+          name: "Dexterity",
+          value: "20",
+          changed: false,
+          canLower: false,
+        },
+        {
+          attribute: "vitality",
+          name: "Vitality",
+          value: "20",
+          changed: false,
+          canLower: false,
+        },
+        {
+          attribute: "energy",
+          name: "Energy",
+          value: "20",
+          changed: false,
+          canLower: false,
+        },
       ],
-      attributePoints: "0",
+      attributePoints: { value: "0", changed: false },
       canRaise: false,
+      canAccept: false,
       derived: [
-        { name: "Life", value: "100" },
-        { name: "Mana", value: "40 / 40" },
-        { name: "Damage", value: "20–30" },
-        { name: "Defense", value: "0" },
-        { name: "Attack Rating", value: "100" },
-        { name: "Chance to hit a Skeleton", value: "85%" },
+        { name: "Life", value: "100", changed: false },
+        { name: "Mana", value: "40 / 40", changed: false },
+        { name: "Damage", value: "20–30", changed: false },
+        { name: "Defense", value: "0", changed: false },
+        { name: "Attack Rating", value: "100", changed: false },
+        { name: "Chance to hit a Skeleton", value: "85%", changed: false },
       ],
     });
   });
@@ -151,24 +201,24 @@ describe("heroSheet", () => {
       skillLevels: { golem: 0 },
       skillBar: emptySkillBar(),
     });
-    step(w, [{ type: "SpendAttributePoint", attribute: "dexterity" }]);
+    step(w, [{ type: "SpendAttributePoints", points: { dexterity: 1 } }]);
 
     const sheet = heroSheet(w);
     expect(sheet).toMatchObject({
       level: "Level 5",
       experience: "10,000 / 14,175",
-      attributePoints: "9",
+      attributePoints: { value: "9", changed: false },
       canRaise: true,
     });
     expect(sheet.attributes[1]).toMatchObject({ value: "21" });
     expect(sheet.derived).toEqual([
-      { name: "Life", value: "108" },
-      { name: "Mana", value: "44 / 44" },
-      { name: "Damage", value: "22–33" },
-      { name: "Defense", value: "0" },
-      { name: "Attack Rating", value: "105" },
+      { name: "Life", value: "108", changed: false },
+      { name: "Mana", value: "44 / 44", changed: false },
+      { name: "Damage", value: "22–33", changed: false },
+      { name: "Defense", value: "0", changed: false },
+      { name: "Attack Rating", value: "105", changed: false },
       // 2 × 105 / (105 + 135)
-      { name: "Chance to hit a Skeleton", value: "88%" },
+      { name: "Chance to hit a Skeleton", value: "88%", changed: false },
     ]);
   });
 
@@ -179,6 +229,7 @@ describe("heroSheet", () => {
     expect(heroSheet(w).derived).toContainEqual({
       name: "Mana",
       value: "12 / 40",
+      changed: false,
     });
   });
 
@@ -187,9 +238,93 @@ describe("heroSheet", () => {
     kill(w);
 
     expect(heroSheet(w)).toMatchObject({
-      attributePoints: "5",
+      attributePoints: { value: "5", changed: false },
       canRaise: false,
     });
+  });
+});
+
+/** No Pending Attribute Points, but `points` on each Attribute named. */
+function pending(points: Partial<Record<Attribute, number>>) {
+  return { strength: 0, dexterity: 0, vitality: 0, energy: 0, ...points };
+}
+
+describe("heroSheet with Pending Attribute Points", () => {
+  it("previews the Attributes and unspent points with them counted, highlighted", () => {
+    const sheet = heroSheet(withPoints(5), pending({ strength: 2 }));
+
+    expect(
+      sheet.attributes.map(({ value, changed }) => [value, changed]),
+    ).toEqual([
+      ["22", true],
+      ["20", false],
+      ["20", false],
+      ["20", false],
+    ]);
+    expect(sheet.attributePoints).toEqual({ value: "3", changed: true });
+  });
+
+  it("previews what the Attributes add up to, highlighting only what changed", () => {
+    const w = withPoints(5);
+    w.hero.mana = 30;
+
+    const sheet = heroSheet(w, pending({ vitality: 1, energy: 2 }));
+
+    expect(sheet.derived).toEqual([
+      // 102 at Level 2, and 3 for the point of Vitality.
+      { name: "Life", value: "105", changed: true },
+      // Energy adds 2 a point to current and max Mana alike.
+      { name: "Mana", value: "34 / 45", changed: true },
+      { name: "Damage", value: "20–30", changed: false },
+      { name: "Defense", value: "0", changed: false },
+      { name: "Attack Rating", value: "100", changed: false },
+      { name: "Chance to hit a Skeleton", value: "85%", changed: false },
+    ]);
+  });
+
+  it("matches the World's own figures once they're accepted", () => {
+    const w = withPoints(5);
+    const points = pending({ strength: 1, dexterity: 3, vitality: 1 });
+    const preview = heroSheet(w, points);
+
+    step(w, [{ type: "SpendAttributePoints", points }]);
+    const accepted = heroSheet(w);
+
+    expect(preview.attributes.map(({ value }) => value)).toEqual(
+      accepted.attributes.map(({ value }) => value),
+    );
+    expect(preview.attributePoints.value).toBe(accepted.attributePoints.value);
+    expect(preview.derived.map(({ value }) => value)).toEqual(
+      accepted.derived.map(({ value }) => value),
+    );
+    expect(accepted.derived).toContainEqual({
+      name: "Attack Rating",
+      value: String(attackRating(w)),
+      changed: false,
+    });
+    expect(maxLife(w)).toBe(105);
+    expect(maxMana(w)).toBe(41);
+  });
+
+  it("shows + while points are left to place, − on Attributes with pending points, and Accept", () => {
+    const sheet = heroSheet(withPoints(5), pending({ dexterity: 1 }));
+
+    expect(sheet.canRaise).toBe(true);
+    expect(sheet.canAccept).toBe(true);
+    expect(sheet.attributes.map(({ canLower }) => canLower)).toEqual([
+      false,
+      true,
+      false,
+      false,
+    ]);
+  });
+
+  it("hides + once every unspent point is pending", () => {
+    const sheet = heroSheet(withPoints(2), pending({ energy: 2 }));
+
+    expect(sheet.canRaise).toBe(false);
+    expect(sheet.attributePoints.value).toBe("0");
+    expect(sheet.canAccept).toBe(true);
   });
 });
 
@@ -281,6 +416,66 @@ describe("panelHitAt", () => {
     });
   });
 
+  it("finds a − button only on an Attribute with Pending Attribute Points", () => {
+    const at = centre(layout.lower.vitality);
+    const w = withPoints(3);
+
+    expect(panelHitAt(screen, at, w, true, pending({ vitality: 1 }))).toEqual({
+      button: { type: "lower", attribute: "vitality" },
+    });
+    expect(panelHitAt(screen, at, w, true, pending({ energy: 1 }))).toEqual({
+      button: null,
+    });
+    expect(panelHitAt(screen, at, w, true)).toEqual({ button: null });
+  });
+
+  it("finds Accept only while points are pending", () => {
+    const at = centre(layout.accept);
+    const w = withPoints(3);
+
+    expect(panelHitAt(screen, at, w, true, pending({ energy: 1 }))).toEqual({
+      button: { type: "accept" },
+    });
+    expect(panelHitAt(screen, at, w, true)).toEqual({ button: null });
+  });
+
+  it("finds no + once every unspent point is pending", () => {
+    const at = centre(layout.raise.strength);
+
+    expect(
+      panelHitAt(screen, at, withPoints(2), true, pending({ energy: 2 })),
+    ).toEqual({ button: null });
+    expect(
+      panelHitAt(screen, at, withPoints(3), true, pending({ energy: 2 })),
+    ).toEqual({ button: { type: "raise", attribute: "strength" } });
+  });
+
+  it("keeps the Level Up button while every unspent point is pending", () => {
+    expect(
+      panelHitAt(
+        screen,
+        centre(layout.levelUp),
+        withPoints(2),
+        true,
+        pending({ strength: 2 }),
+      ),
+    ).toEqual({ button: { type: "levelUp" } });
+  });
+
+  it("lays −, + and Accept out apart from each other and the values", () => {
+    const rects = [
+      ...Object.values(layout.raise),
+      ...Object.values(layout.lower),
+      layout.accept,
+    ];
+    for (const a of rects) {
+      for (const b of rects) {
+        if (a !== b) expect(overlaps(a, b)).toBe(false);
+      }
+      expect(inside(layout.panel, a)).toBe(true);
+    }
+  });
+
   it("catches anywhere else on the open panel, and nothing off it", () => {
     const { panel } = layout;
     const inside = { x: panel.x + 2, y: panel.y + panel.h - 2 };
@@ -291,5 +486,32 @@ describe("panelHitAt", () => {
     });
     expect(panelHitAt(screen, inside, withPoints(0), false)).toBeNull();
     expect(panelHitAt(screen, outside, withPoints(5), true)).toBeNull();
+  });
+});
+
+describe("Pending Attribute Points and the Save", () => {
+  it("are never kept by the Save, until Accept spends them", () => {
+    const w = withPoints(5);
+    const menus = createMenus();
+    pressKey(menus, "c", 1000, { heroDead: false });
+    const hero = { heroDead: false, attributePoints: 5 };
+    addPendingPoint(menus, "strength", hero);
+    addPendingPoint(menus, "vitality", hero);
+
+    expect(saveOf(w).progress).toMatchObject({
+      strength: 20,
+      vitality: 20,
+      attributePoints: 5,
+    });
+
+    const accept = acceptPendingPoints(menus);
+    const events = step(w, accept ? [accept] : []);
+
+    expect(changesSave(events)).toBe(true);
+    expect(saveOf(w).progress).toMatchObject({
+      strength: 21,
+      vitality: 21,
+      attributePoints: 3,
+    });
   });
 });

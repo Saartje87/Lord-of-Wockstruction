@@ -64,6 +64,8 @@ const ARC = (heroTuning.arcDegrees * Math.PI) / 180;
 const COMBAT_STEPS = msToSteps(heroTuning.combatMs);
 /** Life the Hero regains per step outside In Combat. */
 const REGEN_PER_STEP = perStep(heroTuning.regenPerSecond);
+/** Mana the Hero regains per step, In Combat or not. */
+const MANA_REGEN_PER_STEP = perStep(heroTuning.manaRegenPerSecond);
 /** How many steps the Hero lies dead before `Continue` is heeded. */
 export const DEATH_STEPS = msToSteps(heroTuning.deathMs);
 /** How many steps walking through an Exit takes. */
@@ -80,6 +82,8 @@ export const FLINCH_STEPS = Object.fromEntries(
 
 export type Hero = {
   life: number;
+  /** Never kept by the Save: full on load and on each new Level. */
+  mana: number;
   /** Level, Experience and Attributes, kept by the Save. */
   progress: Progress;
   /** The Items carried, none overlapping, kept by the Save. */
@@ -321,7 +325,7 @@ export type SimEvent =
   /** `item` came out of Equipment slot `slot`. */
   | { type: "ItemUnequipped"; item: Item; slot: EquipmentSlot }
   | { type: "ExperienceGained"; amount: number }
-  /** The Hero reached Level `level`, with their Life already filled. */
+  /** The Hero reached Level `level`, with their Life and Mana already filled. */
   | { type: "LevelReached"; level: number }
   | { type: "AttributeRaised"; attribute: Attribute }
   /** A Skill Point raised `skill` to Skill Level `skillLevel`. */
@@ -331,7 +335,12 @@ export type SimEvent =
   | { type: "AreaChanged"; area: string; entry: string };
 
 /** The Hero's Attributes, in the order they're shown. */
-export const ATTRIBUTES = ["strength", "dexterity", "vitality"] as const;
+export const ATTRIBUTES = [
+  "strength",
+  "dexterity",
+  "vitality",
+  "energy",
+] as const;
 
 /** One of the Hero's Attributes. */
 export type Attribute = (typeof ATTRIBUTES)[number];
@@ -356,6 +365,8 @@ export type Progress = {
   dexterity: number;
   /** Raises max Life. */
   vitality: number;
+  /** Raises max Mana. */
+  energy: number;
   /** Attribute Points not spent yet. */
   attributePoints: number;
   /** Skill Points not spent yet. */
@@ -371,6 +382,7 @@ export const FRESH_PROGRESS: Progress = {
   strength: heroTuning.strength,
   dexterity: heroTuning.dexterity,
   vitality: heroTuning.vitality,
+  energy: heroTuning.energy,
   attributePoints: 0,
   skillPoints: 0,
   skillLevels: Object.fromEntries(SKILLS.map((skill) => [skill, 0])) as Record<
@@ -423,8 +435,9 @@ export function createWorld(options: {
     areaChange: null,
     death: null,
     hero: {
-      // Filled to max Life below, once there's a World to ask.
+      // Filled to max Life and Mana below, once there's a World to ask.
       life: 0,
+      mana: 0,
       progress: copyProgress(progress),
       // Filled from `belongings` below, handing out Item ids.
       inventory: [],
@@ -450,6 +463,7 @@ export function createWorld(options: {
   };
   giveBelongings(world, belongings);
   world.hero.life = maxLife(world);
+  world.hero.mana = maxMana(world);
   for (const spawn of town.spawns) placePack(world, town, spawn);
   return world;
 }
@@ -548,6 +562,19 @@ export function maxLife(world: World): number {
     heroTuning.lifePerLevel * (level - 1) +
     heroTuning.lifePerVitality * attributesOf(world).vitality +
     bonusOf(world, "life")
+  );
+}
+
+/**
+ * The Hero's full Mana, growing with their Level and Energy, plus the
+ * Equipped Items' +Energy.
+ */
+export function maxMana(world: World): number {
+  const { level } = world.hero.progress;
+  return (
+    heroTuning.mana +
+    heroTuning.manaPerLevel * (level - 1) +
+    heroTuning.manaPerEnergy * attributesOf(world).energy
   );
 }
 
@@ -819,6 +846,9 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   if (isRegenerating(world)) {
     hero.life = Math.min(maxLife(world), hero.life + REGEN_PER_STEP);
   }
+  if (!world.death) {
+    hero.mana = Math.min(maxMana(world), hero.mana + MANA_REGEN_PER_STEP);
+  }
 
   world.tick += 1;
   return events;
@@ -850,7 +880,8 @@ function stepDeath(
 
 /**
  * Raises an Attribute by one for an unspent point, if there is one. Vitality
- * adds its Life to current Life as well as to max Life.
+ * adds its Life to current Life as well as to max Life, and Energy its Mana
+ * to current Mana as well as to max Mana.
  */
 function spendAttributePoint(
   world: World,
@@ -862,6 +893,7 @@ function spendAttributePoint(
   hero.progress.attributePoints -= 1;
   hero.progress[attribute] += 1;
   if (attribute === "vitality") hero.life += heroTuning.lifePerVitality;
+  if (attribute === "energy") hero.mana += heroTuning.manaPerEnergy;
   events.push({ type: "AttributeRaised", attribute });
 }
 
@@ -878,8 +910,8 @@ function spendSkillPoint(world: World, skill: Skill, events: SimEvent[]) {
 /**
  * Applies an order, or buffers it during a flinch or a committed swing. A
  * point is spent and Items move at once, whatever the Hero is doing. Taking
- * an Item off keeps current Life where it is, up to the new max, and putting
- * one on adds none.
+ * an Item off keeps current Life and Mana where they are, up to the new max,
+ * and putting one on adds none.
  */
 function give(world: World, order: Order, events: SimEvent[]) {
   const { hero } = world;
@@ -894,8 +926,10 @@ function give(world: World, order: Order, events: SimEvent[]) {
     return;
   }
   if (moveItem(world, order, events)) {
-    // Taking off +Life or +Vitality can leave Life over the new max.
+    // Taking off +Life, +Vitality or +Energy can leave Life or Mana over the
+    // new max.
     hero.life = Math.min(hero.life, maxLife(world));
+    hero.mana = Math.min(hero.mana, maxMana(world));
     return;
   }
   if (hero.flinch > 0) {
@@ -1162,7 +1196,7 @@ function die(world: World, events: SimEvent[]) {
 
 /**
  * Gives the Hero Experience, raising their Level as many times as it reaches
- * and filling their Life on each. Experience stops at the table's last value,
+ * and filling their Life and Mana on each. Experience stops at the table's last value,
  * and only what was gained is reported.
  */
 function gainExperience(world: World, amount: number, events: SimEvent[]) {
@@ -1181,6 +1215,7 @@ function gainExperience(world: World, amount: number, events: SimEvent[]) {
     progress.attributePoints += heroTuning.attributePointsPerLevel;
     progress.skillPoints += heroTuning.skillPointsPerLevel;
     hero.life = maxLife(world);
+    hero.mana = maxMana(world);
     events.push({ type: "LevelReached", level: progress.level });
   }
 }

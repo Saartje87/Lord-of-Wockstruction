@@ -22,7 +22,7 @@ import { heroTuning } from "./tuning/hero";
  * is no Save, so the Hero starts fresh instead of loading something
  * misread.
  */
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
 /** What the Save keeps of the Hero: their progress and their Belongings. */
 export type HeroSave = { progress: Progress; belongings: Belongings };

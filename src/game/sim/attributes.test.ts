@@ -126,6 +126,7 @@ const UNSPENT: Progress = {
   strength: 20,
   dexterity: 20,
   vitality: 20,
+  energy: 20,
   attributePoints: 10,
   skillPoints: 2,
   skillLevels: { golem: 0 },

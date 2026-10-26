@@ -238,6 +238,7 @@ const BONUS_NAMES: Record<Bonus, string> = {
   strength: "Strength",
   dexterity: "Dexterity",
   vitality: "Vitality",
+  energy: "Energy",
   life: "Life",
   defense: "Defense",
   attackRating: "Attack Rating",

@@ -103,6 +103,7 @@ describe("Equipped bonuses", () => {
       strength: 25,
       dexterity: 25,
       vitality: 25,
+      energy: 20,
     });
     // The base Attributes, which points are spent on, stay as they were.
     expect(progressOf(world)).toMatchObject({

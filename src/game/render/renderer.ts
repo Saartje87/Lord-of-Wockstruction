@@ -36,7 +36,6 @@ import {
   isInCombat,
   isRegenerating,
   type MonsterId,
-  maxLife,
   type SimEvent,
   SWING_STEPS,
   type World,
@@ -83,6 +82,7 @@ import {
   itemUnder,
   landingCell,
 } from "./inventoryPanel";
+import { type Orb, orbFill } from "./orbs";
 import { menuChoiceAt, PAUSE_MENU_LAYOUT, pauseMenuLayout } from "./pauseMenu";
 import {
   SKILL_TREE_PANEL,
@@ -242,25 +242,41 @@ const STRIP = {
   edgeColour: 0x4a4236,
 };
 /**
- * The Hero's Life orb at the bottom left (CSS px): `left` and `bottom` from
- * the screen's corner to its stone rim, which is `rim` wide.
+ * The Hero's orbs, Life at the bottom left and Mana mirroring it at the
+ * bottom right (CSS px): `side` from the screen's side and `bottom` from its
+ * bottom to the stone rim, which is `rim` wide.
  */
 const ORB = {
   radius: 52,
   rim: 8,
-  left: 24,
+  side: 24,
   bottom: 10,
   rimColour: 0x2a241c,
   rimLine: 0x4a4236,
   glassLine: 0x6b6258,
-  empty: 0x140404,
-  /** The Life at the bottom, lighter towards the surface by up to `lighten`. */
-  life: 0x8a0e0e,
-  lighten: 0x30,
 };
+/**
+ * Each orb's colours: `empty` behind it, and its fill at the bottom, lighter
+ * towards the surface by up to `lighten` in its own channel (`lightenStep`
+ * is one unit of that channel).
+ */
+const ORB_COLOURS: Record<
+  Orb,
+  { empty: number; fill: number; lighten: number; lightenStep: number }
+> = {
+  life: {
+    empty: 0x140404,
+    fill: 0x8a0e0e,
+    lighten: 0x30,
+    lightenStep: 0x10000,
+  },
+  mana: { empty: 0x040414, fill: 0x0e1e8a, lighten: 0x30, lightenStep: 0x1 },
+};
+/** How far across an orb is from its rim to the far side of it (CSS px). */
+const ORB_SPAN = 2 * (ORB.rim + ORB.radius);
 /** How far the surface ripples either way (CSS px) and how fast (rad/s). */
 const RIPPLE = { calm: 1, combat: 2.5, speed: 5, depth: 3 };
-/** Bubbles rising through the orb while the Hero regenerates. */
+/** Bubbles rising through the Life orb while the Hero regenerates Life. */
 const BUBBLES = {
   count: 6,
   radius: 2,
@@ -270,13 +286,12 @@ const BUBBLES = {
   rate: 0.6,
 };
 /**
- * The Experience bar along the strip, right of the orb (CSS px): `gap` from
- * the orb's rim, `right` from the screen's edge, with `Lv N` before it and
+ * The Experience bar along the strip between the orbs (CSS px): `gap` from
+ * each orb's rim, with `Lv N` before it and
  * `current / next` after it, each `textGap` from the bar.
  */
 const EXPERIENCE_BAR = {
   gap: 14,
-  right: 16,
   height: 6,
   textGap: 8,
   textSize: 13,
@@ -485,7 +500,7 @@ export function createRenderer(
   });
   nameplateText.anchor.set(0.5, 0);
   app.stage.addChild(nameplateText);
-  const orb = lifeOrbView();
+  const orb = orbsView();
   app.stage.addChild(orb.layer);
   const experience = experienceBarView();
   app.stage.addChild(experience.layer);
@@ -1267,12 +1282,13 @@ function outlineView() {
 }
 
 /**
- * The stone strip along the bottom of the screen and the Hero's Life orb on
- * it, filling from the bottom with Life. In Combat its surface ripples harder
- * under an "⚔ In Combat" badge; while regenerating, bubbles rise through it
- * under one with the rate.
+ * The stone strip along the bottom of the screen, with the Hero's Life orb
+ * on it at the left and their Mana orb at the right, each filling from the
+ * bottom. In Combat their surfaces ripple harder, with an "⚔ In Combat" badge
+ * over the Life orb; while Life regenerates, bubbles rise through it under a
+ * badge with the rate.
  */
-function lifeOrbView() {
+function orbsView() {
   const layer = new Container();
   const graphics = new Graphics();
   const badge = new Text({
@@ -1290,8 +1306,9 @@ function lifeOrbView() {
       nowMs: number,
     ) {
       const { radius: r } = ORB;
-      const cx = ORB.left + ORB.rim + r;
       const cy = screen.height - ORB.bottom - ORB.rim - r;
+      const lifeX = ORB.side + ORB.rim + r;
+      const manaX = screen.width - lifeX;
       const seconds = nowMs / 1000;
       const inCombat = isInCombat(world);
       const regenerating = isRegenerating(world);
@@ -1303,58 +1320,71 @@ function lifeOrbView() {
       graphics
         .rect(0, screen.height - STRIP.height, screen.width, STRIP.edge)
         .fill(STRIP.edgeColour);
-      graphics
-        .circle(cx, cy, r + ORB.rim)
-        .fill(ORB.rimColour)
-        .stroke({ width: 2, color: ORB.rimLine });
-      graphics.circle(cx, cy, r).fill(ORB.empty);
 
-      // One 1 px row at a time, so the surface can ripple.
-      const fraction = world.hero.life / maxLife(world);
-      const surface = cy + r - fraction * r * 2;
-      const ripple = inCombat ? RIPPLE.combat : RIPPLE.calm;
-      for (let y = Math.floor(surface); y < cy + r; y++) {
-        const half = Math.sqrt(Math.max(0, r * r - (y - cy) ** 2));
-        const wave =
-          y < surface + RIPPLE.depth
-            ? Math.sin(seconds * RIPPLE.speed + y) * ripple
-            : 0;
-        const height = (cy + r - y) / (r * 2);
-        const red = Math.min(ORB.lighten, Math.floor(height * ORB.lighten));
+      /** Draws an orb's rim, its fill up to `fraction` and its glass. */
+      const drawOrb = (orb: Orb, cx: number, fraction: number) => {
+        const colours = ORB_COLOURS[orb];
         graphics
-          .rect(cx - half + wave, y, half * 2, 1)
-          .fill(ORB.life + red * 0x10000);
-      }
+          .circle(cx, cy, r + ORB.rim)
+          .fill(ORB.rimColour)
+          .stroke({ width: 2, color: ORB.rimLine });
+        graphics.circle(cx, cy, r).fill(colours.empty);
+
+        // One 1 px row at a time, so the surface can ripple.
+        const surface = cy + r - fraction * r * 2;
+        const ripple = inCombat ? RIPPLE.combat : RIPPLE.calm;
+        for (let y = Math.floor(surface); y < cy + r; y++) {
+          const half = Math.sqrt(Math.max(0, r * r - (y - cy) ** 2));
+          const wave =
+            y < surface + RIPPLE.depth
+              ? Math.sin(seconds * RIPPLE.speed + y) * ripple
+              : 0;
+          const height = (cy + r - y) / (r * 2);
+          const lighter = Math.min(
+            colours.lighten,
+            Math.floor(height * colours.lighten),
+          );
+          graphics
+            .rect(cx - half + wave, y, half * 2, 1)
+            .fill(colours.fill + lighter * colours.lightenStep);
+        }
+      };
+
+      const life = orbFill(world, "life");
+      drawOrb("life", lifeX, life);
+      drawOrb("mana", manaX, orbFill(world, "mana"));
 
       if (regenerating) {
         for (let i = 0; i < BUBBLES.count; i++) {
           const rise = (seconds * BUBBLES.rate + i / BUBBLES.count) % 1;
-          const x = cx + Math.sin(i * 2.3 + seconds * 2) * r * 0.5;
-          const y = cy + r - rise * fraction * r * 2;
+          const x = lifeX + Math.sin(i * 2.3 + seconds * 2) * r * 0.5;
+          const y = cy + r - rise * life * r * 2;
           graphics
             .circle(x, y, BUBBLES.radius)
             .fill({ color: BUBBLES.colour, alpha: BUBBLES.alpha * (1 - rise) });
         }
       }
 
-      // The glass: a highlight and its rim.
-      graphics
-        .ellipse(cx - r * 0.3, cy - r * 0.45, r * 0.35, r * 0.18)
-        .fill({ color: 0xffffff, alpha: 0.12 });
-      graphics.circle(cx, cy, r).stroke({ width: 3, color: ORB.glassLine });
+      // The glass: a highlight and its rim, over each orb.
+      for (const x of [lifeX, manaX]) {
+        graphics
+          .ellipse(x - r * 0.3, cy - r * 0.45, r * 0.35, r * 0.18)
+          .fill({ color: 0xffffff, alpha: 0.12 });
+        graphics.circle(x, cy, r).stroke({ width: 3, color: ORB.glassLine });
+      }
 
       badge.visible = inCombat || regenerating;
       badge.text = inCombat
         ? "⚔ In Combat"
         : `+${heroTuning.regenPerSecond} Life/s`;
       badge.style.fill = inCombat ? BADGE.combat : BADGE.regen;
-      badge.position.set(cx, cy - r - ORB.rim - BADGE.gap);
+      badge.position.set(lifeX, cy - r - ORB.rim - BADGE.gap);
     },
   };
 }
 
 /**
- * The thin Experience bar along the strip, right of the Life orb, with
+ * The thin Experience bar along the strip, between the orbs, with
  * `Lv N` before it and `current / next` Experience after it.
  */
 function experienceBarView() {
@@ -1379,8 +1409,8 @@ function experienceBarView() {
         world.hero.progress.experience,
       );
       const y = screen.height - (STRIP.height - STRIP.edge) / 2;
-      const left = ORB.left + 2 * (ORB.rim + ORB.radius) + EXPERIENCE_BAR.gap;
-      const right = screen.width - EXPERIENCE_BAR.right;
+      const left = ORB.side + ORB_SPAN + EXPERIENCE_BAR.gap;
+      const right = screen.width - ORB.side - ORB_SPAN - EXPERIENCE_BAR.gap;
       level.text = bar.level;
       level.position.set(left, y);
       amount.text = bar.experience;

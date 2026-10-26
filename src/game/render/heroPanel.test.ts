@@ -48,6 +48,7 @@ function withPoints(points: number): World {
     strength: 25 - points,
     dexterity: 20,
     vitality: 20,
+    energy: 20,
     attributePoints: points,
     skillPoints: 0,
     skillLevels: { golem: 1 },
@@ -87,9 +88,11 @@ describe("heroSheet with Items Equipped", () => {
       "25",
       "20",
       "25",
+      "20",
     ]);
     expect(sheet.derived).toEqual([
       { name: "Life", value: "115" },
+      { name: "Mana", value: "40 / 40" },
       { name: "Damage", value: "21–31" },
       { name: "Defense", value: "40" },
       { name: "Attack Rating", value: "100" },
@@ -107,11 +110,13 @@ describe("heroSheet", () => {
         { attribute: "strength", name: "Strength", value: "20" },
         { attribute: "dexterity", name: "Dexterity", value: "20" },
         { attribute: "vitality", name: "Vitality", value: "20" },
+        { attribute: "energy", name: "Energy", value: "20" },
       ],
       attributePoints: "0",
       canRaise: false,
       derived: [
         { name: "Life", value: "100" },
+        { name: "Mana", value: "40 / 40" },
         { name: "Damage", value: "20–30" },
         { name: "Defense", value: "0" },
         { name: "Attack Rating", value: "100" },
@@ -127,6 +132,7 @@ describe("heroSheet", () => {
       strength: 30,
       dexterity: 20,
       vitality: 20,
+      energy: 20,
       attributePoints: 10,
       skillPoints: 4,
       skillLevels: { golem: 0 },
@@ -143,12 +149,23 @@ describe("heroSheet", () => {
     expect(sheet.attributes[1]).toMatchObject({ value: "21" });
     expect(sheet.derived).toEqual([
       { name: "Life", value: "108" },
+      { name: "Mana", value: "44 / 44" },
       { name: "Damage", value: "22–33" },
       { name: "Defense", value: "0" },
       { name: "Attack Rating", value: "105" },
       // 2 × 105 / (105 + 135)
       { name: "Chance to hit a Skeleton", value: "88%" },
     ]);
+  });
+
+  it("shows current Mana, rounded down, against max Mana", () => {
+    const w = world();
+    w.hero.mana = 12.9;
+
+    expect(heroSheet(w).derived).toContainEqual({
+      name: "Mana",
+      value: "12 / 40",
+    });
   });
 
   it("hides the + buttons while the Hero is dead, points or not", () => {
@@ -186,6 +203,7 @@ describe("panelHitAt", () => {
       strength: 25,
       dexterity: 20,
       vitality: 20,
+      energy: 20,
       attributePoints: 0,
       skillPoints: 1,
       skillLevels: { golem: 0 },
@@ -206,6 +224,14 @@ describe("panelHitAt", () => {
       button: null,
     });
     expect(panelHitAt(screen, at, withPoints(1), false)).toBeNull();
+  });
+
+  it("finds Energy's + button", () => {
+    const at = centre(layout.raise.energy);
+
+    expect(panelHitAt(screen, at, withPoints(1), true)).toEqual({
+      button: { type: "raise", attribute: "energy" },
+    });
   });
 
   it("finds no + button while the Hero is dead", () => {

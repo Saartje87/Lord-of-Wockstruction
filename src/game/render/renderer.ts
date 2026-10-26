@@ -571,6 +571,8 @@ export function createRenderer(
   app.stage.addChild(inventoryPanel.layer);
   const skillTreePanel = skillTreePanelView();
   app.stage.addChild(skillTreePanel.layer);
+  // Over the panels, so a hovered Panel button's tooltip is never hidden.
+  app.stage.addChild(panelButtons.tooltipLayer);
   app.stage.addChild(inventoryPanel.heldLayer);
   const heldSkillView = createHeldSkillView();
   app.stage.addChild(heldSkillView.layer);
@@ -1201,7 +1203,14 @@ export function createRenderer(
       orb.draw(app.screen, world, nowMs);
       skillBar.draw(app.screen, world, heldSkillSlot);
       beltStrip.draw(app.screen, world);
-      panelButtons.draw(app.screen, menus, { heroDead: world.death !== null });
+      panelButtons.draw(
+        app.screen,
+        menus,
+        { heroDead: world.death !== null },
+        onPanel && "button" in onPanel && onPanel.button?.type === "panelButton"
+          ? onPanel.button.panel
+          : null,
+      );
       experience.draw(app.screen, world);
       levelUp.draw(app.screen, world, nowMs);
       heroPanel.draw(
@@ -1705,23 +1714,66 @@ function beltStripView() {
  * The Panel buttons right of the Skill Bar, in its look: a stone-framed
  * square each, with a simple icon of its panel. A lit one, its panel open,
  * is pressed in with a gold frame and a bright icon; all are faded while
- * the Hero lies in Death.
+ * the Hero lies in Death. The hovered one shows its tooltip over it, in an
+ * Item tooltip's look, on `tooltipLayer` over the panels.
  */
 function panelButtonsView() {
   const style = SKILL_BAR_STYLE;
+  const look = INVENTORY_STYLE;
   const layer = new Container();
   const graphics = new Graphics();
   layer.addChild(graphics);
+  const tooltipLayer = new Container();
+  const tooltipBox = new Graphics();
+  tooltipLayer.addChild(tooltipBox);
+  const tooltipText = new Text({
+    text: "",
+    style: {
+      fill: look.tooltipName,
+      fontSize: look.tooltipSize,
+      fontFamily: SERIF,
+    },
+  });
+  tooltipText.anchor.set(0.5, 0);
+  tooltipLayer.addChild(tooltipText);
+
+  /** Draws `line` over `under`, kept on the screen. */
+  const tooltip = (
+    screen: { width: number; height: number },
+    under: Rect,
+    line: string,
+  ) => {
+    tooltipText.text = line;
+    tooltipText.visible = true;
+    const pad = look.tooltipPadding;
+    const w = tooltipText.width + 2 * pad;
+    const h = look.tooltipLineHeight + 2 * pad;
+    const y = under.y - look.tooltipGap - h;
+    const x = Math.min(
+      screen.width - w,
+      Math.max(0, under.x + under.w / 2 - w / 2),
+    );
+    tooltipBox
+      .rect(x, y, w, h)
+      .fill({ color: look.tooltip, alpha: look.tooltipAlpha })
+      .stroke({ color: HERO_PANEL_STYLE.edge, width: 1 });
+    tooltipText.position.set(x + w / 2, y + pad);
+  };
 
   return {
     layer,
+    tooltipLayer,
+    /** `hovered` is the Panel button under the cursor, if any. */
     draw(
       screen: { width: number; height: number },
       menus: Menus,
       hero: HeroState,
+      hovered: Panel | null,
     ) {
       const { buttons } = panelButtonsLayout(screen);
       graphics.clear();
+      tooltipBox.clear();
+      tooltipText.visible = false;
       for (const shown of panelButtonsSheet(menus, hero)) {
         const rect = buttons[shown.panel];
         const alpha = shown.dimmed ? style.dimmed : 1;
@@ -1755,6 +1807,7 @@ function panelButtonsView() {
           shown.lit ? style.name : style.key,
           alpha,
         );
+        if (shown.panel === hovered) tooltip(screen, rect, shown.tooltip);
       }
     },
   };

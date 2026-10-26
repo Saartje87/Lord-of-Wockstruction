@@ -94,10 +94,10 @@ describe("the Panel buttons' sheet", () => {
 
     pressKey(menus, "i", 1000, alive);
 
-    expect(panelButtonsSheet(menus, alive)).toEqual([
-      { panel: "hero", lit: false, dimmed: false },
-      { panel: "inventory", lit: true, dimmed: false },
-      { panel: "skillTree", lit: false, dimmed: false },
+    expect(panelButtonsSheet(menus, alive).map(({ lit }) => lit)).toEqual([
+      false,
+      true,
+      false,
     ]);
   });
 
@@ -136,6 +136,14 @@ describe("the Panel buttons' sheet", () => {
       false,
       false,
     ]);
+  });
+
+  it("gives each Panel button its name and key as its tooltip", () => {
+    const menus = createMenus();
+
+    expect(
+      panelButtonsSheet(menus, alive).map(({ tooltip }) => tooltip),
+    ).toEqual(["Hero (C)", "Inventory (I)", "Skill Tree (T)"]);
   });
 
   it("shows every Panel button dimmed while the Hero lies in Death", () => {

@@ -50,9 +50,22 @@ export function panelButtonHitAt(
 
 /**
  * What a Panel button shows: its panel, lit while that panel is open
- * however it was opened, and dimmed while the Hero lies in Death.
+ * however it was opened, dimmed while the Hero lies in Death, and the
+ * tooltip naming it and its key while hovered.
  */
-export type PanelButtonSheet = { panel: Panel; lit: boolean; dimmed: boolean };
+export type PanelButtonSheet = {
+  panel: Panel;
+  lit: boolean;
+  dimmed: boolean;
+  tooltip: string;
+};
+
+/** Each Panel button's tooltip: its panel's name and key, as `pressKey` reads it. */
+const TOOLTIPS: Record<Panel, string> = {
+  hero: "Hero (C)",
+  inventory: "Inventory (I)",
+  skillTree: "Skill Tree (T)",
+};
 
 /** What the Panel buttons show, from left to right. */
 export function panelButtonsSheet(
@@ -68,5 +81,6 @@ export function panelButtonsSheet(
     panel,
     lit: open[panel],
     dimmed: hero.heroDead,
+    tooltip: TOOLTIPS[panel],
   }));
 }

@@ -65,7 +65,7 @@ export type SkillBarSlotSheet = {
  */
 export function skillBarSheet(
   world: World,
-  heldFrom?: SkillBarSlot,
+  heldFrom: SkillBarSlot | null = null,
 ): SkillBarSlotSheet[] {
   const { progress, mana } = world.hero;
   return SHOWN_ORDER.map((slot) => {

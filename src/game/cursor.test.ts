@@ -8,9 +8,17 @@ import {
   settleCursor,
 } from "./cursor";
 import { inventoryPanelLayout } from "./render/inventoryPanel";
-import { emptyBelt } from "./sim/belt";
-import type { Belongings } from "./sim/inventory";
-import { createWorld, step } from "./sim/world";
+import { beltOf, emptyBelt } from "./sim/belt";
+import {
+  type Belongings,
+  cursorItemOf,
+  type EquipmentSlot,
+  equipmentOf,
+  type ItemSpot,
+  inventoryItemAt,
+} from "./sim/inventory";
+import type { Vec } from "./sim/vec";
+import { createWorld, groundItemsOf, step, type World } from "./sim/world";
 
 const SCREEN = { width: 1280, height: 800 };
 
@@ -89,7 +97,7 @@ describe("the cursor with Items", () => {
 
     const { orders } = releaseCursor(
       createCursor(),
-      { at: centreOf(8, 2), hit: onCell(8, 2) },
+      { at: centreOf(8, 2), hit: onCell(8, 2), dragged: false },
       at,
     );
 
@@ -176,7 +184,7 @@ describe("the cursor with Skills", () => {
 
     const { cursor, orders } = releaseCursor(
       held,
-      { at: { x: 600, y: 740 }, hit: ON_KEY4 },
+      { at: { x: 600, y: 740 }, hit: ON_KEY4, dragged: true },
       at,
     );
 
@@ -196,7 +204,7 @@ describe("the cursor with Skills", () => {
 
     const { cursor, orders, taken } = releaseCursor(
       held,
-      { at: { x: 1002, y: 101 }, hit: ON_GOLEM },
+      { at: { x: 1002, y: 101 }, hit: ON_GOLEM, dragged: false },
       at,
     );
 
@@ -207,14 +215,18 @@ describe("the cursor with Skills", () => {
 
   it("lets go of the Held Skill released anywhere else, changing nothing", () => {
     const at = scene();
-    const held = { heldSkill: "golem" as const };
+    const held = { ...createCursor(), heldSkill: "golem" as const };
 
     for (const release of [
       OVER_THE_WORLD,
       { at: null, hit: null },
       { at: centreOf(0, 0), hit: onCell(0, 0) },
     ]) {
-      const { cursor, orders } = releaseCursor(held, release, at);
+      const { cursor, orders } = releaseCursor(
+        held,
+        { ...release, dragged: true },
+        at,
+      );
 
       expect(orders).toEqual([]);
       expect(cursor.heldSkill).toBeNull();
@@ -223,7 +235,7 @@ describe("the cursor with Skills", () => {
 
   it("puts the Held Skill into the Skill Bar slot clicked next", () => {
     const { cursor, orders, taken } = pressCursor(
-      { heldSkill: "golem" },
+      { ...createCursor(), heldSkill: "golem" },
       { at: { x: 600, y: 740 }, hit: ON_KEY4 },
       scene(),
     );
@@ -244,7 +256,7 @@ describe("the cursor with Skills", () => {
     ]) {
       const at = scene();
       const { cursor, orders, taken } = pressCursor(
-        { heldSkill: "golem" },
+        { ...createCursor(), heldSkill: "golem" },
         press,
         at,
       );
@@ -259,14 +271,14 @@ describe("the cursor with Skills", () => {
   it("orders nothing for the release of the click that put down or let go of the Held Skill", () => {
     const at = scene();
     const after = pressCursor(
-      { heldSkill: "golem" },
+      { ...createCursor(), heldSkill: "golem" },
       { at: { x: 600, y: 740 }, hit: ON_KEY4 },
       at,
     ).cursor;
 
     const { cursor, orders } = releaseCursor(
       after,
-      { at: { x: 600, y: 740 }, hit: ON_KEY4 },
+      { at: { x: 600, y: 740 }, hit: ON_KEY4, dragged: false },
       at,
     );
 
@@ -292,7 +304,7 @@ describe("the cursor with Skills", () => {
   it("orders nothing for a release with nothing held", () => {
     const { cursor, orders } = releaseCursor(
       createCursor(),
-      { at: { x: 600, y: 740 }, hit: ON_KEY4 },
+      { at: { x: 600, y: 740 }, hit: ON_KEY4, dragged: true },
       scene(),
     );
 
@@ -301,7 +313,7 @@ describe("the cursor with Skills", () => {
   });
 
   it("lets go of the Held Skill on a pause or the Hero's Death", () => {
-    const held = { heldSkill: "golem" as const };
+    const held = { ...createCursor(), heldSkill: "golem" as const };
 
     expect(settleCursor(held, { paused: true, heroDead: false })).toEqual(
       createCursor(),
@@ -385,7 +397,7 @@ describe("the cursor on the Skill Bar", () => {
 
     const { cursor, orders, taken } = releaseCursor(
       held,
-      { at: { x: 701, y: 741 }, hit: ON_RIGHT },
+      { at: { x: 701, y: 741 }, hit: ON_RIGHT, dragged: false },
       at,
     );
 
@@ -404,7 +416,7 @@ describe("the cursor on the Skill Bar", () => {
 
     const { cursor, orders } = releaseCursor(
       held,
-      { at: { x: 500, y: 740 }, hit: ON_KEY1 },
+      { at: { x: 500, y: 740 }, hit: ON_KEY1, dragged: true },
       at,
     );
     step(at.world, orders);
@@ -420,7 +432,7 @@ describe("the cursor on the Skill Bar", () => {
     const at = learned();
     const press = { at: { x: 700, y: 740 }, hit: ON_RIGHT };
     let { cursor } = pressCursor(createCursor(), press, at);
-    cursor = releaseCursor(cursor, press, at).cursor;
+    cursor = releaseCursor(cursor, { ...press, dragged: false }, at).cursor;
 
     const landed = pressCursor(
       cursor,
@@ -438,7 +450,7 @@ describe("the cursor on the Skill Bar", () => {
 
   it("orders a put onto the slot clicked next, swapping with the Skill there by the Skill Bar's rule", () => {
     const { orders } = pressCursor(
-      { heldSkill: "golem", heldSkillSlot: "right" },
+      { ...createCursor(), heldSkill: "golem", heldSkillSlot: "right" },
       { at: { x: 600, y: 740 }, hit: ON_KEY4 },
       learned(),
     );
@@ -451,13 +463,31 @@ describe("the cursor on the Skill Bar", () => {
   it("lets go of it released off the Skill Bar, changing nothing", () => {
     const at = learned();
     const { cursor, orders } = releaseCursor(
-      { heldSkill: "golem", heldSkillSlot: "right" },
-      OVER_THE_WORLD,
+      { ...createCursor(), heldSkill: "golem", heldSkillSlot: "right" },
+      { ...OVER_THE_WORLD, dragged: true },
       at,
     );
 
     expect(cursor).toEqual(createCursor());
     expect(orders).toEqual([]);
+  });
+
+  it("forgets the slot it came from once landed, let go of, or settled", () => {
+    const held = {
+      ...createCursor(),
+      heldSkill: "golem" as const,
+      heldSkillSlot: "right" as const,
+    };
+    const at = learned();
+
+    expect(
+      pressCursor(held, { at: { x: 500, y: 740 }, hit: ON_KEY1 }, at).cursor,
+    ).toEqual(createCursor());
+    const release = { ...OVER_THE_WORLD, dragged: true };
+    expect(releaseCursor(held, release, at).cursor).toEqual(createCursor());
+    expect(settleCursor(held, { paused: true, heroDead: false })).toEqual(
+      createCursor(),
+    );
   });
 
   it("forgets the slot a Skill came from once picked up from the Skill Tree", () => {
@@ -467,7 +497,7 @@ describe("the cursor on the Skill Bar", () => {
       learned(),
     );
 
-    expect(cursor.heldSkillSlot ?? null).toBeNull();
+    expect(cursor.heldSkillSlot).toBeNull();
   });
 });
 
@@ -480,5 +510,231 @@ describe("the cursor and casting", () => {
     expect(forTheWorld(ON_KEY4)).toEqual(ON_KEY4);
     expect(forTheWorld(onCell(0, 0))).toEqual(onCell(0, 0));
     expect(forTheWorld(null)).toBeNull();
+  });
+});
+
+/**
+ * An axe at (4, 1), a Ring of Strength at (0, 0), a Short Sword Equipped and
+ * a Life Potion in the first Belt Column.
+ */
+const packed: Belongings = {
+  inventory: [
+    { type: "axe", cell: { column: 4, row: 1 } },
+    { type: "ringOfStrength", cell: { column: 0, row: 0 } },
+  ],
+  equipment: { weapon: "shortSword" },
+  belt: [["lifePotion"], [], [], []],
+};
+
+const { slots, belt } = inventoryPanelLayout(SCREEN, 1);
+const centreOfRect = (rect: {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}) => ({
+  x: rect.x + rect.w / 2,
+  y: rect.y + rect.h / 2,
+});
+/** Where a spot on the panel is, and what a point there hits. */
+const at = (spot: ItemSpot): { at: Vec; hit: CursorHit } => {
+  const point =
+    typeof spot === "string"
+      ? centreOfRect(slots[spot as EquipmentSlot])
+      : "beltColumn" in spot
+        ? centreOfRect(belt[spot.beltColumn][spot.row])
+        : centreOf(spot.column, spot.row);
+  return { at: point, hit: { inventory: spot } };
+};
+
+const packedWorld = () =>
+  createWorld({ areas: { town }, seed: 1, belongings: packed });
+
+/**
+ * Presses at `from`, lets a step pass as a frame would, then lets go at
+ * `to`, `dragged` past the drag threshold unless told otherwise, and steps
+ * the release's orders. Hands back those orders and the World after them.
+ */
+function drag(
+  from: { at: Vec; hit: CursorHit },
+  to: { at: Vec | null; hit: CursorHit | null },
+  {
+    dragged = true,
+    world = packedWorld(),
+  }: { dragged?: boolean; world?: World } = {},
+) {
+  const scene = { world, screen: SCREEN };
+  const pressed = pressCursor(createCursor(), from, scene);
+  step(world, pressed.orders);
+  const released = releaseCursor(pressed.cursor, { ...to, dragged }, scene);
+  step(world, released.orders);
+  return { orders: released.orders, cursor: released.cursor, world };
+}
+
+const typeAt = (world: World, column: number, row: number) =>
+  inventoryItemAt(world, { column, row })?.item.type;
+const heldType = (world: World) => cursorItemOf(world)?.item.type;
+
+describe("dragging an Item", () => {
+  it("moves it to a free spot on the grid, centred where it's let go", () => {
+    const { world } = drag(
+      at({ column: 4, row: 1 }),
+      at({ column: 7, row: 2 }),
+    );
+
+    expect(typeAt(world, 7, 1)).toBe("axe");
+    expect(typeAt(world, 4, 1)).toBeUndefined();
+    expect(heldType(world)).toBeUndefined();
+  });
+
+  it("Equips it when let go over an empty Equipment slot of its kind", () => {
+    const { world } = drag(at({ column: 0, row: 0 }), at("ring1"));
+
+    expect(equipmentOf(world).ring1?.type).toBe("ringOfStrength");
+    expect(typeAt(world, 0, 0)).toBeUndefined();
+  });
+
+  it("takes it off when dragged from its Equipment slot to the grid", () => {
+    const { world } = drag(at("weapon"), at({ column: 9, row: 2 }));
+
+    expect(equipmentOf(world).weapon).toBeNull();
+    expect(typeAt(world, 9, 1)).toBe("shortSword");
+  });
+
+  it("swaps it with the one Item it's let go over, the other now held", () => {
+    const { world } = drag(at({ column: 4, row: 1 }), at("weapon"));
+
+    expect(equipmentOf(world).weapon?.type).toBe("axe");
+    expect(heldType(world)).toBe("shortSword");
+  });
+
+  it("moves a Potion out of the panel's Belt Columns and back in", () => {
+    const { world } = drag(
+      at({ beltColumn: 0, row: 0 }),
+      at({ column: 9, row: 3 }),
+    );
+
+    expect(typeAt(world, 9, 3)).toBe("lifePotion");
+    expect(beltOf(world)[0]).toEqual([]);
+
+    drag(at({ column: 9, row: 3 }), at({ beltColumn: 2, row: 0 }), { world });
+
+    expect(beltOf(world)[2].map((item) => item.type)).toEqual(["lifePotion"]);
+    expect(typeAt(world, 9, 3)).toBeUndefined();
+  });
+
+  it("leaves it held when let go where it can't go", () => {
+    const { world, orders } = drag(at({ column: 4, row: 1 }), at("ring1"));
+
+    expect(orders).toEqual([{ type: "PlaceItem", to: "ring1" }]);
+    expect(heldType(world)).toBe("axe");
+    expect(equipmentOf(world).ring1).toBeNull();
+  });
+
+  it("leaves it held when let go between the panel's spots or off the canvas", () => {
+    for (const to of [
+      { at: { x: 0, y: 0 }, hit: { inventory: null } },
+      { at: null, hit: null },
+    ]) {
+      const { world, orders } = drag(at({ column: 4, row: 1 }), to);
+
+      expect(orders).toEqual([]);
+      expect(heldType(world)).toBe("axe");
+    }
+  });
+
+  it("drops it at the Hero's feet when let go over the World, ordering nothing else", () => {
+    const { world, orders } = drag(at({ column: 4, row: 1 }), {
+      at: { x: 10, y: 10 },
+      hit: { drop: true },
+    });
+
+    expect(orders).toEqual([{ type: "DropItem" }]);
+    expect(heldType(world)).toBeUndefined();
+    expect(groundItemsOf(world).map(({ item }) => item.type)).toEqual(["axe"]);
+  });
+
+  it("moves it even when let go within the frame it was pressed", () => {
+    const world = packedWorld();
+    const scene = { world, screen: SCREEN };
+
+    const pressed = pressCursor(
+      createCursor(),
+      at({ column: 4, row: 1 }),
+      scene,
+    );
+    const released = releaseCursor(
+      pressed.cursor,
+      { ...at({ column: 7, row: 2 }), dragged: true },
+      scene,
+    );
+    step(world, [...pressed.orders, ...released.orders]);
+
+    expect(typeAt(world, 7, 1)).toBe("axe");
+    expect(heldType(world)).toBeUndefined();
+  });
+
+  it("drops it when let go over the World within the frame it was pressed", () => {
+    const world = packedWorld();
+    const scene = { world, screen: SCREEN };
+
+    const pressed = pressCursor(
+      createCursor(),
+      at({ column: 4, row: 1 }),
+      scene,
+    );
+    // Nothing was held yet as the release was hit-tested, so it isn't a drop
+    // there but a point over the World.
+    const released = releaseCursor(
+      pressed.cursor,
+      { at: { x: 10, y: 10 }, hit: null, dragged: true },
+      scene,
+    );
+
+    expect(released.orders).toEqual([{ type: "DropItem" }]);
+  });
+});
+
+describe("clicking an Item", () => {
+  it("leaves it held when let go where it was pressed, even after a drag", () => {
+    const { world, orders } = drag(
+      at({ column: 4, row: 1 }),
+      at({ column: 4, row: 1 }),
+    );
+
+    expect(orders).toEqual([]);
+    expect(heldType(world)).toBe("axe");
+  });
+
+  it("leaves it held when let go below the drag threshold, even over another spot", () => {
+    const { world, orders } = drag(
+      at({ column: 4, row: 1 }),
+      at({ column: 5, row: 1 }),
+      { dragged: false },
+    );
+
+    expect(orders).toEqual([]);
+    expect(heldType(world)).toBe("axe");
+  });
+
+  it("puts it down on the next press, a drag after it ordering nothing more", () => {
+    const { world, cursor } = drag(
+      at({ column: 4, row: 1 }),
+      at({ column: 4, row: 1 }),
+      { dragged: false },
+    );
+    const scene = { world, screen: SCREEN };
+
+    const pressed = pressCursor(cursor, at({ column: 7, row: 2 }), scene);
+    step(world, pressed.orders);
+    const released = releaseCursor(
+      pressed.cursor,
+      { ...at({ column: 0, row: 3 }), dragged: true },
+      scene,
+    );
+    step(world, released.orders);
+
+    expect(typeAt(world, 7, 1)).toBe("axe");
+    expect(released.orders).toEqual([]);
   });
 });

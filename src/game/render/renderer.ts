@@ -912,7 +912,7 @@ export function createRenderer(
       nowMs: number,
       menus: Menus,
       heldSkill: Skill | null = null,
-      heldSkillSlot?: SkillBarSlot,
+      heldSkillSlot: SkillBarSlot | null = null,
     ) {
       const active = world.areas[world.areaName];
       heroPanelOpenNow = menus.heroPanelOpen;
@@ -1584,7 +1584,7 @@ function skillBarView() {
     draw(
       screen: { width: number; height: number },
       world: World,
-      heldFrom?: SkillBarSlot,
+      heldFrom: SkillBarSlot | null,
     ) {
       const { slots } = skillBarLayout(screen);
       graphics.clear();

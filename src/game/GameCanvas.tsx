@@ -234,7 +234,7 @@ export default function GameCanvas() {
         const released = takeRelease(input);
         if (released) {
           const hit = released.at && renderer.panelAt(released.at);
-          const release = { at: released.at, hit };
+          const release = { ...released, hit };
           const outcome = releaseCursor(cursor, release, scene);
           cursor = outcome.cursor;
           orders.push(...outcome.orders);

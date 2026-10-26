@@ -104,7 +104,11 @@ import {
 } from "./inventoryPanel";
 import { itemColour } from "./itemArt";
 import { type Orb, orbFill } from "./orbs";
-import { panelButtonsLayout, panelButtonsSheet } from "./panelButtons";
+import {
+  hoveredPanelButton,
+  panelButtonsLayout,
+  panelButtonsSheet,
+} from "./panelButtons";
 import { menuChoiceAt, PAUSE_MENU_LAYOUT, pauseMenuLayout } from "./pauseMenu";
 import { SKILL_BAR, skillBarLayout, skillBarSheet } from "./skillBar";
 import {
@@ -412,6 +416,37 @@ const INVENTORY_STYLE = {
   tooltipLineHeight: 19,
   tooltipPadding: 8,
   tooltipGap: 6,
+};
+/**
+ * The Panel buttons' look, in the Skill Bar's colours (CSS px): a `frame`
+ * wide edge and an inner bevel `bevel` in, `litBevel` once pressed in, at
+ * `bevelAlpha` of the edge's opacity. A lit button's icon sits `pressOffset`
+ * lower, and all are `dimmed` opaque (0..1) during Death. `icon` is each
+ * icon's shape about the button's centre, its lines `iconStroke` wide.
+ */
+const PANEL_BUTTON_STYLE = {
+  frame: 1.5,
+  bevel: 3,
+  litBevel: 4,
+  bevelAlpha: 0.6,
+  pressOffset: 1,
+  dimmed: SKILL_BAR_STYLE.dimmed,
+  iconStroke: 2,
+  icon: {
+    /** A head over shoulders widening to the feet. */
+    hero: {
+      headY: -8,
+      head: 5,
+      shoulders: 6,
+      shouldersY: -1,
+      feet: 9,
+      feetY: 12,
+    },
+    /** A rounded bag under its strap. */
+    inventory: { w: 20, h: 17, y: -5, corner: 4, strapW: 10, strapH: 6 },
+    /** A root node linked to two leaves. */
+    skillTree: { rootY: -9, leafX: 8, leafY: 8, node: 4 },
+  },
 };
 /**
  * A Ground Item: a small diamond on the floor tinted as its type, `size`
@@ -1174,9 +1209,7 @@ export function createRenderer(
         app.screen,
         menus,
         { heroDead: world.death !== null },
-        onPanel && "button" in onPanel && onPanel.button?.type === "panelButton"
-          ? onPanel.button.panel
-          : null,
+        hoveredPanelButton(onPanel),
       );
       experience.draw(app.screen, world);
       levelUp.draw(app.screen, world, nowMs);
@@ -1686,7 +1719,7 @@ function beltStripView() {
  */
 function panelButtonsView() {
   const style = SKILL_BAR_STYLE;
-  const look = INVENTORY_STYLE;
+  const look = PANEL_BUTTON_STYLE;
   const layer = new Container();
   const graphics = new Graphics();
   layer.addChild(graphics);
@@ -1696,36 +1729,13 @@ function panelButtonsView() {
   const tooltipText = new Text({
     text: "",
     style: {
-      fill: look.tooltipName,
-      fontSize: look.tooltipSize,
+      fill: INVENTORY_STYLE.tooltipName,
+      fontSize: INVENTORY_STYLE.tooltipSize,
       fontFamily: SERIF,
     },
   });
   tooltipText.anchor.set(0.5, 0);
   tooltipLayer.addChild(tooltipText);
-
-  /** Draws `line` over `under`, kept on the screen. */
-  const tooltip = (
-    screen: { width: number; height: number },
-    under: Rect,
-    line: string,
-  ) => {
-    tooltipText.text = line;
-    tooltipText.visible = true;
-    const pad = look.tooltipPadding;
-    const w = tooltipText.width + 2 * pad;
-    const h = look.tooltipLineHeight + 2 * pad;
-    const y = under.y - look.tooltipGap - h;
-    const x = Math.min(
-      screen.width - w,
-      Math.max(0, under.x + under.w / 2 - w / 2),
-    );
-    tooltipBox
-      .rect(x, y, w, h)
-      .fill({ color: look.tooltip, alpha: look.tooltipAlpha })
-      .stroke({ color: HERO_PANEL_STYLE.edge, width: 1 });
-    tooltipText.position.set(x + w / 2, y + pad);
-  };
 
   return {
     layer,
@@ -1743,17 +1753,14 @@ function panelButtonsView() {
       tooltipText.visible = false;
       for (const shown of panelButtonsSheet(menus, hero)) {
         const rect = buttons[shown.panel];
-        const alpha = shown.dimmed ? style.dimmed : 1;
+        const alpha = shown.dimmed ? look.dimmed : 1;
+        const edge = shown.lit ? style.skillEdge : style.edge;
         graphics
           .rect(rect.x, rect.y, rect.w, rect.h)
           .fill({ color: shown.lit ? style.skill : style.fill, alpha })
-          .stroke({
-            color: shown.lit ? style.skillEdge : style.edge,
-            width: 1.5,
-            alpha,
-          });
+          .stroke({ color: edge, width: look.frame, alpha });
         // The stone frame's inner bevel, deeper when pressed in.
-        const bevel = shown.lit ? 4 : 3;
+        const bevel = shown.lit ? look.litBevel : look.bevel;
         graphics
           .rect(
             rect.x + bevel,
@@ -1761,23 +1768,54 @@ function panelButtonsView() {
             rect.w - 2 * bevel,
             rect.h - 2 * bevel,
           )
-          .stroke({
-            color: shown.lit ? style.skillEdge : style.edge,
-            width: 1,
-            alpha: 0.6 * alpha,
-          });
+          .stroke({ color: edge, width: 1, alpha: look.bevelAlpha * alpha });
         panelIcon(
           graphics,
           shown.panel,
-          // Pressed in: the icon sits a pixel lower.
-          shown.lit ? { ...rect, y: rect.y + 1 } : rect,
+          // Pressed in: the icon sits lower.
+          shown.lit ? { ...rect, y: rect.y + look.pressOffset } : rect,
           shown.lit ? style.name : style.key,
           alpha,
         );
-        if (shown.panel === hovered) tooltip(screen, rect, shown.tooltip);
+        if (shown.panel === hovered) {
+          tooltipText.text = shown.tooltip;
+          tooltipText.visible = true;
+          drawTooltip(tooltipBox, [tooltipText], rect, screen);
+        }
       }
     },
   };
+}
+
+/**
+ * Draws a tooltip's box behind `lines`, already holding their words and
+ * anchored at their top centre, and puts the lines in it: over `under`, or
+ * under it where there's no room above, and kept on the screen. In the
+ * Item tooltip's look.
+ */
+function drawTooltip(
+  box: Graphics,
+  lines: readonly Text[],
+  under: Rect,
+  screen: { width: number },
+) {
+  const look = INVENTORY_STYLE;
+  const pad = look.tooltipPadding;
+  const w = Math.max(...lines.map((line) => line.width)) + 2 * pad;
+  const h = lines.length * look.tooltipLineHeight + 2 * pad;
+  const above = under.y - look.tooltipGap - h;
+  const y = above >= 0 ? above : under.y + under.h + look.tooltipGap;
+  const x = Math.min(
+    screen.width - w,
+    Math.max(0, under.x + under.w / 2 - w / 2),
+  );
+  box
+    .rect(x, y, w, h)
+    .fill({ color: look.tooltip, alpha: look.tooltipAlpha })
+    .stroke({ color: HERO_PANEL_STYLE.edge, width: 1 });
+  lines.forEach((line, i) => {
+    line.position.set(x + w / 2, y + pad + i * look.tooltipLineHeight);
+  });
 }
 
 /**
@@ -1792,32 +1830,46 @@ function panelIcon(
   colour: number,
   alpha: number,
 ) {
+  const { icon, iconStroke } = PANEL_BUTTON_STYLE;
   const fill = { color: colour, alpha };
+  const line = { color: colour, width: iconStroke, alpha };
   const x = rect.x + rect.w / 2;
   const y = rect.y + rect.h / 2;
   if (panel === "hero") {
-    graphics.circle(x, y - 8, 5).fill(fill);
+    const { headY, head, shoulders, shouldersY, feet, feetY } = icon.hero;
+    graphics.circle(x, y + headY, head).fill(fill);
     graphics
-      .poly([x - 9, y + 12, x - 6, y - 1, x + 6, y - 1, x + 9, y + 12])
+      .poly([
+        x - feet,
+        y + feetY,
+        x - shoulders,
+        y + shouldersY,
+        x + shoulders,
+        y + shouldersY,
+        x + feet,
+        y + feetY,
+      ])
       .fill(fill);
   }
   if (panel === "inventory") {
+    const bag = icon.inventory;
     graphics
-      .roundRect(x - 10, y - 5, 20, 17, 4)
+      .roundRect(x - bag.w / 2, y + bag.y, bag.w, bag.h, bag.corner)
       .fill(fill)
-      .rect(x - 5, y - 11, 10, 6)
-      .stroke({ color: colour, width: 2, alpha });
+      .rect(x - bag.strapW / 2, y + bag.y - bag.strapH, bag.strapW, bag.strapH)
+      .stroke(line);
   }
   if (panel === "skillTree") {
+    const { rootY, leafX, leafY, node } = icon.skillTree;
     graphics
-      .moveTo(x, y - 9)
-      .lineTo(x - 8, y + 8)
-      .moveTo(x, y - 9)
-      .lineTo(x + 8, y + 8)
-      .stroke({ color: colour, width: 2, alpha });
-    graphics.circle(x, y - 9, 4).fill(fill);
-    graphics.circle(x - 8, y + 8, 4).fill(fill);
-    graphics.circle(x + 8, y + 8, 4).fill(fill);
+      .moveTo(x, y + rootY)
+      .lineTo(x - leafX, y + leafY)
+      .moveTo(x, y + rootY)
+      .lineTo(x + leafX, y + leafY)
+      .stroke(line);
+    graphics.circle(x, y + rootY, node).fill(fill);
+    graphics.circle(x - leafX, y + leafY, node).fill(fill);
+    graphics.circle(x + leafX, y + leafY, node).fill(fill);
   }
 }
 
@@ -2488,25 +2540,13 @@ function inventoryPanelView() {
         shown.style.fill = i === 0 ? look.tooltipName : look.tooltipLine;
         shown.anchor.set(0.5, 0);
       });
-      const shown = tooltipLines.slice(0, lines.length);
-      const pad = look.tooltipPadding;
-      const w = Math.max(...shown.map((line) => line.width)) + 2 * pad;
-      const h = lines.length * look.tooltipLineHeight + 2 * pad;
-      // Over the Item, or under it where there's no room above, and kept on
-      // the screen.
-      const above = under.y - look.tooltipGap - h;
-      const y = above >= 0 ? above : under.y + under.h + look.tooltipGap;
-      const x = Math.min(
-        screen.width - w,
-        Math.max(0, under.x + under.w / 2 - w / 2),
+      // Over the Item, or under it where there's no room above.
+      drawTooltip(
+        tooltipBox,
+        tooltipLines.slice(0, lines.length),
+        under,
+        screen,
       );
-      tooltipBox
-        .rect(x, y, w, h)
-        .fill({ color: look.tooltip, alpha: look.tooltipAlpha })
-        .stroke({ color: style.edge, width: 1 });
-      shown.forEach((line, i) => {
-        line.position.set(x + w / 2, y + pad + i * look.tooltipLineHeight);
-      });
     },
   };
 }

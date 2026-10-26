@@ -9,6 +9,7 @@ import {
   heroChanceToHit,
   heroDefense,
   maxLife,
+  maxMana,
   monsterLevelIn,
   type World,
 } from "../sim/world";
@@ -23,7 +24,7 @@ export const HERO_PANEL = {
   left: 16,
   top: 16,
   width: 300,
-  height: 468,
+  height: 524,
   padding: 18,
   firstRow: 56,
   rowHeight: 28,
@@ -58,6 +59,7 @@ const ATTRIBUTE_NAMES: Record<Attribute, string> = {
   strength: "Strength",
   dexterity: "Dexterity",
   vitality: "Vitality",
+  energy: "Energy",
 };
 
 /** What the Hero panel shows of the Hero, as text. */
@@ -69,8 +71,8 @@ export type HeroSheet = {
   /** Whether a point can be spent now, so + buttons show. */
   canRaise: boolean;
   /**
-   * What the Attributes and Equipped Items add up to: max Life, the damage
-   * range, Defense, Attack Rating and the chance to hit a Skeleton of the
+   * What the Attributes and Equipped Items add up to: max Life, current
+   * and max Mana, the damage range, Defense, Attack Rating and the chance to hit a Skeleton of the
    * Area the Hero is in.
    */
   derived: { name: string; value: string }[];
@@ -98,6 +100,10 @@ export function heroSheet(world: World): HeroSheet {
     canRaise: canRaise(world),
     derived: [
       { name: "Life", value: String(maxLife(world)) },
+      {
+        name: "Mana",
+        value: `${Math.floor(world.hero.mana)} / ${maxMana(world)}`,
+      },
       // Each hit rounds its own damage, so the range shows rounded too.
       { name: "Damage", value: `${Math.round(min)}–${Math.round(max)}` },
       { name: "Defense", value: String(heroDefense(world)) },
@@ -113,6 +119,15 @@ export function heroSheet(world: World): HeroSheet {
 /** Whether the + buttons are there: points are unspent and the Hero lives. */
 function canRaise(world: World): boolean {
   return world.hero.progress.attributePoints > 0 && !world.death;
+}
+
+/**
+ * Whether Attribute Points or Skill Points are unspent, so the Level Up
+ * button is there.
+ */
+export function hasUnspentPoints(world: World): boolean {
+  const { attributePoints, skillPoints } = world.hero.progress;
+  return attributePoints > 0 || skillPoints > 0;
 }
 
 /** Where the panel, its + buttons and the Level Up button are drawn. */
@@ -168,7 +183,8 @@ export type PanelHit = { button: PanelButton | null };
 /**
  * What a click at `point` hits, or null when it's on neither the panel nor
  * the Level Up button, so it's for the World. The Level Up button is there
- * only while points are unspent, the panel only while `open`, and its +
+ * only while Attribute or Skill Points are unspent, the panel only while
+ * `open`, and its +
  * buttons only while a point can be spent.
  */
 export function panelHitAt(
@@ -178,10 +194,7 @@ export function panelHitAt(
   open: boolean,
 ): PanelHit | null {
   const layout = heroPanelLayout(screen);
-  if (
-    world.hero.progress.attributePoints > 0 &&
-    inside(layout.levelUp, point)
-  ) {
+  if (hasUnspentPoints(world) && inside(layout.levelUp, point)) {
     return { button: { type: "levelUp" } };
   }
   if (!open || !inside(layout.panel, point)) return null;

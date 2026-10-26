@@ -319,16 +319,46 @@ describe("pointer input on a panel", () => {
 });
 
 describe("right-clicks", () => {
-  it("are handed back once, ordering nothing", () => {
+  /** Like `asTiles`, with a panel left of x = 1. */
+  const panelOnLeft = {
+    ...asTiles,
+    panelAt: (screen: Vec) => (screen.x < 1 ? "panel" : null),
+  };
+
+  it("in the World cast the right-click slot's Skill at the cursor, once", () => {
     const input = createPointerInput();
+    pressRight(input, { x: 2.3, y: 5.6 });
+
+    expect(poll(input, 0, panelOnLeft)).toEqual({
+      orders: [{ type: "Cast", slot: "right", target: { x: 2.3, y: 5.6 } }],
+      click: null,
+      panel: null,
+    });
+    expect(poll(input, 16, panelOnLeft).orders).toEqual([]);
+    expect(takeRightClick(input)).toBeNull();
+  });
+
+  it("cast alongside a left-click's order in the same frame", () => {
+    const input = createPointerInput();
+    press(input, { x: 3, y: 3 });
     pressRight(input, { x: 2, y: 5 });
 
-    expect(poll(input, 0, asTiles)).toEqual({
+    expect(poll(input, 0, panelOnLeft).orders).toEqual([
+      { type: "MoveTo", target: { x: 3.5, y: 3.5 } },
+      { type: "Cast", slot: "right", target: { x: 2, y: 5 } },
+    ]);
+  });
+
+  it("on a panel are handed back once, ordering nothing", () => {
+    const input = createPointerInput();
+    pressRight(input, { x: 0.5, y: 5 });
+
+    expect(poll(input, 0, panelOnLeft)).toEqual({
       orders: [],
       click: null,
       panel: null,
     });
-    expect(takeRightClick(input)).toEqual({ x: 2, y: 5 });
+    expect(takeRightClick(input)).toEqual({ x: 0.5, y: 5 });
     expect(takeRightClick(input)).toBeNull();
   });
 

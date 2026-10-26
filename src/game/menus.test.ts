@@ -60,6 +60,48 @@ describe("the keys", () => {
     expect(menus.inventoryOpen).toBe(false);
   });
 
+  it("open and close the Skill Tree panel with T while the game runs", () => {
+    const menus = createMenus();
+
+    expect(pressKey(menus, "t", 1000, alive)).toBe("handled");
+    expect(menus.skillTreeOpen).toBe(true);
+    pressKey(menus, "T", 2000, alive);
+    expect(menus.skillTreeOpen).toBe(false);
+  });
+
+  // As in Diablo 2, they share the right of the screen.
+  it("shut the Inventory panel when T opens the Skill Tree, and back", () => {
+    const menus = createMenus();
+    pressKey(menus, "i", 1000, alive);
+
+    pressKey(menus, "t", 2000, alive);
+    expect(menus.skillTreeOpen).toBe(true);
+    expect(menus.inventoryOpen).toBe(false);
+
+    pressKey(menus, "i", 3000, alive);
+    expect(menus.inventoryOpen).toBe(true);
+    expect(menus.skillTreeOpen).toBe(false);
+  });
+
+  it("keep the Hero and Skill Tree panels open together", () => {
+    const menus = createMenus();
+
+    pressKey(menus, "c", 1000, alive);
+    pressKey(menus, "t", 2000, alive);
+
+    expect(menus.heroPanelOpen).toBe(true);
+    expect(menus.skillTreeOpen).toBe(true);
+  });
+
+  it("leave the Skill Tree panel be while paused", () => {
+    const menus = createMenus();
+    pressKey(menus, "Escape", 1000, alive);
+
+    pressKey(menus, "t", 2000, alive);
+
+    expect(menus.skillTreeOpen).toBe(false);
+  });
+
   it("leave the Hero panel be while paused", () => {
     const menus = createMenus();
     pressKey(menus, "Escape", 1000, alive);
@@ -101,6 +143,17 @@ describe("the keys", () => {
 
     expect(menus.heroPanelOpen).toBe(false);
     expect(menus.inventoryOpen).toBe(false);
+  });
+
+  it("close the Skill Tree panel for a New Hero", () => {
+    const menus = createMenus();
+    pressKey(menus, "t", 1000, alive);
+    pressKey(menus, "Escape", 2000, alive);
+    pressKey(menus, "n", 3000, alive);
+
+    pressKey(menus, "y", 4000, alive);
+
+    expect(menus.skillTreeOpen).toBe(false);
   });
 
   it("take no Y for New Hero without the question first", () => {
@@ -184,20 +237,42 @@ describe("a click while paused", () => {
 });
 
 describe("a click on the Level Up button", () => {
-  it("opens the Hero panel", () => {
+  it("opens the Hero panel with Attribute Points unspent", () => {
     const menus = createMenus();
 
-    clickLevelUp(menus, alive);
+    clickLevelUp(menus, { ...alive, attributePoints: 5, skillPoints: 0 });
 
     expect(menus.heroPanelOpen).toBe(true);
+    expect(menus.skillTreeOpen).toBe(false);
+  });
+
+  it("opens the Skill Tree panel with Skill Points unspent", () => {
+    const menus = createMenus();
+    pressKey(menus, "i", 1000, alive);
+
+    clickLevelUp(menus, { ...alive, attributePoints: 0, skillPoints: 1 });
+
+    expect(menus.skillTreeOpen).toBe(true);
+    expect(menus.inventoryOpen).toBe(false);
+    expect(menus.heroPanelOpen).toBe(false);
+  });
+
+  it("opens both with both kinds of points unspent", () => {
+    const menus = createMenus();
+
+    clickLevelUp(menus, { ...alive, attributePoints: 5, skillPoints: 1 });
+
+    expect(menus.heroPanelOpen).toBe(true);
+    expect(menus.skillTreeOpen).toBe(true);
   });
 
   it("opens nothing while the Hero is dead", () => {
     const menus = createMenus();
 
-    clickLevelUp(menus, dead);
+    clickLevelUp(menus, { ...dead, attributePoints: 5, skillPoints: 1 });
 
     expect(menus.heroPanelOpen).toBe(false);
+    expect(menus.skillTreeOpen).toBe(false);
   });
 });
 
@@ -213,17 +288,29 @@ describe("the Hero's Death", () => {
     expect(menus.inventoryOpen).toBe(false);
   });
 
+  it("closes the Skill Tree panel", () => {
+    const menus = createMenus();
+    pressKey(menus, "t", 1000, alive);
+
+    reactMenus(menus, [{ type: "HeroDied" }]);
+
+    expect(menus.skillTreeOpen).toBe(false);
+  });
+
   it.each([
     "c",
     "C",
     "i",
     "I",
+    "t",
+    "T",
   ])("leaves %s opening nothing, and takes it from the game", (key) => {
     const menus = createMenus();
 
     expect(pressKey(menus, key, 1000, dead)).toBe("handled");
     expect(menus.heroPanelOpen).toBe(false);
     expect(menus.inventoryOpen).toBe(false);
+    expect(menus.skillTreeOpen).toBe(false);
   });
 
   it("keeps the panels shut back in Town, until C and I open them", () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createWorld, maxLife, progressOf } from "./world";
+import { emptySkillBar } from "./skillBar";
+import { createWorld, maxLife, maxMana, progressOf } from "./world";
 
 /** A Town of open floor with its `start` Entry in the middle tile. */
 const town = {
@@ -19,14 +20,18 @@ const town = {
 };
 
 describe("a World created from a saved progress", () => {
-  it("starts the Hero in Town at start with that progress and full Life", () => {
+  it("starts the Hero in Town at start with that progress and full Life and Mana", () => {
     const saved = {
       level: 5,
       experience: 10_000,
       strength: 30,
       dexterity: 28,
       vitality: 22,
+      energy: 25,
       attributePoints: 0,
+      skillPoints: 1,
+      skillLevels: { golem: 3 },
+      skillBar: emptySkillBar(),
     };
     const w = createWorld({
       areas: { town },
@@ -41,11 +46,14 @@ describe("a World created from a saved progress", () => {
     // point past 20.
     expect(maxLife(w)).toBe(114);
     expect(w.hero.life).toBe(114);
+    // 2 for each Energy point and 1 for each Level past the first.
+    expect(maxMana(w)).toBe(54);
+    expect(w.hero.mana).toBe(54);
   });
 });
 
 describe("a World created without a saved progress", () => {
-  it("starts a fresh Level 1 Hero at 20/20/20 with 100 Life", () => {
+  it("starts a fresh Level 1 Hero at 20/20/20/20 with 100 Life", () => {
     const w = createWorld({ areas: { town }, seed: 1 });
 
     expect(progressOf(w)).toEqual({
@@ -54,7 +62,11 @@ describe("a World created without a saved progress", () => {
       strength: 20,
       dexterity: 20,
       vitality: 20,
+      energy: 20,
       attributePoints: 0,
+      skillPoints: 0,
+      skillLevels: { golem: 0 },
+      skillBar: emptySkillBar(),
     });
     expect(w.hero.life).toBe(100);
   });

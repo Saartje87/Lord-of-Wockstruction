@@ -21,6 +21,7 @@ import {
   isSlot,
   placement,
 } from "../sim/inventory";
+import { minionWindUpProgress } from "../sim/minions";
 import { monsterMaxLife, windUpProgress } from "../sim/monsters";
 import type { Rect } from "../sim/rect";
 import { STEP_MS } from "../sim/units";
@@ -28,6 +29,7 @@ import { tileOf, type Vec } from "../sim/vec";
 import {
   ATTRIBUTES,
   areaFade,
+  CAST_STEPS,
   DEATH_STEPS,
   FLINCH_STEPS,
   groundItemsOf,
@@ -35,8 +37,8 @@ import {
   HIT_STEP,
   isInCombat,
   isRegenerating,
+  type MinionId,
   type MonsterId,
-  maxLife,
   type SimEvent,
   SWING_STEPS,
   type World,
@@ -44,7 +46,9 @@ import {
 import { heroTuning } from "../tuning/hero";
 import { inputTuning } from "../tuning/input";
 import { type ItemKind, type ItemType, itemOf } from "../tuning/items";
+import { minionTuning } from "../tuning/minions";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
+import { type Skill, skillTuning } from "../tuning/skills";
 import { type Compass, compassOf, frameAt, swingFrame } from "./animation";
 import { arrivedInDisplayName, bannerOpacityAt } from "./areaBanner";
 import { type Animation, type Art, type CharacterArt, frameOf } from "./art";
@@ -64,6 +68,7 @@ import {
 } from "./groundLabels";
 import {
   HERO_PANEL,
+  hasUnspentPoints,
   heroPanelLayout,
   heroSheet,
   PANEL_ROWS,
@@ -71,6 +76,12 @@ import {
   panelHitAt,
   rowTop,
 } from "./heroPanel";
+import {
+  characterUnder,
+  type Hovered,
+  nameplateOf,
+  type Pickable,
+} from "./hover";
 import {
   type DropHit,
   INVENTORY_PANEL,
@@ -82,7 +93,25 @@ import {
   itemUnder,
   landingCell,
 } from "./inventoryPanel";
+import { type Orb, orbFill } from "./orbs";
 import { menuChoiceAt, PAUSE_MENU_LAYOUT, pauseMenuLayout } from "./pauseMenu";
+import {
+  SKILL_BAR,
+  type SkillBarHit,
+  skillBarHitAt,
+  skillBarLayout,
+  skillBarSheet,
+} from "./skillBar";
+import {
+  SKILL_TREE_PANEL,
+  SKILL_TREE_ROWS,
+  type SkillTreeHit,
+  skillRow,
+  skillTreeHitAt,
+  skillTreePanelLayout,
+  skillTreeRowTop,
+  skillTreeSheet,
+} from "./skillTreePanel";
 
 const HOVER_LINE = 0xd8c48a;
 const MARKER_LINE = 0xe8d27a;
@@ -165,8 +194,6 @@ const NPC = { tint: 0x8c9ccc, compass: "s" } satisfies {
 };
 /** How far apart NPCs' idle animations run (ms), so they don't breathe in step. */
 const NPC_STAGGER_MS = 337;
-/** A Monster's clickable box around its feet at native scale (CSS px). */
-const MONSTER_BOX = { left: -35, right: 35, top: -135, bottom: 15 };
 /**
  * How far behind the living a Corpse sorts (CSS px of screen y): one row of
  * tiles, so anyone standing on or just behind a Corpse is drawn over it.
@@ -201,6 +228,8 @@ const NAMEPLATE = {
 };
 /** A Life bar's fill, and its dark back with how opaque that is (0..1). */
 const LIFE_COLOUR = 0xc02020;
+/** The hovered Golem's nameplate: a green name and Life bar, on the Hero's side. */
+const FRIENDLY = { name: 0x9ee08a, life: 0x3fa83a };
 const LIFE_BACK = { colour: 0x2a0606, alpha: 0.85 };
 /** Damage numbers: their size and black outline (CSS px). */
 const NUMBER = { size: 18, stroke: 3, gap: 2 };
@@ -214,6 +243,31 @@ const NUMBER_COLOUR: Record<DamageNumber["kind"], number> = {
   taken: 0xff4a4a,
   miss: 0x9a9a9a,
   noRoom: 0xe8e0c8,
+  castFailed: 0x8ab4ff,
+};
+
+/**
+ * The placeholder Golem: the Skeleton's art, `scale` times as big and
+ * tinted clay. Replaced, it crumbles away: its `die` animation, fading out
+ * over `crumbleMs`.
+ */
+const GOLEM = { tint: 0xc0804a, scale: 1.3, crumbleMs: 900 };
+
+/**
+ * The Skill Bar's look, in the HUD's colours; where things go is
+ * `skillBarLayout`. A Skill the Hero lacks the Mana for shows `dimmed`
+ * opaque (0..1).
+ */
+const SKILL_BAR_STYLE = {
+  fill: 0x17130e,
+  edge: 0x5a4a2e,
+  skill: 0x6a4428,
+  skillEdge: 0xe8d27a,
+  name: 0xe8e0c8,
+  nameSize: 11,
+  key: 0xd8c890,
+  keySize: 10,
+  dimmed: 0.35,
 };
 
 /**
@@ -231,25 +285,41 @@ const STRIP = {
   edgeColour: 0x4a4236,
 };
 /**
- * The Hero's Life orb at the bottom left (CSS px): `left` and `bottom` from
- * the screen's corner to its stone rim, which is `rim` wide.
+ * The Hero's orbs, Life at the bottom left and Mana mirroring it at the
+ * bottom right (CSS px): `side` from the screen's side and `bottom` from its
+ * bottom to the stone rim, which is `rim` wide.
  */
 const ORB = {
   radius: 52,
   rim: 8,
-  left: 24,
+  side: 24,
   bottom: 10,
   rimColour: 0x2a241c,
   rimLine: 0x4a4236,
   glassLine: 0x6b6258,
-  empty: 0x140404,
-  /** The Life at the bottom, lighter towards the surface by up to `lighten`. */
-  life: 0x8a0e0e,
-  lighten: 0x30,
 };
+/**
+ * Each orb's colours: `empty` behind it, and its fill at the bottom, lighter
+ * towards the surface by up to `lighten` in its own channel (`lightenStep`
+ * is one unit of that channel).
+ */
+const ORB_COLOURS: Record<
+  Orb,
+  { empty: number; fill: number; lighten: number; lightenStep: number }
+> = {
+  life: {
+    empty: 0x140404,
+    fill: 0x8a0e0e,
+    lighten: 0x30,
+    lightenStep: 0x10000,
+  },
+  mana: { empty: 0x040414, fill: 0x0e1e8a, lighten: 0x30, lightenStep: 0x1 },
+};
+/** How far across an orb is from its rim to the far side of it (CSS px). */
+const ORB_SPAN = 2 * (ORB.rim + ORB.radius);
 /** How far the surface ripples either way (CSS px) and how fast (rad/s). */
 const RIPPLE = { calm: 1, combat: 2.5, speed: 5, depth: 3 };
-/** Bubbles rising through the orb while the Hero regenerates. */
+/** Bubbles rising through the Life orb while the Hero regenerates Life. */
 const BUBBLES = {
   count: 6,
   radius: 2,
@@ -259,13 +329,12 @@ const BUBBLES = {
   rate: 0.6,
 };
 /**
- * The Experience bar along the strip, right of the orb (CSS px): `gap` from
- * the orb's rim, `right` from the screen's edge, with `Lv N` before it and
+ * The Experience bar along the strip between the orbs (CSS px): `gap` from
+ * each orb's rim, with `Lv N` before it and
  * `current / next` after it, each `textGap` from the bar.
  */
 const EXPERIENCE_BAR = {
   gap: 14,
-  right: 16,
   height: 6,
   textGap: 8,
   textSize: 13,
@@ -474,8 +543,10 @@ export function createRenderer(
   });
   nameplateText.anchor.set(0.5, 0);
   app.stage.addChild(nameplateText);
-  const orb = lifeOrbView();
+  const orb = orbsView();
   app.stage.addChild(orb.layer);
+  const skillBar = skillBarView();
+  app.stage.addChild(skillBar.layer);
   const experience = experienceBarView();
   app.stage.addChild(experience.layer);
   const levelUp = levelUpButtonView();
@@ -484,6 +555,10 @@ export function createRenderer(
   app.stage.addChild(heroPanel.layer);
   const inventoryPanel = inventoryPanelView();
   app.stage.addChild(inventoryPanel.layer);
+  const skillTreePanel = skillTreePanelView();
+  app.stage.addChild(skillTreePanel.layer);
+  const draggedSkill = draggedSkillView();
+  app.stage.addChild(draggedSkill.layer);
   // Over the whole screen, stretched to it each frame.
   const banner = new Text({
     text: "",
@@ -521,6 +596,25 @@ export function createRenderer(
     }
     return view;
   };
+  /** The living Golem's view, made on first sight, and its facing as drawn. */
+  let golem: { id: MinionId; view: CharacterView; compass: Compass } | null =
+    null;
+  /** Replaced Golems crumbling away, each from when it began. */
+  const crumbling: { view: CharacterView; atMs: number; compass: Compass }[] =
+    [];
+  /** A Golem's view: the Skeleton's art, tinted clay and bigger. */
+  const golemView = (): CharacterView => {
+    const view = characterView(art.monsters.skeleton, minionTuning.golem.speed);
+    view.sprite.tint = GOLEM.tint;
+    view.sprite.scale.set(GOLEM.scale);
+    scene.addChild(view.sprite);
+    return view;
+  };
+  /** Drops the living Golem's view, if any. */
+  const dropGolem = () => {
+    golem?.view.sprite.destroy();
+    golem = null;
+  };
   let hoveredTile: Vec | null = null;
   let markedAtMs: number | null = null;
   let hurtAtMs: number | null = null;
@@ -538,17 +632,23 @@ export function createRenderer(
   let heroPanelOpenNow = false;
   /** Whether the Inventory panel was open when last drawn. */
   let inventoryOpenNow = false;
+  /** Whether the Skill Tree panel was open when last drawn. */
+  let skillTreeOpenNow = false;
 
   /**
    * What a point on the canvas (CSS px) hits of the Hero panel, the Level Up
-   * button and the Inventory panel, as last drawn, or null when it's for
-   * the World.
+   * button, the Skill Tree panel and the Inventory panel, as last drawn, or
+   * null when it's for the World.
    */
-  const panelAt = (screen: Vec): PanelHit | InventoryHit | DropHit | null => {
+  const panelAt = (
+    screen: Vec,
+  ): PanelHit | SkillTreeHit | SkillBarHit | InventoryHit | DropHit | null => {
     if (!drawnWorld) return null;
     const holding = cursorItemOf(drawnWorld) !== null;
     return (
       panelHitAt(app.screen, screen, drawnWorld, heroPanelOpenNow) ??
+      skillTreeHitAt(app.screen, screen, drawnWorld, skillTreeOpenNow) ??
+      skillBarHitAt(app.screen, screen) ??
       inventoryHitAt(app.screen, screen, inventoryOpenNow, holding)
     );
   };
@@ -565,6 +665,8 @@ export function createRenderer(
       view.flash?.destroy();
     }
     monsters.clear();
+    // Minion ids start over too.
+    dropGolem();
     // Item ids start over too.
     for (const text of labelTexts.values()) text.destroy();
     labelTexts.clear();
@@ -594,6 +696,7 @@ export function createRenderer(
     npcs = next.npcs.map(() => npcView(art));
     if (npcs.length > 0) scene.addChild(...npcs.map((npc) => npc.sprite));
     for (const { text } of floating.splice(0)) text.destroy();
+    for (const { view } of crumbling.splice(0)) view.sprite.destroy();
     markedAtMs = null;
     hoveredTile = null;
     hover.clear();
@@ -606,28 +709,34 @@ export function createRenderer(
       y: screen.y - camera.position.y,
     });
 
-  /** The Monster drawn under a point on the canvas (CSS px), as last drawn. */
-  const monsterAt = (screen: Vec): MonsterId | null => {
-    const x = screen.x - camera.position.x;
-    const y = screen.y - camera.position.y;
-    let nearest: { id: MonsterId; y: number } | null = null;
+  /**
+   * The living Monster or the Golem drawn under a point on the canvas (CSS
+   * px), as last drawn: the one in front where they overlap.
+   */
+  const characterAt = (screen: Vec): MonsterId | "golem" | null => {
+    const characters: Pickable<MonsterId | "golem">[] = [];
     for (const [id, view] of monsters) {
       if (view.diedAtMs !== null) continue;
       const { position } = view.sprite;
-      const scale = MONSTER_SCALE[view.type];
-      const dx = (x - position.x) / scale;
-      const dy = (y - position.y) / scale;
-      const inside =
-        dx >= MONSTER_BOX.left &&
-        dx <= MONSTER_BOX.right &&
-        dy >= MONSTER_BOX.top &&
-        dy <= MONSTER_BOX.bottom;
-      // The one in front wins where they overlap.
-      if (inside && (!nearest || position.y > nearest.y)) {
-        nearest = { id, y: position.y };
-      }
+      characters.push({ id, at: position, scale: MONSTER_SCALE[view.type] });
     }
-    return nearest?.id ?? null;
+    if (golem) {
+      const { position } = golem.view.sprite;
+      characters.push({ id: "golem", at: position, scale: GOLEM.scale });
+    }
+    return characterUnder(characters, {
+      x: screen.x - camera.position.x,
+      y: screen.y - camera.position.y,
+    });
+  };
+
+  /**
+   * The Monster drawn under a point on the canvas (CSS px), as last drawn;
+   * none where the Golem stands in front, so a click there is a move.
+   */
+  const monsterAt = (screen: Vec): MonsterId | null => {
+    const id = characterAt(screen);
+    return id === "golem" ? null : id;
   };
 
   /** The Ground Item whose label is under a canvas point (CSS px). */
@@ -723,7 +832,11 @@ export function createRenderer(
       if (arrivedIn !== null) showBanner(arrivedIn, nowMs);
       for (const number of damageNumbers(events)) {
         const sprite =
-          number.on === "hero" ? hero.sprite : monsters.get(number.on)?.sprite;
+          number.on === "hero"
+            ? hero.sprite
+            : number.on === "minion"
+              ? golem?.view.sprite
+              : monsters.get(number.on)?.sprite;
         if (!sprite) continue;
         const text = new Text({
           text: floatText(number),
@@ -749,6 +862,13 @@ export function createRenderer(
           const view = monsters.get(event.id);
           if (view) view.diedAtMs = nowMs;
         }
+        // Killed, it crumbles away as when replaced.
+        const gone =
+          event.type === "MinionCrumbled" || event.type === "MinionDied";
+        if (gone && golem?.id === event.minion) {
+          crumbling.push({ ...golem, atMs: nowMs });
+          golem = null;
+        }
         if (event.type === "HeroHit") hurtAtMs = nowMs;
         if (event.type === "LevelReached") levelAtMs = nowMs;
       }
@@ -767,7 +887,8 @@ export function createRenderer(
      * which outlines what it's over in the World, or off a panel, shows the
      * tooltip of the Item it's over on one. `menus` shows the Hero and
      * Inventory panels while they're open, and the pause menu over
-     * everything while paused.
+     * everything while paused. `dragged` is the Skill being dragged from
+     * the Skill Tree, if any, drawn at the pointer.
      */
     draw(
       world: World,
@@ -775,10 +896,12 @@ export function createRenderer(
       pointer: Vec | null,
       nowMs: number,
       menus: Menus,
+      dragged: Skill | null = null,
     ) {
       const active = world.areas[world.areaName];
       heroPanelOpenNow = menus.heroPanelOpen;
       inventoryOpenNow = menus.inventoryOpen;
+      skillTreeOpenNow = menus.skillTreeOpen;
       if (world !== drawnWorld) {
         showWorld(world);
         // A new World starts the Hero in an Area: they've arrived there.
@@ -822,6 +945,17 @@ export function createRenderer(
           swing.elapsed * STEP_MS,
         );
         show(hero, "swing", heroCompass, frame);
+      } else if (world.hero.cast) {
+        // A placeholder: the swing, slowed to the cast time.
+        const { skill, elapsed } = world.hero.cast;
+        const { frames } = art.hero.timing.swing;
+        const progress = elapsed / CAST_STEPS[skill];
+        show(
+          hero,
+          "swing",
+          heroCompass,
+          Math.min(frames - 1, Math.floor(progress * frames)),
+        );
       } else if (world.hero.flinch > 0) {
         const ms = (HERO_FLINCH_STEPS - world.hero.flinch) * STEP_MS;
         show(hero, "hit", heroCompass, frameAt(art.hero.timing.hit, ms));
@@ -894,6 +1028,35 @@ export function createRenderer(
         flash(view, nowMs);
       }
 
+      const { minion } = world;
+      if (minion?.id !== golem?.id) dropGolem();
+      if (minion) {
+        golem ??= { id: minion.id, view: golemView(), compass: "s" };
+        const minionAt = lerp(minion.prevPos, minion.pos, alpha);
+        place(golem.view, minionAt);
+        golem.compass = compassOf(minion.facing);
+        if (minion.state === "windup") {
+          const { frames } = golem.view.art.timing.swing;
+          const progress = minionWindUpProgress(minion);
+          const frame = Math.min(frames - 1, Math.floor(progress * frames));
+          show(golem.view, "swing", golem.compass, frame);
+        } else {
+          walkOrStand(golem.view, minion, minionAt, golem.compass, nowMs);
+        }
+      }
+      for (let i = crumbling.length - 1; i >= 0; i--) {
+        const { view, atMs } = crumbling[i];
+        const ms = nowMs - atMs;
+        if (ms >= GOLEM.crumbleMs) {
+          view.sprite.destroy();
+          crumbling.splice(i, 1);
+          continue;
+        }
+        const { compass } = crumbling[i];
+        show(view, "die", compass, frameAt(view.art.timing.die, ms));
+        view.sprite.alpha = 1 - ms / GOLEM.crumbleMs;
+      }
+
       for (const [id, view] of monsters) {
         if (seen.has(id)) continue;
         view.sprite.destroy();
@@ -935,18 +1098,28 @@ export function createRenderer(
       // What a click there picks: a label over a Monster, a Monster over an
       // Item lying under it.
       const hoveredLabel = onWorld && groundLabelUnder(onWorld);
-      const hoveredId = onWorld && !hoveredLabel && monsterAt(onWorld);
+      const hoveredId = onWorld && !hoveredLabel && characterAt(onWorld);
       const hoveredItem =
-        hoveredLabel || (onWorld && !hoveredId ? groundItemAt(onWorld) : null);
+        hoveredLabel ||
+        (onWorld && typeof hoveredId !== "number"
+          ? groundItemAt(onWorld)
+          : null);
       drawGroundItems(world, hoveredItem);
-      const hovered =
+      const hoveredMonster =
         world.monsters.find((monster) => monster.id === hoveredId) ?? null;
-      const hoveredView = hovered && monsters.get(hovered.id);
+      const hovered: Hovered | null = hoveredMonster
+        ? { monster: hoveredMonster }
+        : hoveredId === "golem" && world.minion
+          ? { minion: world.minion }
+          : null;
+      const hoveredView = hoveredMonster
+        ? monsters.get(hoveredMonster.id)
+        : hovered && golem?.view;
       outline.show(hoveredView?.sprite ?? null);
       nameplate.clear();
       nameplateText.visible = hovered !== null;
       if (hovered) {
-        const { name } = monsterTuning[hovered.type];
+        const { name, fraction, friendly } = nameplateOf(hovered);
         const centre = app.screen.width / 2;
         nameplate
           .rect(
@@ -965,14 +1138,21 @@ export function createRenderer(
             NAMEPLATE.barBottom,
           width: NAMEPLATE.bar,
           height: NAMEPLATE.barHeight,
-          fraction: hovered.life / monsterMaxLife(hovered),
+          fraction,
+          colour: friendly ? FRIENDLY.life : LIFE_COLOUR,
         });
         nameplateText.text = name;
+        nameplateText.style.fill = friendly
+          ? FRIENDLY.name
+          : NAMEPLATE.nameColour;
         nameplateText.position.set(centre, NAMEPLATE.top + NAMEPLATE.nameTop);
       }
 
+      // A click on the Golem is a move, so its tile is shown too.
       const tile =
-        cursor && !hovered && isFloor(active, cursor) ? tileOf(cursor) : null;
+        cursor && !hoveredMonster && isFloor(active, cursor)
+          ? tileOf(cursor)
+          : null;
       if (tile?.x !== hoveredTile?.x || tile?.y !== hoveredTile?.y) {
         hoveredTile = tile;
         hover.clear();
@@ -986,9 +1166,12 @@ export function createRenderer(
       }
 
       orb.draw(app.screen, world, nowMs);
+      skillBar.draw(app.screen, world);
       experience.draw(app.screen, world);
       levelUp.draw(app.screen, world, nowMs);
       heroPanel.draw(app.screen, world, menus.heroPanelOpen);
+      skillTreePanel.draw(app.screen, world, menus.skillTreeOpen);
+      draggedSkill.draw(dragged, pointer);
       const spot = onPanel && "inventory" in onPanel ? onPanel.inventory : null;
       inventoryPanel.draw(
         app.screen,
@@ -1179,7 +1362,10 @@ function barTop(sprite: Sprite): number {
   );
 }
 
-/** A Life bar: a dark back, filled from the left by `fraction` (0..1). */
+/**
+ * A Life bar: a dark back, filled from the left by `fraction` (0..1), in
+ * `colour`, a Monster's red if not given.
+ */
 function lifeBar(
   graphics: Graphics,
   bar: {
@@ -1188,6 +1374,7 @@ function lifeBar(
     width: number;
     height: number;
     fraction: number;
+    colour?: number;
   },
 ) {
   graphics
@@ -1195,7 +1382,7 @@ function lifeBar(
     .fill({ color: LIFE_BACK.colour, alpha: LIFE_BACK.alpha });
   graphics
     .rect(bar.x, bar.y, bar.width * bar.fraction, bar.height)
-    .fill(LIFE_COLOUR);
+    .fill(bar.colour ?? LIFE_COLOUR);
 }
 
 /**
@@ -1247,12 +1434,13 @@ function outlineView() {
 }
 
 /**
- * The stone strip along the bottom of the screen and the Hero's Life orb on
- * it, filling from the bottom with Life. In Combat its surface ripples harder
- * under an "⚔ In Combat" badge; while regenerating, bubbles rise through it
- * under one with the rate.
+ * The stone strip along the bottom of the screen, with the Hero's Life orb
+ * on it at the left and their Mana orb at the right, each filling from the
+ * bottom. In Combat their surfaces ripple harder, with an "⚔ In Combat" badge
+ * over the Life orb; while Life regenerates, bubbles rise through it under a
+ * badge with the rate.
  */
-function lifeOrbView() {
+function orbsView() {
   const layer = new Container();
   const graphics = new Graphics();
   const badge = new Text({
@@ -1270,8 +1458,9 @@ function lifeOrbView() {
       nowMs: number,
     ) {
       const { radius: r } = ORB;
-      const cx = ORB.left + ORB.rim + r;
       const cy = screen.height - ORB.bottom - ORB.rim - r;
+      const lifeX = ORB.side + ORB.rim + r;
+      const manaX = screen.width - lifeX;
       const seconds = nowMs / 1000;
       const inCombat = isInCombat(world);
       const regenerating = isRegenerating(world);
@@ -1283,58 +1472,161 @@ function lifeOrbView() {
       graphics
         .rect(0, screen.height - STRIP.height, screen.width, STRIP.edge)
         .fill(STRIP.edgeColour);
-      graphics
-        .circle(cx, cy, r + ORB.rim)
-        .fill(ORB.rimColour)
-        .stroke({ width: 2, color: ORB.rimLine });
-      graphics.circle(cx, cy, r).fill(ORB.empty);
 
-      // One 1 px row at a time, so the surface can ripple.
-      const fraction = world.hero.life / maxLife(world);
-      const surface = cy + r - fraction * r * 2;
-      const ripple = inCombat ? RIPPLE.combat : RIPPLE.calm;
-      for (let y = Math.floor(surface); y < cy + r; y++) {
-        const half = Math.sqrt(Math.max(0, r * r - (y - cy) ** 2));
-        const wave =
-          y < surface + RIPPLE.depth
-            ? Math.sin(seconds * RIPPLE.speed + y) * ripple
-            : 0;
-        const height = (cy + r - y) / (r * 2);
-        const red = Math.min(ORB.lighten, Math.floor(height * ORB.lighten));
+      /** Draws an orb's rim, its fill up to `fraction` and its glass. */
+      const drawOrb = (orb: Orb, cx: number, fraction: number) => {
+        const colours = ORB_COLOURS[orb];
         graphics
-          .rect(cx - half + wave, y, half * 2, 1)
-          .fill(ORB.life + red * 0x10000);
-      }
+          .circle(cx, cy, r + ORB.rim)
+          .fill(ORB.rimColour)
+          .stroke({ width: 2, color: ORB.rimLine });
+        graphics.circle(cx, cy, r).fill(colours.empty);
+
+        // One 1 px row at a time, so the surface can ripple.
+        const surface = cy + r - fraction * r * 2;
+        const ripple = inCombat ? RIPPLE.combat : RIPPLE.calm;
+        for (let y = Math.floor(surface); y < cy + r; y++) {
+          const half = Math.sqrt(Math.max(0, r * r - (y - cy) ** 2));
+          const wave =
+            y < surface + RIPPLE.depth
+              ? Math.sin(seconds * RIPPLE.speed + y) * ripple
+              : 0;
+          const height = (cy + r - y) / (r * 2);
+          const lighter = Math.min(
+            colours.lighten,
+            Math.floor(height * colours.lighten),
+          );
+          graphics
+            .rect(cx - half + wave, y, half * 2, 1)
+            .fill(colours.fill + lighter * colours.lightenStep);
+        }
+      };
+
+      const life = orbFill(world, "life");
+      drawOrb("life", lifeX, life);
+      drawOrb("mana", manaX, orbFill(world, "mana"));
 
       if (regenerating) {
         for (let i = 0; i < BUBBLES.count; i++) {
           const rise = (seconds * BUBBLES.rate + i / BUBBLES.count) % 1;
-          const x = cx + Math.sin(i * 2.3 + seconds * 2) * r * 0.5;
-          const y = cy + r - rise * fraction * r * 2;
+          const x = lifeX + Math.sin(i * 2.3 + seconds * 2) * r * 0.5;
+          const y = cy + r - rise * life * r * 2;
           graphics
             .circle(x, y, BUBBLES.radius)
             .fill({ color: BUBBLES.colour, alpha: BUBBLES.alpha * (1 - rise) });
         }
       }
 
-      // The glass: a highlight and its rim.
-      graphics
-        .ellipse(cx - r * 0.3, cy - r * 0.45, r * 0.35, r * 0.18)
-        .fill({ color: 0xffffff, alpha: 0.12 });
-      graphics.circle(cx, cy, r).stroke({ width: 3, color: ORB.glassLine });
+      // The glass: a highlight and its rim, over each orb.
+      for (const x of [lifeX, manaX]) {
+        graphics
+          .ellipse(x - r * 0.3, cy - r * 0.45, r * 0.35, r * 0.18)
+          .fill({ color: 0xffffff, alpha: 0.12 });
+        graphics.circle(x, cy, r).stroke({ width: 3, color: ORB.glassLine });
+      }
 
       badge.visible = inCombat || regenerating;
       badge.text = inCombat
         ? "⚔ In Combat"
         : `+${heroTuning.regenPerSecond} Life/s`;
       badge.style.fill = inCombat ? BADGE.combat : BADGE.regen;
-      badge.position.set(cx, cy - r - ORB.rim - BADGE.gap);
+      badge.position.set(lifeX, cy - r - ORB.rim - BADGE.gap);
     },
   };
 }
 
 /**
- * The thin Experience bar along the strip, right of the Life orb, with
+ * The Skill Bar between the orbs: each slot's key in its corner and its
+ * Skill's name, dimmed while the Hero lacks the Mana for it.
+ */
+function skillBarView() {
+  const style = SKILL_BAR_STYLE;
+  const layer = new Container();
+  const graphics = new Graphics();
+  layer.addChild(graphics);
+  const text = (fill: number, size: number) => {
+    const t = new Text({
+      text: "",
+      style: { fill, fontSize: size, fontFamily: SERIF },
+    });
+    layer.addChild(t);
+    return t;
+  };
+  /** Made as the sheet first lists them. */
+  const labels: { key: Text; name: Text }[] = [];
+
+  return {
+    layer,
+    draw(screen: { width: number; height: number }, world: World) {
+      const { slots } = skillBarLayout(screen);
+      graphics.clear();
+      skillBarSheet(world).forEach((shown, index) => {
+        if (!labels[index]) {
+          const key = text(style.key, style.keySize);
+          key.anchor.set(1, 0);
+          const name = text(style.name, style.nameSize);
+          name.anchor.set(0.5);
+          labels[index] = { key, name };
+        }
+        const { key, name } = labels[index];
+        const rect = slots[shown.slot];
+        const alpha = shown.dimmed ? style.dimmed : 1;
+        graphics
+          .rect(rect.x, rect.y, rect.w, rect.h)
+          .fill(style.fill)
+          .stroke({ color: style.edge, width: 1.5 });
+        if (shown.name !== null) {
+          graphics
+            .rect(rect.x + 3, rect.y + 3, rect.w - 6, rect.h - 6)
+            .fill({ color: style.skill, alpha })
+            .stroke({ color: style.skillEdge, width: 1, alpha });
+        }
+        name.visible = shown.name !== null;
+        name.text = shown.name ?? "";
+        name.alpha = alpha;
+        name.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2 + 4);
+        key.text = shown.key;
+        key.position.set(rect.x + rect.w - 3, rect.y + 2);
+      });
+    },
+  };
+}
+
+/**
+ * A Skill being dragged from the Skill Tree, drawn as it shows in a Skill
+ * Bar slot, centred on the pointer.
+ */
+function draggedSkillView() {
+  const style = SKILL_BAR_STYLE;
+  const layer = new Container();
+  const graphics = new Graphics();
+  const name = new Text({
+    text: "",
+    style: { fill: style.name, fontSize: style.nameSize, fontFamily: SERIF },
+  });
+  name.anchor.set(0.5);
+  layer.addChild(graphics, name);
+  layer.visible = false;
+
+  return {
+    layer,
+    draw(skill: Skill | null, pointer: Vec | null) {
+      layer.visible = skill !== null && pointer !== null;
+      if (!skill || !pointer) return;
+      const { slot } = SKILL_BAR;
+      graphics.clear();
+      graphics
+        .rect(-slot / 2, -slot / 2, slot, slot)
+        .fill({ color: style.skill, alpha: 0.85 })
+        .stroke({ color: style.skillEdge, width: 1 });
+      name.text = skillTuning[skill].name;
+      layer.position.set(pointer.x, pointer.y);
+    },
+  };
+}
+
+/**
+ * The thin Experience bar along the strip, between the orbs, with
  * `Lv N` before it and `current / next` Experience after it.
  */
 function experienceBarView() {
@@ -1359,8 +1651,8 @@ function experienceBarView() {
         world.hero.progress.experience,
       );
       const y = screen.height - (STRIP.height - STRIP.edge) / 2;
-      const left = ORB.left + 2 * (ORB.rim + ORB.radius) + EXPERIENCE_BAR.gap;
-      const right = screen.width - EXPERIENCE_BAR.right;
+      const left = ORB.side + ORB_SPAN + EXPERIENCE_BAR.gap;
+      const right = screen.width - ORB.side - ORB_SPAN - EXPERIENCE_BAR.gap;
       level.text = bar.level;
       level.position.set(left, y);
       amount.text = bar.experience;
@@ -1387,9 +1679,9 @@ function experienceBarView() {
 }
 
 /**
- * The Level Up button by the Life orb, shown while Attribute Points are
- * unspent but not while the Hero lies dead, its edge pulsing to catch the
- * eye.
+ * The Level Up button by the Life orb, shown while Attribute or Skill Points
+ * are unspent but not while the Hero lies dead, its edge pulsing to catch
+ * the eye.
  */
 function levelUpButtonView() {
   const layer = new Container();
@@ -1413,7 +1705,7 @@ function levelUpButtonView() {
       world: World,
       nowMs: number,
     ) {
-      layer.visible = !world.death && world.hero.progress.attributePoints > 0;
+      layer.visible = !world.death && hasUnspentPoints(world);
       if (!layer.visible) return;
       const rect = heroPanelLayout(screen).levelUp;
       const { pulsesPerSecond, edgeFaint } = HUD_BUTTON;
@@ -1556,6 +1848,134 @@ function heroPanelView() {
         const y = rowTop(at) - style.ruleGap;
         graphics.rect(left, y, right - left, 1).fill(style.edge);
       }
+    },
+  };
+}
+
+/**
+ * The Skill Tree panel, in the Hero panel's look: the unspent Skill Points,
+ * then each Skill's Skill Level, Mana cost at the next Skill Level and
+ * required Level, with a + button while a Skill Point can be spent on it.
+ */
+function skillTreePanelView() {
+  const style = HERO_PANEL_STYLE;
+  const layer = new Container();
+  const graphics = new Graphics();
+  layer.addChild(graphics);
+  layer.visible = false;
+  const text = (fill: number, size = style.textSize) => {
+    const t = new Text({
+      text: "",
+      style: { fill, fontSize: size, fontFamily: SERIF },
+    });
+    layer.addChild(t);
+    return t;
+  };
+
+  const title = text(style.title, style.titleSize);
+  title.text = "Skill Tree";
+  title.anchor.set(0.5, 0);
+  const hint = text(style.hint, style.hintSize);
+  hint.text = "Press T to close";
+  hint.anchor.set(0.5, 1);
+  /** A row's name at its left and value at its right. */
+  const row = (nameFill: number = style.name) => {
+    const name = text(nameFill);
+    name.anchor.set(0, 0.5);
+    const value = text(style.value);
+    value.anchor.set(1, 0.5);
+    return { name, value };
+  };
+  type Row = ReturnType<typeof row>;
+  const points = row();
+  /** Made as the sheet first lists them. */
+  const skills: {
+    name: Row;
+    skillLevel: Row;
+    manaCost: Row;
+    requiredLevel: Row;
+    plus: Text;
+  }[] = [];
+
+  return {
+    layer,
+    draw(screen: { width: number }, world: World, open: boolean) {
+      layer.visible = open;
+      if (!open) return;
+      const sheet = skillTreeSheet(world);
+      const layout = skillTreePanelLayout(screen);
+      const { panel } = layout;
+      const { padding, rowHeight, plus } = SKILL_TREE_PANEL;
+      const left = panel.x + padding;
+      const right = panel.x + panel.w - padding;
+
+      graphics.clear();
+      graphics
+        .rect(panel.x, panel.y, panel.w, panel.h)
+        .fill({ color: style.fill, alpha: style.alpha })
+        .stroke({ color: style.edge, width: 2 });
+      title.position.set(panel.x + panel.w / 2, panel.y + padding);
+      hint.position.set(panel.x + panel.w / 2, panel.y + panel.h - padding);
+
+      const place = (shown: Row, at: number, name: string, value: string) => {
+        const y = skillTreeRowTop(at) + rowHeight / 2;
+        shown.name.text = name;
+        shown.name.position.set(left, y);
+        shown.value.text = value;
+        shown.value.position.set(right, y);
+      };
+      const anyRaisable = sheet.skills.some((skill) => skill.canRaise);
+      place(
+        points,
+        SKILL_TREE_ROWS.skillPoints,
+        "Skill Points",
+        sheet.skillPoints,
+      );
+      points.value.style.fill = anyRaisable ? style.title : style.value;
+
+      sheet.skills.forEach((skill, index) => {
+        if (!skills[index]) {
+          const plusText = text(style.title, style.plusSize);
+          plusText.text = "+";
+          plusText.anchor.set(0.5);
+          skills[index] = {
+            name: row(style.title),
+            skillLevel: row(),
+            manaCost: row(),
+            requiredLevel: row(),
+            plus: plusText,
+          };
+        }
+        const shown = skills[index];
+        const at = (within: number) => skillRow(index, within);
+        place(shown.name, at(SKILL_TREE_ROWS.name), skill.name, "");
+        place(
+          shown.skillLevel,
+          at(SKILL_TREE_ROWS.skillLevel),
+          "Skill Level",
+          skill.skillLevel,
+        );
+        place(
+          shown.manaCost,
+          at(SKILL_TREE_ROWS.manaCost),
+          "Mana cost",
+          skill.manaCost,
+        );
+        place(
+          shown.requiredLevel,
+          at(SKILL_TREE_ROWS.requiredLevel),
+          "Required Level",
+          skill.requiredLevel,
+        );
+        const rect = layout.raise[skill.skill];
+        shown.plus.visible = skill.canRaise;
+        if (skill.canRaise) {
+          button(graphics, rect);
+          shown.plus.position.set(rect.x + plus / 2, rect.y + plus / 2);
+        }
+        const y = skillTreeRowTop(at(SKILL_TREE_ROWS.name)) - style.ruleGap;
+        graphics.rect(left, y, right - left, 1).fill(style.edge);
+      });
     },
   };
 }

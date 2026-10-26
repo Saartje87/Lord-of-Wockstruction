@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { emptySkillBar } from "./skillBar";
 import {
   type Attribute,
   attackRating,
@@ -126,7 +127,11 @@ const UNSPENT: Progress = {
   strength: 20,
   dexterity: 20,
   vitality: 20,
+  energy: 20,
   attributePoints: 10,
+  skillPoints: 2,
+  skillLevels: { golem: 0 },
+  skillBar: emptySkillBar(),
 };
 
 /** Spends `times` points on `attribute`, one step each, returning the events. */

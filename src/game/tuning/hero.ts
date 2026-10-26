@@ -9,8 +9,21 @@ export type HeroTuning = {
   lifePerLevel: number;
   /** Max Life added by each point of Vitality. */
   lifePerVitality: number;
+  /**
+   * Max Mana before Levels and Energy: a fresh Hero has this plus
+   * `manaPerEnergy` for each point of their starting Energy.
+   */
+  mana: number;
+  /** Max Mana added by each new Level. */
+  manaPerLevel: number;
+  /** Max Mana added by each point of Energy. */
+  manaPerEnergy: number;
+  /** Mana regained per second, In Combat or not. */
+  manaRegenPerSecond: number;
   /** Attribute Points granted by each new Level. */
   attributePointsPerLevel: number;
+  /** Skill Points granted by each new Level. */
+  skillPointsPerLevel: number;
   /**
    * The total Experience each Level needs, from Level 1 (always 0) up to the
    * last Level, the cap.
@@ -47,6 +60,8 @@ export type HeroTuning = {
   dexterity: number;
   /** Vitality a fresh Hero starts with. */
   vitality: number;
+  /** Energy a fresh Hero starts with. */
+  energy: number;
   /** Attack Rating each point of Dexterity gives. */
   attackRatingPerDexterity: number;
   /** How long the whole simulation pauses when a swing lands a hit (ms). */
@@ -71,7 +86,13 @@ export const heroTuning: HeroTuning = {
   life: 40,
   lifePerLevel: 2,
   lifePerVitality: 3,
+  // 40 with the starting 20 Energy.
+  mana: 0,
+  manaPerLevel: 1,
+  manaPerEnergy: 2,
+  manaRegenPerSecond: 2,
   attributePointsPerLevel: 5,
+  skillPointsPerLevel: 1,
   experienceTable: [
     // Diablo 2's table, which takes 5 Skeletons to Level 2.
     0, 500, 1_500, 3_750, 7_875, 14_175, 22_680, 32_886, 44_396, 57_715, 72_144,
@@ -105,6 +126,7 @@ export const heroTuning: HeroTuning = {
   strength: 20,
   dexterity: 20,
   vitality: 20,
+  energy: 20,
   attackRatingPerDexterity: 5,
   hitstopMs: 60,
   flinchChance: 0.25,

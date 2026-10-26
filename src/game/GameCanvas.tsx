@@ -4,6 +4,7 @@ import { Application } from "pixi.js";
 import { useEffect, useRef } from "react";
 import { advance, createClock } from "./clock";
 import { areaDisplayNames, areas, tilesets } from "./content";
+import { castKeyOrder } from "./input/keys";
 import {
   attachPointer,
   cancel,
@@ -27,6 +28,7 @@ import {
   inventoryRightClickOrder,
 } from "./render/inventoryPanel";
 import { createRenderer } from "./render/renderer";
+import { skillDropOrder } from "./render/skillBar";
 import {
   browserStorage,
   changesSave,
@@ -38,6 +40,7 @@ import {
 import { isFloor } from "./sim/area";
 import type { Vec } from "./sim/vec";
 import { createWorld, type Order, step } from "./sim/world";
+import type { Skill } from "./tuning/skills";
 
 /** Mounts the Pixi Application and runs the fixed-step loop. */
 export default function GameCanvas() {
@@ -90,6 +93,8 @@ export default function GameCanvas() {
       const { pause } = menus;
       let orders: Order[] = [];
       let last = performance.now();
+      /** The Skill being dragged from the Skill Tree, while the button is held. */
+      let dragged: Skill | null = null;
 
       attachPointer(app.canvas, input, listeners.signal);
       // Keys and clicks on the pause menu go to the menus; a click anywhere
@@ -121,7 +126,13 @@ export default function GameCanvas() {
         for (const key of keys) {
           const hero = { heroDead: world.death !== null };
           const used = pressKey(menus, key, realNow, hero);
-          if (used === null) pressed = true;
+          if (used === null) {
+            pressed = true;
+            // Keys 1–4 cast at the cursor.
+            const cursor = input.screen && renderer.screenToTile(input.screen);
+            const cast = castKeyOrder(key, cursor);
+            if (cast) orders.push(cast);
+          }
           if (used === "newHero") newHero = true;
         }
         if (clickedAt && wasPaused && pause.paused) {
@@ -143,7 +154,6 @@ export default function GameCanvas() {
           world = createWorld({ areas, tilesets, seed: Date.now() });
           orders = [];
         }
-        returnOnShut(orders, inventoryWasOpen, menus);
         // Stands still while paused, so the clock owes no steps for it and
         // the World and every effect hold still.
         const now = gameTime(pause, realNow);
@@ -161,33 +171,52 @@ export default function GameCanvas() {
         });
         orders.push(...newOrders);
         // A click on a panel never orders the Hero about, nor goes on from
-        // their Death: on the Hero panel, Level Up opens it (but for a dead
-        // Hero) and a + spends a point, while the game runs on.
-        // On the Inventory it lifts or puts down an Item, and with one held
-        // a click off the panels drops it.
+        // their Death: Level Up opens the Hero or Skill Tree panel (but for
+        // a dead Hero), and a + on either spends a point, while the game
+        // runs on. On the Inventory it lifts or puts down an Item, and with
+        // one held a click off the panels drops it.
         if (panel) {
           pressed = false;
           const button = "button" in panel ? panel.button : null;
           if (button?.type === "levelUp") {
-            clickLevelUp(menus, { heroDead: world.death !== null });
+            const { attributePoints, skillPoints } = world.hero.progress;
+            const heroDead = world.death !== null;
+            clickLevelUp(menus, { heroDead, attributePoints, skillPoints });
           }
           if (button?.type === "raise") {
             const { attribute } = button;
             orders.push({ type: "SpendAttributePoint", attribute });
           }
+          if (button?.type === "learn") {
+            orders.push({ type: "SpendSkillPoint", skill: button.skill });
+          }
+          if (button?.type === "dragSkill") dragged = button.skill;
           if (!("button" in panel) && pressedAt) {
             const order = inventoryOrder(world, app.screen, pressedAt, panel);
             if (order) orders.push(order);
           }
         }
+        // A Skill dragged from the Skill Tree goes where the button is let
+        // go: into the Skill Bar slot there, or back, off the slots. A pause
+        // or the Hero's Death drops it.
+        if (dragged && (pause.paused || world.death)) dragged = null;
+        if (dragged && !input.held) {
+          const order = skillDropOrder(app.screen, input.screen, dragged);
+          if (order) orders.push(order);
+          dragged = null;
+        }
         // A right-click on the Inventory equips or unequips the Item under
-        // it; anywhere else it does nothing.
+        // it, and on any other panel does nothing; off the panels, `poll`
+        // made it a cast.
         const rightAt = takeRightClick(input);
         const rightHit = rightAt && renderer.panelAt(rightAt);
         if (rightHit && !("button" in rightHit)) {
           const order = inventoryRightClickOrder(world, rightHit);
           if (order) orders.push(order);
         }
+        // After the keys and clicks, any of which may have shut it: I, T or
+        // Level Up opening the Skill Tree in its place.
+        returnOnShut(orders, inventoryWasOpen, menus);
         if (pressed && world.death && !pause.paused) {
           orders.push({ type: "Continue" });
           // So holding on after the click doesn't steer in Town.
@@ -216,7 +245,7 @@ export default function GameCanvas() {
         }
         // No hover outline, nameplate or tooltip under the menu.
         const pointer = pause.paused ? null : input.screen;
-        renderer.draw(world, alpha, pointer, now, menus);
+        renderer.draw(world, alpha, pointer, now, menus, dragged);
         app.render();
         frame = requestAnimationFrame(tick);
       };

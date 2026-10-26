@@ -39,6 +39,7 @@ function strongerBy(strength: number): Progress {
     strength: 20 + strength,
     dexterity: 20,
     vitality: 20,
+    energy: 20,
     attributePoints: 10 - strength,
   };
 }

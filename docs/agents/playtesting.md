@@ -18,8 +18,8 @@ The Save lives in `localStorage` under `wiablo.save` as JSON. Write one and relo
 
 ```js
 localStorage.setItem("wiablo.save", JSON.stringify({
-  version: 3, level: 3, experience: 2000,
-  strength: 20, dexterity: 20, vitality: 20, attributePoints: 10,
+  version: 4, level: 3, experience: 2000,
+  strength: 20, dexterity: 20, vitality: 20, energy: 20, attributePoints: 10,
   // Item types are the keys of `itemTuning` in src/game/tuning/items.ts.
   inventory: [{ type: "axe", cell: { column: 0, row: 0 } }],
   equipment: { weapon: "shortSword" },

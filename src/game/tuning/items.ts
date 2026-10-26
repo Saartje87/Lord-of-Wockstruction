@@ -8,16 +8,22 @@ export type ItemKind = "weapon" | "armour" | "ring" | "amulet" | "potion";
 /** What an Equipped Item can add to the Hero: an Attribute, or one of these. */
 export type Bonus = Attribute | "life" | "defense" | "attackRating";
 
+/** What a Potion gives back. */
+export type PotionResource = "life" | "mana";
+
 /**
- * What drinking a Potion does: give back `amount` of `resource` evenly over
- * `durationMs`, running its own course alongside any others.
+ * What drinking a Potion does: either give back `amount` of `resource`
+ * evenly over `durationMs`, running its own course alongside any others, or
+ * at once give back `share` of the maximum of each of `resources`.
  */
-export type PotionEffectTuning = {
-  type: "overTime";
-  resource: "life" | "mana";
-  amount: number;
-  durationMs: number;
-};
+export type PotionEffectTuning =
+  | {
+      type: "overTime";
+      resource: PotionResource;
+      amount: number;
+      durationMs: number;
+    }
+  | { type: "atOnce"; resources: PotionResource[]; share: number };
 
 /** One Item type's tuning. */
 export type ItemTuning = {
@@ -109,6 +115,25 @@ export const itemTuning = {
       durationMs: 4000,
     },
   },
+  manaPotion: {
+    name: "Mana Potion",
+    kind: "potion",
+    size: { columns: 1, rows: 1 },
+    bonuses: {},
+    potion: {
+      type: "overTime",
+      resource: "mana",
+      amount: 20,
+      durationMs: 4000,
+    },
+  },
+  rejuvenationPotion: {
+    name: "Rejuvenation Potion",
+    kind: "potion",
+    size: { columns: 1, rows: 1 },
+    bonuses: {},
+    potion: { type: "atOnce", resources: ["life", "mana"], share: 0.35 },
+  },
 } satisfies Record<string, ItemTuning>;
 
 /** One of the Item types, by its key in `itemTuning`. */
@@ -153,3 +178,14 @@ export const dropTuning: { chance: number; items: readonly ItemType[] } = {
   chance: 0.25,
   items: ITEM_TYPES.filter((type) => !isPotion(type)),
 };
+
+/**
+ * Potion drops, rolled on each kill apart from `dropTuning` and more often:
+ * `chance` of dropping one Potion, of a type picked from `items` with equal
+ * odds.
+ */
+export const potionDropTuning: { chance: number; items: readonly ItemType[] } =
+  {
+    chance: 0.4,
+    items: ITEM_TYPES.filter(isPotion),
+  };

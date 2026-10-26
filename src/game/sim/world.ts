@@ -1,6 +1,12 @@
 import { areaTuning } from "../tuning/areas";
 import { heroTuning } from "../tuning/hero";
-import { type Bonus, dropTuning, itemOf } from "../tuning/items";
+import {
+  type Bonus,
+  dropTuning,
+  isPotion,
+  itemOf,
+  potionDropTuning,
+} from "../tuning/items";
 import { minionTuning } from "../tuning/minions";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import { type Skill, skillTuning } from "../tuning/skills";
@@ -12,7 +18,7 @@ import {
   type Spawn,
   TOWN,
 } from "./area";
-import { type BeltColumns, emptyBelt } from "./belt";
+import { type BeltColumns, beltColumnFor, emptyBelt } from "./belt";
 import {
   type Belongings,
   type Cell,
@@ -63,6 +69,7 @@ import {
   drinkFromBelt,
   drinkItem,
   type PotionEffect,
+  type PotionMaxima,
   potionEffectsOf,
   stepPotionEffects,
 } from "./potions";
@@ -414,6 +421,8 @@ export type SimEvent =
   | { type: "ItemDropped"; item: Item; pos: Vec }
   /** The Hero picked up `item`, which now has its top-left at `cell`. */
   | { type: "ItemPickedUp"; item: Item; cell: Cell }
+  /** The Hero picked up the Potion `item` into the top of Belt Column `column`. */
+  | { type: "PotionPickedUp"; item: Item; column: number }
   /** The Hero got to a Ground Item with no room for it in the Inventory. */
   | { type: "NoRoom" }
   /** An Item moved in the Inventory or Equipment, onto the cursor or off it. */
@@ -708,6 +717,11 @@ export function maxMana(world: World): number {
   );
 }
 
+/** The Hero's maximum Life and Mana, as Potions are capped at. */
+function maxima(world: World): PotionMaxima {
+  return { life: maxLife(world), mana: maxMana(world) };
+}
+
 /**
  * The Hero's Defense, which Monsters' Attack Rating has to beat: the
  * Equipped Armour's base Defense plus the Equipped Items' +Defense, 0 with
@@ -989,7 +1003,7 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   if (!world.death) {
     hero.mana = Math.min(maxMana(world), hero.mana + MANA_REGEN_PER_STEP);
   }
-  stepPotionEffects(hero, { life: maxLife(world), mana: maxMana(world) });
+  stepPotionEffects(hero, maxima(world));
 
   world.tick += 1;
   return events;
@@ -1095,11 +1109,11 @@ function give(world: World, order: Order, events: SimEvent[]) {
     return;
   }
   if (order.type === "DrinkFromBelt") {
-    drinkFromBelt(world, order.column, events);
+    drinkFromBelt(world, order.column, maxima(world), events);
     return;
   }
   if (order.type === "DrinkItem") {
-    drinkItem(world, order.item, events);
+    drinkItem(world, order.item, maxima(world), events);
     return;
   }
   if (moveItem(world, order, events)) {
@@ -1250,8 +1264,9 @@ function approach(world: World) {
 }
 
 /**
- * Picks up the Ground Item the Hero walks to once it is in reach: into the
- * first free spot of the Inventory, or left lying with `NoRoom`.
+ * Picks up the Ground Item the Hero walks to once it is in reach: a Potion
+ * into a Belt Column with room, else into the first free spot of the
+ * Inventory, or left lying with `NoRoom`.
  */
 function reachGroundItem(world: World, events: SimEvent[]) {
   const { hero } = world;
@@ -1269,6 +1284,16 @@ function reachGroundItem(world: World, events: SimEvent[]) {
   }
   hero.pickingUp = null;
   hero.path = [];
+  const column = isPotion(lying.item.type)
+    ? beltColumnFor(world, lying.item.type)
+    : null;
+  if (column !== null) {
+    world.groundItems = world.groundItems.filter((other) => other !== lying);
+    hero.belt[column].push(lying.item);
+    events.push({ type: "PotionPickedUp", item: { ...lying.item }, column });
+    events.push({ type: "BeltChanged" });
+    return;
+  }
   const cell = firstFreeCell(taken(hero), lying.item.type);
   if (!cell) {
     events.push({ type: "NoRoom" });
@@ -1439,16 +1464,18 @@ function minionStrike(
 }
 
 /**
- * Rolls a dying Monster's drop: by `dropTuning.chance`, one Item of a type
- * picked with equal odds, lying where it died.
+ * Rolls a dying Monster's drops, each lying where it died: by
+ * `dropTuning.chance` one Item, then by `potionDropTuning.chance` one Potion,
+ * each of a type picked with equal odds.
  */
 function rollDrop(world: World, pos: Vec, events: SimEvent[]) {
-  if (random(world.rng) >= dropTuning.chance) return;
-  const { items } = dropTuning;
-  const type = items[randomInt(world.rng, [0, items.length - 1])];
-  const item = { id: world.nextItemId++, type };
-  world.groundItems.push({ item, pos: { ...pos } });
-  events.push({ type: "ItemDropped", item: { ...item }, pos: { ...pos } });
+  for (const { chance, items } of [dropTuning, potionDropTuning]) {
+    if (random(world.rng) >= chance) continue;
+    const type = items[randomInt(world.rng, [0, items.length - 1])];
+    const item = { id: world.nextItemId++, type };
+    world.groundItems.push({ item, pos: { ...pos } });
+    events.push({ type: "ItemDropped", item: { ...item }, pos: { ...pos } });
+  }
 }
 
 /**

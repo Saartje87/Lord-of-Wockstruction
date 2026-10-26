@@ -45,7 +45,7 @@ import {
 } from "../sim/world";
 import { heroTuning } from "../tuning/hero";
 import { inputTuning } from "../tuning/input";
-import { type ItemKind, type ItemType, itemOf } from "../tuning/items";
+import { type ItemType, itemOf } from "../tuning/items";
 import { minionTuning } from "../tuning/minions";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import { type Skill, skillTuning } from "../tuning/skills";
@@ -99,6 +99,7 @@ import {
   itemUnder,
   landingCell,
 } from "./inventoryPanel";
+import { itemColour } from "./itemArt";
 import { type Orb, orbFill } from "./orbs";
 import { menuChoiceAt, PAUSE_MENU_LAYOUT, pauseMenuLayout } from "./pauseMenu";
 import {
@@ -384,7 +385,7 @@ const HERO_PANEL_STYLE = {
 };
 /**
  * The Inventory panel's look, in the Hero panel's colours; where things go
- * is `inventoryPanelLayout`. Each Item is a box tinted by its kind with its
+ * is `inventoryPanelLayout`. Each Item is a box tinted as its type with its
  * name inside, and the tooltip sits `tooltipGap` over the hovered Item,
  * `tooltipPadding` around its lines (CSS px). A held Item follows the
  * cursor, over a highlight of where it would land: `fits` where it can go
@@ -413,16 +414,8 @@ const INVENTORY_STYLE = {
   tooltipPadding: 8,
   tooltipGap: 6,
 };
-/** The tint of each kind of Item on the Inventory panel. */
-const ITEM_COLOUR: Record<ItemKind, number> = {
-  weapon: 0x4a4a52,
-  armour: 0x5a4028,
-  ring: 0x3a3a68,
-  amulet: 0x5a3a5a,
-  potion: 0x7a2424,
-};
 /**
- * A Ground Item: a small diamond on the floor tinted by its kind, `size`
+ * A Ground Item: a small diamond on the floor tinted as its type, `size`
  * across (CSS px), under a dark label with its name, gold while hovered.
  * A click within `grab` of the diamond's box picks it up too.
  */
@@ -793,7 +786,7 @@ export function createRenderer(
           at.x - half,
           at.y,
         ])
-        .fill(ITEM_COLOUR[itemOf(item.type).kind])
+        .fill(itemColour(item.type))
         .stroke({ color: GROUND_ITEM.edge, width: 1 });
       let text = labelTexts.get(item.id);
       if (!text) {
@@ -1612,7 +1605,7 @@ function skillBarView() {
 
 /**
  * The Belt strip beside the Skill Bar, in its look: each Belt Column's key
- * in its corner, its bottom Potion as a flask tinted by kind, and how many
+ * in its corner, its bottom Potion as a flask tinted as its type, and how many
  * Potions the column holds.
  */
 function beltStripView() {
@@ -1652,7 +1645,7 @@ function beltStripView() {
           .stroke({ color: style.edge, width: 1.5 });
         if (shown.type !== null) {
           // A placeholder flask: a round body under a narrow neck.
-          const colour = ITEM_COLOUR[itemOf(shown.type).kind];
+          const colour = itemColour(shown.type);
           const cx = rect.x + rect.w / 2;
           const cy = rect.y + rect.h / 2 + 3;
           graphics
@@ -2107,7 +2100,7 @@ function inventoryPanelView() {
   layer.addChild(heldBox);
   const heldName = text(look.itemText, look.itemTextSize);
 
-  /** Draws an Item's box, tinted by its kind, with its name in `name`. */
+  /** Draws an Item's box, tinted as its type, with its name in `name`. */
   const drawItem = (
     to: Graphics,
     name: Text,
@@ -2117,7 +2110,7 @@ function inventoryPanelView() {
   ) => {
     const tuning = itemOf(type);
     to.rect(rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2)
-      .fill({ color: ITEM_COLOUR[tuning.kind], alpha })
+      .fill({ color: itemColour(type), alpha })
       .stroke({ color: look.itemEdge, width: 1 });
     name.visible = true;
     name.text = tuning.name;

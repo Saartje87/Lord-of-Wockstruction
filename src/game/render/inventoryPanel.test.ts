@@ -417,4 +417,19 @@ describe("an Item's tooltip", () => {
     ]);
     expect(itemTooltip("ringOfLife")).toEqual(["Ring of Life", "+10 to Life"]);
   });
+
+  it("says what a Potion gives back, and how fast", () => {
+    expect(itemTooltip("lifePotion")).toEqual([
+      "Life Potion",
+      "Gives back 30 Life over 4 seconds",
+    ]);
+    expect(itemTooltip("manaPotion")).toEqual([
+      "Mana Potion",
+      "Gives back 20 Mana over 4 seconds",
+    ]);
+    expect(itemTooltip("rejuvenationPotion")).toEqual([
+      "Rejuvenation Potion",
+      "Gives back 35% of Life and Mana at once",
+    ]);
+  });
 });

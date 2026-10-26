@@ -11,6 +11,7 @@ import {
   type BeltCell,
   type BeltTypes,
   beltRows,
+  beltTypesOf,
   isBeltCell,
   isValidBelt,
   newHeroBelt,
@@ -261,14 +262,7 @@ export function belongingsOf(world: World): Belongings {
       cell: { ...cell },
     })),
     equipment: worn,
-    belt: world.hero.belt.map((column, index) => {
-      const potions = column.map((item) => item.type);
-      if (cursor && isBeltCell(cursor.from)) {
-        const { beltColumn, row } = cursor.from;
-        if (beltColumn === index) potions.splice(row, 0, cursor.item.type);
-      }
-      return potions;
-    }),
+    belt: beltTypesOf(world),
   };
 }
 

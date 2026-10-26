@@ -16,6 +16,8 @@ import {
   type ItemType,
   inventoryTuning,
   itemOf,
+  type PotionEffectTuning,
+  type PotionResource,
 } from "../tuning/items";
 
 /**
@@ -244,10 +246,26 @@ const BONUS_NAMES: Record<Bonus, string> = {
   attackRating: "Attack Rating",
 };
 
+const RESOURCE_NAMES: Record<PotionResource, string> = {
+  life: "Life",
+  mana: "Mana",
+};
+
+/** The tooltip line saying what drinking a Potion gives back. */
+function potionLine(effect: PotionEffectTuning): string {
+  if (effect.type === "atOnce") {
+    const names = effect.resources.map((resource) => RESOURCE_NAMES[resource]);
+    const share = Math.round(effect.share * 100);
+    return `Gives back ${share}% of ${names.join(" and ")} at once`;
+  }
+  const seconds = effect.durationMs / 1000;
+  return `Gives back ${effect.amount} ${RESOURCE_NAMES[effect.resource]} over ${seconds} seconds`;
+}
+
 /**
  * The lines of an Item's tooltip, all of them the Item's own fixed values,
  * as in Diablo 2: its name, then a Weapon's damage before the Hero's
- * Strength, an Armour's Defense, and its bonuses.
+ * Strength, an Armour's Defense, its bonuses, and what a Potion gives back.
  */
 export function itemTooltip(type: ItemType): string[] {
   const item = itemOf(type);
@@ -261,5 +279,6 @@ export function itemTooltip(type: ItemType): string[] {
   for (const [bonus, amount] of Object.entries(item.bonuses)) {
     lines.push(`+${amount} to ${BONUS_NAMES[bonus as Bonus]}`);
   }
+  if (item.potion) lines.push(potionLine(item.potion));
   return lines;
 }

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { beltTuning, type ItemType } from "../tuning/items";
-import { beltHasRoom, beltOf, beltTypesOf } from "./belt";
+import { beltOf, beltTypesOf } from "./belt";
 import {
   type Belongings,
   belongingsOf,
@@ -42,6 +42,11 @@ function carrying(
 const belt = (column: number, row: number) => ({ beltColumn: column, row });
 
 const types = (events: SimEvent[]) => events.map((event) => event.type);
+
+const ofType = <T extends SimEvent["type"]>(events: SimEvent[], type: T) =>
+  events.filter(
+    (event): event is Extract<SimEvent, { type: T }> => event.type === type,
+  );
 
 afterEach(() => {
   beltTuning.rowsWithoutBelt = 1;
@@ -107,6 +112,28 @@ describe("putting a Potion into a Belt Column", () => {
     step(world, [{ type: "PlaceItem", to: belt(3, 1) }]);
     expect(beltOf(world)[3]).toEqual([bottom]);
     expect(beltOf(world)[0]).toHaveLength(1);
+  });
+
+  it("mixes Potion types within a column", () => {
+    beltTuning.rowsWithoutBelt = 3;
+    const world = carrying(
+      [["lifePotion"], [], [], []],
+      [
+        { type: "manaPotion", cell: { column: 0, row: 0 } },
+        { type: "rejuvenationPotion", cell: { column: 1, row: 0 } },
+      ],
+    );
+
+    step(world, [{ type: "LiftItem", from: { column: 0, row: 0 } }]);
+    step(world, [{ type: "PlaceItem", to: belt(0, 0) }]);
+    step(world, [{ type: "LiftItem", from: { column: 1, row: 0 } }]);
+    step(world, [{ type: "PlaceItem", to: belt(0, 2) }]);
+
+    expect(beltTypesOf(world)[0]).toEqual([
+      "lifePotion",
+      "manaPotion",
+      "rejuvenationPotion",
+    ]);
   });
 
   it("refuses an Item that isn't a Potion", () => {
@@ -192,12 +219,43 @@ describe("a Held Item lifted from the Belt", () => {
     expect(cursorItemOf(world)).toBeNull();
   });
 
-  it("keeps its row: the column has no room for another Potion meanwhile", () => {
-    const world = carrying([["lifePotion"], [], [], []]);
-
+  it("keeps its row: a Potion picked up meanwhile can't take it", () => {
+    const world = carrying([["lifePotion"], ["lifePotion"], [], ["lifePotion"]]);
+    // Leave a Potion from the second column lying at the Hero's feet.
+    step(world, [{ type: "LiftItem", from: belt(1, 0) }]);
+    const [dropped] = ofType(step(world, [{ type: "DropItem" }]), "ItemDropped");
     step(world, [{ type: "LiftItem", from: belt(0, 0) }]);
 
-    expect(beltHasRoom(world, 0)).toBe(false);
-    expect(beltHasRoom(world, 1)).toBe(true);
+    const events = step(world, [
+      { type: "PickUp", groundItem: dropped.item.id },
+    ]);
+
+    expect(ofType(events, "PotionPickedUp")).toEqual([
+      { type: "PotionPickedUp", item: dropped.item, column: 1 },
+    ]);
+    step(world, [{ type: "ReturnCursorItem" }]);
+    expect(beltTypesOf(world)).toEqual([
+      ["lifePotion"],
+      ["lifePotion"],
+      [],
+      ["lifePotion"],
+    ]);
+  });
+
+  it("counts as the bottom Potion of its column for a Potion picked up meanwhile", () => {
+    beltTuning.rowsWithoutBelt = 2;
+    const world = carrying([["lifePotion"], [], [], []], [
+      { type: "lifePotion", cell: { column: 0, row: 0 } },
+    ]);
+    // Leave the Inventory Potion lying at the Hero's feet.
+    step(world, [{ type: "LiftItem", from: { column: 0, row: 0 } }]);
+    const [dropped] = ofType(step(world, [{ type: "DropItem" }]), "ItemDropped");
+    step(world, [{ type: "LiftItem", from: belt(0, 0) }]);
+
+    const events = step(world, [
+      { type: "PickUp", groundItem: dropped.item.id },
+    ]);
+
+    expect(ofType(events, "PotionPickedUp")[0]?.column).toBe(0);
   });
 });

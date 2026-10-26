@@ -28,21 +28,6 @@ export function isBeltCell(spot: unknown): spot is BeltCell {
   return typeof spot === "object" && spot !== null && "beltColumn" in spot;
 }
 
-/**
- * Whether Belt Column `column` has room for one more Potion: a Held Item
- * lifted from it still counts as in it, its row kept for it.
- */
-export function beltHasRoom(world: World, column: number): boolean {
-  const { belt, cursor } = world.hero;
-  const potions = belt[column];
-  if (!potions) return false;
-  const held =
-    cursor && isBeltCell(cursor.from) && cursor.from.beltColumn === column
-      ? 1
-      : 0;
-  return potions.length + held < beltRows();
-}
-
 /** The key that drinks from Belt Column `column`: "1" for the leftmost on. */
 export function beltColumnKey(column: number): string {
   return String(column + 1);
@@ -90,9 +75,20 @@ export function beltOf(world: World): BeltColumns {
   return world.hero.belt.map((column) => column.map((item) => ({ ...item })));
 }
 
-/** The Belt Columns by Potion type, each from the bottom up. */
+/**
+ * The Belt Columns by Potion type, each from the bottom up, as the Save
+ * keeps them: a Held Item lifted from the Belt is back at its row.
+ */
 export function beltTypesOf(world: World): BeltTypes {
-  return world.hero.belt.map((column) => column.map((item) => item.type));
+  const { belt, cursor } = world.hero;
+  return belt.map((column, index) => {
+    const types = column.map((item) => item.type);
+    if (cursor && isBeltCell(cursor.from)) {
+      const { beltColumn, row } = cursor.from;
+      if (beltColumn === index) types.splice(row, 0, cursor.item.type);
+    }
+    return types;
+  });
 }
 
 /**
@@ -102,4 +98,20 @@ export function beltTypesOf(world: World): BeltTypes {
 export function takeFromBelt(world: World, column: number): Item | null {
   const potions = world.hero.belt[column];
   return potions?.shift() ?? null;
+}
+
+/**
+ * The Belt Column a picked-up Potion of `type` goes into: the leftmost with
+ * room whose bottom Potion is the same type, else the leftmost empty one, or
+ * null when neither is there. A Held Item lifted from the Belt counts as
+ * still in its column, so its row stays kept for it.
+ */
+export function beltColumnFor(world: World, type: ItemType): number | null {
+  const belt = beltTypesOf(world);
+  const sameType = belt.findIndex(
+    (column) => column.length < beltRows() && column[0] === type,
+  );
+  if (sameType !== -1) return sameType;
+  const empty = belt.findIndex((column) => column.length === 0);
+  return empty === -1 ? null : empty;
 }

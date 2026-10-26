@@ -6,6 +6,7 @@ import { combatArea } from "./testAreas";
 import {
   createWorld,
   maxLife,
+  maxMana,
   potionEffectsOf,
   type SimEvent,
   step,
@@ -139,6 +140,12 @@ const beltTypes = (world: World) =>
 const drink = (column: number) => ({ type: "DrinkFromBelt" as const, column });
 
 const LIFE = "lifePotion" as const;
+const MANA = "manaPotion" as const;
+const REJUVENATION = "rejuvenationPotion" as const;
+
+/** A Town whose Hero has `belt` in their Belt Columns. */
+const withBelt = (belt: Belongings["belt"]) =>
+  inTown({ ...FRESH_BELONGINGS, belt });
 
 afterEach(() => {
   beltTuning.rowsWithoutBelt = 1;
@@ -305,6 +312,122 @@ describe("a Life Potion", () => {
     expect(hits).toBeGreaterThan(0);
     expect(other.hero.life).toBeGreaterThan(0);
     expect(drinker.hero.life - other.hero.life).toBeCloseTo(30);
+  });
+});
+
+// Mana regenerates everywhere, so each Mana Potion's share is measured
+// against a Hero who didn't drink.
+describe("a Mana Potion", () => {
+  /** Two Heroes in Town at no Mana, the first having drunk `potions`. */
+  function drinkerAndNot(potions: number): [World, World] {
+    const belt = [[MANA], [MANA], [MANA], [MANA]];
+    const drinker = withBelt(belt);
+    const other = withBelt(belt);
+    drinker.hero.mana = 0;
+    other.hero.mana = 0;
+    step(
+      drinker,
+      Array.from({ length: potions }, (_, column) => drink(column)),
+    );
+    step(other, []);
+    return [drinker, other];
+  }
+
+  it("gives back 20 Mana gradually over 4 s", () => {
+    const [drinker, other] = drinkerAndNot(1);
+
+    wait(drinker, 119);
+    wait(other, 119);
+    expect(drinker.hero.mana - other.hero.mana).toBeCloseTo(10);
+
+    wait(drinker, 120);
+    wait(other, 120);
+    expect(drinker.hero.mana - other.hero.mana).toBeCloseTo(20);
+
+    wait(drinker, 120);
+    wait(other, 120);
+    expect(drinker.hero.mana - other.hero.mana).toBeCloseTo(20);
+  });
+
+  it("leaves Life alone", () => {
+    const [drinker, other] = drinkerAndNot(1);
+    drinker.hero.life = 20;
+    other.hero.life = 20;
+
+    wait(drinker, 239);
+    wait(other, 239);
+
+    expect(drinker.hero.life).toBeCloseTo(other.hero.life);
+  });
+
+  it("stops at maximum Mana", () => {
+    const w = withBelt([[MANA], [], [], []]);
+    w.hero.mana = maxMana(w) - 5;
+
+    step(w, [drink(0)]);
+    wait(w, 4 * 60);
+
+    expect(w.hero.mana).toBe(maxMana(w));
+  });
+
+  // Halfway through, as two Potions' full 40 would reach maximum Mana.
+  it("drunk back to back with another, both give back at once", () => {
+    const [drinker, other] = drinkerAndNot(2);
+
+    wait(drinker, 119);
+    wait(other, 119);
+
+    expect(drinker.hero.mana - other.hero.mana).toBeCloseTo(20);
+    expect(potionEffectsOf(drinker)).toEqual([
+      { resource: "mana", left: expect.closeTo(10) },
+      { resource: "mana", left: expect.closeTo(10) },
+    ]);
+  });
+
+  it("runs alongside a Life Potion", () => {
+    const w = withBelt([[MANA], [LIFE], [], []]);
+    w.hero.life = 20;
+    w.hero.mana = 0;
+
+    step(w, [drink(0), drink(1)]);
+
+    expect(potionEffectsOf(w)).toEqual([
+      { resource: "mana", left: expect.closeTo(20 - 20 / 240) },
+      { resource: "life", left: expect.closeTo(30 - 30 / 240) },
+    ]);
+  });
+});
+
+describe("a Rejuvenation Potion", () => {
+  it("at once gives back 35% of maximum Life and of maximum Mana", () => {
+    const w = withBelt([[REJUVENATION], [], [], []]);
+    const other = withBelt([[REJUVENATION], [], [], []]);
+    for (const hero of [w.hero, other.hero]) {
+      hero.life = 1;
+      hero.mana = 0;
+    }
+
+    const events = step(w, [drink(0)]);
+    step(other, []);
+
+    expect(events.map((event) => event.type)).toEqual([
+      "PotionDrunk",
+      "BeltChanged",
+    ]);
+    expect(w.hero.life - other.hero.life).toBeCloseTo(0.35 * maxLife(w));
+    expect(w.hero.mana - other.hero.mana).toBeCloseTo(0.35 * maxMana(w));
+    expect(potionEffectsOf(w)).toEqual([]);
+  });
+
+  it("stops at maximum Life and maximum Mana", () => {
+    const w = withBelt([[REJUVENATION], [], [], []]);
+    w.hero.life = maxLife(w) - 1;
+    w.hero.mana = maxMana(w) - 1;
+
+    step(w, [drink(0)]);
+
+    expect(w.hero.life).toBe(maxLife(w));
+    expect(w.hero.mana).toBe(maxMana(w));
   });
 });
 

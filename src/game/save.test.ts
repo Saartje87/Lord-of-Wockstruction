@@ -261,6 +261,16 @@ describe("stored text", () => {
     ]);
   });
 
+  it("round-trips Mana and Rejuvenation Potions, in the Belt and Inventory", () => {
+    const kept = save(progress(2, 600), {
+      inventory: [{ type: "rejuvenationPotion", cell: { column: 3, row: 2 } }],
+      equipment: {},
+      belt: [["manaPotion"], ["rejuvenationPotion"], [], ["lifePotion"]],
+    });
+
+    expect(parseSave(encodeSave(kept))).toEqual(kept);
+  });
+
   it("round-trips a Hero with nothing Equipped", () => {
     const kept = save(progress(2, 600), {
       inventory: [],

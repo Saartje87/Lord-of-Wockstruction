@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { skillTuning } from "../tuning/skills";
-import { emptySkillBar, placeLearnedSkill, putSkillOnBar } from "./skillBar";
+import {
+  emptySkillBar,
+  placeLearnedSkill,
+  putSkillOnBar,
+  SKILL_BAR_SLOTS,
+} from "./skillBar";
 import {
   createWorld,
   FRESH_PROGRESS,
@@ -294,12 +299,43 @@ describe("putSkillOnBar", () => {
   // A second Skill, which the tuning doesn't have yet.
   const other = "boneWall" as Skill;
 
-  it("replaces whatever Skill was in the slot", () => {
+  it("swaps it with the Skill in the slot when it came from another slot", () => {
     const bar = { ...emptySkillBar(), right: other, key2: "golem" as Skill };
 
     expect(putSkillOnBar(bar, "golem", "right")).toEqual({
       ...emptySkillBar(),
       right: "golem",
+      key2: other,
     });
+  });
+
+  it("moves it to an empty slot, emptying the one it came from", () => {
+    const bar = { ...emptySkillBar(), key2: "golem" as Skill };
+
+    expect(putSkillOnBar(bar, "golem", "key4")).toEqual({
+      ...emptySkillBar(),
+      key4: "golem",
+    });
+  });
+
+  it("takes the place of the Skill in the slot when it wasn't on the bar", () => {
+    const bar = { ...emptySkillBar(), key1: other };
+
+    expect(putSkillOnBar(bar, "golem", "key1")).toEqual({
+      ...emptySkillBar(),
+      key1: "golem",
+    });
+  });
+
+  it("never puts a Skill in two slots", () => {
+    const bar = { ...emptySkillBar(), right: other, key3: "golem" as Skill };
+
+    for (const slot of SKILL_BAR_SLOTS) {
+      const after = putSkillOnBar(bar, "golem", slot);
+      const golems = SKILL_BAR_SLOTS.filter((name) => after[name] === "golem");
+      const others = SKILL_BAR_SLOTS.filter((name) => after[name] === other);
+      expect(golems).toEqual([slot]);
+      expect(others).toHaveLength(1);
+    }
   });
 });

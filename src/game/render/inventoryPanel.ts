@@ -23,10 +23,12 @@ import {
   type PotionEffectTuning,
   type PotionResource,
 } from "../tuning/items";
+import { atUiScale, type Viewport } from "../viewport";
 import { type CloseButton, closeButtonRect, closeHitAt } from "./closeButton";
 
 /**
- * The Inventory panel at the top right (CSS px): `right` and `top` from the
+ * The Inventory panel at the top right (CSS px at native scale, drawn at
+ * the UI Scale): `right` and `top` from the
  * screen's corner, `titleHeight` for its title, the Equipment slots under
  * it and the grid `gridGap` under them, then `hintHeight` for its hint.
  * Cells are `maxCell` square, smaller where half the screen can't fit ten.
@@ -85,16 +87,21 @@ export type InventoryPanelLayout = {
  * and the panel grows to fit their rows.
  */
 export function inventoryPanelLayout(
-  screen: { width: number; height: number },
+  screen: Viewport,
   beltRows: number,
 ): InventoryPanelLayout {
-  const { right, top, padding, titleHeight, gridGap, hintHeight } =
-    INVENTORY_PANEL;
+  const { right, top, padding, titleHeight, gridGap, hintHeight } = atUiScale(
+    INVENTORY_PANEL,
+    screen.uiScale,
+  );
   const { columns, rows } = inventoryTuning;
-  const fits = Math.floor((screen.width / 2 - right - 2 * padding) / columns);
-  const cell = Math.max(
-    INVENTORY_PANEL.minCell,
-    Math.min(INVENTORY_PANEL.maxCell, fits),
+  const fits = (screen.width / 2 - right - 2 * padding) / columns;
+  // Whole pixels, so the grid's lines stay crisp.
+  const cell = Math.floor(
+    Math.max(
+      INVENTORY_PANEL.minCell * screen.uiScale,
+      Math.min(INVENTORY_PANEL.maxCell * screen.uiScale, fits),
+    ),
   );
   const width = columns * cell + 2 * padding;
   const x = screen.width - right - width;
@@ -135,7 +142,7 @@ export function inventoryPanelLayout(
   };
   return {
     panel,
-    closeButton: closeButtonRect(panel),
+    closeButton: closeButtonRect(panel, screen.uiScale),
     slots,
     belt,
     grid,
@@ -154,6 +161,25 @@ export function itemRect(
   return {
     x: grid.x + at.column * cell,
     y: grid.y + at.row * cell,
+    w: columns * cell,
+    h: rows * cell,
+  };
+}
+
+/**
+ * Where a Held Item of `type` is drawn: centred on `pointer`, at the size
+ * of the grid's cells, so it covers the cells it would land on.
+ */
+export function heldItemRect(
+  layout: InventoryPanelLayout,
+  pointer: Vec,
+  type: ItemType,
+): Rect {
+  const { cell } = layout;
+  const { columns, rows } = itemOf(type).size;
+  return {
+    x: pointer.x - (columns * cell) / 2,
+    y: pointer.y - (rows * cell) / 2,
     w: columns * cell,
     h: rows * cell,
   };
@@ -186,7 +212,7 @@ export type DropHit = { drop: true };
  * `beltRows` rows.
  */
 export function inventoryHitAt(
-  screen: { width: number; height: number },
+  screen: Viewport,
   point: Vec,
   open: boolean,
   holding: boolean,
@@ -246,7 +272,7 @@ export function landingCell(
  */
 export function inventoryOrder(
   world: World,
-  screen: { width: number; height: number },
+  screen: Viewport,
   point: Vec,
   hit: InventoryHit | DropHit,
 ): Order | null {
@@ -267,7 +293,7 @@ export function inventoryOrder(
  */
 export function putDownOrder(
   world: World,
-  screen: { width: number; height: number },
+  screen: Viewport,
   point: Vec,
   spot: ItemSpot,
   type: ItemType,

@@ -49,7 +49,13 @@ function overlapCentre(a: Rect, b: Rect) {
   return { x: (left + right) / 2, y: (top + bottom) / 2 };
 }
 
-const SMALL = viewportOf({ width: 1024, height: 640 });
+/**
+ * A short screen held at native scale, where the Inventory panel reaches
+ * down over the HUD. At the UI Scale they keep clear of each other on the
+ * screens the HUD is checked on, but the panel must still win where they
+ * meet.
+ */
+const SMALL = { width: 1024, height: 640, uiScale: 1 };
 const inventoryOpen = { ...createMenus(), inventoryOpen: true };
 
 describe("a press where the open Inventory panel covers the HUD", () => {

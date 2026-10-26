@@ -18,6 +18,7 @@ import type { Vec } from "./sim/vec";
 import type { Order, World } from "./sim/world";
 import type { ItemType } from "./tuning/items";
 import type { Skill } from "./tuning/skills";
+import type { Viewport } from "./viewport";
 
 /**
  * What the cursor holds besides the Held Item, which lives in the World. UI
@@ -59,11 +60,11 @@ export type CursorPoint<At = Vec> = { at: At; hit: CursorHit | null };
 /** Where the left button went up, or off the canvas (null), and what it hit there. */
 export type CursorRelease = CursorPoint<Vec | null>;
 
-/** What the cursor works with: the World and the screen as last drawn. */
-export type CursorScene = {
-  world: World;
-  screen: { width: number; height: number };
-};
+/**
+ * What the cursor works with: the World and the viewport as last drawn, so a
+ * Held Item lands where the panels were laid out.
+ */
+export type CursorScene = { world: World; screen: Viewport };
 
 /**
  * What a press or release did with the cursor: the orders to send, the

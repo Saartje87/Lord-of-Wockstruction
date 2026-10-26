@@ -39,7 +39,8 @@ function inside(outer: Rect, rect: Rect): boolean {
 }
 
 /** The top of the panel's first row, Level, under the title. */
-const firstRowTop = () => rowTop(PANEL_ROWS.level);
+const firstRowTop = () =>
+  rowTop(viewportOf({ width: 1280, height: 720 }), PANEL_ROWS.level);
 
 /**
  * A Town of three tiles in a row, the Hero's `start` on the first and a

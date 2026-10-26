@@ -44,6 +44,7 @@ import {
 import { isFloor } from "./sim/area";
 import type { Vec } from "./sim/vec";
 import { createWorld, type Order, step } from "./sim/world";
+import { viewportOf } from "./viewport";
 
 /** Mounts the Pixi Application and runs the fixed-step loop. */
 export default function GameCanvas() {
@@ -163,7 +164,7 @@ export default function GameCanvas() {
         // Stands still while paused, so the clock owes no steps for it and
         // the World and every effect hold still.
         const now = gameTime(pause, realNow);
-        const scene = { world, screen: app.screen };
+        const scene = { world, screen: viewportOf(app.screen) };
         // Whether the Hero lies in Death, for the cursor; the World doesn't
         // step again until after it.
         const heroDead = world.death !== null;

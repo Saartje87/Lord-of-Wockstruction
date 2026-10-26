@@ -1,9 +1,11 @@
 import type { MenuChoice } from "../menus";
 import { inside, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
+import type { Viewport } from "../viewport";
 
 /**
- * Where the pause menu goes (CSS px): a `width` × `height` panel in the
+ * Where the pause menu goes (CSS px at native scale, drawn at the UI
+ * Scale): a `width` × `height` panel in the
  * middle of the screen, with its buttons in a row `buttonsTop` down it,
  * `gap` apart.
  */
@@ -23,15 +25,20 @@ export type MenuButton = { choice: MenuChoice; label: string; rect: Rect };
  * while `confirming` one.
  */
 export function pauseMenuLayout(
-  screen: { width: number; height: number },
+  screen: Viewport,
   confirming: boolean,
 ): { panel: Rect; buttons: MenuButton[] } {
-  const { width, height, buttonsTop, button, gap } = PAUSE_MENU_LAYOUT;
+  const scale = screen.uiScale;
+  const { width, height, buttonsTop, gap } = PAUSE_MENU_LAYOUT;
+  const button = {
+    width: PAUSE_MENU_LAYOUT.button.width * scale,
+    height: PAUSE_MENU_LAYOUT.button.height * scale,
+  };
   const panel = {
-    x: Math.round((screen.width - width) / 2),
-    y: Math.round((screen.height - height) / 2),
-    w: width,
-    h: height,
+    x: Math.round((screen.width - width * scale) / 2),
+    y: Math.round((screen.height - height * scale) / 2),
+    w: width * scale,
+    h: height * scale,
   };
   const row: { choice: MenuChoice; label: string }[] = confirming
     ? [
@@ -39,15 +46,15 @@ export function pauseMenuLayout(
         { choice: "goBack", label: "No (N)" },
       ]
     : [{ choice: "newHero", label: "New Hero (N)" }];
-  const rowWidth = row.length * button.width + (row.length - 1) * gap;
-  const left = panel.x + (width - rowWidth) / 2;
+  const rowWidth = row.length * button.width + (row.length - 1) * gap * scale;
+  const left = panel.x + (panel.w - rowWidth) / 2;
   return {
     panel,
     buttons: row.map((entry, i) => ({
       ...entry,
       rect: {
-        x: left + i * (button.width + gap),
-        y: panel.y + buttonsTop,
+        x: left + i * (button.width + gap * scale),
+        y: panel.y + buttonsTop * scale,
         w: button.width,
         h: button.height,
       },
@@ -57,7 +64,7 @@ export function pauseMenuLayout(
 
 /** The pause-menu button under `point`, or null off them all. */
 export function menuChoiceAt(
-  screen: { width: number; height: number },
+  screen: Viewport,
   point: Vec,
   confirming: boolean,
 ): MenuChoice | null {

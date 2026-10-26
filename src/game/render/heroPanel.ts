@@ -26,7 +26,8 @@ import { experienceBar } from "./experienceBar";
 import { orbsLayout } from "./orbs";
 
 /**
- * The Hero panel at the top left (CSS px): `left` and `top` from the
+ * The Hero panel at the top left (CSS px at native scale, drawn at the UI
+ * Scale): `left` and `top` from the
  * screen's corner, its rows `rowHeight` apart from `firstRow` down, and each
  * Attribute's + button `plus` square at the right of its row, its − button
  * the same size `buttonGap` to the left. Accept spans both on the unspent
@@ -200,20 +201,19 @@ export function heroPanelLayout(screen: Viewport): {
   accept: Rect;
   levelUp: Rect;
 } {
-  const panel = {
-    x: HERO_PANEL.left,
-    y: HERO_PANEL.top,
-    w: HERO_PANEL.width,
-    h: HERO_PANEL.height,
-  };
-  const plusX = panel.x + panel.w - HERO_PANEL.padding - HERO_PANEL.plus;
-  const minusX = plusX - HERO_PANEL.buttonGap - HERO_PANEL.plus;
+  const { padding, plus, buttonGap, rowHeight } = atUiScale(
+    HERO_PANEL,
+    screen.uiScale,
+  );
+  const panel = heroPanelRect(screen);
+  const plusX = panel.x + panel.w - padding - plus;
+  const minusX = plusX - buttonGap - plus;
   /** A button `x` across on row `row`, centred in it. */
-  const buttonAt = (x: number, row: number, w = HERO_PANEL.plus): Rect => ({
+  const buttonAt = (x: number, row: number, w = plus): Rect => ({
     x,
-    y: rowTop(row) + (HERO_PANEL.rowHeight - HERO_PANEL.plus) / 2,
+    y: rowTop(screen, row) + (rowHeight - plus) / 2,
     w,
-    h: HERO_PANEL.plus,
+    h: plus,
   });
   const perAttribute = (x: number) =>
     Object.fromEntries(
@@ -224,14 +224,10 @@ export function heroPanelLayout(screen: Viewport): {
     ) as Record<Attribute, Rect>;
   return {
     panel,
-    closeButton: closeButtonRect(panel),
+    closeButton: closeButtonRect(panel, screen.uiScale),
     raise: perAttribute(plusX),
     lower: perAttribute(minusX),
-    accept: buttonAt(
-      minusX,
-      PANEL_ROWS.attributePoints,
-      plusX + HERO_PANEL.plus - minusX,
-    ),
+    accept: buttonAt(minusX, PANEL_ROWS.attributePoints, plusX + plus - minusX),
     levelUp: levelUpRect(screen),
   };
 }
@@ -244,9 +240,16 @@ function levelUpRect(screen: Viewport): Rect {
   return { x: life.x - width / 2, y: top, w: width, h: height };
 }
 
-/** The top of the panel's row `row` (CSS px). */
-export function rowTop(row: number): number {
-  return HERO_PANEL.top + HERO_PANEL.firstRow + row * HERO_PANEL.rowHeight;
+/** Where the Hero panel itself is drawn, at the UI Scale. */
+function heroPanelRect(screen: Viewport): Rect {
+  const { left, top, width, height } = atUiScale(HERO_PANEL, screen.uiScale);
+  return { x: left, y: top, w: width, h: height };
+}
+
+/** The top of the panel's row `row` (CSS px), at the UI Scale. */
+export function rowTop(screen: Viewport, row: number): number {
+  const { firstRow, rowHeight } = atUiScale(HERO_PANEL, screen.uiScale);
+  return heroPanelRect(screen).y + firstRow + row * rowHeight;
 }
 
 /**

@@ -8,11 +8,12 @@ import {
   type World,
 } from "../sim/world";
 import { skillTuning } from "../tuning/skills";
+import { atUiScale, type Viewport } from "../viewport";
 import { type CloseButton, closeButtonRect, closeHitAt } from "./closeButton";
 
 /**
  * The Skill Tree panel at the top right, where the Inventory panel goes
- * (CSS px): `right` and `top` from the screen's corner, its rows
+ * (CSS px at native scale, drawn at the UI Scale): `right` and `top` from the screen's corner, its rows
  * `rowHeight` apart from `firstRow` down, `hintHeight` under them for its
  * hint, and each Skill's + button `plus` square at the right of its name.
  */
@@ -78,9 +79,12 @@ export function skillTreeSheet(world: World): SkillTreeSheet {
   };
 }
 
-/** The top of the panel's row `row` (CSS px). */
-export function skillTreeRowTop(row: number): number {
-  const { top, firstRow, rowHeight } = SKILL_TREE_PANEL;
+/** The top of the panel's row `row` (CSS px), at the UI Scale. */
+export function skillTreeRowTop(screen: Viewport, row: number): number {
+  const { top, firstRow, rowHeight } = atUiScale(
+    SKILL_TREE_PANEL,
+    screen.uiScale,
+  );
   return top + firstRow + row * rowHeight;
 }
 
@@ -94,40 +98,39 @@ export function skillRow(index: number, row: number): number {
  * pressing a learned Skill picks it up to drag onto the Skill Bar) and each
  * Skill's + button.
  */
-export function skillTreePanelLayout(screen: { width: number }): {
+export function skillTreePanelLayout(screen: Viewport): {
   panel: Rect;
   closeButton: Rect;
   skills: Record<Skill, Rect>;
   raise: Record<Skill, Rect>;
 } {
-  const { right, top, width, padding, rowHeight, hintHeight, plus } =
-    SKILL_TREE_PANEL;
+  const { right, top, width, padding, rowHeight, hintHeight, plus } = atUiScale(
+    SKILL_TREE_PANEL,
+    screen.uiScale,
+  );
+  const rowTop = (row: number) => skillTreeRowTop(screen, row);
   const x = screen.width - right - width;
   const rows = skillRow(SKILLS.length, 0) - 1;
   const panel = {
     x,
     y: top,
     w: width,
-    h: skillTreeRowTop(rows) + hintHeight + padding - top,
+    h: rowTop(rows) + hintHeight + padding - top,
   };
   const plusAt = (index: number): Rect => ({
     x: x + width - padding - plus,
-    y:
-      skillTreeRowTop(skillRow(index, SKILL_TREE_ROWS.name)) +
-      (rowHeight - plus) / 2,
+    y: rowTop(skillRow(index, SKILL_TREE_ROWS.name)) + (rowHeight - plus) / 2,
     w: plus,
     h: plus,
   });
   const rowsOf = (index: number): Rect => {
-    const y = skillTreeRowTop(skillRow(index, SKILL_TREE_ROWS.name));
-    const end = skillTreeRowTop(
-      skillRow(index, SKILL_TREE_ROWS.requiredLevel + 1),
-    );
+    const y = rowTop(skillRow(index, SKILL_TREE_ROWS.name));
+    const end = rowTop(skillRow(index, SKILL_TREE_ROWS.requiredLevel + 1));
     return { x: x + padding, y, w: width - 2 * padding, h: end - y };
   };
   return {
     panel,
-    closeButton: closeButtonRect(panel),
+    closeButton: closeButtonRect(panel, screen.uiScale),
     skills: Object.fromEntries(
       SKILLS.map((skill, index) => [skill, rowsOf(index)]),
     ) as Record<Skill, Rect>,
@@ -157,7 +160,7 @@ export type SkillTreeHit = {
  * a learned Skill's rows pick it up.
  */
 export function skillTreeHitAt(
-  screen: { width: number },
+  screen: Viewport,
   point: Vec,
   world: World,
   open: boolean,

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { itemOf } from "../tuning/items";
 import { monsterTuning } from "../tuning/monsters";
 import type { Belongings } from "./inventory";
+import { combatArea } from "./testAreas";
 import {
   attackRating,
   chanceToHit,
@@ -13,14 +14,6 @@ import {
   step,
   type World,
 } from "./world";
-
-/** A map made a Combat Area by giving it Area Level 1. */
-function combatArea(map: object) {
-  return {
-    ...map,
-    properties: [{ name: "areaLevel", type: "int", value: 1 }],
-  };
-}
 
 /**
  * An orthogonal Area of open floor drawn row by row: `.` floor, `H` the
@@ -126,10 +119,9 @@ describe("chance to hit", () => {
     const w = world(["H.S"]);
 
     expect(attackRating(w)).toBe(100);
-    expect(heroChanceToHit(w, { type: "skeleton", level: 1 })).toBeCloseTo(
-      0.85,
-      2,
-    );
+    expect(
+      heroChanceToHit(w, { type: "skeleton", monsterLevel: 1 }),
+    ).toBeCloseTo(0.85, 2);
   });
 
   it("follows 2 × AR / (AR + Defense)", () => {

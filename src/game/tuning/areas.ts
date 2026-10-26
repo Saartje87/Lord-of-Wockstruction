@@ -5,7 +5,7 @@ export type AreaTuning = {
    * while the World stands still, and the Areas swap halfway.
    */
   changeMs: number;
-  /** How long the Area-name banner takes to fade in on arriving (ms). */
+  /** How long the Area Banner takes to fade in on arriving (ms). */
   bannerFadeInMs: number;
   /** How long it then holds fully opaque (ms). */
   bannerHoldMs: number;

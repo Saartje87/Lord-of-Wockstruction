@@ -46,7 +46,7 @@ import { inputTuning } from "../tuning/input";
 import { type ItemKind, type ItemType, itemOf } from "../tuning/items";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import { type Compass, compassOf, frameAt, swingFrame } from "./animation";
-import { areaBanner, bannerAt } from "./areaBanner";
+import { arrivedInDisplayName, bannerOpacityAt } from "./areaBanner";
 import { type Animation, type Art, type CharacterArt, frameOf } from "./art";
 import {
   type DamageNumber,
@@ -217,7 +217,7 @@ const NUMBER_COLOUR: Record<DamageNumber["kind"], number> = {
 };
 
 /**
- * The Area-name banner on arriving (CSS px): pale gold with a black outline,
+ * The Area Banner (CSS px): pale gold with a black outline,
  * centred `top` of the way down the screen.
  */
 const BANNER = { size: 34, stroke: 4, colour: 0xe8d27a, top: 0.22 };
@@ -407,7 +407,7 @@ type MonsterView = CharacterView & {
 
 /**
  * Draws the World's active Area and everything in it into a Pixi stage,
- * following the Hero. `areaDisplayNames` are what the banner on arriving in
+ * following the Hero. `areaDisplayNames` are what the Area Banner on arriving in
  * an Area shows, by Area name.
  */
 export function createRenderer(
@@ -525,8 +525,13 @@ export function createRenderer(
   let markedAtMs: number | null = null;
   let hurtAtMs: number | null = null;
   let levelAtMs: number | null = null;
-  /** When the Hero last arrived in an Area, for the banner. */
+  /** When the Hero last arrived in an Area, for the Area Banner. */
   let arrivedAtMs: number | null = null;
+  /** Starts the Area Banner showing `displayName`, as of `nowMs`. */
+  const showBanner = (displayName: string, nowMs: number) => {
+    banner.text = displayName;
+    arrivedAtMs = nowMs;
+  };
   /** The World last drawn; a New Hero brings another. */
   let drawnWorld: World | null = null;
   /** Whether the Hero panel was open when last drawn. */
@@ -714,11 +719,8 @@ export function createRenderer(
 
     /** Turns a step's events into effects. */
     react(events: readonly SimEvent[], nowMs: number) {
-      const arrivedIn = areaBanner(events, areaDisplayNames);
-      if (arrivedIn !== null) {
-        banner.text = arrivedIn;
-        arrivedAtMs = nowMs;
-      }
+      const arrivedIn = arrivedInDisplayName(events, areaDisplayNames);
+      if (arrivedIn !== null) showBanner(arrivedIn, nowMs);
       for (const number of damageNumbers(events)) {
         const sprite =
           number.on === "hero" ? hero.sprite : monsters.get(number.on)?.sprite;
@@ -780,8 +782,7 @@ export function createRenderer(
       if (world !== drawnWorld) {
         showWorld(world);
         // A new World starts the Hero in an Area: they've arrived there.
-        banner.text = areaDisplayNames[world.areaName] ?? "";
-        arrivedAtMs = nowMs;
+        showBanner(areaDisplayNames[world.areaName], nowMs);
       } else if (active !== area) showArea(active);
       const heroAt = lerp(world.hero.prevPos, world.hero.pos, alpha);
       const at = toScreen(heroAt);
@@ -1005,7 +1006,7 @@ export function createRenderer(
       }
 
       const bannerAlpha =
-        arrivedAtMs === null ? null : bannerAt(nowMs - arrivedAtMs);
+        arrivedAtMs === null ? null : bannerOpacityAt(nowMs - arrivedAtMs);
       banner.visible = bannerAlpha !== null;
       if (bannerAlpha !== null) {
         banner.alpha = bannerAlpha;

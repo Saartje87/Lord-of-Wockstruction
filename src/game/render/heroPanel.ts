@@ -84,7 +84,7 @@ export function heroSheet(world: World): HeroSheet {
   // A Skeleton as strong as one spawned in the Area the Hero is in.
   const skeletonHere = {
     type: "skeleton" as const,
-    level: monsterLevelIn(world.areas[world.areaName]),
+    monsterLevel: monsterLevelIn(world.areas[world.areaName]),
   };
   return {
     level: `Level ${progress.level}`,

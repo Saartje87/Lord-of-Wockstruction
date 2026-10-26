@@ -1,6 +1,7 @@
 import { heroTuning } from "../tuning/hero";
 import {
   experienceDropOff,
+  type MonsterGrowth,
   type MonsterType,
   monsterTuning,
 } from "../tuning/monsters";
@@ -47,50 +48,58 @@ const STEPPED = Object.fromEntries(
 >;
 
 /** A Monster type at a Monster Level: all its scaled numbers depend on. */
-export type MonsterOfLevel = Pick<Monster, "type" | "level">;
+export type MonsterOfLevel = Pick<Monster, "type" | "monsterLevel">;
 
 /**
  * A Monster Level 1 number grown by `rate` of itself for each Monster Level
  * above 1, rounded to a whole number.
  */
-function grown(value: number, rate: number, level: number): number {
-  return Math.round(value * (1 + rate * (level - 1)));
+function grown(value: number, rate: number, monsterLevel: number): number {
+  return Math.round(value * (1 + rate * (monsterLevel - 1)));
+}
+
+/** A one-number tuning value that grows with Monster Level. */
+type GrowingStat = Exclude<keyof MonsterGrowth, "damage">;
+
+/** A Monster type's `stat` grown to its Monster Level. */
+function grownStat(
+  { type, monsterLevel }: MonsterOfLevel,
+  stat: GrowingStat,
+): number {
+  const tuning = monsterTuning[type];
+  return grown(tuning[stat], tuning.growth[stat], monsterLevel);
 }
 
 /** A Monster's max Life at its Monster Level. */
-export function monsterMaxLife({ type, level }: MonsterOfLevel): number {
-  const { life, growth } = monsterTuning[type];
-  return grown(life, growth.life, level);
+export function monsterMaxLife(monster: MonsterOfLevel): number {
+  return grownStat(monster, "life");
 }
 
 /** The least and most damage a Monster's hit deals at its Monster Level. */
 export function monsterDamageRange({
   type,
-  level,
+  monsterLevel,
 }: MonsterOfLevel): [number, number] {
   const { damage, growth } = monsterTuning[type];
   return [
-    grown(damage[0], growth.damage, level),
-    grown(damage[1], growth.damage, level),
+    grown(damage[0], growth.damage, monsterLevel),
+    grown(damage[1], growth.damage, monsterLevel),
   ];
 }
 
 /** A Monster's Attack Rating at its Monster Level. */
-export function monsterAttackRating({ type, level }: MonsterOfLevel): number {
-  const { attackRating, growth } = monsterTuning[type];
-  return grown(attackRating, growth.attackRating, level);
+export function monsterAttackRating(monster: MonsterOfLevel): number {
+  return grownStat(monster, "attackRating");
 }
 
 /** A Monster's Defense at its Monster Level. */
-export function monsterDefense({ type, level }: MonsterOfLevel): number {
-  const { defense, growth } = monsterTuning[type];
-  return grown(defense, growth.defense, level);
+export function monsterDefense(monster: MonsterOfLevel): number {
+  return grownStat(monster, "defense");
 }
 
 /** The Experience killing a Monster is worth at its Monster Level. */
-export function monsterExperience({ type, level }: MonsterOfLevel): number {
-  const { experience, growth } = monsterTuning[type];
-  return grown(experience, growth.experience, level);
+export function monsterExperience(monster: MonsterOfLevel): number {
+  return grownStat(monster, "experience");
 }
 
 /**
@@ -102,7 +111,7 @@ export function killExperience(
   monster: MonsterOfLevel,
   heroLevel: number,
 ): number {
-  const below = Math.max(0, heroLevel - monster.level);
+  const below = Math.max(0, heroLevel - monster.monsterLevel);
   const factor =
     experienceDropOff[Math.min(below, experienceDropOff.length - 1)];
   return Math.round(monsterExperience(monster) * factor);

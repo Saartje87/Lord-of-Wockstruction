@@ -7,6 +7,7 @@ import {
   inventoryOf,
   placement,
 } from "./inventory";
+import { combatArea } from "./testAreas";
 import {
   createWorld,
   groundItemsOf,
@@ -336,10 +337,7 @@ describe("A held Item going back", () => {
   it("goes back when the Hero walks into an Exit", () => {
     const areas = {
       town: map(["H.E"], { exitTo: "cave" }),
-      cave: {
-        ...map(["H.."]),
-        properties: [{ name: "areaLevel", type: "int", value: 1 }],
-      },
+      cave: combatArea(map(["H.."])),
     };
     const world = carrying([at("axe", 2, 1)], areas);
     lift(world, 2, 1);

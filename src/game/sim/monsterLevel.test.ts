@@ -1,12 +1,14 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { monsterTuning } from "../tuning/monsters";
 import {
+  type MonsterOfLevel,
   monsterAttackRating,
   monsterDamageRange,
   monsterDefense,
   monsterExperience,
   monsterMaxLife,
 } from "./monsters";
+import { combatArea } from "./testAreas";
 import {
   createWorld,
   FRESH_PROGRESS,
@@ -64,17 +66,12 @@ function map(
       });
     }
   });
-  return {
+  const area = {
     orientation: "orthogonal",
     width,
     height,
     tilewidth: 32,
     tileheight: 32,
-    ...(areaLevel === null
-      ? {}
-      : {
-          properties: [{ name: "areaLevel", type: "int", value: areaLevel }],
-        }),
     layers: [
       {
         type: "tilelayer",
@@ -86,6 +83,7 @@ function map(
       { type: "objectgroup", name: "objects", objects },
     ],
   };
+  return areaLevel === null ? area : combatArea(area, areaLevel);
 }
 
 /**
@@ -143,7 +141,10 @@ function killOne(world: World): SimEvent[] {
   return all;
 }
 
-const skeletonAt = (level: number) => ({ type: "skeleton" as const, level });
+const skeletonAt = (monsterLevel: number): MonsterOfLevel => ({
+  type: "skeleton",
+  monsterLevel,
+});
 
 const tunedGrowth = { ...monsterTuning.skeleton.growth };
 afterEach(() => {
@@ -152,18 +153,21 @@ afterEach(() => {
 
 describe("Monster Level", () => {
   it("is the Area Level of the Area every Monster spawns in", () => {
+    monsterTuning.skeleton.growth.life = 0.5;
     const w = inCrypt(4, { pack: 3 });
 
-    expect(w.monsters.map((monster) => monster.level)).toEqual([4, 4, 4]);
+    // 60 Life grown by half of itself for each of 3 Monster Levels above 1.
+    expect(w.monsters.map(monsterMaxLife)).toEqual([150, 150, 150]);
   });
 
   it("is the Area Level again after leaving the Area and coming back", () => {
+    monsterTuning.skeleton.growth.life = 0.5;
     const w = inCrypt(4, { pack: 3 });
     walkThrough(w, 0, 0);
     expect(w.areaName).toBe("town");
     walkThrough(w, 2, 0);
 
-    expect(w.monsters.map((monster) => monster.level)).toEqual([4, 4, 4]);
+    expect(w.monsters.map(monsterMaxLife)).toEqual([150, 150, 150]);
   });
 
   it("makes a Monster Level 1 Skeleton today's Skeleton exactly", () => {
@@ -243,7 +247,14 @@ describe("a Monster's scaled numbers in play", () => {
     monsterTuning.skeleton.growth.life = 0.5;
     const w = inCrypt(3);
 
-    expect(w.monsters[0].life).toBe(120);
+    const dealt = killOne(w).flatMap((e) =>
+      e.type === "HitLanded" ? [e.damage] : [],
+    );
+    const beforeLastHit = dealt.slice(0, -1).reduce((sum, d) => sum + d, 0);
+
+    // It took 120 damage to kill: it lived through all but the last hit.
+    expect(beforeLastHit).toBeLessThan(120);
+    expect(beforeLastHit + (dealt.at(-1) ?? 0)).toBeGreaterThanOrEqual(120);
   });
 
   it("give its scaled Experience when it dies", () => {

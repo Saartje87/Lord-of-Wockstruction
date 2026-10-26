@@ -2,8 +2,8 @@
  * Monster tuning, in human units. The sim converts it to steps once. The
  * Skeleton's numbers are the final knobs of the Monster behaviour prototype
  * (#82), with the damage from the combat numbers (#83). The Zombie's and
- * the Skeleton Archer's are starting values against the Skeleton's, until a
- * tuning pass sets them.
+ * the Skeleton Archer's are set against the Skeleton's, by fights in the
+ * Catacombs, Crypt and Ossuary and `npm run tuning:report` (T199).
  */
 export type MonsterTuning = {
   /** Shown on the nameplate. */
@@ -158,7 +158,9 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
   zombie: {
     name: "Zombie",
     life: 150,
-    experience: 175,
+    // Twice a Skeleton's: one takes about twice as long to kill, and costs
+    // the Hero about twice the Life, in every Combat Area.
+    experience: 200,
     speed: 1.4,
     damage: [7, 14],
     // A little easier to hit than a Skeleton.
@@ -187,10 +189,13 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
     flinchChance: 0.1,
     flinchMs: 200,
     flinchInterrupts: false,
-    // The Skeleton's rates to start with.
+    // Slower than the Skeleton's in Life and damage. At its rates a Zombie
+    // hit for 17–34 in the Ossuary and cost three times a Skeleton's Life to
+    // kill there. Now it has 360 Life and hits for 14–29, still well above a
+    // Skeleton's 10–19.
     growth: {
-      life: 0.25,
-      damage: 0.2,
+      life: 0.2,
+      damage: 0.15,
       attackRating: 0.1,
       defense: 0.15,
       experience: 3,
@@ -220,12 +225,16 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
     reachGrace: 0.25,
     arcDegrees: 60,
     // Faster than the Hero's 5.5 tiles/s walk, so it threatens, but slow
-    // enough at range to step aside from.
+    // enough at range to step aside from. From its furthest shot an Arrow
+    // flies on 4 tiles past where it was aimed: enough to land on whatever
+    // stands just behind, and a Hero backing straight off has outrun it.
     ranged: { range: 6, projectileSpeed: 9, projectileRange: 10 },
     windUpMs: 600,
     rootMs: 200,
     recoveryMs: 1600,
     jitterMs: 400,
+    // No cap: a pack of three looses about one Arrow a second between them,
+    // which hurts less than the Skeletons in front of them.
     maxAttackers: 0,
     leash: 14,
     returnSpeed: 1.2,
@@ -234,7 +243,8 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
     flinchChance: 0.5,
     flinchMs: 200,
     flinchInterrupts: true,
-    // The Skeleton's rates to start with.
+    // The Skeleton's rates, so it stays as fragile next to one in every
+    // Combat Area: 99 Life and 7–14 an Arrow in the Ossuary.
     growth: {
       life: 0.25,
       damage: 0.2,

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { areaDisplayNames, areas, tilesets } from "./content";
-import type { Area, Exit } from "./sim/area";
+import type { Area, Exit, Spawn } from "./sim/area";
 import { type MonsterOfLevel, monsterExperience } from "./sim/monsters";
+import { findPath } from "./sim/path";
 import type { Vec } from "./sim/vec";
 import {
   createWorld,
@@ -353,6 +354,16 @@ describe("the shipped Areas", () => {
     }
   });
 
+  it("teach one new Monster type per Combat Area: Zombies in the Catacombs, Skeleton Archers in the Crypt, and all three in the Ossuary", () => {
+    const { catacombs, crypt, ossuary } = shippedWorld().areas;
+    const typesIn = (area: Area) =>
+      [...new Set(area.spawns.map((spawn) => spawn.monster))].sort();
+
+    expect(typesIn(catacombs)).toEqual(["skeleton", "zombie"]);
+    expect(typesIn(crypt)).toEqual(["skeleton", "skeleton_archer"]);
+    expect(typesIn(ossuary)).toEqual(["skeleton", "skeleton_archer", "zombie"]);
+  });
+
   it("place Skeleton Archers in the Crypt once the Hero gets there", () => {
     const world = worldEntering("crypt", "start");
 
@@ -399,21 +410,49 @@ describe("the shipped Areas", () => {
     expect(world.monsters.every(isAtMonsterLevel(8))).toBe(true);
   });
 
-  it("build the Ossuary about the Catacombs' size on the dungeon tileset, with bigger Skeleton packs than the Crypt", () => {
+  it("build the Ossuary about the Catacombs' size on the dungeon tileset, with more Monsters than the Crypt", () => {
     const { catacombs, crypt, ossuary } = shippedWorld().areas;
-    const shallower = packsOf(crypt, "skeleton");
-    const deeper = packsOf(ossuary, "skeleton");
+    const monsters = (area: Area) => sum(area.spawns.map((s) => s.count));
 
     expect(ossuary.tileset).toBe("dungeon");
     expectAbout(ossuary.width, catacombs.width, 8);
     expectAbout(ossuary.height, catacombs.height, 8);
-    expect(ossuary.spawns.every((s) => s.monster === "skeleton")).toBe(true);
-    expect(Math.max(...deeper)).toBeGreaterThan(Math.max(...shallower));
-    expect(sum(deeper) / deeper.length).toBeGreaterThan(
-      sum(shallower) / shallower.length,
-    );
-    // Somewhat bigger, not a horde.
-    expect(sum(deeper)).toBeLessThan(sum(shallower) * 2);
+    expect(monsters(ossuary)).toBeGreaterThan(monsters(crypt));
+    // Somewhat more, not a horde.
+    expect(monsters(ossuary)).toBeLessThan(monsters(crypt) * 2);
+  });
+
+  it("lay the Ossuary out as Skeleton packs with Zombies in front and Skeleton Archers behind, as the Hero comes in", () => {
+    const { ossuary } = shippedWorld().areas;
+    const start = ossuary.entries.start;
+    const spawnsOf = (monster: MonsterType) =>
+      ossuary.spawns.filter((s) => s.monster === monster);
+    const gap = (a: Vec, b: Vec) => Math.hypot(a.x - b.x, a.y - b.y);
+    /** How far the Hero walks from `start` to `to`, around walls. */
+    const walk = (to: Vec) => {
+      let at = start;
+      let length = 0;
+      for (const point of findPath(ossuary, start, to, 0.3)) {
+        length += gap(at, point);
+        at = point;
+      }
+      return length;
+    };
+    const nearest = (to: Vec, spawns: Spawn[]) =>
+      spawns.reduce((a, b) => (gap(a.pos, to) <= gap(b.pos, to) ? a : b));
+
+    for (const skeletons of spawnsOf("skeleton")) {
+      const zombies = nearest(skeletons.pos, spawnsOf("zombie"));
+      const archers = nearest(skeletons.pos, spawnsOf("skeleton_archer"));
+
+      // Close enough to be one pack, beyond the 1.5-tile spreadRadius.
+      for (const spawn of [zombies, archers]) {
+        expect(gap(spawn.pos, skeletons.pos)).toBeGreaterThan(1.5);
+        expect(gap(spawn.pos, skeletons.pos)).toBeLessThanOrEqual(6);
+      }
+      expect(walk(zombies.pos)).toBeLessThan(walk(skeletons.pos));
+      expect(walk(archers.pos)).toBeGreaterThan(walk(skeletons.pos));
+    }
   });
 
   it("let the Hero walk from Town down through the Catacombs and the Crypt to the Ossuary, and back up to Town", () => {

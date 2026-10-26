@@ -223,7 +223,7 @@ describe("a Zombie's Monster Level", () => {
     expect(monsterDamageRange(zombie)).toEqual([21, 42]);
     expect(monsterAttackRating(zombie)).toBe(38);
     expect(monsterDefense(zombie)).toBe(144);
-    expect(monsterExperience(zombie)).toBe(875);
+    expect(monsterExperience(zombie)).toBe(1_000);
   });
 
   it("gives the Zombie's Experience when one dies", () => {
@@ -233,6 +233,6 @@ describe("a Zombie's Monster Level", () => {
 
     const gained = killOne(w).filter((e) => e.type === "ExperienceGained");
 
-    expect(gained).toEqual([{ type: "ExperienceGained", amount: 875 }]);
+    expect(gained).toEqual([{ type: "ExperienceGained", amount: 1_000 }]);
   });
 });

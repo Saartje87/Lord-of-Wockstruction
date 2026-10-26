@@ -70,7 +70,8 @@ describe("tuningReport", () => {
   it("leaves out the Combat Areas that don't place the Monster", () => {
     const { areas } = tuningReport("zombie", [
       area("catacombs", 1, ["skeleton", "zombie"]),
-      area("crypt", 4, ["skeleton"]),
+      area("crypt", 4, ["skeleton", "skeleton_archer"]),
+      area("ossuary", 8, ["skeleton", "zombie", "skeleton_archer"]),
     ]);
 
     expect(areas).toEqual([
@@ -81,7 +82,52 @@ describe("tuningReport", () => {
         damage: [7, 14],
         attackRating: 25,
         defense: 120,
-        experience: 175,
+        experience: 200,
+      },
+      {
+        area: "ossuary",
+        areaLevel: 8,
+        maxLife: 360,
+        damage: [14, 29],
+        attackRating: 43,
+        defense: 246,
+        experience: 4_400,
+      },
+    ]);
+  });
+
+  it("gives the Skeleton Archer's numbers in the Combat Areas that place it", () => {
+    const { levels, areas } = tuningReport("skeleton_archer", [
+      area("catacombs", 1, ["skeleton", "zombie"]),
+      area("crypt", 4, ["skeleton", "skeleton_archer"]),
+      area("ossuary", 8, ["skeleton", "zombie", "skeleton_archer"]),
+    ]);
+
+    // 500 to go at 110 a kill: the fifth kill gets there.
+    expect(levels[0]).toEqual({
+      level: 1,
+      toNext: 500,
+      killExperience: 110,
+      kills: 5,
+    });
+    expect(areas).toEqual([
+      {
+        area: "crypt",
+        areaLevel: 4,
+        maxLife: 63,
+        damage: [5, 10],
+        attackRating: 26,
+        defense: 196,
+        experience: 1_100,
+      },
+      {
+        area: "ossuary",
+        areaLevel: 8,
+        maxLife: 99,
+        damage: [7, 14],
+        attackRating: 34,
+        defense: 277,
+        experience: 2_420,
       },
     ]);
   });

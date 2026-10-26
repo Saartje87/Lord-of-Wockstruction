@@ -26,6 +26,7 @@ import {
   addPendingPoint,
   clickClose,
   clickLevelUp,
+  clickPanelButton,
   clickPaused,
   createMenus,
   type Menus,
@@ -168,11 +169,14 @@ export default function GameCanvas() {
         // the World and every effect hold still.
         const now = gameTime(pause, realNow);
         const scene = { world, screen: app.screen };
+        // Whether the Hero lies in Death, for the clicks and the cursor; the
+        // World doesn't step again until after them.
+        const heroDead = world.death !== null;
         // The cursor sees a press first: one on the panels and HUD, or one
         // that puts down or drops what it holds, is not for the World.
         const pressedAt = input.pressedAt;
         const panel = pressedAt && renderer.panelAt(pressedAt);
-        // A press with a Held Skill only puts it down or lets go of it.
+        // A press that puts down or lets go of a Held Skill does only that.
         const heldSkillAtPress = cursor.heldSkill;
         if (pressedAt) {
           const press = { at: pressedAt, hit: panel };
@@ -196,19 +200,21 @@ export default function GameCanvas() {
         // on from their Death: Level Up opens the Hero or Skill Tree panel
         // (but for a dead Hero), a + on the Skill Tree spends a point while
         // the Hero panel's +, − and Accept plan and spend Pending Attribute
-        // Points, and a panel's × shuts it as its key does, while the game
-        // runs on. A press that let go of a Held Skill does none of that.
-        if (panel && "button" in panel && heldSkillAtPress === null) {
+        // Points, and a panel's × or Panel button shuts it as its key does
+        // (a Panel button opening it too), while the game
+        // runs on. A press that put down or let go of a Held Skill does none
+        // of that; one on a Panel button keeps it held, as the key would.
+        const landedSkill =
+          heldSkillAtPress !== null && cursor.heldSkill === null;
+        if (panel && "button" in panel && !landedSkill) {
           const { button } = panel;
           if (button?.type === "levelUp") {
             const { attributePoints, skillPoints } = world.hero.progress;
-            const heroDead = world.death !== null;
             clickLevelUp(menus, { heroDead, attributePoints, skillPoints });
           }
           // + and − only plan Pending Attribute Points; Accept spends them.
           if (button?.type === "raise") {
             const { attributePoints } = world.hero.progress;
-            const heroDead = world.death !== null;
             addPendingPoint(menus, button.attribute, {
               heroDead,
               attributePoints,
@@ -222,13 +228,16 @@ export default function GameCanvas() {
             if (accept) orders.push(accept);
           }
           if (button?.type === "close") clickClose(menus, button.panel);
+          // A Panel button opens or shuts its panel as its key does.
+          if (button?.type === "panelButton") {
+            clickPanelButton(menus, button.panel, { heroDead });
+          }
           if (button?.type === "learn") {
             orders.push({ type: "SpendSkillPoint", skill: button.skill });
           }
         }
         // A pause or the Hero's Death lets go of a Held Skill, before its
         // release could land it.
-        const heroDead = world.death !== null;
         cursor = settleCursor(cursor, { paused: pause.paused, heroDead });
         // Where the left button went up, even off the canvas.
         const released = takeRelease(input);
@@ -249,7 +258,8 @@ export default function GameCanvas() {
           if (order) orders.push(order);
         }
         // After the keys and clicks, any of which may have shut it: I, its
-        // ×, or T or Level Up opening the Skill Tree in its place.
+        // × or Panel button, or T, Level Up or the Skill Tree's Panel button
+        // opening the Skill Tree in its place.
         returnOnShut(orders, inventoryWasOpen, menus);
         if (pressed && world.death && !pause.paused) {
           orders.push({ type: "Continue" });

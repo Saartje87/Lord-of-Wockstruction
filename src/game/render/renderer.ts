@@ -8,7 +8,14 @@ import {
 } from "pixi.js";
 import type { CursorHit } from "../cursor";
 import { toScreen, toTile } from "../iso";
-import type { MenuChoice, Menus, PendingPoints } from "../menus";
+import {
+  type HeroState,
+  type MenuChoice,
+  type Menus,
+  noPendingPoints,
+  type Panel,
+  type PendingPoints,
+} from "../menus";
 import type { Pause } from "../pause";
 import { type Area, isFloor } from "../sim/area";
 import { beltOf, beltRows, isBeltCell } from "../sim/belt";
@@ -56,8 +63,9 @@ import { type Skill, skillTuning } from "../tuning/skills";
 import { type Compass, compassOf, frameAt, swingFrame } from "./animation";
 import { arrivedInDisplayName, bannerOpacityAt } from "./areaBanner";
 import { type Animation, type Art, type CharacterArt, frameOf } from "./art";
-import { beltStripHitAt, beltStripLayout, beltStripSheet } from "./beltStrip";
+import { beltStripLayout, beltStripSheet } from "./beltStrip";
 import { CLOSE_BUTTON } from "./closeButton";
+import { cursorHitAt, type ShownPanels } from "./cursorHit";
 import {
   type DamageNumber,
   damageNumbers,
@@ -78,7 +86,6 @@ import {
   heroPanelLayout,
   heroSheet,
   PANEL_ROWS,
-  panelHitAt,
   rowTop,
 } from "./heroPanel";
 import {
@@ -89,7 +96,6 @@ import {
 } from "./hover";
 import {
   INVENTORY_PANEL,
-  inventoryHitAt,
   inventoryPanelLayout,
   itemRect,
   itemTooltip,
@@ -98,18 +104,17 @@ import {
 } from "./inventoryPanel";
 import { itemColour } from "./itemArt";
 import { type Orb, orbFill } from "./orbs";
-import { menuChoiceAt, PAUSE_MENU_LAYOUT, pauseMenuLayout } from "./pauseMenu";
 import {
-  SKILL_BAR,
-  skillBarHitAt,
-  skillBarLayout,
-  skillBarSheet,
-} from "./skillBar";
+  hoveredPanelButton,
+  panelButtonsLayout,
+  panelButtonsSheet,
+} from "./panelButtons";
+import { menuChoiceAt, PAUSE_MENU_LAYOUT, pauseMenuLayout } from "./pauseMenu";
+import { SKILL_BAR, skillBarLayout, skillBarSheet } from "./skillBar";
 import {
   SKILL_TREE_PANEL,
   SKILL_TREE_ROWS,
   skillRow,
-  skillTreeHitAt,
   skillTreePanelLayout,
   skillTreeRowTop,
   skillTreeSheet,
@@ -413,6 +418,37 @@ const INVENTORY_STYLE = {
   tooltipGap: 6,
 };
 /**
+ * The Panel buttons' look, in the Skill Bar's colours (CSS px): a `frame`
+ * wide edge and an inner bevel `bevel` in, `litBevel` once pressed in, at
+ * `bevelAlpha` of the edge's opacity. A lit button's icon sits `pressOffset`
+ * lower, and all are `dimmed` opaque (0..1) during Death. `icon` is each
+ * icon's shape about the button's centre, its lines `iconStroke` wide.
+ */
+const PANEL_BUTTON_STYLE = {
+  frame: 1.5,
+  bevel: 3,
+  litBevel: 4,
+  bevelAlpha: 0.6,
+  pressOffset: 1,
+  dimmed: SKILL_BAR_STYLE.dimmed,
+  iconStroke: 2,
+  icon: {
+    /** A head over shoulders widening to the feet. */
+    hero: {
+      headY: -8,
+      head: 5,
+      shoulders: 6,
+      shouldersY: -1,
+      feet: 9,
+      feetY: 12,
+    },
+    /** A rounded bag under its strap. */
+    inventory: { w: 20, h: 17, y: -5, corner: 4, strapW: 10, strapH: 6 },
+    /** A root node linked to two leaves. */
+    skillTree: { rootY: -9, leafX: 8, leafY: 8, node: 4 },
+  },
+};
+/**
  * A Ground Item: a small diamond on the floor tinted as its type, `size`
  * across (CSS px), under a dark label with its name, gold while hovered.
  * A click within `grab` of the diamond's box picks it up too.
@@ -548,6 +584,8 @@ export function createRenderer(
   app.stage.addChild(skillBar.layer);
   const beltStrip = beltStripView();
   app.stage.addChild(beltStrip.layer);
+  const panelButtons = panelButtonsView();
+  app.stage.addChild(panelButtons.layer);
   const experience = experienceBarView();
   app.stage.addChild(experience.layer);
   const levelUp = levelUpButtonView();
@@ -558,6 +596,8 @@ export function createRenderer(
   app.stage.addChild(inventoryPanel.layer);
   const skillTreePanel = skillTreePanelView();
   app.stage.addChild(skillTreePanel.layer);
+  // Over the panels, so a hovered Panel button's tooltip is never hidden.
+  app.stage.addChild(panelButtons.tooltipLayer);
   app.stage.addChild(inventoryPanel.heldLayer);
   const heldSkillView = createHeldSkillView();
   app.stage.addChild(heldSkillView.layer);
@@ -630,43 +670,20 @@ export function createRenderer(
   };
   /** The World last drawn; a New Hero brings another. */
   let drawnWorld: World | null = null;
-  /** Whether the Hero panel was open when last drawn. */
-  let heroPanelOpenNow = false;
-  /** The Pending Attribute Points when last drawn. */
-  let pendingPointsNow: PendingPoints | undefined;
-  /** Whether the Inventory panel was open when last drawn. */
-  let inventoryOpenNow = false;
-  /** Whether the Skill Tree panel was open when last drawn. */
-  let skillTreeOpenNow = false;
+  /** Which panels were open, and the Pending Attribute Points, when last drawn. */
+  let shownPanels: ShownPanels = {
+    heroPanelOpen: false,
+    inventoryOpen: false,
+    skillTreeOpen: false,
+    pendingPoints: noPendingPoints(),
+  };
 
   /**
-   * What a point on the canvas (CSS px) hits of the Hero panel, the Level Up
-   * button, the Skill Tree panel and the Inventory panel, as last drawn, or
-   * null when it's for the World.
+   * What a point on the canvas (CSS px) hits of the panels and the HUD, as
+   * last drawn, or null when it's for the World.
    */
-  const panelAt = (screen: Vec): CursorHit | null => {
-    if (!drawnWorld) return null;
-    const holding = cursorItemOf(drawnWorld) !== null;
-    return (
-      panelHitAt(
-        app.screen,
-        screen,
-        drawnWorld,
-        heroPanelOpenNow,
-        pendingPointsNow,
-      ) ??
-      skillTreeHitAt(app.screen, screen, drawnWorld, skillTreeOpenNow) ??
-      skillBarHitAt(app.screen, screen) ??
-      beltStripHitAt(app.screen, screen) ??
-      inventoryHitAt(
-        app.screen,
-        screen,
-        inventoryOpenNow,
-        holding,
-        beltRows(drawnWorld),
-      )
-    );
-  };
+  const panelAt = (screen: Vec): CursorHit | null =>
+    drawnWorld && cursorHitAt(app.screen, screen, drawnWorld, shownPanels);
 
   /**
    * Starts afresh for another World, whose Monster ids start over: drops
@@ -916,10 +933,12 @@ export function createRenderer(
       heldSkillSlot: SkillBarSlot | null = null,
     ) {
       const active = world.areas[world.areaName];
-      heroPanelOpenNow = menus.heroPanelOpen;
-      pendingPointsNow = { ...menus.pendingPoints };
-      inventoryOpenNow = menus.inventoryOpen;
-      skillTreeOpenNow = menus.skillTreeOpen;
+      shownPanels = {
+        heroPanelOpen: menus.heroPanelOpen,
+        inventoryOpen: menus.inventoryOpen,
+        skillTreeOpen: menus.skillTreeOpen,
+        pendingPoints: { ...menus.pendingPoints },
+      };
       if (world !== drawnWorld) {
         showWorld(world);
         // A new World starts the Hero in an Area: they've arrived there.
@@ -1186,6 +1205,12 @@ export function createRenderer(
       orb.draw(app.screen, world, nowMs);
       skillBar.draw(app.screen, world, heldSkillSlot);
       beltStrip.draw(app.screen, world);
+      panelButtons.draw(
+        app.screen,
+        menus,
+        { heroDead: world.death !== null },
+        hoveredPanelButton(onPanel),
+      );
       experience.draw(app.screen, world);
       levelUp.draw(app.screen, world, nowMs);
       heroPanel.draw(
@@ -1683,6 +1708,169 @@ function beltStripView() {
       });
     },
   };
+}
+
+/**
+ * The Panel buttons right of the Skill Bar, in its look: a stone-framed
+ * square each, with a simple icon of its panel. A lit one, its panel open,
+ * is pressed in with a gold frame and a bright icon; all are faded while
+ * the Hero lies in Death. The hovered one shows its tooltip over it, in an
+ * Item tooltip's look, on `tooltipLayer` over the panels.
+ */
+function panelButtonsView() {
+  const style = SKILL_BAR_STYLE;
+  const look = PANEL_BUTTON_STYLE;
+  const layer = new Container();
+  const graphics = new Graphics();
+  layer.addChild(graphics);
+  const tooltipLayer = new Container();
+  const tooltipBox = new Graphics();
+  tooltipLayer.addChild(tooltipBox);
+  const tooltipText = new Text({
+    text: "",
+    style: {
+      fill: INVENTORY_STYLE.tooltipName,
+      fontSize: INVENTORY_STYLE.tooltipSize,
+      fontFamily: SERIF,
+    },
+  });
+  tooltipText.anchor.set(0.5, 0);
+  tooltipLayer.addChild(tooltipText);
+
+  return {
+    layer,
+    tooltipLayer,
+    /** `hovered` is the Panel button under the cursor, if any. */
+    draw(
+      screen: { width: number; height: number },
+      menus: Menus,
+      hero: HeroState,
+      hovered: Panel | null,
+    ) {
+      const { buttons } = panelButtonsLayout(screen);
+      graphics.clear();
+      tooltipBox.clear();
+      tooltipText.visible = false;
+      for (const shown of panelButtonsSheet(menus, hero)) {
+        const rect = buttons[shown.panel];
+        const alpha = shown.dimmed ? look.dimmed : 1;
+        const edge = shown.lit ? style.skillEdge : style.edge;
+        graphics
+          .rect(rect.x, rect.y, rect.w, rect.h)
+          .fill({ color: shown.lit ? style.skill : style.fill, alpha })
+          .stroke({ color: edge, width: look.frame, alpha });
+        // The stone frame's inner bevel, deeper when pressed in.
+        const bevel = shown.lit ? look.litBevel : look.bevel;
+        graphics
+          .rect(
+            rect.x + bevel,
+            rect.y + bevel,
+            rect.w - 2 * bevel,
+            rect.h - 2 * bevel,
+          )
+          .stroke({ color: edge, width: 1, alpha: look.bevelAlpha * alpha });
+        panelIcon(
+          graphics,
+          shown.panel,
+          // Pressed in: the icon sits lower.
+          shown.lit ? { ...rect, y: rect.y + look.pressOffset } : rect,
+          shown.lit ? style.name : style.key,
+          alpha,
+        );
+        if (shown.panel === hovered) {
+          tooltipText.text = shown.tooltip;
+          tooltipText.visible = true;
+          drawTooltip(tooltipBox, [tooltipText], rect, screen);
+        }
+      }
+    },
+  };
+}
+
+/**
+ * Draws a tooltip's box behind `lines`, already holding their words and
+ * anchored at their top centre, and puts the lines in it: over `under`, or
+ * under it where there's no room above, and kept on the screen. In the
+ * Item tooltip's look.
+ */
+function drawTooltip(
+  box: Graphics,
+  lines: readonly Text[],
+  under: Rect,
+  screen: { width: number },
+) {
+  const look = INVENTORY_STYLE;
+  const pad = look.tooltipPadding;
+  const w = Math.max(...lines.map((line) => line.width)) + 2 * pad;
+  const h = lines.length * look.tooltipLineHeight + 2 * pad;
+  const above = under.y - look.tooltipGap - h;
+  const y = above >= 0 ? above : under.y + under.h + look.tooltipGap;
+  const x = Math.min(
+    screen.width - w,
+    Math.max(0, under.x + under.w / 2 - w / 2),
+  );
+  box
+    .rect(x, y, w, h)
+    .fill({ color: look.tooltip, alpha: look.tooltipAlpha })
+    .stroke({ color: HERO_PANEL_STYLE.edge, width: 1 });
+  lines.forEach((line, i) => {
+    line.position.set(x + w / 2, y + pad + i * look.tooltipLineHeight);
+  });
+}
+
+/**
+ * Draws a Panel button's icon centred in `rect`: a figure for the Hero
+ * panel, a bag for the Inventory panel, and linked nodes for the Skill Tree
+ * panel.
+ */
+function panelIcon(
+  graphics: Graphics,
+  panel: Panel,
+  rect: Rect,
+  colour: number,
+  alpha: number,
+) {
+  const { icon, iconStroke } = PANEL_BUTTON_STYLE;
+  const fill = { color: colour, alpha };
+  const line = { color: colour, width: iconStroke, alpha };
+  const x = rect.x + rect.w / 2;
+  const y = rect.y + rect.h / 2;
+  if (panel === "hero") {
+    const { headY, head, shoulders, shouldersY, feet, feetY } = icon.hero;
+    graphics.circle(x, y + headY, head).fill(fill);
+    graphics
+      .poly([
+        x - feet,
+        y + feetY,
+        x - shoulders,
+        y + shouldersY,
+        x + shoulders,
+        y + shouldersY,
+        x + feet,
+        y + feetY,
+      ])
+      .fill(fill);
+  }
+  if (panel === "inventory") {
+    const bag = icon.inventory;
+    graphics
+      .roundRect(x - bag.w / 2, y + bag.y, bag.w, bag.h, bag.corner)
+      .fill(fill)
+      .rect(x - bag.strapW / 2, y + bag.y - bag.strapH, bag.strapW, bag.strapH)
+      .stroke(line);
+  }
+  if (panel === "skillTree") {
+    const { rootY, leafX, leafY, node } = icon.skillTree;
+    graphics
+      .moveTo(x, y + rootY)
+      .lineTo(x - leafX, y + leafY)
+      .moveTo(x, y + rootY)
+      .lineTo(x + leafX, y + leafY)
+      .stroke(line);
+    graphics.circle(x, y + rootY, node).fill(fill);
+    graphics.circle(x - leafX, y + leafY, node).fill(fill);
+    graphics.circle(x + leafX, y + leafY, node).fill(fill);
+  }
 }
 
 /**
@@ -2352,25 +2540,13 @@ function inventoryPanelView() {
         shown.style.fill = i === 0 ? look.tooltipName : look.tooltipLine;
         shown.anchor.set(0.5, 0);
       });
-      const shown = tooltipLines.slice(0, lines.length);
-      const pad = look.tooltipPadding;
-      const w = Math.max(...shown.map((line) => line.width)) + 2 * pad;
-      const h = lines.length * look.tooltipLineHeight + 2 * pad;
-      // Over the Item, or under it where there's no room above, and kept on
-      // the screen.
-      const above = under.y - look.tooltipGap - h;
-      const y = above >= 0 ? above : under.y + under.h + look.tooltipGap;
-      const x = Math.min(
-        screen.width - w,
-        Math.max(0, under.x + under.w / 2 - w / 2),
+      // Over the Item, or under it where there's no room above.
+      drawTooltip(
+        tooltipBox,
+        tooltipLines.slice(0, lines.length),
+        under,
+        screen,
       );
-      tooltipBox
-        .rect(x, y, w, h)
-        .fill({ color: look.tooltip, alpha: look.tooltipAlpha })
-        .stroke({ color: style.edge, width: 1 });
-      shown.forEach((line, i) => {
-        line.position.set(x + w / 2, y + pad + i * look.tooltipLineHeight);
-      });
     },
   };
 }

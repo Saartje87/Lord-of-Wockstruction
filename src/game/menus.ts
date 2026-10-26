@@ -86,24 +86,63 @@ export function pressKey(
     if (letter === "n") choose(menus, "newHero", nowMs);
     return "handled";
   }
-  const panelKey = letter === "c" || letter === "i" || letter === "t";
-  if (panelKey && hero.heroDead) return "handled";
-  if (letter === "c") {
-    if (menus.heroPanelOpen) shutHeroPanel(menus);
-    else menus.heroPanelOpen = true;
-    return "handled";
-  }
-  if (letter === "i") {
-    menus.inventoryOpen = !menus.inventoryOpen;
-    if (menus.inventoryOpen) menus.skillTreeOpen = false;
-    return "handled";
-  }
-  if (letter === "t") {
-    if (menus.skillTreeOpen) menus.skillTreeOpen = false;
-    else openSkillTree(menus);
+  const panel = panelOfKey(letter);
+  if (panel) {
+    togglePanel(menus, panel, hero);
     return "handled";
   }
   return null;
+}
+
+/**
+ * The key that opens and shuts each panel, as `pressKey` reads it: lower
+ * case.
+ */
+export const PANEL_KEYS: Record<Panel, string> = {
+  hero: "c",
+  inventory: "i",
+  skillTree: "t",
+};
+
+/** The panel `letter` opens and shuts, if any. */
+function panelOfKey(letter: string): Panel | undefined {
+  return (Object.keys(PANEL_KEYS) as Panel[]).find(
+    (panel) => PANEL_KEYS[panel] === letter,
+  );
+}
+
+/** Whether `panel` is open. */
+export function panelOpen(menus: Menus, panel: Panel): boolean {
+  if (panel === "hero") return menus.heroPanelOpen;
+  if (panel === "inventory") return menus.inventoryOpen;
+  return menus.skillTreeOpen;
+}
+
+/**
+ * A click on a Panel button, which opens or shuts its panel just as its key
+ * (C, I or T) does: nothing while `hero` lies dead.
+ */
+export function clickPanelButton(menus: Menus, panel: Panel, hero: HeroState) {
+  togglePanel(menus, panel, hero);
+}
+
+/**
+ * Opens or shuts `panel`, by its key or its Panel button: the Inventory and
+ * Skill Tree panels shut each other, and nothing opens or shuts while
+ * `hero` lies dead.
+ */
+function togglePanel(menus: Menus, panel: Panel, hero: HeroState) {
+  if (hero.heroDead) return;
+  if (panelOpen(menus, panel)) shutPanel(menus, panel);
+  else if (panel === "hero") menus.heroPanelOpen = true;
+  else if (panel === "inventory") openInventory(menus);
+  else openSkillTree(menus);
+}
+
+/** Opens the Inventory panel, shutting the Skill Tree panel in its place. */
+function openInventory(menus: Menus) {
+  menus.inventoryOpen = true;
+  menus.skillTreeOpen = false;
 }
 
 /** Opens the Skill Tree panel, shutting the Inventory panel in its place. */
@@ -126,7 +165,10 @@ export function clickLevelUp(
   if (hero.skillPoints > 0) openSkillTree(menus);
 }
 
-/** A panel with an × close button in its top-right corner. */
+/**
+ * A panel with an × close button in its top-right corner and a Panel button
+ * on the HUD.
+ */
 export type Panel = "hero" | "inventory" | "skillTree";
 
 /**
@@ -134,6 +176,11 @@ export type Panel = "hero" | "inventory" | "skillTree";
  * would, but never opens it.
  */
 export function clickClose(menus: Menus, panel: Panel) {
+  shutPanel(menus, panel);
+}
+
+/** Shuts `panel`, the Hero panel cancelling its Pending Attribute Points. */
+function shutPanel(menus: Menus, panel: Panel) {
   if (panel === "hero") shutHeroPanel(menus);
   if (panel === "inventory") menus.inventoryOpen = false;
   if (panel === "skillTree") menus.skillTreeOpen = false;

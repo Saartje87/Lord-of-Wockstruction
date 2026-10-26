@@ -48,8 +48,9 @@ const ofType = <T extends SimEvent["type"]>(events: SimEvent[], type: T) =>
     (event): event is Extract<SimEvent, { type: T }> => event.type === type,
   );
 
+const tunedBelt = { ...beltTuning };
 afterEach(() => {
-  beltTuning.rowsWithoutBelt = 1;
+  Object.assign(beltTuning, tunedBelt);
 });
 
 describe("lifting a Potion out of a Belt Column", () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ItemType } from "../tuning/items";
+import { emptyBelt } from "./belt";
 import {
   type Belongings,
   belongingsOf,
@@ -97,7 +98,7 @@ function carrying(
   return createWorld({
     areas,
     seed: 1,
-    belongings: { inventory, equipment: {} },
+    belongings: { inventory, equipment: {}, belt: emptyBelt() },
   });
 }
 

@@ -3,7 +3,6 @@ import { heroTuning } from "../tuning/hero";
 import {
   type Bonus,
   dropTuning,
-  isPotion,
   itemOf,
   potionDropTuning,
 } from "../tuning/items";
@@ -18,7 +17,7 @@ import {
   type Spawn,
   TOWN,
 } from "./area";
-import { type BeltColumns, beltColumnFor, emptyBelt } from "./belt";
+import { type BeltColumns, emptyBelt, putInBelt } from "./belt";
 import {
   type Belongings,
   type Cell,
@@ -1287,12 +1286,9 @@ function reachGroundItem(world: World, events: SimEvent[]) {
   }
   hero.pickingUp = null;
   hero.path = [];
-  const column = isPotion(lying.item.type)
-    ? beltColumnFor(world, lying.item.type)
-    : null;
+  const column = putInBelt(world, lying.item);
   if (column !== null) {
     world.groundItems = world.groundItems.filter((other) => other !== lying);
-    hero.belt[column].push(lying.item);
     events.push({ type: "PotionPickedUp", item: { ...lying.item }, column });
     events.push({ type: "BeltChanged" });
     return;

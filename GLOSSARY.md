@@ -199,3 +199,7 @@ _Avoid_: Sash (that's one Belt), potion bar, quickbar
 **Belt Column**:
 One of the four stacks of Potions the Hero carries ready to drink, filled from the bottom; each has its own key, which drinks the bottom Potion and lets the rest drop down a row. Only Potions go in one, of any type, mixed.
 _Avoid_: Belt slot (a slot is Equipment), potion slot
+
+**Belt strip**:
+The row of squares on the HUD beside the Skill Bar, one per Belt Column, each showing that column's bottom Potion, its key and how many Potions it holds.
+_Avoid_: Potion bar, quickbar

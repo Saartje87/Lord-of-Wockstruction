@@ -29,8 +29,9 @@ function world(belt?: string[][]): World {
   return createWorld({ areas: { town }, seed: 1, belongings });
 }
 
+const tunedBelt = { ...beltTuning };
 afterEach(() => {
-  beltTuning.rowsWithoutBelt = 1;
+  Object.assign(beltTuning, tunedBelt);
 });
 
 describe("the Belt strip's layout", () => {
@@ -60,13 +61,11 @@ describe("the Belt strip's layout", () => {
 describe("a click on the Belt strip", () => {
   const screen = { width: 1280, height: 720 };
 
-  it("hits the Belt Column under it, so it's not for the World", () => {
-    beltStripLayout(screen).columns.forEach((rect, column) => {
+  it("is on the strip but no button over a Belt Column, so it's not for the World", () => {
+    for (const rect of beltStripLayout(screen).columns) {
       const centre = { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
-      expect(beltStripHitAt(screen, centre)).toEqual({
-        button: { type: "beltColumn", column },
-      });
-    });
+      expect(beltStripHitAt(screen, centre)).toEqual({ button: null });
+    }
   });
 
   it("is for the World off the strip", () => {

@@ -84,7 +84,7 @@ export type InventoryPanelLayout = {
  */
 export function inventoryPanelLayout(
   screen: { width: number; height: number },
-  beltRows: number = beltTuning.rowsWithoutBelt,
+  beltRows: number,
 ): InventoryPanelLayout {
   const { right, top, padding, titleHeight, gridGap, hintHeight } =
     INVENTORY_PANEL;
@@ -178,8 +178,8 @@ export function inventoryHitAt(
   screen: { width: number; height: number },
   point: Vec,
   open: boolean,
-  holding = false,
-  beltRows: number = beltTuning.rowsWithoutBelt,
+  holding: boolean,
+  beltRows: number,
 ): InventoryHit | DropHit | null {
   if (!open) return null;
   const layout = inventoryPanelLayout(screen, beltRows);
@@ -278,6 +278,7 @@ export function itemUnder(world: World, spot: ItemSpot): Item | null {
   return inventoryItemAt(world, spot)?.item ?? null;
 }
 
+/** Each Bonus as a tooltip names it. */
 const BONUS_NAMES: Record<Bonus, string> = {
   strength: "Strength",
   dexterity: "Dexterity",
@@ -288,6 +289,7 @@ const BONUS_NAMES: Record<Bonus, string> = {
   attackRating: "Attack Rating",
 };
 
+/** Each resource a Potion gives back, as a tooltip names it. */
 const RESOURCE_NAMES: Record<PotionResource, string> = {
   life: "Life",
   mana: "Mana",

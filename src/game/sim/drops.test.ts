@@ -7,7 +7,7 @@ import {
   isPotion,
   potionDropTuning,
 } from "../tuning/items";
-import { beltTypesOf } from "./belt";
+import { beltTypesOf, emptyBelt } from "./belt";
 import { type Belongings, inventoryOf } from "./inventory";
 import { combatArea } from "./testAreas";
 import {
@@ -254,7 +254,11 @@ function inRow(type: ItemType, row: number, columns: number[]) {
 
 describe("Picking up", () => {
   it("walks the Hero to the Ground Item and puts it in the Inventory", () => {
-    const world = dropping("ringOfLife", { inventory: [], equipment: {} });
+    const world = dropping("ringOfLife", {
+      inventory: [],
+      equipment: {},
+      belt: emptyBelt(),
+    });
     const { item, pos } = killForDrop(world);
     step(world, [{ type: "MoveTo", target: { x: 0.5, y: 0.5 } }]);
     for (let i = 0; i < 120; i++) step(world, []);
@@ -274,6 +278,7 @@ describe("Picking up", () => {
     const belongings: Belongings = {
       inventory: inRow("ringOfStrength", 0, [0]),
       equipment: {},
+      belt: emptyBelt(),
     };
     const world = dropping("ringOfLife", belongings, 4);
     const dropped = ofType(kill(world, 4), "ItemDropped");
@@ -298,6 +303,7 @@ describe("Picking up", () => {
         ...inRow("axe", 0, [1, 3, 5, 7]),
       ],
       equipment: {},
+      belt: emptyBelt(),
     };
     const world = dropping("shortSword", belongings);
     const { item } = killForDrop(world);
@@ -315,6 +321,7 @@ describe("Picking up", () => {
         ...inRow("ringOfLife", 3, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
       ],
       equipment: {},
+      belt: emptyBelt(),
     };
     const world = dropping("ringOfStrength", full);
     const dropped = killForDrop(world);

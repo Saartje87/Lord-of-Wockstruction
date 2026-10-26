@@ -125,7 +125,7 @@ export function encodeSave({ progress, belongings }: HeroSave): string {
     ...progress,
     inventory: belongings.inventory,
     equipment: belongings.equipment,
-    belt: belongings.belt ?? emptyBelt(),
+    belt: belongings.belt,
   });
 }
 

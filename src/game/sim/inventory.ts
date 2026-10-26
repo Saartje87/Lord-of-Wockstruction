@@ -14,7 +14,10 @@ import {
   beltTypesOf,
   isBeltCell,
   isValidBelt,
+  moveOverflow,
   newHeroBelt,
+  type Overflow,
+  overflowFor,
   rowsOf,
 } from "./belt";
 import { overlaps, type Rect } from "./rect";
@@ -94,11 +97,8 @@ export const SLOT_KINDS: Record<EquipmentSlot, ItemKind> = {
 export type Belongings = {
   inventory: PlacedType[];
   equipment: Partial<Record<EquipmentSlot, ItemType>>;
-  /**
-   * The Potions in each Belt Column, from the left and each from the bottom
-   * up; left out, the Belt is empty.
-   */
-  belt?: BeltTypes;
+  /** The Potions in each Belt Column, from the left and each from the bottom up. */
+  belt: BeltTypes;
 };
 
 /**
@@ -214,7 +214,7 @@ export function isValidBelongings(belongings: Belongings): boolean {
       itemTuning[type].kind === SLOT_KINDS[slot as EquipmentSlot],
   );
   if (!placedFine || !equippedFine) return false;
-  return belt === undefined || isValidBelt(belt, rowsOf(equipment.belt));
+  return isValidBelt(belt, rowsOf(equipment.belt));
 }
 
 /** Every Equipment slot, empty. */
@@ -240,7 +240,7 @@ export function giveBelongings(world: World, belongings: Belongings) {
     const type = belongings.equipment[slot];
     if (type) hero.equipment[slot] = { id: world.nextItemId++, type };
   }
-  belongings.belt?.forEach((column, index) => {
+  belongings.belt.forEach((column, index) => {
     for (const type of column) {
       hero.belt[index].push({ id: world.nextItemId++, type });
     }
@@ -585,73 +585,6 @@ function unequipItem(world: World, slot: EquipmentSlot, events: SimEvent[]) {
   moveOverflow(hero, overflow, events);
   events.push({ type: "ItemUnequipped", item: { ...item }, slot });
   events.push({ type: "InventoryChanged" });
-}
-
-/** Potions moving out of Belt rows that no longer exist, each to its cell. */
-type Overflow = PlacedItem[];
-
-/**
- * What putting `type` (or nothing) into `slot` moves out of the Belt: for
- * the Belt slot, where the Potions in rows its Belt doesn't have go in the
- * Inventory, each to the first free spot among `placed` and those before
- * it, or null when they can't all fit. Other slots move none.
- */
-function overflowFor(
-  hero: Hero,
-  slot: EquipmentSlot,
-  type: ItemType | null,
-  placed: readonly PlacedType[],
-): Overflow | null {
-  if (slot !== "belt") return [];
-  const rows = rowsOf(type ?? undefined);
-  const overflow: Overflow = [];
-  const filled = [...placed];
-  for (const column of beltItemsOf(hero)) {
-    for (const item of column.slice(rows)) {
-      const cell = firstFreeCell(filled, item.type);
-      if (!cell) return null;
-      filled.push({ type: item.type, cell });
-      overflow.push({ item, cell });
-    }
-  }
-  return overflow;
-}
-
-/**
- * The Belt Columns' Potions, each from the bottom up, with a Held Item
- * lifted from the Belt back at its row.
- */
-function beltItemsOf(hero: Hero): Item[][] {
-  const { belt, cursor } = hero;
-  return belt.map((column, index) => {
-    const items = [...column];
-    if (cursor && isBeltCell(cursor.from)) {
-      const { beltColumn, row } = cursor.from;
-      if (beltColumn === index) items.splice(row, 0, cursor.item);
-    }
-    return items;
-  });
-}
-
-/**
- * Moves the Potions of `overflow` out of the Belt into their Inventory
- * cells; a Held Item lifted from one of their rows goes back to its cell
- * instead.
- */
-function moveOverflow(hero: Hero, overflow: Overflow, events: SimEvent[]) {
-  if (overflow.length === 0) return;
-  for (const { item, cell } of overflow) {
-    if (hero.cursor?.item === item) {
-      hero.cursor.from = { ...cell };
-      continue;
-    }
-    for (const column of hero.belt) {
-      const index = column.indexOf(item);
-      if (index !== -1) column.splice(index, 1);
-    }
-    hero.inventory.push({ item, cell: { ...cell } });
-  }
-  events.push({ type: "BeltChanged" });
 }
 
 /**

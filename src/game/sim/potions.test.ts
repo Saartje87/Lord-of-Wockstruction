@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { beltTuning } from "../tuning/items";
-import { beltOf } from "./belt";
+import { beltOf, emptyBelt } from "./belt";
 import { type Belongings, FRESH_BELONGINGS, inventoryOf } from "./inventory";
 import { combatArea } from "./testAreas";
 import {
@@ -147,8 +147,9 @@ const REJUVENATION = "rejuvenationPotion" as const;
 const withBelt = (belt: Belongings["belt"]) =>
   inTown({ ...FRESH_BELONGINGS, belt });
 
+const tunedBelt = { ...beltTuning };
 afterEach(() => {
-  beltTuning.rowsWithoutBelt = 1;
+  Object.assign(beltTuning, tunedBelt);
 });
 
 describe("a New Hero's Belt", () => {
@@ -489,6 +490,7 @@ describe("drinking a Potion in the Inventory", () => {
       belongings: {
         inventory: [{ type: "shortSword", cell: { column: 0, row: 0 } }],
         equipment: {},
+        belt: emptyBelt(),
       },
     });
     const [{ item }] = inventoryOf(sword);

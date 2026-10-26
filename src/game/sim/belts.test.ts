@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { type ItemType, inventoryTuning } from "../tuning/items";
-import { beltRows, beltTypesOf } from "./belt";
+import { beltRows, beltTypesOf, emptyBelt } from "./belt";
 import {
   type Belongings,
   type Cell,
@@ -34,7 +34,7 @@ const town = {
 function holding({
   equipment = {},
   inventory = [],
-  belt,
+  belt = emptyBelt(),
 }: Partial<Belongings>): World {
   return createWorld({
     areas: { town },

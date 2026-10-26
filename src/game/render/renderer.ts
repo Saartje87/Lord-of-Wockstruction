@@ -1614,7 +1614,7 @@ function skillBarView() {
 
 /**
  * The Belt strip beside the Skill Bar, in its look: each Belt Column's key
- * in its corner, its bottom Potion as a flask tinted as its type, and how many
+ * in its corner, its bottom Potion drawn tinted as its type, and how many
  * Potions the column holds.
  */
 function beltStripView() {
@@ -1623,12 +1623,12 @@ function beltStripView() {
   const graphics = new Graphics();
   layer.addChild(graphics);
   const text = (fill: number, size: number) => {
-    const t = new Text({
+    const label = new Text({
       text: "",
       style: { fill, fontSize: size, fontFamily: SERIF },
     });
-    layer.addChild(t);
-    return t;
+    layer.addChild(label);
+    return label;
   };
   /** Made as the sheet first lists them. */
   const labels: { key: Text; count: Text }[] = [];
@@ -1653,16 +1653,16 @@ function beltStripView() {
           .fill(style.fill)
           .stroke({ color: style.edge, width: 1.5 });
         if (shown.type !== null) {
-          // A placeholder flask: a round body under a narrow neck.
+          // A placeholder Potion: a round body under a narrow neck.
           const colour = itemColour(shown.type);
-          const cx = rect.x + rect.w / 2;
-          const cy = rect.y + rect.h / 2 + 3;
+          const centreX = rect.x + rect.w / 2;
+          const centreY = rect.y + rect.h / 2 + 3;
           graphics
-            .rect(cx - 3, cy - 15, 6, 7)
+            .rect(centreX - 3, centreY - 15, 6, 7)
             .fill(colour)
             .stroke({ color: style.skillEdge, width: 1 });
           graphics
-            .circle(cx, cy, 10)
+            .circle(centreX, centreY, 10)
             .fill(colour)
             .stroke({ color: style.skillEdge, width: 1 });
         }

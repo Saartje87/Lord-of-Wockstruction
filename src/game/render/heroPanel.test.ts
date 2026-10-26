@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { emptyBelt } from "../sim/belt";
 import { inventoryOf } from "../sim/inventory";
 import { emptySkillBar } from "../sim/skillBar";
 import { createWorld, type Progress, step, type World } from "../sim/world";
@@ -77,6 +78,7 @@ describe("heroSheet with Items Equipped", () => {
           armour: "chainMail",
           amulet: "amuletOfVitality",
         },
+        belt: emptyBelt(),
       },
     });
     const before = heroSheet(w);

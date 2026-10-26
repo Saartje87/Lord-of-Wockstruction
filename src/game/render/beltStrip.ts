@@ -30,18 +30,21 @@ export function beltStripLayout(screen: { width: number; height: number }): {
   };
 }
 
-/** A click on a Belt Column's square of the Belt strip, so not for the World. */
-export type BeltStripHit = { button: { type: "beltColumn"; column: number } };
+/**
+ * A click on a Belt Column's square of the Belt strip: no button, but not
+ * for the World either.
+ */
+export type BeltStripHit = { button: null };
 
 /** What a click at `point` hits of the Belt strip, or null off its squares. */
 export function beltStripHitAt(
   screen: { width: number; height: number },
   point: Vec,
 ): BeltStripHit | null {
-  const column = beltStripLayout(screen).columns.findIndex((rect) =>
+  const onStrip = beltStripLayout(screen).columns.some((rect) =>
     inside(rect, point),
   );
-  return column >= 0 ? { button: { type: "beltColumn", column } } : null;
+  return onStrip ? { button: null } : null;
 }
 
 /**

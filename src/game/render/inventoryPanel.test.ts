@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { emptyBelt } from "../sim/belt";
 import {
   type Belongings,
   type EquipmentSlot,
@@ -40,10 +41,13 @@ function world(belongings?: Belongings, progress?: Progress) {
   return createWorld({ areas: { town }, seed: 1, belongings, progress });
 }
 
+/** The rows of a Belt Column with no Belt Equipped. */
+const ONE_ROW = 1;
+
 describe("the Inventory panel's layout", () => {
   it("sits at the top right, inside the right half of the screen", () => {
     for (const screen of [WIDE, NARROW]) {
-      const { panel } = inventoryPanelLayout(screen);
+      const { panel } = inventoryPanelLayout(screen, ONE_ROW);
 
       expect(panel.x).toBeGreaterThanOrEqual(screen.width / 2);
       expect(panel.x + panel.w).toBe(screen.width - 16);
@@ -53,7 +57,7 @@ describe("the Inventory panel's layout", () => {
   });
 
   it("puts the Equipment slots above the 10×4 grid", () => {
-    const { grid, slots, cell } = inventoryPanelLayout(WIDE);
+    const { grid, slots, cell } = inventoryPanelLayout(WIDE, ONE_ROW);
 
     expect(grid.w).toBe(10 * cell);
     expect(grid.h).toBe(4 * cell);
@@ -100,12 +104,12 @@ describe("the Inventory panel's layout", () => {
   });
 
   it("shrinks its cells to fit a narrow screen", () => {
-    expect(inventoryPanelLayout(WIDE).cell).toBe(36);
-    expect(inventoryPanelLayout(NARROW).cell).toBe(34);
+    expect(inventoryPanelLayout(WIDE, ONE_ROW).cell).toBe(36);
+    expect(inventoryPanelLayout(NARROW, ONE_ROW).cell).toBe(34);
   });
 
   it("draws an Item over the cells it covers", () => {
-    const layout = inventoryPanelLayout(WIDE);
+    const layout = inventoryPanelLayout(WIDE, ONE_ROW);
     const { grid, cell } = layout;
 
     // The Axe is 2×3.
@@ -123,38 +127,52 @@ describe("what a point on the Inventory panel hits", () => {
     ["wide", WIDE],
     ["narrow", NARROW],
   ])("finds the grid cell under it on a %s screen", (_, screen) => {
-    const { grid, cell } = inventoryPanelLayout(screen);
+    const { grid, cell } = inventoryPanelLayout(screen, ONE_ROW);
     const at = (column: number, row: number) => ({
       x: grid.x + (column + 0.5) * cell,
       y: grid.y + (row + 0.5) * cell,
     });
 
-    expect(inventoryHitAt(screen, at(0, 0), true)).toEqual({
+    expect(inventoryHitAt(screen, at(0, 0), true, false, ONE_ROW)).toEqual({
       inventory: { column: 0, row: 0 },
     });
-    expect(inventoryHitAt(screen, at(7, 2), true)).toEqual({
+    expect(inventoryHitAt(screen, at(7, 2), true, false, ONE_ROW)).toEqual({
       inventory: { column: 7, row: 2 },
     });
-    expect(inventoryHitAt(screen, at(9, 3), true)).toEqual({
+    expect(inventoryHitAt(screen, at(9, 3), true, false, ONE_ROW)).toEqual({
       inventory: { column: 9, row: 3 },
     });
   });
 
   it("gives a point on the line between two cells to the right and lower one", () => {
-    const { grid, cell } = inventoryPanelLayout(WIDE);
+    const { grid, cell } = inventoryPanelLayout(WIDE, ONE_ROW);
 
     expect(
-      inventoryHitAt(WIDE, { x: grid.x + 2 * cell, y: grid.y + cell }, true),
+      inventoryHitAt(
+        WIDE,
+        { x: grid.x + 2 * cell, y: grid.y + cell },
+        true,
+        false,
+        ONE_ROW,
+      ),
     ).toEqual({ inventory: { column: 2, row: 1 } });
   });
 
   it("keeps the grid's far edges in its last cells", () => {
-    const { grid } = inventoryPanelLayout(WIDE);
+    const { grid } = inventoryPanelLayout(WIDE, ONE_ROW);
 
     expect(
-      inventoryHitAt(WIDE, { x: grid.x + grid.w, y: grid.y + grid.h }, true),
+      inventoryHitAt(
+        WIDE,
+        { x: grid.x + grid.w, y: grid.y + grid.h },
+        true,
+        false,
+        ONE_ROW,
+      ),
     ).toEqual({ inventory: { column: 9, row: 3 } });
-    expect(inventoryHitAt(WIDE, { x: grid.x, y: grid.y }, true)).toEqual({
+    expect(
+      inventoryHitAt(WIDE, { x: grid.x, y: grid.y }, true, false, ONE_ROW),
+    ).toEqual({
       inventory: { column: 0, row: 0 },
     });
   });
@@ -163,13 +181,13 @@ describe("what a point on the Inventory panel hits", () => {
     ["wide", WIDE],
     ["narrow", NARROW],
   ])("finds each Equipment slot on a %s screen", (_, screen) => {
-    const { slots } = inventoryPanelLayout(screen);
+    const { slots } = inventoryPanelLayout(screen, ONE_ROW);
 
     for (const [slot, rect] of Object.entries(slots)) {
       const centre = { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
       const corner = { x: rect.x + rect.w, y: rect.y + rect.h };
       for (const point of [centre, corner]) {
-        expect(inventoryHitAt(screen, point, true)).toEqual({
+        expect(inventoryHitAt(screen, point, true, false, ONE_ROW)).toEqual({
           inventory: slot,
         });
       }
@@ -187,7 +205,7 @@ describe("what a point on the Inventory panel hits", () => {
     ["narrow", NARROW, { x: 430, y: 317 }, { column: 0, row: 0 }],
     ["narrow", NARROW, { x: 750, y: 432 }, { column: 9, row: 3 }],
   ])("maps a %s screen's point %o to its cell", (_, screen, point, cell) => {
-    expect(inventoryHitAt(screen, point, true)).toEqual({
+    expect(inventoryHitAt(screen, point, true, false, ONE_ROW)).toEqual({
       inventory: cell,
     });
   });
@@ -198,7 +216,7 @@ describe("what a point on the Inventory panel hits", () => {
     ["narrow", NARROW, { x: 680, y: 108 }, "amulet"],
     ["narrow", NARROW, { x: 590, y: 150 }, "armour"],
   ] as const)("maps a %s screen's point %o to its slot", (_, screen, point, slot) => {
-    expect(inventoryHitAt(screen, point, true)).toEqual({
+    expect(inventoryHitAt(screen, point, true, false, ONE_ROW)).toEqual({
       inventory: slot,
     });
   });
@@ -208,7 +226,9 @@ describe("what a point on the Inventory panel hits", () => {
     ["wide", WIDE, { x: 1137, y: 307 }, { beltColumn: 3, row: 0 }],
     ["narrow", NARROW, { x: 600, y: 270 }, { beltColumn: 2, row: 0 }],
   ])("maps a %s screen's point %o to its Belt Column cell", (_, screen, point, spot) => {
-    expect(inventoryHitAt(screen, point, true)).toEqual({ inventory: spot });
+    expect(inventoryHitAt(screen, point, true, false, ONE_ROW)).toEqual({
+      inventory: spot,
+    });
   });
 
   it("finds each Belt Column cell with more rows, row 0 at the bottom", () => {
@@ -227,47 +247,67 @@ describe("what a point on the Inventory panel hits", () => {
   });
 
   it("is the panel but nothing on it between the slots and the grid", () => {
-    const { grid, panel } = inventoryPanelLayout(WIDE);
+    const { grid, panel } = inventoryPanelLayout(WIDE, ONE_ROW);
 
     expect(
-      inventoryHitAt(WIDE, { x: panel.x + 4, y: grid.y - 4 }, true),
+      inventoryHitAt(
+        WIDE,
+        { x: panel.x + 4, y: grid.y - 4 },
+        true,
+        false,
+        ONE_ROW,
+      ),
     ).toEqual({ inventory: null });
   });
 
   it("is nothing outside the panel", () => {
-    const { panel } = inventoryPanelLayout(WIDE);
+    const { panel } = inventoryPanelLayout(WIDE, ONE_ROW);
 
     for (const point of [
       { x: panel.x - 1, y: panel.y + 100 },
       { x: panel.x + 100, y: panel.y + panel.h + 1 },
       { x: 100, y: 100 },
     ]) {
-      expect(inventoryHitAt(WIDE, point, true)).toBeNull();
+      expect(inventoryHitAt(WIDE, point, true, false, ONE_ROW)).toBeNull();
     }
   });
 
   it("is nothing while the panel is closed", () => {
-    const { grid } = inventoryPanelLayout(WIDE);
+    const { grid } = inventoryPanelLayout(WIDE, ONE_ROW);
 
-    expect(inventoryHitAt(WIDE, { x: grid.x + 1, y: grid.y + 1 }, false)).toBe(
-      null,
-    );
+    expect(
+      inventoryHitAt(
+        WIDE,
+        { x: grid.x + 1, y: grid.y + 1 },
+        false,
+        false,
+        ONE_ROW,
+      ),
+    ).toBe(null);
   });
 
   it("is a drop outside the panel while an Item is held", () => {
-    const { panel } = inventoryPanelLayout(WIDE);
+    const { panel } = inventoryPanelLayout(WIDE, ONE_ROW);
 
-    expect(inventoryHitAt(WIDE, { x: 100, y: 100 }, true, true)).toEqual({
+    expect(
+      inventoryHitAt(WIDE, { x: 100, y: 100 }, true, true, ONE_ROW),
+    ).toEqual({
       drop: true,
     });
     expect(
-      inventoryHitAt(WIDE, { x: panel.x + 4, y: panel.y + 4 }, true, true),
+      inventoryHitAt(
+        WIDE,
+        { x: panel.x + 4, y: panel.y + 4 },
+        true,
+        true,
+        ONE_ROW,
+      ),
     ).toEqual({ inventory: null });
   });
 });
 
 describe("where a held Item lands", () => {
-  const layout = inventoryPanelLayout(WIDE);
+  const layout = inventoryPanelLayout(WIDE, ONE_ROW);
   const { grid, cell } = layout;
   /** The point `dx`, `dy` cells from the grid's top-left. */
   const point = (dx: number, dy: number) => ({
@@ -308,7 +348,7 @@ describe("where a held Item lands", () => {
 });
 
 describe("the order a click on the Inventory gives", () => {
-  const layout = inventoryPanelLayout(WIDE);
+  const layout = inventoryPanelLayout(WIDE, ONE_ROW);
   const { grid, cell } = layout;
   const centreOf = (column: number, row: number) => ({
     x: grid.x + (column + 0.5) * cell,
@@ -320,6 +360,7 @@ describe("the order a click on the Inventory gives", () => {
   const belongings: Belongings = {
     inventory: [{ type: "axe", cell: { column: 4, row: 1 } }],
     equipment: {},
+    belt: emptyBelt(),
   };
 
   it("lifts the Item under it with nothing held", () => {
@@ -379,7 +420,11 @@ describe("the order a click on the Inventory gives", () => {
   });
 
   it("lifts the Item out of a slot with nothing held, and nothing from an empty one", () => {
-    const w = world({ inventory: [], equipment: { weapon: "axe" } });
+    const w = world({
+      inventory: [],
+      equipment: { weapon: "axe" },
+      belt: emptyBelt(),
+    });
     const point = { x: 0, y: 0 };
 
     expect(inventoryOrder(w, WIDE, point, onSlot("weapon"))).toEqual({
@@ -412,6 +457,7 @@ describe("the order a click on the Inventory gives", () => {
     const w = world({
       inventory: [{ type: "manaPotion", cell: { column: 0, row: 0 } }],
       equipment: {},
+      belt: emptyBelt(),
     });
     step(w, [{ type: "LiftItem", from: { column: 0, row: 0 } }]);
 
@@ -442,6 +488,7 @@ describe("the order a right-click on the Inventory gives", () => {
   const belongings: Belongings = {
     inventory: [{ type: "axe", cell: { column: 4, row: 1 } }],
     equipment: { armour: "chainMail" },
+    belt: emptyBelt(),
   };
 
   it("equips the Inventory Item under it", () => {
@@ -459,6 +506,7 @@ describe("the order a right-click on the Inventory gives", () => {
     const w = world({
       inventory: [{ type: "lifePotion", cell: { column: 1, row: 2 } }],
       equipment: {},
+      belt: emptyBelt(),
     });
     const [potion] = inventoryOf(w);
 
@@ -508,6 +556,7 @@ describe("the Item under a point", () => {
   const belongings: Belongings = {
     inventory: [{ type: "axe", cell: { column: 4, row: 1 } }],
     equipment: { weapon: "shortSword" },
+    belt: emptyBelt(),
   };
 
   it("is the Inventory Item covering the cell, from any of its cells", () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { itemOf } from "../tuning/items";
 import { monsterTuning } from "../tuning/monsters";
+import { emptyBelt } from "./belt";
 import type { Belongings } from "./inventory";
 import { combatArea } from "./testAreas";
 import {
@@ -234,7 +235,7 @@ function wearing(equipment: Belongings["equipment"], seed: number): World {
   return createWorld({
     areas: { town: map(["HS"]) },
     seed,
-    belongings: { inventory: [], equipment },
+    belongings: { inventory: [], equipment, belt: emptyBelt() },
   });
 }
 
@@ -333,7 +334,11 @@ describe("a Monster Miss", () => {
     const w = createWorld({
       areas: { town, cave },
       seed,
-      belongings: { inventory: [], equipment: { armour: "leatherArmour" } },
+      belongings: {
+        inventory: [],
+        equipment: { armour: "leatherArmour" },
+        belt: emptyBelt(),
+      },
     });
     const events = untilAttacked(w);
     step(w, [{ type: "MoveTo", target: { x: 3.5, y: 1.5 } }]);

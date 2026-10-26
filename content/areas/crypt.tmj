@@ -11,7 +11,7 @@
  "infinite": false,
  "compressionlevel": -1,
  "nextlayerid": 5,
- "nextobjectid": 10,
+ "nextobjectid": 14,
  "properties": [
   {
    "name": "areaLevel",
@@ -12540,6 +12540,102 @@
      "rotation": 0,
      "visible": true,
      "point": true
+    },
+    {
+     "id": 10,
+     "name": "",
+     "type": "monsterSpawn",
+     "x": 3408.0,
+     "y": 816.0,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true,
+     "properties": [
+      {
+       "name": "count",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "monster",
+       "type": "string",
+       "value": "skeleton_archer"
+      }
+     ]
+    },
+    {
+     "id": 11,
+     "name": "",
+     "type": "monsterSpawn",
+     "x": 3888.0,
+     "y": 2832.0,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true,
+     "properties": [
+      {
+       "name": "count",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "monster",
+       "type": "string",
+       "value": "skeleton_archer"
+      }
+     ]
+    },
+    {
+     "id": 12,
+     "name": "",
+     "type": "monsterSpawn",
+     "x": 1008.0,
+     "y": 5328.0,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true,
+     "properties": [
+      {
+       "name": "count",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "monster",
+       "type": "string",
+       "value": "skeleton_archer"
+      }
+     ]
+    },
+    {
+     "id": 13,
+     "name": "",
+     "type": "monsterSpawn",
+     "x": 4752.0,
+     "y": 4944.0,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true,
+     "properties": [
+      {
+       "name": "count",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "monster",
+       "type": "string",
+       "value": "skeleton_archer"
+      }
+     ]
     }
    ]
   }

@@ -1,15 +1,38 @@
 import { Assets, type Spritesheet, type Texture } from "pixi.js";
-import { type MonsterType, monsterTuning } from "../tuning/monsters";
+import {
+  type MonsterType,
+  monsterTuning,
+  PROJECTILE_KINDS,
+  type ProjectileKind,
+} from "../tuning/monsters";
 import type { Compass, Timing } from "./animation";
 
 /** The animations the Flare import keeps for every character. */
-export type Animation = "stance" | "run" | "swing" | "hit" | "die";
+type EveryAnimation = "stance" | "run" | "swing" | "hit" | "die";
+
+/** The animations some characters also have, such as an archer's `shoot`. */
+type ExtraAnimation = "shoot";
+
+/** An animation a character's art may have. */
+export type Animation = EveryAnimation | ExtraAnimation;
 
 /** One character's frames and how they play. */
 export type CharacterArt = {
   /** Frames by `<animation>_<compass>`, in order. */
   animations: Record<string, Texture[]>;
-  timing: Record<Animation, Timing>;
+  timing: Record<EveryAnimation, Timing> &
+    Partial<Record<ExtraAnimation, Timing>>;
+};
+
+/**
+ * A Projectile's frames flying screen east, which the renderer rotates to its
+ * direction of flight, and how they play.
+ */
+export type ProjectileArt = {
+  frames: Texture[];
+  timing: Timing;
+  /** How far above the ground it flies (CSS px). */
+  height: number;
 };
 
 export type Art = {
@@ -20,11 +43,18 @@ export type Art = {
   tiles: Record<string, Map<number, Texture>>;
   hero: CharacterArt;
   monsters: Record<MonsterType, CharacterArt>;
+  projectiles: Record<ProjectileKind, ProjectileArt>;
 };
 
 /** What the Flare import writes into a character spritesheet's `meta`. */
 type CharacterMeta = {
   timing: Record<Animation, { frameMs: number; loop: boolean }>;
+};
+
+/** What the Flare import writes into a Projectile spritesheet's `meta`. */
+type ProjectileMeta = {
+  timing: { fly: { frameMs: number; loop: boolean } };
+  height: number;
 };
 
 /**
@@ -40,11 +70,16 @@ export async function loadArt(
   const types = Object.keys(monsterTuning) as MonsterType[];
   const character = (name: string) =>
     Assets.load<Spritesheet>(`/assets/characters/${name}.json`);
-  const [hero, tilesheets, ...monsters] = await Promise.all([
+  const [hero, tilesheets, projectiles, ...monsters] = await Promise.all([
     character("hero"),
     Promise.all(
       tilesets.map((name) =>
         Assets.load<Spritesheet>(`/assets/tilesets/${name}.json`),
+      ),
+    ),
+    Promise.all(
+      PROJECTILE_KINDS.map((name) =>
+        Assets.load<Spritesheet>(`/assets/projectiles/${name}.json`),
       ),
     ),
     ...types.map(character),
@@ -52,7 +87,12 @@ export async function loadArt(
 
   const sheetsOf = tilesheets.map((sheet) => [sheet, ...sheet.linkedSheets]);
   if (Number.isInteger(resolution)) {
-    for (const sheet of [hero, ...monsters, ...sheetsOf.flat()]) {
+    for (const sheet of [
+      hero,
+      ...monsters,
+      ...projectiles,
+      ...sheetsOf.flat(),
+    ]) {
       sheet.textureSource.scaleMode = "nearest";
     }
   }
@@ -74,7 +114,17 @@ export async function loadArt(
     monsters: Object.fromEntries(
       types.map((type, i) => [type, characterArt(monsters[i])]),
     ) as Record<MonsterType, CharacterArt>,
+    projectiles: Object.fromEntries(
+      PROJECTILE_KINDS.map((name, i) => [name, projectileArt(projectiles[i])]),
+    ) as Record<ProjectileKind, ProjectileArt>,
   };
+}
+
+/** A Projectile's art from its imported spritesheet's `fly` frames and meta. */
+function projectileArt(sheet: Spritesheet): ProjectileArt {
+  const { timing, height } = sheet.data.meta as unknown as ProjectileMeta;
+  const frames = (sheet.animations as Record<string, Texture[]>).fly;
+  return { frames, timing: { ...timing.fly, frames: frames.length }, height };
 }
 
 function characterArt(sheet: Spritesheet): CharacterArt {

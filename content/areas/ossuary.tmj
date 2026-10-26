@@ -11,7 +11,7 @@
  "infinite": false,
  "compressionlevel": -1,
  "nextlayerid": 5,
- "nextobjectid": 8,
+ "nextobjectid": 16,
  "properties": [
   {
    "name": "areaLevel",
@@ -12425,7 +12425,7 @@
       {
        "name": "count",
        "type": "int",
-       "value": 7
+       "value": 4
       },
       {
        "name": "monster",
@@ -12449,7 +12449,7 @@
       {
        "name": "count",
        "type": "int",
-       "value": 9
+       "value": 5
       },
       {
        "name": "monster",
@@ -12473,7 +12473,7 @@
       {
        "name": "count",
        "type": "int",
-       "value": 8
+       "value": 5
       },
       {
        "name": "monster",
@@ -12497,12 +12497,204 @@
       {
        "name": "count",
        "type": "int",
-       "value": 11
+       "value": 7
       },
       {
        "name": "monster",
        "type": "string",
        "value": "skeleton"
+      }
+     ]
+    },
+    {
+     "id": 8,
+     "name": "",
+     "type": "monsterSpawn",
+     "x": 3024.0,
+     "y": 720.0,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true,
+     "properties": [
+      {
+       "name": "count",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "monster",
+       "type": "string",
+       "value": "zombie"
+      }
+     ]
+    },
+    {
+     "id": 9,
+     "name": "",
+     "type": "monsterSpawn",
+     "x": 2256.0,
+     "y": 912.0,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true,
+     "properties": [
+      {
+       "name": "count",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "monster",
+       "type": "string",
+       "value": "skeleton_archer"
+      }
+     ]
+    },
+    {
+     "id": 10,
+     "name": "",
+     "type": "monsterSpawn",
+     "x": 2256.0,
+     "y": 2832.0,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true,
+     "properties": [
+      {
+       "name": "count",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "monster",
+       "type": "string",
+       "value": "zombie"
+      }
+     ]
+    },
+    {
+     "id": 11,
+     "name": "",
+     "type": "monsterSpawn",
+     "x": 1392.0,
+     "y": 3216.0,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true,
+     "properties": [
+      {
+       "name": "count",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "monster",
+       "type": "string",
+       "value": "skeleton_archer"
+      }
+     ]
+    },
+    {
+     "id": 12,
+     "name": "",
+     "type": "monsterSpawn",
+     "x": 4464.0,
+     "y": 2928.0,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true,
+     "properties": [
+      {
+       "name": "count",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "monster",
+       "type": "string",
+       "value": "zombie"
+      }
+     ]
+    },
+    {
+     "id": 13,
+     "name": "",
+     "type": "monsterSpawn",
+     "x": 5232.0,
+     "y": 3120.0,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true,
+     "properties": [
+      {
+       "name": "count",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "monster",
+       "type": "string",
+       "value": "skeleton_archer"
+      }
+     ]
+    },
+    {
+     "id": 14,
+     "name": "",
+     "type": "monsterSpawn",
+     "x": 1584.0,
+     "y": 4848.0,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true,
+     "properties": [
+      {
+       "name": "count",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "monster",
+       "type": "string",
+       "value": "zombie"
+      }
+     ]
+    },
+    {
+     "id": 15,
+     "name": "",
+     "type": "monsterSpawn",
+     "x": 2160.0,
+     "y": 5520.0,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true,
+     "properties": [
+      {
+       "name": "count",
+       "type": "int",
+       "value": 3
+      },
+      {
+       "name": "monster",
+       "type": "string",
+       "value": "skeleton_archer"
       }
      ]
     }

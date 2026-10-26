@@ -3,6 +3,7 @@
  * committed files, so the build never needs the network or Flare:
  *
  * - `public/assets/characters/`: Hero and Monster atlases and spritesheets.
+ * - `public/assets/projectiles/`: Projectile atlases and spritesheets.
  * - `public/assets/tilesets/`: tileset atlases and spritesheets.
  * - `content/tilesets/`: the same tilesets for Tiled.
  * - `CREDITS.md`: attribution for all of it.
@@ -11,10 +12,12 @@
  * the gitignored `.cache/`, and re-runs without fetching while the pins stay.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
+import type { ProjectileKind } from "../../src/game/tuning/monsters.ts";
 import { importCharacter } from "./characters.mts";
 import { filterFileCredits, readFlareArtists } from "./credits.mts";
 import { readHeroLayers } from "./flare.mts";
 import { checkout } from "./git.mts";
+import { importProjectile } from "./projectiles.mts";
 import { importTileset } from "./tilesets.mts";
 
 const FLARE = {
@@ -40,8 +43,20 @@ const HERO_OUTFIT: Record<string, string> = {
   main: "longsword",
 };
 
-/** The Monsters' Flare enemies, each one layer. */
-const MONSTERS = ["skeleton", "zombie"] as const;
+/**
+ * The Monsters' Flare enemies, each one layer, with the animations each plays
+ * besides every character's.
+ */
+const MONSTER_ANIMATIONS: Record<string, string[]> = {
+  skeleton: [],
+  zombie: [],
+  // Drawing the bow, for the wind-up.
+  skeleton_archer: ["shoot"],
+};
+const MONSTERS = Object.keys(MONSTER_ANIMATIONS);
+
+/** The Projectiles' Flare powers: Projectile to its flying animation. */
+const PROJECTILES: Record<ProjectileKind, string> = { arrow: "arrows" };
 
 /** Inclusive ranges of id. */
 type Ranges = [number, number][];
@@ -88,6 +103,12 @@ const IMPORTED = {
   ...Object.fromEntries(
     MONSTERS.map((name) => [name, [`${MOD}/images/enemies/${name}.png`]]),
   ),
+  ...Object.fromEntries(
+    Object.entries(PROJECTILES).map(([name, power]) => [
+      name,
+      [`${MOD}/images/powers/${power}.png`],
+    ]),
+  ),
   grassland: [
     `${MOD}/images/tilesets/tileset_grassland.png`,
     `${MOD}/images/tilesets/tileset_grassland_water.png`,
@@ -111,6 +132,7 @@ const CREDIT_PATHS = [
 
 const out = {
   characters: "public/assets/characters",
+  projectiles: "public/assets/projectiles",
   tilesets: "public/assets/tilesets",
   tiled: "content/tilesets",
 };
@@ -122,6 +144,9 @@ checkout(FLARE.url, FLARE.commit, FLARE.dir, [
     (item) => `/${MOD}/animations/avatar/male/${item}.txt`,
   ),
   ...MONSTERS.map((name) => `/${MOD}/animations/enemies/${name}.txt`),
+  ...Object.values(PROJECTILES).map(
+    (power) => `/${MOD}/animations/powers/${power}.txt`,
+  ),
   `/${MOD}/tilesetdefs/tileset_grassland.txt`,
   `/${MOD}/tilesetdefs/tileset_dungeon.txt`,
   ...IMPORTED_PATHS,
@@ -146,7 +171,16 @@ for (const name of MONSTERS) {
     name,
     modDir,
     layers: [{ slot: "body", animations: `animations/enemies/${name}.txt` }],
+    extraAnimations: MONSTER_ANIMATIONS[name],
     outDir: out.characters,
+  });
+}
+for (const [name, power] of Object.entries(PROJECTILES)) {
+  importProjectile({
+    name,
+    modDir,
+    animations: `animations/powers/${power}.txt`,
+    outDir: out.projectiles,
   });
 }
 
@@ -183,7 +217,8 @@ licence (CC-BY-SA 3.0), and so are our versions of it.
 
 **Changes:** the Hero's equipment layers are composited into one outfit;
 the character sheets are cut down to the animations Wiablo uses and
-repacked; the tilesets are cut into one padded image per tile for Tiled.
+repacked; the Projectile sheets are cut down to one direction, which Wiablo
+rotates; the tilesets are cut into one padded image per tile for Tiled.
 Nothing is recoloured.
 
 ### Imported files

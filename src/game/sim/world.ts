@@ -54,6 +54,7 @@ import {
 import {
   killExperience,
   type MonsterOfLevel,
+  monsterAttack,
   monsterAttackRating,
   monsterDamageRange,
   monsterDefense,
@@ -72,6 +73,11 @@ import {
   potionEffectsOf,
   stepPotionEffects,
 } from "./potions";
+import {
+  type AttackNumbers,
+  type Projectile,
+  stepProjectiles,
+} from "./projectiles";
 import { createRng, type Rng, random, randomInt } from "./random";
 import {
   emptySkillBar,
@@ -124,6 +130,7 @@ export const CAST_STEPS = Object.fromEntries(
 ) as Record<Skill, number>;
 
 export type { Minion, MinionId, MinionType, SkillBar, SkillBarSlot };
+export type { Projectile };
 export { minionMaxLife, potionEffectsOf };
 
 export type Hero = {
@@ -304,6 +311,8 @@ export type World = {
   death: Death | null;
   /** The living Monsters in the active Area. */
   monsters: Monster[];
+  /** The Projectiles in flight in the active Area. */
+  projectiles: Projectile[];
   /** The Corpses in the active Area. */
   corpses: Corpse[];
   /** The Ground Items in the active Area, never kept by the Save. */
@@ -602,6 +611,7 @@ export function createWorld(options: {
       buffered: null,
     },
     monsters: [],
+    projectiles: [],
     corpses: [],
     groundItems: [],
     minion: null,
@@ -790,9 +800,17 @@ export function monsterChanceToHit(
   world: World,
   monster: MonsterOfLevel,
 ): number {
+  return heroChanceToBeHit(world, monsterAttackRating(monster));
+}
+
+/**
+ * The chance an attack with `attackRating` hits the Hero: certain while the
+ * Hero has 0 Defense.
+ */
+function heroChanceToBeHit(world: World, attackRating: number): number {
   const defense = heroDefense(world);
   if (defense === 0) return 1;
-  return chanceToHit(monsterAttackRating(monster), defense);
+  return chanceToHit(attackRating, defense);
 }
 
 /**
@@ -851,9 +869,10 @@ function stepAreaChange(world: World, change: AreaChange, events: SimEvent[]) {
 
 /**
  * Makes the target Area the active one, fresh from its definition: its
- * Monsters back at their spawns and no Corpses. The Hero carries over to the
- * target Entry, facing away from the Area's nearest edge, with their Life
- * restored to full on arriving in Town, and back on their feet if they died.
+ * Monsters back at their spawns, and no Projectiles or Corpses. The Hero
+ * carries over to the target Entry, facing away from the Area's nearest
+ * edge, with their Life restored to full on arriving in Town, and back on
+ * their feet if they died.
  * Their Minion, if any, comes along, next to them.
  */
 function arrive(world: World, change: AreaChange, events: SimEvent[]) {
@@ -870,6 +889,7 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   world.death = null;
   world.areaName = area.name;
   world.monsters = [];
+  world.projectiles = [];
   world.corpses = [];
   world.groundItems = [];
   if (world.minion) placeBesideHero(world, world.minion);
@@ -951,6 +971,9 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   const events: SimEvent[] = [];
   hero.prevPos = { ...hero.pos };
   for (const monster of world.monsters) monster.prevPos = { ...monster.pos };
+  for (const projectile of world.projectiles) {
+    projectile.prevPos = { ...projectile.pos };
+  }
   if (world.minion) world.minion.prevPos = { ...world.minion.pos };
   if (hero.combat > 0) hero.combat -= 1;
 
@@ -999,9 +1022,10 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   }
   approach(world);
   reachGroundItem(world, events);
+  // Before the Monsters, so an Arrow first shows where it is loosed.
+  landProjectiles(world, events);
   for (const { monster, target } of stepMonsters(world)) {
-    if (target === "minion") hitMinion(world, monster, events);
-    else if (!world.death) hitHero(world, monster, events);
+    strike(world, target, monsterAttack(monster), events);
   }
   if (isRegenerating(world)) {
     hero.life = Math.min(maxLife(world), hero.life + REGEN_PER_STEP);
@@ -1036,7 +1060,33 @@ function stepDeath(
     startAreaChange(world, TOWN, "start", events);
     return;
   }
+  // Projectiles fly on, over the dead Hero.
+  landProjectiles(world, events);
   stepMonsters(world);
+}
+
+/**
+ * Moves every Projectile and lands those that touch the Hero or their Minion.
+ * One reaching the Hero on the step another kills them flies on over them.
+ */
+function landProjectiles(world: World, events: SimEvent[]) {
+  stepProjectiles(world, (projectile, target) =>
+    strike(world, target, projectile, events),
+  );
+}
+
+/**
+ * Lands a Monster's attack, a melee one or a Projectile, on `target`: the
+ * Hero, unless they are in Death, or their Minion.
+ */
+function strike(
+  world: World,
+  target: MonsterTarget,
+  attack: AttackNumbers,
+  events: SimEvent[],
+) {
+  if (target === "minion") hitMinion(world, attack, events);
+  else if (!world.death) hitHero(world, attack, events);
 }
 
 /**
@@ -1467,7 +1517,23 @@ function hurt(world: World, monster: Monster, events: SimEvent[]) {
   }
   noticeHit(world, monster);
   if (random(world.rng) < monsterTuning[monster.type].flinchChance) {
-    monster.flinch = FLINCH_STEPS[monster.type];
+    flinchMonster(monster);
+  }
+}
+
+/**
+ * Roots a Monster in a flinch. A type whose flinch interrupts drops its
+ * wind-up, so its attack never comes, and goes back to the chase to start
+ * another once the flinch is over.
+ */
+function flinchMonster(monster: Monster) {
+  monster.flinch = FLINCH_STEPS[monster.type];
+  if (
+    monsterTuning[monster.type].flinchInterrupts &&
+    monster.state === "windup"
+  ) {
+    monster.state = "chase";
+    monster.attack = 0;
   }
 }
 
@@ -1532,16 +1598,16 @@ function rollDrop(world: World, pos: Vec, events: SimEvent[]) {
 }
 
 /**
- * Lands a Monster's attack on the Hero. A Hero with 0 Defense is always hit;
- * above it the attack can Miss, which deals no damage, so it neither flinches
- * the Hero nor keeps them In Combat.
+ * Lands a Monster's attack, a melee one or a Projectile, on the Hero. A Hero
+ * with 0 Defense is always hit; above it the attack can Miss, which deals no
+ * damage, so it neither flinches the Hero nor keeps them In Combat.
  */
-function hitHero(world: World, monster: Monster, events: SimEvent[]) {
+function hitHero(world: World, attack: AttackNumbers, events: SimEvent[]) {
   const { hero } = world;
   const damage = rollAttack(
     world,
-    monsterChanceToHit(world, monster),
-    monsterDamageRange(monster),
+    heroChanceToBeHit(world, attack.attackRating),
+    attack.damage,
   );
   if (damage === null) {
     events.push({ type: "Missed", target: "hero" });
@@ -1568,17 +1634,18 @@ function hitHero(world: World, monster: Monster, events: SimEvent[]) {
 }
 
 /**
- * Lands a Monster's attack on the Hero's Minion, if it still lives: it rolls
- * the Monster's Attack Rating against the Minion's Defense, and at 0 Life
- * the Minion dies, leaving no Corpse. Neither keeps the Hero In Combat.
+ * Lands a Monster's attack, a melee one or a Projectile, on the Hero's
+ * Minion, if it still lives: it rolls the attack's Attack Rating against the
+ * Minion's Defense, and at 0 Life the Minion dies, leaving no Corpse.
+ * Neither keeps the Hero In Combat.
  */
-function hitMinion(world: World, monster: Monster, events: SimEvent[]) {
+function hitMinion(world: World, attack: AttackNumbers, events: SimEvent[]) {
   const { minion } = world;
   if (!minion) return;
   const damage = rollAttack(
     world,
-    chanceToHit(monsterAttackRating(monster), minionDefense(minion)),
-    monsterDamageRange(monster),
+    chanceToHit(attack.attackRating, minionDefense(minion)),
+    attack.damage,
   );
   if (damage === null) {
     events.push({ type: "MinionMissed", minion: minion.id });

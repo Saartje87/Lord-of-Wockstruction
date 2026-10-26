@@ -84,6 +84,7 @@ describe("Belongings given to a new World", () => {
       { type: "ringOfLife", cell: { column: 9, row: 3 } },
     ],
     equipment: { weapon: "shortSword", armour: "leatherArmour" },
+    belt: [["lifePotion"], [], ["lifePotion"], []],
   };
 
   it("comes back as it was given", () => {

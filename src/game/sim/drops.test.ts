@@ -123,7 +123,7 @@ const ofType = <T extends SimEvent["type"]>(events: SimEvent[], type: T) =>
   );
 
 describe("Drops", () => {
-  it("come from about a quarter of kills, one Item each, of every type", () => {
+  it("come from about a quarter of kills, one Item each, of every type but Potions", () => {
     let drops = 0;
     const types = new Set<ItemType>();
     const kills = 200;
@@ -136,7 +136,8 @@ describe("Drops", () => {
 
     expect(drops / kills).toBeGreaterThan(0.18);
     expect(drops / kills).toBeLessThan(0.32);
-    expect([...types].sort()).toEqual([...ITEM_TYPES].sort());
+    const notPotions = ITEM_TYPES.filter((type) => type !== "lifePotion");
+    expect([...types].sort()).toEqual(notPotions.sort());
   });
 
   it("lie where the Monster died as Ground Items", () => {

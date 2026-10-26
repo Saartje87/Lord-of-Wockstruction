@@ -53,6 +53,12 @@ import { type Compass, compassOf, frameAt, swingFrame } from "./animation";
 import { arrivedInDisplayName, bannerOpacityAt } from "./areaBanner";
 import { type Animation, type Art, type CharacterArt, frameOf } from "./art";
 import {
+  type BeltStripHit,
+  beltStripHitAt,
+  beltStripLayout,
+  beltStripSheet,
+} from "./beltStrip";
+import {
   type DamageNumber,
   damageNumbers,
   floatAt,
@@ -413,6 +419,7 @@ const ITEM_COLOUR: Record<ItemKind, number> = {
   armour: 0x5a4028,
   ring: 0x3a3a68,
   amulet: 0x5a3a5a,
+  potion: 0x7a2424,
 };
 /**
  * A Ground Item: a small diamond on the floor tinted by its kind, `size`
@@ -547,6 +554,8 @@ export function createRenderer(
   app.stage.addChild(orb.layer);
   const skillBar = skillBarView();
   app.stage.addChild(skillBar.layer);
+  const beltStrip = beltStripView();
+  app.stage.addChild(beltStrip.layer);
   const experience = experienceBarView();
   app.stage.addChild(experience.layer);
   const levelUp = levelUpButtonView();
@@ -642,13 +651,21 @@ export function createRenderer(
    */
   const panelAt = (
     screen: Vec,
-  ): PanelHit | SkillTreeHit | SkillBarHit | InventoryHit | DropHit | null => {
+  ):
+    | PanelHit
+    | SkillTreeHit
+    | SkillBarHit
+    | BeltStripHit
+    | InventoryHit
+    | DropHit
+    | null => {
     if (!drawnWorld) return null;
     const holding = cursorItemOf(drawnWorld) !== null;
     return (
       panelHitAt(app.screen, screen, drawnWorld, heroPanelOpenNow) ??
       skillTreeHitAt(app.screen, screen, drawnWorld, skillTreeOpenNow) ??
       skillBarHitAt(app.screen, screen) ??
+      beltStripHitAt(app.screen, screen) ??
       inventoryHitAt(app.screen, screen, inventoryOpenNow, holding)
     );
   };
@@ -1167,6 +1184,7 @@ export function createRenderer(
 
       orb.draw(app.screen, world, nowMs);
       skillBar.draw(app.screen, world);
+      beltStrip.draw(app.screen, world);
       experience.draw(app.screen, world);
       levelUp.draw(app.screen, world, nowMs);
       heroPanel.draw(app.screen, world, menus.heroPanelOpen);
@@ -1585,6 +1603,70 @@ function skillBarView() {
         name.text = shown.name ?? "";
         name.alpha = alpha;
         name.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2 + 4);
+        key.text = shown.key;
+        key.position.set(rect.x + rect.w - 3, rect.y + 2);
+      });
+    },
+  };
+}
+
+/**
+ * The Belt strip beside the Skill Bar, in its look: each Belt Column's key
+ * in its corner, its bottom Potion as a flask tinted by kind, and how many
+ * Potions the column holds.
+ */
+function beltStripView() {
+  const style = SKILL_BAR_STYLE;
+  const layer = new Container();
+  const graphics = new Graphics();
+  layer.addChild(graphics);
+  const text = (fill: number, size: number) => {
+    const t = new Text({
+      text: "",
+      style: { fill, fontSize: size, fontFamily: SERIF },
+    });
+    layer.addChild(t);
+    return t;
+  };
+  /** Made as the sheet first lists them. */
+  const labels: { key: Text; count: Text }[] = [];
+
+  return {
+    layer,
+    draw(screen: { width: number; height: number }, world: World) {
+      const { columns } = beltStripLayout(screen);
+      graphics.clear();
+      beltStripSheet(world).forEach((shown, index) => {
+        if (!labels[index]) {
+          const key = text(style.key, style.keySize);
+          key.anchor.set(1, 0);
+          const count = text(style.name, style.nameSize);
+          count.anchor.set(0, 1);
+          labels[index] = { key, count };
+        }
+        const { key, count } = labels[index];
+        const rect = columns[shown.column];
+        graphics
+          .rect(rect.x, rect.y, rect.w, rect.h)
+          .fill(style.fill)
+          .stroke({ color: style.edge, width: 1.5 });
+        if (shown.type !== null) {
+          // A placeholder flask: a round body under a narrow neck.
+          const colour = ITEM_COLOUR[itemOf(shown.type).kind];
+          const cx = rect.x + rect.w / 2;
+          const cy = rect.y + rect.h / 2 + 3;
+          graphics
+            .rect(cx - 3, cy - 15, 6, 7)
+            .fill(colour)
+            .stroke({ color: style.skillEdge, width: 1 });
+          graphics
+            .circle(cx, cy, 10)
+            .fill(colour)
+            .stroke({ color: style.skillEdge, width: 1 });
+        }
+        count.visible = shown.count > 0;
+        count.text = String(shown.count);
+        count.position.set(rect.x + 3, rect.y + rect.h - 2);
         key.text = shown.key;
         key.position.set(rect.x + rect.w - 3, rect.y + 2);
       });

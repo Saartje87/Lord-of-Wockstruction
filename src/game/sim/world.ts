@@ -12,6 +12,7 @@ import {
   type Spawn,
   TOWN,
 } from "./area";
+import { type BeltColumns, emptyBelt } from "./belt";
 import {
   type Belongings,
   type Cell,
@@ -58,6 +59,12 @@ import {
   wanderPause,
 } from "./monsters";
 import { findPath } from "./path";
+import {
+  drinkFromBelt,
+  type PotionEffect,
+  potionEffectsOf,
+  stepPotionEffects,
+} from "./potions";
 import { createRng, type Rng, random, randomInt } from "./random";
 import {
   emptySkillBar,
@@ -110,7 +117,7 @@ export const CAST_STEPS = Object.fromEntries(
 ) as Record<Skill, number>;
 
 export type { Minion, MinionId, MinionType, SkillBar, SkillBarSlot };
-export { minionMaxLife };
+export { minionMaxLife, potionEffectsOf };
 
 export type Hero = {
   life: number;
@@ -122,6 +129,10 @@ export type Hero = {
   inventory: PlacedItem[];
   /** The Items worn, kept by the Save. */
   equipment: Equipment;
+  /** The Potions in the Belt Columns, kept by the Save (see `beltOf`). */
+  belt: BeltColumns;
+  /** The drunk Potions still running their course; all end on Death. */
+  potionEffects: PotionEffect[];
   /**
    * The Item held on the cursor, if any. The Save keeps it at the cell it
    * was lifted from.
@@ -365,7 +376,13 @@ export type Order =
    * Cast the Skill in Skill Bar slot `slot` at `target`. Fails in Town or
    * without the Mana for it, and does nothing from an empty slot.
    */
-  | { type: "Cast"; slot: SkillBarSlot; target: Vec };
+  | { type: "Cast"; slot: SkillBarSlot; target: Vec }
+  /**
+   * Drink the bottom Potion of Belt Column `column` (0 the leftmost), the
+   * ones above dropping down a row: at once, whatever the Hero is doing,
+   * Town included. Refused during Death; an empty column does nothing.
+   */
+  | { type: "DrinkFromBelt"; column: number };
 
 /** Why a cast failed: the Hero is in Town, or lacks the Mana for it. */
 export type CastFailure = "town" | "mana";
@@ -398,6 +415,10 @@ export type SimEvent =
   | { type: "ItemEquipped"; item: Item; slot: EquipmentSlot }
   /** `item` came out of Equipment slot `slot`. */
   | { type: "ItemUnequipped"; item: Item; slot: EquipmentSlot }
+  /** The Hero drank the Potion `item`, used up, its effect starting. */
+  | { type: "PotionDrunk"; item: Item }
+  /** A Potion went into or came out of the Belt Columns. */
+  | { type: "BeltChanged" }
   | { type: "ExperienceGained"; amount: number }
   /** The Hero reached Level `level`, with their Life and Mana already filled. */
   | { type: "LevelReached"; level: number }
@@ -542,6 +563,8 @@ export function createWorld(options: {
       // Filled from `belongings` below, handing out Item ids.
       inventory: [],
       equipment: emptyEquipment(),
+      belt: emptyBelt(),
+      potionEffects: [],
       cursor: null,
       pos: { ...start },
       prevPos: { ...start },
@@ -959,6 +982,7 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   if (!world.death) {
     hero.mana = Math.min(maxMana(world), hero.mana + MANA_REGEN_PER_STEP);
   }
+  stepPotionEffects(hero, { life: maxLife(world), mana: maxMana(world) });
 
   world.tick += 1;
   return events;
@@ -1061,6 +1085,10 @@ function give(world: World, order: Order, events: SimEvent[]) {
   }
   if (order.type === "PutSkillOnBar") {
     putOnBar(world, order.skill, order.slot, events);
+    return;
+  }
+  if (order.type === "DrinkFromBelt") {
+    drinkFromBelt(world, order.column, events);
     return;
   }
   if (moveItem(world, order, events)) {
@@ -1489,11 +1517,13 @@ function crumbleMinion(world: World, events: SimEvent[]) {
 }
 
 /**
- * Lays the Hero down, stopping whatever they were doing, crumbles their
- * Minion away and sends every Monster home.
+ * Lays the Hero down, stopping whatever they were doing, ending every
+ * running Potion effect, crumbles their Minion away and sends every Monster
+ * home.
  */
 function die(world: World, events: SimEvent[]) {
   world.death = { elapsed: 0 };
+  world.hero.potionEffects = [];
   crumbleMinion(world, events);
   for (const monster of world.monsters) sendHome(monster);
   stopHero(world.hero);

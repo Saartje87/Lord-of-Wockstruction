@@ -1,6 +1,8 @@
+import { beltColumnKey } from "../sim/belt";
 import { KEYED_SLOTS, slotKey } from "../sim/skillBar";
 import type { Vec } from "../sim/vec";
 import type { Order } from "../sim/world";
+import { beltTuning } from "../tuning/items";
 
 /**
  * The order a key press gives: keys Q, W, E and R (either case) cast their
@@ -13,4 +15,15 @@ export function castKeyOrder(key: string, cursor: Vec | null): Order | null {
   );
   if (!slot || !cursor) return null;
   return { type: "Cast", slot, target: { ...cursor } };
+}
+
+/**
+ * The order a key press gives: keys 1 to 4 drink from Belt Columns 1 to 4.
+ * Null for any other key.
+ */
+export function drinkKeyOrder(key: string): Order | null {
+  for (let column = 0; column < beltTuning.columns; column++) {
+    if (beltColumnKey(column) === key) return { type: "DrinkFromBelt", column };
+  }
+  return null;
 }

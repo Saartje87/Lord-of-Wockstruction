@@ -6,6 +6,7 @@ import {
   itemOf,
   itemTuning,
 } from "../tuning/items";
+import { type BeltTypes, beltTypesOf, isValidBelt, newHeroBelt } from "./belt";
 import { overlaps, type Rect } from "./rect";
 import type { Hero, Order, SimEvent, World } from "./world";
 
@@ -73,12 +74,21 @@ export const SLOT_KINDS: Record<EquipmentSlot, ItemKind> = {
 export type Belongings = {
   inventory: PlacedType[];
   equipment: Partial<Record<EquipmentSlot, ItemType>>;
+  /**
+   * The Potions in each Belt Column, from the left and each from the bottom
+   * up; left out, the Belt is empty.
+   */
+  belt?: BeltTypes;
 };
 
-/** A New Hero's Belongings: a Short Sword Equipped and an empty Inventory. */
+/**
+ * A New Hero's Belongings: a Short Sword Equipped, an empty Inventory and
+ * the starting Potions in the Belt Columns.
+ */
 export const FRESH_BELONGINGS: Belongings = {
   inventory: [],
   equipment: { weapon: "shortSword" },
+  belt: newHeroBelt(),
 };
 
 /** Whether an Item of `type` with its top-left at `at` covers `cell`. */
@@ -164,13 +174,14 @@ function backOrFirstFree(
 
 /**
  * Whether Belongings could be the Hero's: known Item types, every Inventory
- * Item on the grid with none overlapping, and every Equipped Item in a slot
- * of its kind.
+ * Item on the grid with none overlapping, every Equipped Item in a slot of
+ * its kind, and only Potions in the Belt Columns, as many as they hold.
  */
 export function isValidBelongings(belongings: Belongings): boolean {
   const known = (type: unknown): type is ItemType =>
     ITEM_TYPES.includes(type as ItemType);
-  const { inventory, equipment } = belongings;
+  const { inventory, equipment, belt } = belongings;
+  if (belt !== undefined && !isValidBelt(belt)) return false;
   const placedFine = inventory.every(
     (placed, i) =>
       known(placed.type) &&
@@ -209,6 +220,11 @@ export function giveBelongings(world: World, belongings: Belongings) {
     const type = belongings.equipment[slot];
     if (type) hero.equipment[slot] = { id: world.nextItemId++, type };
   }
+  belongings.belt?.forEach((column, index) => {
+    for (const type of column) {
+      hero.belt[index].push({ id: world.nextItemId++, type });
+    }
+  });
 }
 
 /**
@@ -229,6 +245,7 @@ export function belongingsOf(world: World): Belongings {
       cell: { ...cell },
     })),
     equipment: worn,
+    belt: beltTypesOf(world),
   };
 }
 
@@ -453,6 +470,8 @@ function equipItem(world: World, id: ItemId, events: SimEvent[]) {
   const placed = hero.inventory.find(({ item }) => item.id === id);
   if (!placed) return;
   const slot = slotFor(hero.equipment, placed.item.type);
+  // A Potion has no slot to go into.
+  if (!slot) return;
   const rest = hero.inventory.filter((other) => other !== placed);
   const out = hero.equipment[slot];
   if (out) {
@@ -489,12 +508,12 @@ function unequipItem(world: World, slot: EquipmentSlot, events: SimEvent[]) {
 /**
  * The slot an Item of `type` is Equipped into: the first empty one of its
  * kind, or else the first of its kind, so a Ring goes into the empty Ring
- * slot or else the left one.
+ * slot or else the left one; null for a kind no slot takes.
  */
-function slotFor(equipment: Equipment, type: ItemType): EquipmentSlot {
+function slotFor(equipment: Equipment, type: ItemType): EquipmentSlot | null {
   const { kind } = itemOf(type);
   const fitting = EQUIPMENT_SLOTS.filter((slot) => SLOT_KINDS[slot] === kind);
-  return fitting.find((slot) => !equipment[slot]) ?? fitting[0];
+  return fitting.find((slot) => !equipment[slot]) ?? fitting[0] ?? null;
 }
 
 /** Puts the cursor Item back at the cell or slot it was lifted from, kept free. */

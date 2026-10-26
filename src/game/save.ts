@@ -1,3 +1,4 @@
+import { emptyBelt, isValidBelt } from "./sim/belt";
 import {
   type Belongings,
   belongingsOf,
@@ -21,9 +22,15 @@ import { heroTuning } from "./tuning/hero";
 /**
  * Raised whenever the stored text changes shape. Text of any other version
  * is no Save, so the Hero starts fresh instead of loading something
- * misread.
+ * misread, but for `BELTLESS_VERSION`.
  */
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
+
+/**
+ * The version before the Belt: its text, otherwise the same, loads with an
+ * empty Belt.
+ */
+const BELTLESS_VERSION = 6;
 
 /** What the Save keeps of the Hero: their progress and their Belongings. */
 export type HeroSave = { progress: Progress; belongings: Belongings };
@@ -57,6 +64,7 @@ const SAVE_CHANGING_EVENTS: readonly SimEvent["type"][] = [
   "InventoryChanged",
   "ItemEquipped",
   "ItemUnequipped",
+  "BeltChanged",
 ];
 
 /** Whether a step's events changed what the Save keeps: progress or Belongings. */
@@ -109,7 +117,7 @@ export function browserStorage(): SaveStorage {
 
 /**
  * The Hero as stored text, with the version it was written in: the progress
- * fields, then the Inventory and Equipment by Item type.
+ * fields, then the Inventory, Equipment and Belt Columns by Item type.
  */
 export function encodeSave({ progress, belongings }: HeroSave): string {
   return JSON.stringify({
@@ -117,6 +125,7 @@ export function encodeSave({ progress, belongings }: HeroSave): string {
     ...progress,
     inventory: belongings.inventory,
     equipment: belongings.equipment,
+    belt: belongings.belt ?? emptyBelt(),
   });
 }
 
@@ -138,7 +147,12 @@ export function parseSave(text: string | null): HeroSave | null {
   }
   if (typeof stored !== "object" || stored === null) return null;
   const fields = stored as Record<string, unknown>;
-  if (fields.version !== SAVE_VERSION) return null;
+  if (fields.version === BELTLESS_VERSION) {
+    if (fields.belt !== undefined) return null;
+    fields.belt = emptyBelt();
+  } else if (fields.version !== SAVE_VERSION) {
+    return null;
+  }
   if (!PROGRESS_FIELDS.every((field) => Number.isInteger(fields[field]))) {
     return null;
   }
@@ -156,19 +170,26 @@ export function parseSave(text: string | null): HeroSave | null {
   if (!fitsTable(progress.level, progress.experience)) return null;
   if (!fitsPoints(progress)) return null;
   if (!fitsSkillPoints(progress)) return null;
-  const belongings = parseBelongings(fields.inventory, fields.equipment);
+  const belongings = parseBelongings(
+    fields.inventory,
+    fields.equipment,
+    fields.belt,
+  );
   return belongings && { progress, belongings };
 }
 
 /**
- * The stored Inventory and Equipment as Belongings, or null when they aren't a
- * list of Item types at cells and an object of Item types by slot, or the
- * Hero couldn't have them.
+ * The stored Inventory, Equipment and Belt Columns as Belongings, or null
+ * when they aren't a list of Item types at cells, an object of Item types by
+ * slot and a list of Potion types per Belt Column, or the Hero couldn't
+ * have them.
  */
 function parseBelongings(
   inventory: unknown,
   equipment: unknown,
+  belt: unknown,
 ): Belongings | null {
+  if (!isValidBelt(belt)) return null;
   if (!Array.isArray(inventory)) return null;
   if (typeof equipment !== "object" || equipment === null) return null;
   if (Array.isArray(equipment)) return null;
@@ -182,6 +203,7 @@ function parseBelongings(
   const belongings: Belongings = {
     inventory: placed,
     equipment: { ...equipment },
+    belt: belt.map((column) => [...column]),
   };
   return isValidBelongings(belongings) ? belongings : null;
 }

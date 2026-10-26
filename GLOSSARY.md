@@ -141,7 +141,7 @@ A swing that plays out in full but deals no damage because it failed its chance 
 _Avoid_: Dodge, whiff
 
 **Save**:
-The Hero's kept progress (Level, Experience, Attributes, unspent Attribute Points, Skill Levels, unspent Skill Points, the Skill Bar, Inventory and Equipment), written whenever it changes; there is only one, and loading it starts the Hero in Town.
+The Hero's kept progress (Level, Experience, Attributes, unspent Attribute Points, Skill Levels, unspent Skill Points, the Skill Bar and Belongings), written whenever it changes; there is only one, and loading it starts the Hero in Town.
 _Avoid_: Save file, slot, profile, checkpoint
 
 **Item**:

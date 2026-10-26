@@ -4,7 +4,7 @@ import { Application } from "pixi.js";
 import { useEffect, useRef } from "react";
 import { advance, createClock } from "./clock";
 import { areaDisplayNames, areas, tilesets } from "./content";
-import { castKeyOrder } from "./input/keys";
+import { castKeyOrder, drinkKeyOrder } from "./input/keys";
 import {
   attachPointer,
   cancel,
@@ -132,6 +132,9 @@ export default function GameCanvas() {
             const cursor = input.screen && renderer.screenToTile(input.screen);
             const cast = castKeyOrder(key, cursor);
             if (cast) orders.push(cast);
+            // Keys 1–4 drink from the Belt Columns.
+            const drink = drinkKeyOrder(key);
+            if (drink) orders.push(drink);
           }
           if (used === "newHero") newHero = true;
         }

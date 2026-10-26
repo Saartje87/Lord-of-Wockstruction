@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { castKeyOrder } from "./keys";
+import { castKeyOrder, drinkKeyOrder } from "./keys";
 
 describe("the Skill keys", () => {
   it.each([
@@ -32,5 +32,20 @@ describe("the Skill keys", () => {
     "Enter",
   ])("leave %s alone", (key) => {
     expect(castKeyOrder(key, { x: 1, y: 1 })).toBeNull();
+  });
+});
+
+describe("the Belt keys", () => {
+  it.each([
+    ["1", 0],
+    ["2", 1],
+    ["3", 2],
+    ["4", 3],
+  ] as const)("drink with %s from Belt Column %i", (key, column) => {
+    expect(drinkKeyOrder(key)).toEqual({ type: "DrinkFromBelt", column });
+  });
+
+  it.each(["0", "5", "q", "Enter"])("leave %s alone", (key) => {
+    expect(drinkKeyOrder(key)).toBeNull();
   });
 });

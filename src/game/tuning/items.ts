@@ -3,10 +3,21 @@
 import type { Attribute } from "../sim/world";
 
 /** What an Item is for, which decides the Equipment slot it fits. */
-export type ItemKind = "weapon" | "armour" | "ring" | "amulet";
+export type ItemKind = "weapon" | "armour" | "ring" | "amulet" | "potion";
 
 /** What an Equipped Item can add to the Hero: an Attribute, or one of these. */
 export type Bonus = Attribute | "life" | "defense" | "attackRating";
+
+/**
+ * What drinking a Potion does: give back `amount` of `resource` evenly over
+ * `durationMs`, running its own course alongside any others.
+ */
+export type PotionEffectTuning = {
+  type: "overTime";
+  resource: "life" | "mana";
+  amount: number;
+  durationMs: number;
+};
 
 /** One Item type's tuning. */
 export type ItemTuning = {
@@ -24,6 +35,8 @@ export type ItemTuning = {
   defense?: number;
   /** What it adds to the Hero while Equipped. */
   bonuses: Partial<Record<Bonus, number>>;
+  /** A Potion's effect when drunk. */
+  potion?: PotionEffectTuning;
 };
 
 /** Every Item type, by the key it's known as in code and in the Save. */
@@ -84,6 +97,18 @@ export const itemTuning = {
     size: { columns: 1, rows: 1 },
     bonuses: { vitality: 5 },
   },
+  lifePotion: {
+    name: "Life Potion",
+    kind: "potion",
+    size: { columns: 1, rows: 1 },
+    bonuses: {},
+    potion: {
+      type: "overTime",
+      resource: "life",
+      amount: 30,
+      durationMs: 4000,
+    },
+  },
 } satisfies Record<string, ItemTuning>;
 
 /** One of the Item types, by its key in `itemTuning`. */
@@ -97,14 +122,34 @@ export function itemOf(type: ItemType): ItemTuning {
   return itemTuning[type];
 }
 
+/** Whether an Item type is a Potion. */
+export function isPotion(type: ItemType): boolean {
+  return itemTuning[type].kind === "potion";
+}
+
 /** The Inventory grid's size in cells. */
 export const inventoryTuning = { columns: 10, rows: 4 };
 
 /**
+ * The Belt Columns: how many there are, how many rows each has with no Belt
+ * Equipped, and the Potions a New Hero starts with in them, filled column by
+ * column from the left, each from the bottom up.
+ */
+export const beltTuning: {
+  columns: number;
+  rowsWithoutBelt: number;
+  newHeroPotions: { type: ItemType; count: number };
+} = {
+  columns: 4,
+  rowsWithoutBelt: 1,
+  newHeroPotions: { type: "lifePotion", count: 4 },
+};
+
+/**
  * Monster drops: each kill has `chance` of dropping one Item, of a type
- * picked from `items` with equal odds.
+ * picked from `items` with equal odds. Potions have no part in it.
  */
 export const dropTuning: { chance: number; items: readonly ItemType[] } = {
   chance: 0.25,
-  items: ITEM_TYPES,
+  items: ITEM_TYPES.filter((type) => !isPotion(type)),
 };

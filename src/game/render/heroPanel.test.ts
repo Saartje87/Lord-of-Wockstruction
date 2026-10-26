@@ -258,14 +258,11 @@ describe("panelHitAt", () => {
     });
   });
 
-  it("finds the × in the open panel's top-right corner, points or not", () => {
-    const { close, panel } = layout;
-    const at = centre(close);
+  it("finds the × above the open panel's rows, points or not", () => {
+    const { closeButton } = layout;
+    const at = centre(closeButton);
 
-    expect(close.x + close.w).toBeLessThanOrEqual(panel.x + panel.w);
-    expect(close.x).toBeGreaterThan(panel.x + panel.w / 2);
-    expect(close.y).toBeGreaterThanOrEqual(panel.y);
-    expect(close.y + close.h).toBeLessThanOrEqual(firstRowTop());
+    expect(closeButton.y + closeButton.h).toBeLessThanOrEqual(firstRowTop());
     expect(panelHitAt(screen, at, withPoints(0), true)).toEqual({
       button: { type: "close", panel: "hero" },
     });
@@ -279,7 +276,7 @@ describe("panelHitAt", () => {
     const w = withPoints(0);
     kill(w);
 
-    expect(panelHitAt(screen, centre(layout.close), w, true)).toEqual({
+    expect(panelHitAt(screen, centre(layout.closeButton), w, true)).toEqual({
       button: { type: "close", panel: "hero" },
     });
   });

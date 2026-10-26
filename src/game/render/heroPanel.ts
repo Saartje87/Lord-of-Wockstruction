@@ -1,4 +1,3 @@
-import type { Panel } from "../menus";
 import { inside, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
 import {
@@ -14,7 +13,7 @@ import {
   monsterLevelIn,
   type World,
 } from "../sim/world";
-import { closeButtonRect } from "./closeButton";
+import { type CloseButton, closeButtonRect, closeHitAt } from "./closeButton";
 import { experienceBar } from "./experienceBar";
 
 /**
@@ -138,7 +137,7 @@ export function hasUnspentPoints(world: World): boolean {
  */
 export function heroPanelLayout(screen: { width: number; height: number }): {
   panel: Rect;
-  close: Rect;
+  closeButton: Rect;
   raise: Record<Attribute, Rect>;
   levelUp: Rect;
 } {
@@ -158,7 +157,7 @@ export function heroPanelLayout(screen: { width: number; height: number }): {
   });
   return {
     panel,
-    close: closeButtonRect(panel),
+    closeButton: closeButtonRect(panel),
     raise: Object.fromEntries(
       ATTRIBUTES.map((attribute, i) => [attribute, plusAt(i)]),
     ) as Record<Attribute, Rect>,
@@ -175,9 +174,6 @@ export function heroPanelLayout(screen: { width: number; height: number }): {
 export function rowTop(row: number): number {
   return HERO_PANEL.top + HERO_PANEL.firstRow + row * HERO_PANEL.rowHeight;
 }
-
-/** A panel's × close button, which shuts it as its key does. */
-export type CloseButton = { type: "close"; panel: Panel };
 
 /** A button a click can press: Level Up, an Attribute's + or the ×. */
 export type PanelButton =
@@ -208,9 +204,8 @@ export function panelHitAt(
     return { button: { type: "levelUp" } };
   }
   if (!open || !inside(layout.panel, point)) return null;
-  if (inside(layout.close, point)) {
-    return { button: { type: "close", panel: "hero" } };
-  }
+  const closeHit = closeHitAt(layout, point, "hero");
+  if (closeHit) return closeHit;
   if (canRaise(world)) {
     for (const attribute of ATTRIBUTES) {
       if (inside(layout.raise[attribute], point)) {

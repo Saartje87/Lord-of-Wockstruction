@@ -211,3 +211,7 @@ _Avoid_: Belt slot (a slot is Equipment), potion slot
 **Belt strip**:
 The row of squares on the HUD beside the Skill Bar, one per Belt Column, each showing that column's bottom Potion, its key and how many Potions it holds; a Potion can be lifted from it or put down on it as a Held Item, Inventory panel open or not.
 _Avoid_: Potion bar, quickbar
+
+**Close button**:
+The × in the top-right corner of the Hero, Inventory and Skill Tree panels; clicking it shuts that panel just as its key does, so shutting the Inventory panel puts a Held Item back where it was lifted from.
+_Avoid_: X button, exit button

@@ -177,8 +177,9 @@ export default function GameCanvas() {
         // A click on a panel never orders the Hero about, nor goes on from
         // their Death: Level Up opens the Hero or Skill Tree panel (but for
         // a dead Hero), a + on either spends a point, and a panel's × shuts
-        // it as its key does, while the game runs on. On the Inventory it lifts or puts down an Item, and with
-        // one held a click off the panels drops it.
+        // it as its key does, while the game runs on. On the Inventory it
+        // lifts or puts down an Item, and with one held a click off the
+        // panels drops it.
         if (panel) {
           pressed = false;
           const button = "button" in panel ? panel.button : null;

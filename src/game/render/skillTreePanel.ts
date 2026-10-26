@@ -8,8 +8,7 @@ import {
   type World,
 } from "../sim/world";
 import { skillTuning } from "../tuning/skills";
-import { closeButtonRect } from "./closeButton";
-import type { CloseButton } from "./heroPanel";
+import { type CloseButton, closeButtonRect, closeHitAt } from "./closeButton";
 
 /**
  * The Skill Tree panel at the top right, where the Inventory panel goes
@@ -91,12 +90,13 @@ export function skillRow(index: number, row: number): number {
 }
 
 /**
- * Where the panel and its × close button are drawn, each Skill's rows (where pressing a learned
- * Skill picks it up to drag onto the Skill Bar) and each Skill's + button.
+ * Where the panel and its × close button are drawn, each Skill's rows (where
+ * pressing a learned Skill picks it up to drag onto the Skill Bar) and each
+ * Skill's + button.
  */
 export function skillTreePanelLayout(screen: { width: number }): {
   panel: Rect;
-  close: Rect;
+  closeButton: Rect;
   skills: Record<Skill, Rect>;
   raise: Record<Skill, Rect>;
 } {
@@ -127,7 +127,7 @@ export function skillTreePanelLayout(screen: { width: number }): {
   };
   return {
     panel,
-    close: closeButtonRect(panel),
+    closeButton: closeButtonRect(panel),
     skills: Object.fromEntries(
       SKILLS.map((skill, index) => [skill, rowsOf(index)]),
     ) as Record<Skill, Rect>,
@@ -164,9 +164,8 @@ export function skillTreeHitAt(
 ): SkillTreeHit | null {
   const layout = skillTreePanelLayout(screen);
   if (!open || !inside(layout.panel, point)) return null;
-  if (inside(layout.close, point)) {
-    return { button: { type: "close", panel: "skillTree" } };
-  }
+  const closeHit = closeHitAt(layout, point, "skillTree");
+  if (closeHit) return closeHit;
   for (const skill of SKILLS) {
     if (canRaiseSkill(world, skill) && inside(layout.raise[skill], point)) {
       return { button: { type: "learn", skill } };

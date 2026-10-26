@@ -23,8 +23,7 @@ import {
   type PotionEffectTuning,
   type PotionResource,
 } from "../tuning/items";
-import { closeButtonRect } from "./closeButton";
-import type { CloseButton } from "./heroPanel";
+import { type CloseButton, closeButtonRect, closeHitAt } from "./closeButton";
 
 /**
  * The Inventory panel at the top right (CSS px): `right` and `top` from the
@@ -67,7 +66,7 @@ const SLOT_CELLS: Record<EquipmentSlot, Rect> = {
  */
 export type InventoryPanelLayout = {
   panel: Rect;
-  close: Rect;
+  closeButton: Rect;
   slots: Record<EquipmentSlot, Rect>;
   /**
    * Each Belt Column's cells, from the left, each from the bottom row up:
@@ -136,7 +135,7 @@ export function inventoryPanelLayout(
   };
   return {
     panel,
-    close: closeButtonRect(panel),
+    closeButton: closeButtonRect(panel),
     slots,
     belt,
     grid,
@@ -182,9 +181,9 @@ export type DropHit = { drop: true };
  * What a point hits of the Inventory panel, or null when it's off the
  * panel or the panel isn't `open`, so it's for the World; but off the panel
  * while `holding` an Item, a drop. Its × is there whether or not an Item is
- * held. A point on the line between two cells is
- * in the right or lower one, and the grid's far edges are in its last cells.
- * The Belt Columns have `beltRows` rows.
+ * held. A point on the line between two cells is in the right or lower one,
+ * and the grid's far edges are in its last cells. The Belt Columns have
+ * `beltRows` rows.
  */
 export function inventoryHitAt(
   screen: { width: number; height: number },
@@ -196,9 +195,8 @@ export function inventoryHitAt(
   if (!open) return null;
   const layout = inventoryPanelLayout(screen, beltRows);
   if (!inside(layout.panel, point)) return holding ? { drop: true } : null;
-  if (inside(layout.close, point)) {
-    return { button: { type: "close", panel: "inventory" } };
-  }
+  const closeHit = closeHitAt(layout, point, "inventory");
+  if (closeHit) return closeHit;
   const { grid, cell } = layout;
   if (inside(grid, point)) {
     const { columns, rows } = inventoryTuning;

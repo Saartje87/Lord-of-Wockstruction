@@ -1819,11 +1819,11 @@ function button(graphics: Graphics, rect: Rect, edgeAlpha = 1) {
  */
 function closeButton(graphics: Graphics, rect: Rect) {
   button(graphics, rect);
-  const inset = CLOSE_BUTTON.cross;
-  const left = rect.x + inset;
-  const right = rect.x + rect.w - inset;
-  const top = rect.y + inset;
-  const bottom = rect.y + rect.h - inset;
+  const crossInset = CLOSE_BUTTON.cross;
+  const left = rect.x + crossInset;
+  const right = rect.x + rect.w - crossInset;
+  const top = rect.y + crossInset;
+  const bottom = rect.y + rect.h - crossInset;
   graphics
     .moveTo(left, top)
     .lineTo(right, bottom)
@@ -1901,7 +1901,7 @@ function heroPanelView() {
         .rect(panel.x, panel.y, panel.w, panel.h)
         .fill({ color: style.fill, alpha: style.alpha })
         .stroke({ color: style.edge, width: 2 });
-      closeButton(graphics, layout.close);
+      closeButton(graphics, layout.closeButton);
       title.position.set(panel.x + panel.w / 2, panel.y + HERO_PANEL.padding);
       hint.position.set(
         panel.x + panel.w / 2,
@@ -2021,7 +2021,7 @@ function skillTreePanelView() {
         .rect(panel.x, panel.y, panel.w, panel.h)
         .fill({ color: style.fill, alpha: style.alpha })
         .stroke({ color: style.edge, width: 2 });
-      closeButton(graphics, layout.close);
+      closeButton(graphics, layout.closeButton);
       title.position.set(panel.x + panel.w / 2, panel.y + padding);
       hint.position.set(panel.x + panel.w / 2, panel.y + panel.h - padding);
 
@@ -2177,7 +2177,7 @@ function inventoryPanelView() {
         .rect(panel.x, panel.y, panel.w, panel.h)
         .fill({ color: style.fill, alpha: style.alpha })
         .stroke({ color: style.edge, width: 2 });
-      closeButton(graphics, layout.close);
+      closeButton(graphics, layout.closeButton);
       title.position.set(
         panel.x + panel.w / 2,
         panel.y + INVENTORY_PANEL.padding,

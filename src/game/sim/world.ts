@@ -62,6 +62,7 @@ import { findPath } from "./path";
 import {
   drinkFromBelt,
   type PotionEffect,
+  type PotionMaxima,
   potionEffectsOf,
   stepPotionEffects,
 } from "./potions";
@@ -701,6 +702,11 @@ export function maxMana(world: World): number {
   );
 }
 
+/** The Hero's maximum Life and Mana, as Potions are capped at. */
+function maxima(world: World): PotionMaxima {
+  return { life: maxLife(world), mana: maxMana(world) };
+}
+
 /**
  * The Hero's Defense, which Monsters' Attack Rating has to beat: the
  * Equipped Armour's base Defense plus the Equipped Items' +Defense, 0 with
@@ -982,7 +988,7 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   if (!world.death) {
     hero.mana = Math.min(maxMana(world), hero.mana + MANA_REGEN_PER_STEP);
   }
-  stepPotionEffects(hero, { life: maxLife(world), mana: maxMana(world) });
+  stepPotionEffects(hero, maxima(world));
 
   world.tick += 1;
   return events;
@@ -1088,7 +1094,7 @@ function give(world: World, order: Order, events: SimEvent[]) {
     return;
   }
   if (order.type === "DrinkFromBelt") {
-    drinkFromBelt(world, order.column, events);
+    drinkFromBelt(world, order.column, maxima(world), events);
     return;
   }
   if (moveItem(world, order, events)) {

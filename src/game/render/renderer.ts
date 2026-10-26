@@ -6,6 +6,7 @@ import {
   Sprite,
   Text,
 } from "pixi.js";
+import type { CursorHit } from "../cursor";
 import { toScreen, toTile } from "../iso";
 import type { MenuChoice, Menus } from "../menus";
 import type { Pause } from "../pause";
@@ -54,12 +55,7 @@ import { type Skill, skillTuning } from "../tuning/skills";
 import { type Compass, compassOf, frameAt, swingFrame } from "./animation";
 import { arrivedInDisplayName, bannerOpacityAt } from "./areaBanner";
 import { type Animation, type Art, type CharacterArt, frameOf } from "./art";
-import {
-  type BeltStripHit,
-  beltStripHitAt,
-  beltStripLayout,
-  beltStripSheet,
-} from "./beltStrip";
+import { beltStripHitAt, beltStripLayout, beltStripSheet } from "./beltStrip";
 import { CLOSE_BUTTON } from "./closeButton";
 import {
   type DamageNumber,
@@ -81,7 +77,6 @@ import {
   heroPanelLayout,
   heroSheet,
   PANEL_ROWS,
-  type PanelHit,
   panelHitAt,
   rowTop,
 } from "./heroPanel";
@@ -92,10 +87,7 @@ import {
   type Pickable,
 } from "./hover";
 import {
-  type DropHit,
   INVENTORY_PANEL,
-  type InventoryCloseHit,
-  type InventoryHit,
   inventoryHitAt,
   inventoryPanelLayout,
   itemRect,
@@ -108,7 +100,6 @@ import { type Orb, orbFill } from "./orbs";
 import { menuChoiceAt, PAUSE_MENU_LAYOUT, pauseMenuLayout } from "./pauseMenu";
 import {
   SKILL_BAR,
-  type SkillBarHit,
   skillBarHitAt,
   skillBarLayout,
   skillBarSheet,
@@ -116,7 +107,6 @@ import {
 import {
   SKILL_TREE_PANEL,
   SKILL_TREE_ROWS,
-  type SkillTreeHit,
   skillRow,
   skillTreeHitAt,
   skillTreePanelLayout,
@@ -564,8 +554,8 @@ export function createRenderer(
   app.stage.addChild(inventoryPanel.layer);
   const skillTreePanel = skillTreePanelView();
   app.stage.addChild(skillTreePanel.layer);
-  const draggedSkill = draggedSkillView();
-  app.stage.addChild(draggedSkill.layer);
+  const heldSkillView = createHeldSkillView();
+  app.stage.addChild(heldSkillView.layer);
   // Over the whole screen, stretched to it each frame.
   const banner = new Text({
     text: "",
@@ -647,17 +637,7 @@ export function createRenderer(
    * button, the Skill Tree panel and the Inventory panel, as last drawn, or
    * null when it's for the World.
    */
-  const panelAt = (
-    screen: Vec,
-  ):
-    | PanelHit
-    | SkillTreeHit
-    | SkillBarHit
-    | BeltStripHit
-    | InventoryHit
-    | InventoryCloseHit
-    | DropHit
-    | null => {
+  const panelAt = (screen: Vec): CursorHit | null => {
     if (!drawnWorld) return null;
     const holding = cursorItemOf(drawnWorld) !== null;
     return (
@@ -909,8 +889,8 @@ export function createRenderer(
      * which outlines what it's over in the World, or off a panel, shows the
      * tooltip of the Item it's over on one. `menus` shows the Hero and
      * Inventory panels while they're open, and the pause menu over
-     * everything while paused. `dragged` is the Skill being dragged from
-     * the Skill Tree, if any, drawn at the pointer.
+     * everything while paused. `heldSkill` is the Held Skill, if any, drawn
+     * at the pointer.
      */
     draw(
       world: World,
@@ -918,7 +898,7 @@ export function createRenderer(
       pointer: Vec | null,
       nowMs: number,
       menus: Menus,
-      dragged: Skill | null = null,
+      heldSkill: Skill | null = null,
     ) {
       const active = world.areas[world.areaName];
       heroPanelOpenNow = menus.heroPanelOpen;
@@ -1194,7 +1174,7 @@ export function createRenderer(
       levelUp.draw(app.screen, world, nowMs);
       heroPanel.draw(app.screen, world, menus.heroPanelOpen);
       skillTreePanel.draw(app.screen, world, menus.skillTreeOpen);
-      draggedSkill.draw(dragged, pointer);
+      heldSkillView.draw(heldSkill, pointer);
       const spot = onPanel && "inventory" in onPanel ? onPanel.inventory : null;
       inventoryPanel.draw(
         app.screen,
@@ -1680,10 +1660,10 @@ function beltStripView() {
 }
 
 /**
- * A Skill being dragged from the Skill Tree, drawn as it shows in a Skill
- * Bar slot, centred on the pointer.
+ * The Held Skill, drawn as it shows in a Skill Bar slot, centred on the
+ * pointer.
  */
-function draggedSkillView() {
+function createHeldSkillView() {
   const style = SKILL_BAR_STYLE;
   const layer = new Container();
   const graphics = new Graphics();

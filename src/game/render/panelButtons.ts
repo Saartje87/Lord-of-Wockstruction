@@ -1,4 +1,11 @@
-import type { HeroState, Menus, Panel } from "../menus";
+import type { CursorHit } from "../cursor";
+import {
+  type HeroState,
+  type Menus,
+  PANEL_KEYS,
+  type Panel,
+  panelOpen,
+} from "../menus";
 import { inside, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
 import { BELT_STRIP } from "./beltStrip";
@@ -60,11 +67,11 @@ export type PanelButtonSheet = {
   tooltip: string;
 };
 
-/** Each Panel button's tooltip: its panel's name and key, as `pressKey` reads it. */
-const TOOLTIPS: Record<Panel, string> = {
-  hero: "Hero (C)",
-  inventory: "Inventory (I)",
-  skillTree: "Skill Tree (T)",
+/** Each panel's name, as its Panel button's tooltip gives it. */
+const PANEL_NAMES: Record<Panel, string> = {
+  hero: "Hero",
+  inventory: "Inventory",
+  skillTree: "Skill Tree",
 };
 
 /** What the Panel buttons show, from left to right. */
@@ -72,15 +79,16 @@ export function panelButtonsSheet(
   menus: Menus,
   hero: HeroState,
 ): PanelButtonSheet[] {
-  const open: Record<Panel, boolean> = {
-    hero: menus.heroPanelOpen,
-    inventory: menus.inventoryOpen,
-    skillTree: menus.skillTreeOpen,
-  };
   return PANEL_BUTTONS.map((panel) => ({
     panel,
-    lit: open[panel],
+    lit: panelOpen(menus, panel),
     dimmed: hero.heroDead,
-    tooltip: TOOLTIPS[panel],
+    tooltip: `${PANEL_NAMES[panel]} (${PANEL_KEYS[panel].toUpperCase()})`,
   }));
+}
+
+/** The Panel button `hit` is on, as the renderer's `panelAt` hands it back, or null. */
+export function hoveredPanelButton(hit: CursorHit | null): Panel | null {
+  if (!hit || !("button" in hit)) return null;
+  return hit.button?.type === "panelButton" ? hit.button.panel : null;
 }

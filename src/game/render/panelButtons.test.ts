@@ -8,6 +8,7 @@ import {
 import { overlaps } from "../sim/rect";
 import { beltStripLayout } from "./beltStrip";
 import {
+  hoveredPanelButton,
   panelButtonHitAt,
   panelButtonsLayout,
   panelButtonsSheet,
@@ -152,5 +153,19 @@ describe("the Panel buttons' sheet", () => {
     expect(
       panelButtonsSheet(menus, { heroDead: true }).map(({ dimmed }) => dimmed),
     ).toEqual([true, true, true]);
+  });
+});
+
+describe("the hovered Panel button", () => {
+  it("is the Panel button under the cursor, or null on anything else", () => {
+    const onSkillTree = {
+      button: { type: "panelButton", panel: "skillTree" },
+    } as const;
+
+    expect(hoveredPanelButton(onSkillTree)).toBe("skillTree");
+    expect(hoveredPanelButton({ button: { type: "levelUp" } })).toBeNull();
+    expect(hoveredPanelButton({ button: null })).toBeNull();
+    expect(hoveredPanelButton({ inventory: null })).toBeNull();
+    expect(hoveredPanelButton(null)).toBeNull();
   });
 });

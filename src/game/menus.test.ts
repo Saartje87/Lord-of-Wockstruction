@@ -4,6 +4,7 @@ import {
   addPendingPoint,
   clickClose,
   clickLevelUp,
+  clickPanelButton,
   clickPaused,
   createMenus,
   pressKey,
@@ -326,6 +327,92 @@ describe("a click on a panel's ×", () => {
     expect(menus.heroPanelOpen).toBe(false);
     expect(menus.inventoryOpen).toBe(false);
     expect(menus.skillTreeOpen).toBe(false);
+  });
+});
+
+describe("a click on a Panel button", () => {
+  it("opens and shuts each panel, as its key does", () => {
+    const menus = createMenus();
+
+    clickPanelButton(menus, "hero", alive);
+    expect(menus.heroPanelOpen).toBe(true);
+    clickPanelButton(menus, "hero", alive);
+    expect(menus.heroPanelOpen).toBe(false);
+
+    clickPanelButton(menus, "inventory", alive);
+    expect(menus.inventoryOpen).toBe(true);
+    clickPanelButton(menus, "inventory", alive);
+    expect(menus.inventoryOpen).toBe(false);
+
+    clickPanelButton(menus, "skillTree", alive);
+    expect(menus.skillTreeOpen).toBe(true);
+    clickPanelButton(menus, "skillTree", alive);
+    expect(menus.skillTreeOpen).toBe(false);
+  });
+
+  it("shuts the Skill Tree panel as the Inventory opens, and the other way round", () => {
+    const menus = createMenus();
+
+    clickPanelButton(menus, "skillTree", alive);
+    clickPanelButton(menus, "inventory", alive);
+    expect(menus.inventoryOpen).toBe(true);
+    expect(menus.skillTreeOpen).toBe(false);
+
+    clickPanelButton(menus, "skillTree", alive);
+    expect(menus.skillTreeOpen).toBe(true);
+    expect(menus.inventoryOpen).toBe(false);
+  });
+
+  it("leaves the Inventory or Skill Tree panel be with the Hero panel's", () => {
+    const menus = createMenus();
+    clickPanelButton(menus, "inventory", alive);
+
+    clickPanelButton(menus, "hero", alive);
+    expect(menus.heroPanelOpen).toBe(true);
+    expect(menus.inventoryOpen).toBe(true);
+
+    clickPanelButton(menus, "skillTree", alive);
+    clickPanelButton(menus, "hero", alive);
+    expect(menus.heroPanelOpen).toBe(false);
+    expect(menus.skillTreeOpen).toBe(true);
+  });
+
+  it("does nothing while the Hero lies dead", () => {
+    const menus = createMenus();
+
+    clickPanelButton(menus, "hero", dead);
+    clickPanelButton(menus, "inventory", dead);
+    clickPanelButton(menus, "skillTree", dead);
+
+    expect(menus.heroPanelOpen).toBe(false);
+    expect(menus.inventoryOpen).toBe(false);
+    expect(menus.skillTreeOpen).toBe(false);
+  });
+
+  it("shuts a panel its key opened, and its key shuts one the button opened", () => {
+    const menus = createMenus();
+
+    pressKey(menus, "i", 1000, alive);
+    clickPanelButton(menus, "inventory", alive);
+    expect(menus.inventoryOpen).toBe(false);
+
+    clickPanelButton(menus, "skillTree", alive);
+    pressKey(menus, "t", 1000, alive);
+    expect(menus.skillTreeOpen).toBe(false);
+
+    clickPanelButton(menus, "hero", alive);
+    pressKey(menus, "c", 1000, alive);
+    expect(menus.heroPanelOpen).toBe(false);
+  });
+
+  it("cancels Pending Attribute Points as it shuts the Hero panel, as C does", () => {
+    const menus = createMenus();
+    clickPanelButton(menus, "hero", alive);
+    addPendingPoint(menus, "strength", { heroDead: false, attributePoints: 2 });
+
+    clickPanelButton(menus, "hero", alive);
+
+    expect(unplacedPoints(menus, 2)).toBe(2);
   });
 });
 

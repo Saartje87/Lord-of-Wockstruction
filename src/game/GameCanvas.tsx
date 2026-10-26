@@ -26,6 +26,7 @@ import {
   addPendingPoint,
   clickClose,
   clickLevelUp,
+  clickPanelButton,
   clickPaused,
   createMenus,
   type Menus,
@@ -196,7 +197,8 @@ export default function GameCanvas() {
         // on from their Death: Level Up opens the Hero or Skill Tree panel
         // (but for a dead Hero), a + on the Skill Tree spends a point while
         // the Hero panel's +, − and Accept plan and spend Pending Attribute
-        // Points, and a panel's × shuts it as its key does, while the game
+        // Points, and a panel's × or Panel button shuts it as its key does
+        // (a Panel button opening it too), while the game
         // runs on. A press that let go of a Held Skill does none of that.
         if (panel && "button" in panel && heldSkillAtPress === null) {
           const { button } = panel;
@@ -222,6 +224,11 @@ export default function GameCanvas() {
             if (accept) orders.push(accept);
           }
           if (button?.type === "close") clickClose(menus, button.panel);
+          // A Panel button opens or shuts its panel as its key does.
+          if (button?.type === "panelButton") {
+            const heroDead = world.death !== null;
+            clickPanelButton(menus, button.panel, { heroDead });
+          }
           if (button?.type === "learn") {
             orders.push({ type: "SpendSkillPoint", skill: button.skill });
           }
@@ -249,7 +256,8 @@ export default function GameCanvas() {
           if (order) orders.push(order);
         }
         // After the keys and clicks, any of which may have shut it: I, its
-        // ×, or T or Level Up opening the Skill Tree in its place.
+        // × or Panel button, or T, Level Up or the Skill Tree's Panel button
+        // opening the Skill Tree in its place.
         returnOnShut(orders, inventoryWasOpen, menus);
         if (pressed && world.death && !pause.paused) {
           orders.push({ type: "Continue" });

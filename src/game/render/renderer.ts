@@ -8,7 +8,7 @@ import {
 } from "pixi.js";
 import type { CursorHit } from "../cursor";
 import { toScreen, toTile } from "../iso";
-import type { MenuChoice, Menus, PendingPoints } from "../menus";
+import type { MenuChoice, Menus, Panel, PendingPoints } from "../menus";
 import type { Pause } from "../pause";
 import { type Area, isFloor } from "../sim/area";
 import { beltOf, beltRows, isBeltCell } from "../sim/belt";
@@ -98,6 +98,11 @@ import {
 } from "./inventoryPanel";
 import { itemColour } from "./itemArt";
 import { type Orb, orbFill } from "./orbs";
+import {
+  PANEL_BUTTONS,
+  panelButtonHitAt,
+  panelButtonsLayout,
+} from "./panelButtons";
 import { menuChoiceAt, PAUSE_MENU_LAYOUT, pauseMenuLayout } from "./pauseMenu";
 import {
   SKILL_BAR,
@@ -548,6 +553,8 @@ export function createRenderer(
   app.stage.addChild(skillBar.layer);
   const beltStrip = beltStripView();
   app.stage.addChild(beltStrip.layer);
+  const panelButtons = panelButtonsView();
+  app.stage.addChild(panelButtons.layer);
   const experience = experienceBarView();
   app.stage.addChild(experience.layer);
   const levelUp = levelUpButtonView();
@@ -641,7 +648,8 @@ export function createRenderer(
 
   /**
    * What a point on the canvas (CSS px) hits of the Hero panel, the Level Up
-   * button, the Skill Tree panel and the Inventory panel, as last drawn, or
+   * button, the Skill Tree panel, the Skill Bar, the Belt strip, the Panel
+   * buttons and the Inventory panel, as last drawn, or
    * null when it's for the World.
    */
   const panelAt = (screen: Vec): CursorHit | null => {
@@ -658,6 +666,7 @@ export function createRenderer(
       skillTreeHitAt(app.screen, screen, drawnWorld, skillTreeOpenNow) ??
       skillBarHitAt(app.screen, screen) ??
       beltStripHitAt(app.screen, screen) ??
+      panelButtonHitAt(app.screen, screen) ??
       inventoryHitAt(
         app.screen,
         screen,
@@ -1186,6 +1195,7 @@ export function createRenderer(
       orb.draw(app.screen, world, nowMs);
       skillBar.draw(app.screen, world, heldSkillSlot);
       beltStrip.draw(app.screen, world);
+      panelButtons.draw(app.screen);
       experience.draw(app.screen, world);
       levelUp.draw(app.screen, world, nowMs);
       heroPanel.draw(
@@ -1683,6 +1693,76 @@ function beltStripView() {
       });
     },
   };
+}
+
+/**
+ * The Panel buttons right of the Skill Bar, in its look: a stone-framed
+ * square each, with a simple icon of its panel.
+ */
+function panelButtonsView() {
+  const style = SKILL_BAR_STYLE;
+  const layer = new Container();
+  const graphics = new Graphics();
+  layer.addChild(graphics);
+
+  return {
+    layer,
+    draw(screen: { width: number; height: number }) {
+      const { buttons } = panelButtonsLayout(screen);
+      graphics.clear();
+      for (const panel of PANEL_BUTTONS) {
+        const rect = buttons[panel];
+        graphics
+          .rect(rect.x, rect.y, rect.w, rect.h)
+          .fill(style.fill)
+          .stroke({ color: style.edge, width: 1.5 });
+        // The stone frame's inner bevel.
+        graphics
+          .rect(rect.x + 3, rect.y + 3, rect.w - 6, rect.h - 6)
+          .stroke({ color: style.edge, width: 1, alpha: 0.6 });
+        panelIcon(graphics, panel, rect, style.key);
+      }
+    },
+  };
+}
+
+/**
+ * Draws a Panel button's icon centred in `rect`: a figure for the Hero
+ * panel, a bag for the Inventory panel, and linked nodes for the Skill Tree
+ * panel.
+ */
+function panelIcon(
+  graphics: Graphics,
+  panel: Panel,
+  rect: Rect,
+  colour: number,
+) {
+  const x = rect.x + rect.w / 2;
+  const y = rect.y + rect.h / 2;
+  if (panel === "hero") {
+    graphics.circle(x, y - 8, 5).fill(colour);
+    graphics
+      .poly([x - 9, y + 12, x - 6, y - 1, x + 6, y - 1, x + 9, y + 12])
+      .fill(colour);
+  }
+  if (panel === "inventory") {
+    graphics
+      .roundRect(x - 10, y - 5, 20, 17, 4)
+      .fill(colour)
+      .rect(x - 5, y - 11, 10, 6)
+      .stroke({ color: colour, width: 2 });
+  }
+  if (panel === "skillTree") {
+    graphics
+      .moveTo(x, y - 9)
+      .lineTo(x - 8, y + 8)
+      .moveTo(x, y - 9)
+      .lineTo(x + 8, y + 8)
+      .stroke({ color: colour, width: 2 });
+    graphics.circle(x, y - 9, 4).fill(colour);
+    graphics.circle(x - 8, y + 8, 4).fill(colour);
+    graphics.circle(x + 8, y + 8, 4).fill(colour);
+  }
 }
 
 /**

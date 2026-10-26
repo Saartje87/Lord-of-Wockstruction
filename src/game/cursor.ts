@@ -8,6 +8,7 @@ import {
   itemUnder,
   putDownOrder,
 } from "./render/inventoryPanel";
+import type { PanelButtonHit } from "./render/panelButtons";
 import type { SkillBarHit } from "./render/skillBar";
 import type { SkillTreeHit } from "./render/skillTreePanel";
 import { isBeltCell } from "./sim/belt";
@@ -47,6 +48,7 @@ export type CursorHit =
   | SkillTreeHit
   | SkillBarHit
   | BeltStripHit
+  | PanelButtonHit
   | InventoryHit
   | InventoryCloseHit
   | DropHit;

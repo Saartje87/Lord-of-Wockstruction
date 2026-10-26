@@ -1,5 +1,10 @@
 import { createPause, type Pause, togglePause } from "./pause";
-import type { SimEvent } from "./sim/world";
+import {
+  ATTRIBUTES,
+  type Attribute,
+  type Order,
+  type SimEvent,
+} from "./sim/world";
 
 /**
  * What the player opens over the World, by key or by click: the pause menu,
@@ -11,6 +16,12 @@ export type Menus = {
   heroPanelOpen: boolean;
   inventoryOpen: boolean;
   skillTreeOpen: boolean;
+  /**
+   * The Pending Attribute Points on each Attribute in the Hero panel, not
+   * spent until Accept, and cancelled as the panel shuts. Never in the World
+   * or the Save.
+   */
+  pendingPoints: Record<Attribute, number>;
 };
 
 export function createMenus(): Menus {
@@ -19,7 +30,12 @@ export function createMenus(): Menus {
     heroPanelOpen: false,
     inventoryOpen: false,
     skillTreeOpen: false,
+    pendingPoints: noPendingPoints(),
   };
+}
+
+function noPendingPoints(): Record<Attribute, number> {
+  return { strength: 0, dexterity: 0, vitality: 0, energy: 0 };
 }
 
 /**
@@ -67,7 +83,8 @@ export function pressKey(
   const panelKey = letter === "c" || letter === "i" || letter === "t";
   if (panelKey && hero.heroDead) return "handled";
   if (letter === "c") {
-    menus.heroPanelOpen = !menus.heroPanelOpen;
+    if (menus.heroPanelOpen) shutHeroPanel(menus);
+    else menus.heroPanelOpen = true;
     return "handled";
   }
   if (letter === "i") {
@@ -111,9 +128,65 @@ export type Panel = "hero" | "inventory" | "skillTree";
  * would, but never opens it.
  */
 export function clickClose(menus: Menus, panel: Panel) {
-  if (panel === "hero") menus.heroPanelOpen = false;
+  if (panel === "hero") shutHeroPanel(menus);
   if (panel === "inventory") menus.inventoryOpen = false;
   if (panel === "skillTree") menus.skillTreeOpen = false;
+}
+
+/** Shuts the Hero panel, cancelling its Pending Attribute Points. */
+function shutHeroPanel(menus: Menus) {
+  menus.heroPanelOpen = false;
+  menus.pendingPoints = noPendingPoints();
+}
+
+/**
+ * The Attribute Points left to place: of the Hero's `attributePoints`
+ * unspent, those not pending.
+ */
+export function unplacedPoints(menus: Menus, attributePoints: number): number {
+  const pending = ATTRIBUTES.reduce(
+    (sum, attribute) => sum + menus.pendingPoints[attribute],
+    0,
+  );
+  return attributePoints - pending;
+}
+
+/** Whether any Pending Attribute Point waits for Accept. */
+export function hasPendingPoints(menus: Menus): boolean {
+  return ATTRIBUTES.some((attribute) => menus.pendingPoints[attribute] > 0);
+}
+
+/**
+ * A click on an Attribute's +, putting a Pending Attribute Point on it while
+ * any of `hero`'s unspent points are left to place and they live.
+ */
+export function addPendingPoint(
+  menus: Menus,
+  attribute: Attribute,
+  hero: HeroState & { attributePoints: number },
+) {
+  if (hero.heroDead) return;
+  if (unplacedPoints(menus, hero.attributePoints) <= 0) return;
+  menus.pendingPoints[attribute] += 1;
+}
+
+/**
+ * A click on an Attribute's −, taking a Pending Attribute Point back off it,
+ * if it has one: never below the Attribute's accepted value.
+ */
+export function removePendingPoint(menus: Menus, attribute: Attribute) {
+  if (menus.pendingPoints[attribute] > 0) menus.pendingPoints[attribute] -= 1;
+}
+
+/**
+ * A click on Accept: the order spending every Pending Attribute Point at
+ * once, which clears them, or null while none are pending.
+ */
+export function acceptPendingPoints(menus: Menus): Order | null {
+  if (!hasPendingPoints(menus)) return null;
+  const points = menus.pendingPoints;
+  menus.pendingPoints = noPendingPoints();
+  return { type: "SpendAttributePoints", points };
 }
 
 /**
@@ -128,7 +201,7 @@ export function reactMenus(menus: Menus, events: readonly SimEvent[]) {
 
 /** Shuts the Hero, Inventory and Skill Tree panels. */
 function closePanels(menus: Menus) {
-  menus.heroPanelOpen = false;
+  shutHeroPanel(menus);
   menus.inventoryOpen = false;
   menus.skillTreeOpen = false;
 }

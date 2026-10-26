@@ -27,6 +27,8 @@ describe("a World created from a saved progress", () => {
       dexterity: 28,
       vitality: 22,
       attributePoints: 0,
+      skillPoints: 1,
+      skillLevels: { golem: 3 },
     };
     const w = createWorld({
       areas: { town },
@@ -55,6 +57,8 @@ describe("a World created without a saved progress", () => {
       dexterity: 20,
       vitality: 20,
       attributePoints: 0,
+      skillPoints: 0,
+      skillLevels: { golem: 0 },
     });
     expect(w.hero.life).toBe(100);
   });

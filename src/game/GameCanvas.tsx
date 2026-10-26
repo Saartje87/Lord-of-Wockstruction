@@ -143,7 +143,6 @@ export default function GameCanvas() {
           world = createWorld({ areas, tilesets, seed: Date.now() });
           orders = [];
         }
-        returnOnShut(orders, inventoryWasOpen, menus);
         // Stands still while paused, so the clock owes no steps for it and
         // the World and every effect hold still.
         const now = gameTime(pause, realNow);
@@ -161,19 +160,24 @@ export default function GameCanvas() {
         });
         orders.push(...newOrders);
         // A click on a panel never orders the Hero about, nor goes on from
-        // their Death: on the Hero panel, Level Up opens it (but for a dead
-        // Hero) and a + spends a point, while the game runs on.
-        // On the Inventory it lifts or puts down an Item, and with one held
-        // a click off the panels drops it.
+        // their Death: Level Up opens the Hero or Skill Tree panel (but for
+        // a dead Hero), and a + on either spends a point, while the game
+        // runs on. On the Inventory it lifts or puts down an Item, and with
+        // one held a click off the panels drops it.
         if (panel) {
           pressed = false;
           const button = "button" in panel ? panel.button : null;
           if (button?.type === "levelUp") {
-            clickLevelUp(menus, { heroDead: world.death !== null });
+            const { attributePoints, skillPoints } = world.hero.progress;
+            const heroDead = world.death !== null;
+            clickLevelUp(menus, { heroDead, attributePoints, skillPoints });
           }
           if (button?.type === "raise") {
             const { attribute } = button;
             orders.push({ type: "SpendAttributePoint", attribute });
+          }
+          if (button?.type === "learn") {
+            orders.push({ type: "SpendSkillPoint", skill: button.skill });
           }
           if (!("button" in panel) && pressedAt) {
             const order = inventoryOrder(world, app.screen, pressedAt, panel);
@@ -188,6 +192,9 @@ export default function GameCanvas() {
           const order = inventoryRightClickOrder(world, rightHit);
           if (order) orders.push(order);
         }
+        // After the keys and clicks, any of which may have shut it: I, T or
+        // Level Up opening the Skill Tree in its place.
+        returnOnShut(orders, inventoryWasOpen, menus);
         if (pressed && world.death && !pause.paused) {
           orders.push({ type: "Continue" });
           // So holding on after the click doesn't steer in Town.

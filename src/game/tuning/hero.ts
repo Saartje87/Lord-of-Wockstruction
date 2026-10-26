@@ -11,6 +11,8 @@ export type HeroTuning = {
   lifePerVitality: number;
   /** Attribute Points granted by each new Level. */
   attributePointsPerLevel: number;
+  /** Skill Points granted by each new Level. */
+  skillPointsPerLevel: number;
   /**
    * The total Experience each Level needs, from Level 1 (always 0) up to the
    * last Level, the cap.
@@ -72,6 +74,7 @@ export const heroTuning: HeroTuning = {
   lifePerLevel: 2,
   lifePerVitality: 3,
   attributePointsPerLevel: 5,
+  skillPointsPerLevel: 1,
   experienceTable: [
     // Diablo 2's table, which takes 5 Skeletons to Level 2.
     0, 500, 1_500, 3_750, 7_875, 14_175, 22_680, 32_886, 44_396, 57_715, 72_144,

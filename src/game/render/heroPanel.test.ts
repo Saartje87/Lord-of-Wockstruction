@@ -49,6 +49,8 @@ function withPoints(points: number): World {
     dexterity: 20,
     vitality: 20,
     attributePoints: points,
+    skillPoints: 0,
+    skillLevels: { golem: 1 },
   });
 }
 
@@ -126,6 +128,8 @@ describe("heroSheet", () => {
       dexterity: 20,
       vitality: 20,
       attributePoints: 10,
+      skillPoints: 4,
+      skillLevels: { golem: 0 },
     });
     step(w, [{ type: "SpendAttributePoint", attribute: "dexterity" }]);
 
@@ -173,6 +177,23 @@ describe("panelHitAt", () => {
       button: { type: "levelUp" },
     });
     expect(panelHitAt(screen, at, withPoints(0), false)).toBeNull();
+  });
+
+  it("finds the Level Up button while only Skill Points are unspent", () => {
+    const w = world({
+      level: 2,
+      experience: 500,
+      strength: 25,
+      dexterity: 20,
+      vitality: 20,
+      attributePoints: 0,
+      skillPoints: 1,
+      skillLevels: { golem: 0 },
+    });
+
+    expect(panelHitAt(screen, centre(layout.levelUp), w, false)).toEqual({
+      button: { type: "levelUp" },
+    });
   });
 
   it("finds a + button only while the panel is open with points unspent", () => {

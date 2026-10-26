@@ -64,6 +64,7 @@ import {
 } from "./groundLabels";
 import {
   HERO_PANEL,
+  hasUnspentPoints,
   heroPanelLayout,
   heroSheet,
   PANEL_ROWS,
@@ -83,6 +84,16 @@ import {
   landingCell,
 } from "./inventoryPanel";
 import { menuChoiceAt, PAUSE_MENU_LAYOUT, pauseMenuLayout } from "./pauseMenu";
+import {
+  SKILL_TREE_PANEL,
+  SKILL_TREE_ROWS,
+  type SkillTreeHit,
+  skillRow,
+  skillTreeHitAt,
+  skillTreePanelLayout,
+  skillTreeRowTop,
+  skillTreeSheet,
+} from "./skillTreePanel";
 
 const HOVER_LINE = 0xd8c48a;
 const MARKER_LINE = 0xe8d27a;
@@ -484,6 +495,8 @@ export function createRenderer(
   app.stage.addChild(heroPanel.layer);
   const inventoryPanel = inventoryPanelView();
   app.stage.addChild(inventoryPanel.layer);
+  const skillTreePanel = skillTreePanelView();
+  app.stage.addChild(skillTreePanel.layer);
   // Over the whole screen, stretched to it each frame.
   const banner = new Text({
     text: "",
@@ -538,17 +551,22 @@ export function createRenderer(
   let heroPanelOpenNow = false;
   /** Whether the Inventory panel was open when last drawn. */
   let inventoryOpenNow = false;
+  /** Whether the Skill Tree panel was open when last drawn. */
+  let skillTreeOpenNow = false;
 
   /**
    * What a point on the canvas (CSS px) hits of the Hero panel, the Level Up
-   * button and the Inventory panel, as last drawn, or null when it's for
-   * the World.
+   * button, the Skill Tree panel and the Inventory panel, as last drawn, or
+   * null when it's for the World.
    */
-  const panelAt = (screen: Vec): PanelHit | InventoryHit | DropHit | null => {
+  const panelAt = (
+    screen: Vec,
+  ): PanelHit | SkillTreeHit | InventoryHit | DropHit | null => {
     if (!drawnWorld) return null;
     const holding = cursorItemOf(drawnWorld) !== null;
     return (
       panelHitAt(app.screen, screen, drawnWorld, heroPanelOpenNow) ??
+      skillTreeHitAt(app.screen, screen, drawnWorld, skillTreeOpenNow) ??
       inventoryHitAt(app.screen, screen, inventoryOpenNow, holding)
     );
   };
@@ -779,6 +797,7 @@ export function createRenderer(
       const active = world.areas[world.areaName];
       heroPanelOpenNow = menus.heroPanelOpen;
       inventoryOpenNow = menus.inventoryOpen;
+      skillTreeOpenNow = menus.skillTreeOpen;
       if (world !== drawnWorld) {
         showWorld(world);
         // A new World starts the Hero in an Area: they've arrived there.
@@ -989,6 +1008,7 @@ export function createRenderer(
       experience.draw(app.screen, world);
       levelUp.draw(app.screen, world, nowMs);
       heroPanel.draw(app.screen, world, menus.heroPanelOpen);
+      skillTreePanel.draw(app.screen, world, menus.skillTreeOpen);
       const spot = onPanel && "inventory" in onPanel ? onPanel.inventory : null;
       inventoryPanel.draw(
         app.screen,
@@ -1387,9 +1407,9 @@ function experienceBarView() {
 }
 
 /**
- * The Level Up button by the Life orb, shown while Attribute Points are
- * unspent but not while the Hero lies dead, its edge pulsing to catch the
- * eye.
+ * The Level Up button by the Life orb, shown while Attribute or Skill Points
+ * are unspent but not while the Hero lies dead, its edge pulsing to catch
+ * the eye.
  */
 function levelUpButtonView() {
   const layer = new Container();
@@ -1413,7 +1433,7 @@ function levelUpButtonView() {
       world: World,
       nowMs: number,
     ) {
-      layer.visible = !world.death && world.hero.progress.attributePoints > 0;
+      layer.visible = !world.death && hasUnspentPoints(world);
       if (!layer.visible) return;
       const rect = heroPanelLayout(screen).levelUp;
       const { pulsesPerSecond, edgeFaint } = HUD_BUTTON;
@@ -1556,6 +1576,134 @@ function heroPanelView() {
         const y = rowTop(at) - style.ruleGap;
         graphics.rect(left, y, right - left, 1).fill(style.edge);
       }
+    },
+  };
+}
+
+/**
+ * The Skill Tree panel, in the Hero panel's look: the unspent Skill Points,
+ * then each Skill's Skill Level, Mana cost at the next Skill Level and
+ * required Level, with a + button while a Skill Point can be spent on it.
+ */
+function skillTreePanelView() {
+  const style = HERO_PANEL_STYLE;
+  const layer = new Container();
+  const graphics = new Graphics();
+  layer.addChild(graphics);
+  layer.visible = false;
+  const text = (fill: number, size = style.textSize) => {
+    const t = new Text({
+      text: "",
+      style: { fill, fontSize: size, fontFamily: SERIF },
+    });
+    layer.addChild(t);
+    return t;
+  };
+
+  const title = text(style.title, style.titleSize);
+  title.text = "Skill Tree";
+  title.anchor.set(0.5, 0);
+  const hint = text(style.hint, style.hintSize);
+  hint.text = "Press T to close";
+  hint.anchor.set(0.5, 1);
+  /** A row's name at its left and value at its right. */
+  const row = (nameFill: number = style.name) => {
+    const name = text(nameFill);
+    name.anchor.set(0, 0.5);
+    const value = text(style.value);
+    value.anchor.set(1, 0.5);
+    return { name, value };
+  };
+  type Row = ReturnType<typeof row>;
+  const points = row();
+  /** Made as the sheet first lists them. */
+  const skills: {
+    name: Row;
+    skillLevel: Row;
+    manaCost: Row;
+    requiredLevel: Row;
+    plus: Text;
+  }[] = [];
+
+  return {
+    layer,
+    draw(screen: { width: number }, world: World, open: boolean) {
+      layer.visible = open;
+      if (!open) return;
+      const sheet = skillTreeSheet(world);
+      const layout = skillTreePanelLayout(screen);
+      const { panel } = layout;
+      const { padding, rowHeight, plus } = SKILL_TREE_PANEL;
+      const left = panel.x + padding;
+      const right = panel.x + panel.w - padding;
+
+      graphics.clear();
+      graphics
+        .rect(panel.x, panel.y, panel.w, panel.h)
+        .fill({ color: style.fill, alpha: style.alpha })
+        .stroke({ color: style.edge, width: 2 });
+      title.position.set(panel.x + panel.w / 2, panel.y + padding);
+      hint.position.set(panel.x + panel.w / 2, panel.y + panel.h - padding);
+
+      const place = (shown: Row, at: number, name: string, value: string) => {
+        const y = skillTreeRowTop(at) + rowHeight / 2;
+        shown.name.text = name;
+        shown.name.position.set(left, y);
+        shown.value.text = value;
+        shown.value.position.set(right, y);
+      };
+      const anyRaisable = sheet.skills.some((skill) => skill.canRaise);
+      place(
+        points,
+        SKILL_TREE_ROWS.skillPoints,
+        "Skill Points",
+        sheet.skillPoints,
+      );
+      points.value.style.fill = anyRaisable ? style.title : style.value;
+
+      sheet.skills.forEach((skill, index) => {
+        if (!skills[index]) {
+          const plusText = text(style.title, style.plusSize);
+          plusText.text = "+";
+          plusText.anchor.set(0.5);
+          skills[index] = {
+            name: row(style.title),
+            skillLevel: row(),
+            manaCost: row(),
+            requiredLevel: row(),
+            plus: plusText,
+          };
+        }
+        const shown = skills[index];
+        const at = (within: number) => skillRow(index, within);
+        place(shown.name, at(SKILL_TREE_ROWS.name), skill.name, "");
+        place(
+          shown.skillLevel,
+          at(SKILL_TREE_ROWS.skillLevel),
+          "Skill Level",
+          skill.skillLevel,
+        );
+        place(
+          shown.manaCost,
+          at(SKILL_TREE_ROWS.manaCost),
+          "Mana cost",
+          skill.manaCost,
+        );
+        place(
+          shown.requiredLevel,
+          at(SKILL_TREE_ROWS.requiredLevel),
+          "Required Level",
+          skill.requiredLevel,
+        );
+        const rect = layout.raise[skill.skill];
+        shown.plus.visible = skill.canRaise;
+        if (skill.canRaise) {
+          button(graphics, rect);
+          shown.plus.position.set(rect.x + plus / 2, rect.y + plus / 2);
+        }
+        const y = skillTreeRowTop(at(SKILL_TREE_ROWS.name)) - style.ruleGap;
+        graphics.rect(left, y, right - left, 1).fill(style.edge);
+      });
     },
   };
 }

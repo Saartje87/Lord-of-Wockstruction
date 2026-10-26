@@ -2,6 +2,7 @@ import { areaTuning } from "../tuning/areas";
 import { heroTuning } from "../tuning/hero";
 import { type Bonus, dropTuning, itemOf } from "../tuning/items";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
+import { type Skill, skillTuning } from "../tuning/skills";
 import {
   type Area,
   exitAt,
@@ -289,7 +290,13 @@ export type Order =
    * Spend an unspent Attribute Point raising `attribute` by one, at once and
    * whatever the Hero is doing.
    */
-  | { type: "SpendAttributePoint"; attribute: Attribute };
+  | { type: "SpendAttributePoint"; attribute: Attribute }
+  /**
+   * Spend an unspent Skill Point raising `skill`'s Skill Level by one, at
+   * once and whatever the Hero is doing, if the Hero's Level is up to the
+   * Skill's required Level.
+   */
+  | { type: "SpendSkillPoint"; skill: Skill };
 
 /** What happened during a step. */
 export type SimEvent =
@@ -317,6 +324,8 @@ export type SimEvent =
   /** The Hero reached Level `level`, with their Life already filled. */
   | { type: "LevelReached"; level: number }
   | { type: "AttributeRaised"; attribute: Attribute }
+  /** A Skill Point raised `skill` to Skill Level `skillLevel`. */
+  | { type: "SkillLevelRaised"; skill: Skill; skillLevel: number }
   | { type: "HeroDied" }
   /** The Hero arrived at Entry `entry` in Area `area`. */
   | { type: "AreaChanged"; area: string; entry: string };
@@ -327,7 +336,15 @@ export const ATTRIBUTES = ["strength", "dexterity", "vitality"] as const;
 /** One of the Hero's Attributes. */
 export type Attribute = (typeof ATTRIBUTES)[number];
 
-/** Level, Experience and Attributes: what the Save keeps besides Belongings. */
+export type { Skill };
+
+/** The Skills, in the order the Skill Tree shows them. */
+export const SKILLS = Object.keys(skillTuning) as Skill[];
+
+/**
+ * Level, Experience, Attributes and Skills: what the Save keeps besides
+ * Belongings.
+ */
 export type Progress = {
   /** From 1 up to the last Level in the Experience table. */
   level: number;
@@ -341,9 +358,13 @@ export type Progress = {
   vitality: number;
   /** Attribute Points not spent yet. */
   attributePoints: number;
+  /** Skill Points not spent yet. */
+  skillPoints: number;
+  /** Each Skill's Skill Level; 0 is not learned. */
+  skillLevels: Record<Skill, number>;
 };
 
-/** A fresh Level 1 Hero's progress. */
+/** A fresh Level 1 Hero's progress: no Skill learned. */
 export const FRESH_PROGRESS: Progress = {
   level: 1,
   experience: 0,
@@ -351,7 +372,17 @@ export const FRESH_PROGRESS: Progress = {
   dexterity: heroTuning.dexterity,
   vitality: heroTuning.vitality,
   attributePoints: 0,
+  skillPoints: 0,
+  skillLevels: Object.fromEntries(SKILLS.map((skill) => [skill, 0])) as Record<
+    Skill,
+    number
+  >,
 };
+
+/** A copy of `progress` sharing nothing with it. */
+function copyProgress(progress: Progress): Progress {
+  return { ...progress, skillLevels: { ...progress.skillLevels } };
+}
 
 /**
  * Builds a World from raw `.tmj` content keyed by Area name, with the Hero in
@@ -394,7 +425,7 @@ export function createWorld(options: {
     hero: {
       // Filled to max Life below, once there's a World to ask.
       life: 0,
-      progress: { ...progress },
+      progress: copyProgress(progress),
       // Filled from `belongings` below, handing out Item ids.
       inventory: [],
       equipment: emptyEquipment(),
@@ -425,7 +456,26 @@ export function createWorld(options: {
 
 /** The Hero's progress, as the Save keeps it. */
 export function progressOf(world: World): Progress {
-  return { ...world.hero.progress };
+  return copyProgress(world.hero.progress);
+}
+
+/**
+ * Whether a Skill Point can be spent on `skill` now: one is unspent, the
+ * Hero lives and their Level is up to the Skill's required Level.
+ */
+export function canRaiseSkill(world: World, skill: Skill): boolean {
+  const { progress } = world.hero;
+  return (
+    progress.skillPoints > 0 &&
+    !world.death &&
+    progress.level >= skillTuning[skill].requiredLevel
+  );
+}
+
+/** The Mana a cast of `skill` costs at Skill Level `skillLevel` (1 and up). */
+export function skillManaCost(skill: Skill, skillLevel: number): number {
+  const { manaCost, manaCostPerSkillLevel } = skillTuning[skill];
+  return manaCost + manaCostPerSkillLevel * (skillLevel - 1);
 }
 
 /** The Ground Items lying in the active Area. */
@@ -815,6 +865,16 @@ function spendAttributePoint(
   events.push({ type: "AttributeRaised", attribute });
 }
 
+/** Raises a Skill's Skill Level by one for an unspent Skill Point, if it can be. */
+function spendSkillPoint(world: World, skill: Skill, events: SimEvent[]) {
+  if (!canRaiseSkill(world, skill)) return;
+  const { progress } = world.hero;
+  progress.skillPoints -= 1;
+  progress.skillLevels[skill] += 1;
+  const skillLevel = progress.skillLevels[skill];
+  events.push({ type: "SkillLevelRaised", skill, skillLevel });
+}
+
 /**
  * Applies an order, or buffers it during a flinch or a committed swing. A
  * point is spent and Items move at once, whatever the Hero is doing. Taking
@@ -827,6 +887,10 @@ function give(world: World, order: Order, events: SimEvent[]) {
   if (order.type === "Continue") return;
   if (order.type === "SpendAttributePoint") {
     spendAttributePoint(world, order.attribute, events);
+    return;
+  }
+  if (order.type === "SpendSkillPoint") {
+    spendSkillPoint(world, order.skill, events);
     return;
   }
   if (moveItem(world, order, events)) {
@@ -1115,6 +1179,7 @@ function gainExperience(world: World, amount: number, events: SimEvent[]) {
   ) {
     progress.level += 1;
     progress.attributePoints += heroTuning.attributePointsPerLevel;
+    progress.skillPoints += heroTuning.skillPointsPerLevel;
     hero.life = maxLife(world);
     events.push({ type: "LevelReached", level: progress.level });
   }

@@ -127,6 +127,8 @@ const UNSPENT: Progress = {
   dexterity: 20,
   vitality: 20,
   attributePoints: 10,
+  skillPoints: 2,
+  skillLevels: { golem: 0 },
 };
 
 /** Spends `times` points on `attribute`, one step each, returning the events. */

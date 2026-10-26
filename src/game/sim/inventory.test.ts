@@ -40,6 +40,8 @@ function strongerBy(strength: number): Progress {
     dexterity: 20,
     vitality: 20,
     attributePoints: 10 - strength,
+    skillPoints: 2,
+    skillLevels: { golem: 0 },
   };
 }
 

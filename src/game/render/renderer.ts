@@ -21,6 +21,7 @@ import {
   isSlot,
   placement,
 } from "../sim/inventory";
+import { minionWindUpProgress } from "../sim/minions";
 import { monsterMaxLife, windUpProgress } from "../sim/monsters";
 import type { Rect } from "../sim/rect";
 import { STEP_MS } from "../sim/units";
@@ -1034,7 +1035,14 @@ export function createRenderer(
         const minionAt = lerp(minion.prevPos, minion.pos, alpha);
         place(golem.view, minionAt);
         golem.compass = compassOf(minion.facing);
-        walkOrStand(golem.view, minion, minionAt, golem.compass, nowMs);
+        if (minion.state === "windup") {
+          const { frames } = golem.view.art.timing.swing;
+          const progress = minionWindUpProgress(minion);
+          const frame = Math.min(frames - 1, Math.floor(progress * frames));
+          show(golem.view, "swing", golem.compass, frame);
+        } else {
+          walkOrStand(golem.view, minion, minionAt, golem.compass, nowMs);
+        }
       }
       for (let i = crumbling.length - 1; i >= 0; i--) {
         const { view, atMs } = crumbling[i];

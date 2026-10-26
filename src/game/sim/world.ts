@@ -35,6 +35,8 @@ import {
   type Minion,
   type MinionId,
   type MinionType,
+  minionAttackRating,
+  minionDamageRange,
   minionDefense,
   minionMaxLife,
   newMinion,
@@ -369,10 +371,16 @@ export type CastFailure = "town" | "mana";
 
 /** What happened during a step. */
 export type SimEvent =
-  | { type: "HitLanded"; attacker: "hero"; target: MonsterId; damage: number }
+  /** The Hero's swing or their Minion's attack hit a Monster. */
+  | {
+      type: "HitLanded";
+      attacker: "hero" | "minion";
+      target: MonsterId;
+      damage: number;
+    }
   /**
-   * A swing of the Hero's failed its chance to hit a Monster, or a Monster's
-   * attack failed to hit the Hero.
+   * A swing of the Hero's or an attack of their Minion's failed its chance
+   * to hit a Monster, or a Monster's attack failed to hit the Hero.
    */
   | { type: "Missed"; target: MonsterId | "hero" }
   | { type: "HeroHit"; damage: number }
@@ -924,7 +932,8 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
 
   if (hero.flinch > 0) stepFlinch(world, events);
   // Before the orders, so a Minion summoned this step stands where it appears.
-  stepMinion(world);
+  const struck = stepMinion(world);
+  if (struck && world.minion) minionStrike(world, world.minion, struck, events);
   for (const order of [...world.heldOrders, ...orders]) {
     give(world, order, events);
   }
@@ -1332,6 +1341,14 @@ function hit(world: World, monster: Monster, events: SimEvent[]) {
     damage,
   });
 
+  hurt(world, monster, events);
+}
+
+/**
+ * After a hit on a Monster: at 0 Life it dies, leaving a Corpse, giving the
+ * Hero its Experience and rolling its drop; else it notices and may flinch.
+ */
+function hurt(world: World, monster: Monster, events: SimEvent[]) {
   if (monster.life === 0) {
     world.monsters = world.monsters.filter((m) => m !== monster);
     world.corpses.push({
@@ -1352,6 +1369,37 @@ function hit(world: World, monster: Monster, events: SimEvent[]) {
   if (random(world.rng) < monsterTuning[monster.type].flinchChance) {
     monster.flinch = FLINCH_STEPS[monster.type];
   }
+}
+
+/**
+ * Lands the Hero's Minion's attack on a Monster: it rolls the Minion's
+ * Attack Rating against the Monster's Defense, and a hit hurts it as the
+ * Hero's do. Neither keeps the Hero In Combat, and there is no hitstop.
+ */
+function minionStrike(
+  world: World,
+  minion: Minion,
+  monster: Monster,
+  events: SimEvent[],
+) {
+  const chance = chanceToHit(
+    minionAttackRating(minion),
+    monsterDefense(monster),
+  );
+  if (random(world.rng) >= chance) {
+    events.push({ type: "Missed", target: monster.id });
+    noticeHit(world, monster);
+    return;
+  }
+  const damage = randomInt(world.rng, minionDamageRange(minion));
+  monster.life = Math.max(0, monster.life - damage);
+  events.push({
+    type: "HitLanded",
+    attacker: "minion",
+    target: monster.id,
+    damage,
+  });
+  hurt(world, monster, events);
 }
 
 /**

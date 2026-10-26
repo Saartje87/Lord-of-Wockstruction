@@ -149,7 +149,9 @@ describe("casting the Golem", () => {
       type: "golem",
       pos: { x: 5.5, y: 1.5 },
     });
-    expect(w.minion?.life).toBe(minionMaxLife({ type: "golem" }));
+    expect(w.minion?.life).toBe(
+      minionMaxLife({ type: "golem", skillLevel: 1 }),
+    );
   });
 
   it("roots the Hero for the cast time, then runs the newest order given", () => {
@@ -214,7 +216,9 @@ describe("casting the Golem", () => {
     });
     expect(w.minion?.id).not.toBe(old.id);
     expect(w.minion).toMatchObject({ pos: { x: 1.5, y: 5.5 } });
-    expect(w.minion?.life).toBe(minionMaxLife({ type: "golem" }));
+    expect(w.minion?.life).toBe(
+      minionMaxLife({ type: "golem", skillLevel: 1 }),
+    );
     // 60 steps of regeneration, then the cost again.
     expect(w.hero.mana).toBeCloseTo(mana + 2 - 15, 0);
   });

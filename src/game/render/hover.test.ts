@@ -99,6 +99,9 @@ const golem = (life: number): Minion => ({
   life,
   facing: 0,
   state: "follow",
+  target: null,
+  attack: 0,
+  cooldown: 0,
   path: [],
   replan: 0,
   stuck: 0,
@@ -117,7 +120,7 @@ describe("nameplateOf", () => {
   });
 
   it("names the Golem, friendly, with its Life bar's fill", () => {
-    const max = minionMaxLife({ type: "golem" });
+    const max = minionMaxLife({ type: "golem", skillLevel: 1 });
 
     const plate = nameplateOf({ minion: golem(max / 4) });
 

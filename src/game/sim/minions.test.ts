@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import { encodeSave, parseSave, saveOf } from "../save";
 import { minionTuning } from "../tuning/minions";
 import { monsterTuning } from "../tuning/monsters";
+import {
+  minionAttackRating,
+  minionDamageRange,
+  minionDefense,
+} from "./minions";
+import { monsterMaxLife } from "./monsters";
 import { emptySkillBar } from "./skillBar";
 import { combatArea } from "./testAreas";
 import { distance, type Vec } from "./vec";
@@ -169,6 +175,7 @@ function golemOf(w: World) {
 
 const { followDistance, speed, stuckMs } = minionTuning.golem;
 const { leash } = monsterTuning.skeleton;
+const golemLeash = minionTuning.golem.leash;
 
 describe("the Golem following the Hero", () => {
   it("walks around walls after a Hero who left it behind and stops within the follow distance", () => {
@@ -496,5 +503,169 @@ describe("Monsters fighting the Golem", () => {
     expect(
       events.some((e) => e.type === "HeroHit" || e.type === "MinionHit"),
     ).toBe(false);
+  });
+});
+
+/**
+ * A field with a Skeleton four tiles east of where the Hero arrives, at tile
+ * (1, 0), at Area Level `areaLevel`.
+ */
+function skeletonNearHero(areaLevel = 1) {
+  return {
+    ...AREAS,
+    field: map(
+      ["EA...S..............", "....................", "...................H"],
+      "town",
+      areaLevel,
+    ),
+  };
+}
+
+describe("the Golem fighting Monsters", () => {
+  it("chases a Monster near the Hero and hits it, never the Hero", () => {
+    const w = inField(GOLEM_HERO, skeletonNearHero());
+    summonAt(w, { x: 2.5, y: 1.5 });
+    const skeleton = skeletonOf(w);
+    const heroLife = w.hero.life;
+
+    const events = stepUntil(
+      w,
+      () => skeleton.life < monsterMaxLife(skeleton),
+      60 * 20,
+    );
+
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: "HitLanded",
+        attacker: "minion",
+        target: skeleton.id,
+      }),
+    );
+    expect(skeleton.target).toBe("minion");
+    expect(w.hero.life).toBe(heroLife);
+  });
+
+  it("kills it with hits in its damage range, sometimes Missing, and the Hero gains its Experience", () => {
+    const w = inField(GOLEM_HERO, skeletonNearHero());
+    summonAt(w, { x: 2.5, y: 1.5 });
+    const skeleton = skeletonOf(w);
+    const { experience } = w.hero.progress;
+
+    const events = stepUntil(w, () => w.monsters.length === 0, 60 * 60);
+
+    const hits = events.filter(
+      (event) => event.type === "HitLanded" && event.attacker === "minion",
+    );
+    expect(hits.length).toBeGreaterThan(0);
+    for (const hit of hits) {
+      if (hit.type !== "HitLanded") continue;
+      expect(hit.damage).toBeGreaterThanOrEqual(4);
+      expect(hit.damage).toBeLessThanOrEqual(8);
+    }
+    expect(events).toContainEqual({ type: "Missed", target: skeleton.id });
+    expect(
+      events.some(
+        (event) => event.type === "HitLanded" && event.attacker === "hero",
+      ),
+    ).toBe(false);
+    expect(events).toContainEqual({ type: "MonsterDied", id: skeleton.id });
+    expect(w.corpses).toEqual([
+      expect.objectContaining({ id: skeleton.id, type: "skeleton" }),
+    ]);
+    expect(events).toContainEqual({ type: "ExperienceGained", amount: 100 });
+    expect(w.hero.progress.experience).toBe(experience + 100);
+    // Back to following once there is nothing left to fight.
+    stepUntil(w, () => golemOf(w).state === "follow", 120);
+  });
+
+  it("gives the Hero about 5% of the Experience for a kill 10 or more Levels below them", () => {
+    const w = inField(
+      { ...GOLEM_HERO, level: 11, experience: 0 },
+      skeletonNearHero(),
+    );
+    summonAt(w, { x: 2.5, y: 1.5 });
+
+    const events = stepUntil(w, () => w.monsters.length === 0, 60 * 60);
+
+    expect(events).toContainEqual({ type: "ExperienceGained", amount: 5 });
+  });
+
+  it("gives up on a Monster past its Leash to the Hero and goes back to following", () => {
+    const w = inField(GOLEM_HERO, {
+      ...AREAS,
+      field: map(
+        [
+          "EA...S..................................",
+          ".......................................H",
+        ],
+        "town",
+        1,
+      ),
+    });
+    summonAt(w, { x: 2.5, y: 1.5 });
+    const golem = golemOf(w);
+    const skeleton = skeletonOf(w);
+    stepUntil(w, () => golem.state === "windup", 60 * 10);
+
+    // Runs off east, leaving the two fighting, but not so far that the
+    // Golem teleports after them.
+    step(w, [{ type: "MoveTo", target: { x: 15.5, y: 1.5 } }]);
+    stepUntil(w, () => distance(skeleton.pos, w.hero.pos) > golemLeash);
+    // At most a wind-up and its root to finish first.
+    stepUntil(w, () => golem.state === "follow", 60);
+
+    expect(golem.target).toBeNull();
+    const gap = distance(golem.pos, w.hero.pos);
+    for (let i = 0; i < 30; i++) step(w, []);
+    expect(distance(golem.pos, w.hero.pos)).toBeLessThan(gap);
+  });
+
+  it("is never hit by the Hero's swings", () => {
+    const w = inField();
+    summonAt(w, { x: 2.5, y: 0.5 });
+    const golem = golemOf(w);
+
+    const events: SimEvent[] = [];
+    for (let i = 0; i < 5; i++) {
+      events.push(
+        ...step(w, [{ type: "SwingAt", target: { ...golem.pos } }]),
+        ...stepUntil(w, () => !w.hero.swing),
+      );
+    }
+
+    expect(golem.life).toBe(minionMaxLife(golem));
+    expect(
+      events.some((e) => e.type === "HitLanded" || e.type === "Missed"),
+    ).toBe(false);
+  });
+});
+
+describe("the Golem's Skill Level", () => {
+  it("gives it more Life, damage, Attack Rating and Defense", () => {
+    const at = (skillLevel: number) => {
+      const w = inField({ ...GOLEM_HERO, skillLevels: { golem: skillLevel } });
+      summonAt(w, { x: 2.5, y: 1.5 });
+      const golem = golemOf(w);
+      return {
+        life: golem.life,
+        damage: minionDamageRange(golem),
+        attackRating: minionAttackRating(golem),
+        defense: minionDefense(golem),
+      };
+    };
+
+    // +20% Life and damage, +10% Attack Rating and Defense per Skill Level.
+    expect(at(1)).toEqual({
+      life: 180,
+      damage: [4, 8],
+      attackRating: 100,
+      defense: 30,
+    });
+    expect(at(3)).toEqual({
+      life: 252,
+      damage: [6, 11],
+      attackRating: 120,
+      defense: 36,
+    });
   });
 });

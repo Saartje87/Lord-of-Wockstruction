@@ -71,3 +71,25 @@ describe("the viewport's Compact Layout", () => {
     expect(viewportOf({ width, height }).compact).toBe(compact);
   });
 });
+
+describe("the viewport's Rotate Notice", () => {
+  it.each([
+    { screen: "a 640×360 phone", width: 640, height: 360, notice: null },
+    { screen: "an 844×390 phone", width: 844, height: 390, notice: null },
+    { screen: "a 1180×820 tablet", width: 1180, height: 820, notice: null },
+    { screen: "1920×1080", width: 1920, height: 1080, notice: null },
+    { screen: "2560×1440", width: 2560, height: 1440, notice: null },
+    // Square is not taller than wide.
+    { screen: "a 700×700 window", width: 700, height: 700, notice: null },
+    { screen: "a phone held upright", width: 390, height: 844, notice: "turn" },
+    { screen: "a tablet upright", width: 820, height: 1180, notice: "turn" },
+    { screen: "a 700×701 window", width: 700, height: 701, notice: "turn" },
+    { screen: "a 639×360 window", width: 639, height: 360, notice: "enlarge" },
+    { screen: "a 640×359 window", width: 640, height: 359, notice: "enlarge" },
+    { screen: "below the minimum", width: 500, height: 300, notice: "enlarge" },
+    // Upright and small too: turning it sideways is what helps first.
+    { screen: "a 300×500 window", width: 300, height: 500, notice: "turn" },
+  ])("on $screen: $notice", ({ width, height, notice }) => {
+    expect(viewportOf({ width, height }).rotateNotice).toBe(notice);
+  });
+});

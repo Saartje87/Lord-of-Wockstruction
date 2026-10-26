@@ -24,6 +24,7 @@ const WIDE = {
   uiScale: 1,
   worldZoom: 1,
   compact: false,
+  rotateNotice: null,
 };
 const NARROW = {
   width: 800,
@@ -31,6 +32,7 @@ const NARROW = {
   uiScale: 1,
   worldZoom: 1,
   compact: false,
+  rotateNotice: null,
 };
 
 /** A Town of one tile with the Hero's `start` on it. */

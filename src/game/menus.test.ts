@@ -14,7 +14,7 @@ import {
   removePendingPoint,
   unplacedPoints,
 } from "./menus";
-import { togglePause } from "./pause";
+import { gameTime, togglePause } from "./pause";
 
 /** Whether the World has the Hero lying dead, as the menus are told. */
 const alive = { heroDead: false };
@@ -656,7 +656,7 @@ describe("the Compact Layout", () => {
   /** Menus fitted to a short screen, such as a phone held sideways. */
   function compactMenus() {
     const menus = createMenus();
-    fitMenus(menus, { compact: true });
+    fitMenus(menus, { compact: true, rotateNotice: null }, 1000);
     return menus;
   }
 
@@ -742,13 +742,13 @@ describe("the Compact Layout", () => {
     pressKey(menus, "c", 1000, alive);
     addPendingPoint(menus, "strength", { heroDead: false, attributePoints: 2 });
 
-    fitMenus(menus, { compact: true });
+    fitMenus(menus, { compact: true, rotateNotice: null }, 1000);
     expect(openPanels(menus)).toEqual(["hero"]);
     expect(unplacedPoints(menus, 2)).toBe(1);
 
-    fitMenus(menus, { compact: false });
+    fitMenus(menus, { compact: false, rotateNotice: null }, 1000);
     pressKey(menus, "t", 1000, alive);
-    fitMenus(menus, { compact: true });
+    fitMenus(menus, { compact: true, rotateNotice: null }, 1000);
     expect(openPanels(menus)).toEqual(["skillTree"]);
     expect(unplacedPoints(menus, 2)).toBe(2);
   });
@@ -761,7 +761,7 @@ describe("the Compact Layout", () => {
     pressKey(menus, "t", 1000, alive);
     pressKey(menus, "i", 1000, alive);
 
-    fitMenus(menus, { compact: true });
+    fitMenus(menus, { compact: true, rotateNotice: null }, 1000);
 
     expect(openPanels(menus)).toEqual(["inventory"]);
   });
@@ -769,10 +769,110 @@ describe("the Compact Layout", () => {
   it("lets both panels open together again once the screen is tall enough", () => {
     const menus = compactMenus();
 
-    fitMenus(menus, { compact: false });
+    fitMenus(menus, { compact: false, rotateNotice: null }, 1000);
     pressKey(menus, "c", 1000, alive);
     pressKey(menus, "i", 1000, alive);
 
     expect(openPanels(menus)).toEqual(["hero", "inventory"]);
+  });
+});
+
+describe("the Rotate Notice", () => {
+  const upright = { compact: false, rotateNotice: "turn" } as const;
+  const sideways = { compact: true, rotateNotice: null } as const;
+
+  it("stops game time while it shows", () => {
+    const menus = createMenus();
+
+    fitMenus(menus, upright, 1000);
+
+    expect(gameTime(menus.pause, 1000)).toBe(1000);
+    expect(gameTime(menus.pause, 61_000)).toBe(1000);
+  });
+
+  it("stays paused while it keeps showing, frame after frame", () => {
+    const menus = createMenus();
+
+    fitMenus(menus, upright, 1000);
+    fitMenus(menus, upright, 1016);
+    fitMenus(menus, upright, 1032);
+
+    expect(menus.pause.paused).toBe(true);
+    expect(gameTime(menus.pause, 5000)).toBe(1000);
+  });
+
+  it("resumes the World where it stopped as it goes away", () => {
+    const menus = createMenus();
+    fitMenus(menus, upright, 1000);
+
+    fitMenus(menus, sideways, 61_000);
+
+    expect(menus.pause.paused).toBe(false);
+    expect(gameTime(menus.pause, 61_016)).toBe(1016);
+  });
+
+  it("leaves the pause menu open as it goes away, if it was open before", () => {
+    const menus = createMenus();
+    pressKey(menus, "Escape", 500, alive);
+    fitMenus(menus, upright, 1000);
+
+    fitMenus(menus, sideways, 2000);
+
+    expect(menus.pause.paused).toBe(true);
+    pressKey(menus, "Escape", 3000, alive);
+    expect(gameTime(menus.pause, 3000)).toBe(500);
+  });
+
+  it.each([
+    "Escape",
+    "c",
+    "i",
+    "t",
+    "n",
+    "q",
+    "1",
+  ])("takes the %s key but does nothing with it", (key) => {
+    const menus = createMenus();
+    fitMenus(menus, upright, 1000);
+
+    expect(pressKey(menus, key, 2000, alive)).toBe("handled");
+
+    expect(menus.pause.paused).toBe(true);
+    expect(menus.pause.confirming).toBe(false);
+    expect(menus.heroPanelOpen).toBe(false);
+    expect(menus.inventoryOpen).toBe(false);
+    expect(menus.skillTreeOpen).toBe(false);
+    fitMenus(menus, sideways, 3000);
+    expect(menus.pause.paused).toBe(false);
+  });
+
+  it.each([
+    null,
+    "newHero",
+  ] as const)("ignores a click, on the pause menu's %s or not", (choice) => {
+    const menus = createMenus();
+    pressKey(menus, "Escape", 500, alive);
+    fitMenus(menus, upright, 1000);
+
+    expect(clickPaused(menus, choice, 2000)).toBeNull();
+
+    expect(menus.pause.paused).toBe(true);
+    expect(menus.pause.confirming).toBe(false);
+  });
+
+  it("opens no panel from a Panel button or the Level Up button", () => {
+    const menus = createMenus();
+    fitMenus(menus, upright, 1000);
+
+    clickPanelButton(menus, "inventory", alive);
+    clickLevelUp(menus, {
+      heroDead: false,
+      attributePoints: 5,
+      skillPoints: 1,
+    });
+
+    expect(menus.heroPanelOpen).toBe(false);
+    expect(menus.inventoryOpen).toBe(false);
+    expect(menus.skillTreeOpen).toBe(false);
   });
 });

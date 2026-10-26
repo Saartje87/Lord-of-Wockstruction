@@ -24,6 +24,16 @@ export type ViewportTuning = {
    * HUD and panels take the Compact Layout.
    */
   compactBelowHeight: number;
+  /**
+   * The narrowest screen the game is played on (CSS px); a narrower one
+   * shows the Rotate Notice asking to enlarge it.
+   */
+  minPlayWidth: number;
+  /**
+   * The shortest screen the game is played on (CSS px); a shorter one shows
+   * the Rotate Notice asking to enlarge it.
+   */
+  minPlayHeight: number;
 };
 
 export const viewportTuning: ViewportTuning = {
@@ -33,4 +43,6 @@ export const viewportTuning: ViewportTuning = {
   minWorldZoom: 0.5,
   maxWorldZoom: 2,
   compactBelowHeight: 540,
+  minPlayWidth: 640,
+  minPlayHeight: 360,
 };

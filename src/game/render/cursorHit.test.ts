@@ -61,6 +61,7 @@ const SMALL = {
   uiScale: 1,
   worldZoom: 1,
   compact: false,
+  rotateNotice: null,
 };
 const inventoryOpen = { ...createMenus(), inventoryOpen: true };
 

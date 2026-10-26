@@ -5,6 +5,7 @@ import {
   type Order,
   type SimEvent,
 } from "./sim/world";
+import type { Viewport } from "./viewport";
 
 /**
  * What the player opens over the World, by key or by click: the pause menu,
@@ -27,6 +28,16 @@ export type Menus = {
   compact: boolean;
   /** The panel opened most recently, which a short screen keeps. */
   lastOpened: Panel | null;
+  /**
+   * Whether the Rotate Notice shows instead of the game, as last fitted:
+   * the World is paused, and keys and clicks do nothing.
+   */
+  rotateNotice: boolean;
+  /**
+   * Whether the Rotate Notice paused the World, rather than finding the
+   * pause menu open, so its going away resumes it.
+   */
+  pausedForNotice: boolean;
 };
 
 /** A count of Pending Attribute Points on each Attribute. */
@@ -41,6 +52,8 @@ export function createMenus(): Menus {
     pendingPoints: noPendingPoints(),
     compact: false,
     lastOpened: null,
+    rotateNotice: false,
+    pausedForNotice: false,
   };
 }
 
@@ -67,7 +80,8 @@ export type MenuChoice = "newHero" | "confirm" | "goBack";
  * A key pressed at real time `nowMs`, by `KeyboardEvent.key`. Esc opens and
  * closes the pause menu, and C the Hero panel, I the Inventory panel and T
  * the Skill Tree panel while the game runs; while `hero` lies dead, C, I and
- * T are taken but open nothing. In the menu, N asks to confirm a New Hero, and then Y confirms it while N or Esc
+ * T are taken but open nothing. While the Rotate Notice shows, every key
+ * is taken and does nothing. In the menu, N asks to confirm a New Hero, and then Y confirms it while N or Esc
  * goes back. Returns `"newHero"` once confirmed, for the caller to start
  * one, `"handled"` for any other key the menus took, and null for a key
  * they leave to the game.
@@ -79,6 +93,7 @@ export function pressKey(
   hero: HeroState,
 ): "newHero" | "handled" | null {
   const { pause } = menus;
+  if (menus.rotateNotice) return "handled";
   const letter = key.toLowerCase();
   if (pause.confirming) {
     if (letter === "y") return choose(menus, "confirm", nowMs) ?? "handled";
@@ -139,7 +154,7 @@ export function clickPanelButton(menus: Menus, panel: Panel, hero: HeroState) {
  * `hero` lies dead.
  */
 function togglePanel(menus: Menus, panel: Panel, hero: HeroState) {
-  if (hero.heroDead) return;
+  if (hero.heroDead || menus.rotateNotice) return;
   if (panelOpen(menus, panel)) shutPanel(menus, panel);
   else openPanel(menus, panel);
 }
@@ -173,11 +188,18 @@ function canShareScreen(menus: Menus, a: Panel, b: Panel): boolean {
 }
 
 /**
- * Fits the menus to the screen, as `viewport` lays it out: crossing into
- * the Compact Layout keeps the panel opened most recently and shuts any
- * other, as shutting it by hand would.
+ * Fits the menus to the screen, as `viewport` lays it out at real time
+ * `nowMs`: the Rotate Notice showing pauses the World and going away
+ * resumes it, unless the pause menu was open before; crossing into the
+ * Compact Layout keeps the panel opened most recently and shuts any other,
+ * as shutting it by hand would.
  */
-export function fitMenus(menus: Menus, viewport: { compact: boolean }) {
+export function fitMenus(
+  menus: Menus,
+  viewport: Pick<Viewport, "compact" | "rotateNotice">,
+  nowMs: number,
+) {
+  fitRotateNotice(menus, viewport.rotateNotice !== null, nowMs);
   menus.compact = viewport.compact;
   if (!menus.compact) return;
   const keep =
@@ -186,6 +208,22 @@ export function fitMenus(menus: Menus, viewport: { compact: boolean }) {
       : PANELS.find((panel) => panelOpen(menus, panel));
   for (const panel of PANELS) {
     if (panel !== keep && panelOpen(menus, panel)) shutPanel(menus, panel);
+  }
+}
+
+/**
+ * Shows the Rotate Notice, or takes it away, at real time `nowMs`: it
+ * pauses a running World, and resumes only a World it paused itself.
+ */
+function fitRotateNotice(menus: Menus, showing: boolean, nowMs: number) {
+  if (showing === menus.rotateNotice) return;
+  menus.rotateNotice = showing;
+  if (showing && !menus.pause.paused) {
+    togglePause(menus.pause, nowMs);
+    menus.pausedForNotice = true;
+  } else if (!showing && menus.pausedForNotice) {
+    togglePause(menus.pause, nowMs);
+    menus.pausedForNotice = false;
   }
 }
 
@@ -199,7 +237,7 @@ export function clickLevelUp(
   menus: Menus,
   hero: HeroState & { attributePoints: number; skillPoints: number },
 ) {
-  if (hero.heroDead) return;
+  if (hero.heroDead || menus.rotateNotice) return;
   const attributes = hero.attributePoints > 0;
   if (hero.skillPoints > 0 && !(attributes && menus.compact)) {
     openPanel(menus, "skillTree");
@@ -304,7 +342,8 @@ function closePanels(menus: Menus) {
 
 /**
  * A click at real time `nowMs` while paused, on one of the menu's buttons
- * or, for null, anywhere else, which resumes. Returns `"newHero"` once one
+ * or, for null, anywhere else, which resumes; nothing while the Rotate
+ * Notice shows. Returns `"newHero"` once one
  * is confirmed, for the caller to start it.
  */
 export function clickPaused(
@@ -312,6 +351,7 @@ export function clickPaused(
   choice: MenuChoice | null,
   nowMs: number,
 ): "newHero" | null {
+  if (menus.rotateNotice) return null;
   if (choice === null) {
     togglePause(menus.pause, nowMs);
     return null;

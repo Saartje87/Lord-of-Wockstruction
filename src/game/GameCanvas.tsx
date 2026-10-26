@@ -128,9 +128,10 @@ export default function GameCanvas() {
         const inventoryWasOpen = menus.inventoryOpen;
         // Read every frame, so a resize into the Compact Layout shuts all
         // but the latest panel at once, the Inventory's Held Item going back
-        // as it would by hand.
+        // as it would by hand, and the Rotate Notice pauses the World before
+        // any key or click this frame, which it then takes for nothing.
         const viewport = viewportOf(app.screen);
-        fitMenus(menus, viewport);
+        fitMenus(menus, viewport, realNow);
         let pressed = clickedAt !== null;
         let newHero = false;
         for (const key of keys) {

@@ -128,6 +128,7 @@ import {
   panelButtonsSheet,
 } from "./panelButtons";
 import { menuChoiceAt, PAUSE_MENU_LAYOUT, pauseMenuLayout } from "./pauseMenu";
+import { rotateNoticeText } from "./rotateNotice";
 import { SKILL_BAR, skillBarLayout, skillBarSheet } from "./skillBar";
 import {
   SKILL_TREE_PANEL,
@@ -634,6 +635,9 @@ export function createRenderer(
   app.stage.addChild(fade);
   const menu = pauseMenuView();
   app.stage.addChild(menu.layer);
+  // Instead of the game, over everything.
+  const notice = rotateNoticeView();
+  app.stage.addChild(notice.layer);
 
   /** Living Monsters and Corpses by id. */
   const monsters = new Map<MonsterId, MonsterView>();
@@ -1294,6 +1298,7 @@ export function createRenderer(
       }
 
       menu.draw(viewport, menus.pause, world.hero.progress.level);
+      notice.draw(viewport);
 
       const markerProgress =
         markedAtMs === null
@@ -2802,6 +2807,78 @@ function pauseMenuView() {
         sizeText(label, PAUSE_MENU.button.size * screen.uiScale);
         label.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
       });
+    },
+  };
+}
+
+/**
+ * The Rotate Notice's look: the pause menu's colours on a screen blacked
+ * out, its title and text centred, sizes at native scale.
+ */
+const ROTATE_NOTICE = {
+  title: { colour: PAUSE_MENU.title.colour, size: 30 },
+  body: { colour: PAUSE_MENU.credit.colour, size: 17, lineHeight: 24 },
+  gap: 16,
+  margin: 16,
+};
+
+/**
+ * The Rotate Notice, hiding the game while the viewport says it shows:
+ * asking to turn the screen sideways or to enlarge it.
+ */
+function rotateNoticeView() {
+  const { title, body, gap, margin } = ROTATE_NOTICE;
+  const layer = new Container();
+  const black = new Graphics().rect(0, 0, 1, 1).fill(0x000000);
+  const heading = new Text({
+    text: "",
+    style: {
+      fill: title.colour,
+      fontSize: title.size,
+      fontFamily: SERIF,
+      align: "center",
+      wordWrap: true,
+    },
+  });
+  heading.anchor.set(0.5, 1);
+  const message = new Text({
+    text: "",
+    style: {
+      fill: body.colour,
+      fontSize: body.size,
+      fontFamily: SERIF,
+      align: "center",
+      lineHeight: body.lineHeight,
+      wordWrap: true,
+    },
+  });
+  message.anchor.set(0.5, 0);
+  layer.addChild(black, heading, message);
+  layer.visible = false;
+
+  return {
+    layer,
+    draw(screen: Viewport) {
+      layer.visible = screen.rotateNotice !== null;
+      if (screen.rotateNotice === null) return;
+      const text = rotateNoticeText(screen.rotateNotice);
+      heading.text = text.title;
+      message.text = text.body;
+      black.scale.set(screen.width, screen.height);
+      const scale = screen.uiScale;
+      const wrap = Math.max(1, screen.width - 2 * margin * scale);
+      for (const t of [heading, message]) {
+        if (t.style.wordWrapWidth !== wrap) t.style.wordWrapWidth = wrap;
+      }
+      sizeText(heading, title.size * scale);
+      sizeText(message, body.size * scale);
+      const lineHeight = body.lineHeight * scale;
+      if (message.style.lineHeight !== lineHeight) {
+        message.style.lineHeight = lineHeight;
+      }
+      const middle = Math.round(screen.height / 2);
+      heading.position.set(screen.width / 2, middle - (gap / 2) * scale);
+      message.position.set(screen.width / 2, middle + (gap / 2) * scale);
     },
   };
 }

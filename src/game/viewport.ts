@@ -6,7 +6,7 @@ export type Screen = { width: number; height: number };
 /**
  * What the screen's size decides for everything drawn: the screen itself
  * (CSS px), the UI Scale the HUD is drawn at, the World zoom and whether
- * the Compact Layout applies. Layout
+ * the Compact Layout applies or the Rotate Notice shows. Layout
  * functions take this rather than the bare screen.
  */
 export type Viewport = Screen & {
@@ -22,7 +22,15 @@ export type Viewport = Screen & {
    * at a time, filling the screen.
    */
   compact: boolean;
+  /**
+   * Whether the Rotate Notice shows instead of the game, and what it asks:
+   * to turn a screen held upright, or to enlarge one too small to play on.
+   */
+  rotateNotice: RotateNotice | null;
 };
+
+/** What the Rotate Notice asks the player to do with the screen. */
+export type RotateNotice = "turn" | "enlarge";
 
 /**
  * The viewport for a screen `screen` CSS px: the UI Scale and the World
@@ -45,7 +53,21 @@ export function viewportOf(screen: Screen): Viewport {
     uiScale: clamp(byHeight, minUiScale, maxUiScale),
     worldZoom: clamp(byHeight, minWorldZoom, maxWorldZoom),
     compact: screen.height < compactBelowHeight,
+    rotateNotice: rotateNoticeOf(screen),
   };
+}
+
+/**
+ * The Rotate Notice for `screen`: turn it when it's taller than wide, else
+ * enlarge it when it's below the tuned smallest screen, else none.
+ */
+function rotateNoticeOf(screen: Screen): RotateNotice | null {
+  const { minPlayWidth, minPlayHeight } = viewportTuning;
+  if (screen.height > screen.width) return "turn";
+  if (screen.width < minPlayWidth || screen.height < minPlayHeight) {
+    return "enlarge";
+  }
+  return null;
 }
 
 function clamp(value: number, min: number, max: number): number {

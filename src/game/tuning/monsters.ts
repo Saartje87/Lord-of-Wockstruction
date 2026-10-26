@@ -122,7 +122,9 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
     growth: {
       life: 0.25,
       damage: 0.2,
-      attackRating: 0.3,
+      // Slow, so Defense keeps mattering down to the Ossuary (Attack
+      // Rating 34 there).
+      attackRating: 0.1,
       defense: 0.15,
       // Against Skeletons of the Hero's own Level, 2.5–8 kills per Level up
       // to Level 14, as 5 take a fresh Hero to Level 2. The Experience table

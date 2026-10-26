@@ -1,6 +1,6 @@
 # Issue tracker: Tandembike
 
-Issues and specs for this repo live as Tickets in the Tandembike project **Wiablo** (projectId 2). Use the `tandembike` MCP tools for every operation; never call the database or write requests by hand. Refer to Tickets as `#<number>`.
+Issues and specs for this repo live as Tickets in the Tandembike project **Wiablo** (projectId 2). Use the `tandembike` MCP tools for every operation; never call the database or write requests by hand. Refer to Tickets as `T<number>`; `#<number>` is a GitHub PR.
 
 ## Conventions
 

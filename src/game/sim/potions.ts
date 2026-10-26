@@ -1,6 +1,6 @@
-import { itemOf } from "../tuning/items";
+import { isPotion, itemOf } from "../tuning/items";
 import { takeFromBelt } from "./belt";
-import type { Item } from "./inventory";
+import type { Item, ItemId } from "./inventory";
 import { msToSteps } from "./units";
 import type { Hero, SimEvent, World } from "./world";
 
@@ -34,6 +34,20 @@ export function drinkFromBelt(
   if (!potion) return;
   drink(world.hero, potion, events);
   events.push({ type: "BeltChanged" });
+}
+
+/**
+ * Drinks the Potion `id` in the Inventory, using it up. Refused during
+ * Death; an Item that isn't a Potion in the Inventory does nothing.
+ */
+export function drinkItem(world: World, id: ItemId, events: SimEvent[]) {
+  const { hero } = world;
+  if (world.death) return;
+  const placed = hero.inventory.find(({ item }) => item.id === id);
+  if (!placed || !isPotion(placed.item.type)) return;
+  hero.inventory = hero.inventory.filter((other) => other !== placed);
+  drink(hero, placed.item, events);
+  events.push({ type: "InventoryChanged" });
 }
 
 /**

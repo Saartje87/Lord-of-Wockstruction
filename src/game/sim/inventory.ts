@@ -3,10 +3,18 @@ import {
   type ItemKind,
   type ItemType,
   inventoryTuning,
+  isPotion,
   itemOf,
   itemTuning,
 } from "../tuning/items";
-import { type BeltTypes, beltTypesOf, isValidBelt, newHeroBelt } from "./belt";
+import {
+  type BeltCell,
+  type BeltTypes,
+  beltRows,
+  isBeltCell,
+  isValidBelt,
+  newHeroBelt,
+} from "./belt";
 import { overlaps, type Rect } from "./rect";
 import type { Hero, Order, SimEvent, World } from "./world";
 
@@ -28,12 +36,20 @@ export type PlacedItem = { item: Item; cell: Cell };
  */
 export type PlacedType = { type: ItemType; cell: Cell };
 
-/** Where an Item can be: an Inventory cell (its top-left) or an Equipment slot. */
-export type ItemSpot = Cell | EquipmentSlot;
+/**
+ * Where an Item can be: an Inventory cell (its top-left), an Equipment slot
+ * or a Belt Column cell.
+ */
+export type ItemSpot = Cell | EquipmentSlot | BeltCell;
 
 /** Whether a spot is an Equipment slot rather than a cell. */
 export function isSlot(spot: ItemSpot): spot is EquipmentSlot {
   return typeof spot === "string";
+}
+
+/** Whether a spot is an Inventory cell, not a slot or a Belt Column cell. */
+export function isCell(spot: ItemSpot): spot is Cell {
+  return !isSlot(spot) && !isBeltCell(spot);
 }
 
 /**
@@ -245,7 +261,14 @@ export function belongingsOf(world: World): Belongings {
       cell: { ...cell },
     })),
     equipment: worn,
-    belt: beltTypesOf(world),
+    belt: world.hero.belt.map((column, index) => {
+      const potions = column.map((item) => item.type);
+      if (cursor && isBeltCell(cursor.from)) {
+        const { beltColumn, row } = cursor.from;
+        if (beltColumn === index) potions.splice(row, 0, cursor.item.type);
+      }
+      return potions;
+    }),
   };
 }
 
@@ -275,7 +298,7 @@ export function cursorItemOf(world: World): CursorItem | null {
 
 /** A copy of a spot, so a query's answer can't change the World. */
 function copySpot(spot: ItemSpot): ItemSpot {
-  return isSlot(spot) ? spot : { ...spot };
+  return isSlot(spot) ? spot : ({ ...spot } as ItemSpot);
 }
 
 /** What's in each Equipment slot. */
@@ -337,6 +360,17 @@ function liftItem(world: World, from: ItemSpot, events: SimEvent[]) {
     events.push({ type: "InventoryChanged" });
     return;
   }
+  if (isBeltCell(from)) {
+    const potions = hero.belt[from.beltColumn];
+    const item = potions?.[from.row];
+    if (!item) return;
+    // The ones above drop down a row.
+    potions.splice(from.row, 1);
+    hero.cursor = { item, from: { ...from } };
+    events.push({ type: "BeltChanged" });
+    events.push({ type: "InventoryChanged" });
+    return;
+  }
   const placed = hero.inventory.find(({ item, cell: at }) =>
     covers(item.type, at, from),
   );
@@ -360,8 +394,14 @@ type Placing = { out: Item; home: ItemSpot } | { out: null };
  * refused, so a held Item always has somewhere to go back to.
  */
 function planPlacing(world: World, to: ItemSpot): Placing | null {
-  const { cursor, inventory, equipment } = world.hero;
+  const { cursor, inventory, equipment, belt } = world.hero;
   if (!cursor) return null;
+  if (isBeltCell(to)) {
+    // Only Potions, into a column with room: they never swap.
+    const potions = belt[to.beltColumn];
+    const fits = potions && potions.length < beltRows();
+    return isPotion(cursor.item.type) && fits ? { out: null } : null;
+  }
   if (isSlot(to)) {
     if (itemOf(cursor.item.type).kind !== SLOT_KINDS[to]) return null;
     const out = equipment[to];
@@ -391,6 +431,10 @@ function homeFor(
   from: ItemSpot,
   placed: readonly PlacedType[],
 ): ItemSpot | null {
+  if (isBeltCell(from)) {
+    // The cursor Item's row is kept for it, so another Potion fits there.
+    return isPotion(type) ? from : firstFreeCell(placed, type);
+  }
   if (!isSlot(from)) return backOrFirstFree(placed, type, from);
   return itemOf(type).kind === SLOT_KINDS[from]
     ? from
@@ -432,7 +476,9 @@ function placeItem(world: World, to: ItemSpot, events: SimEvent[]) {
   if (!hero.cursor || !placing) return;
   const { item } = hero.cursor;
   const { out } = placing;
-  if (isSlot(to)) {
+  if (isBeltCell(to)) {
+    hero.belt[to.beltColumn].push(item);
+  } else if (isSlot(to)) {
     hero.equipment[to] = item;
     if (out)
       events.push({ type: "ItemUnequipped", item: { ...out }, slot: to });
@@ -443,7 +489,12 @@ function placeItem(world: World, to: ItemSpot, events: SimEvent[]) {
       { item, cell: { ...to } },
     ];
   }
+  const { from } = hero.cursor;
   hero.cursor = out && { item: out, from: placing.home };
+  // Out of the Belt for good, or into it.
+  if (isBeltCell(to) || (isBeltCell(from) && !hero.cursor)) {
+    events.push({ type: "BeltChanged" });
+  }
   events.push({ type: "InventoryChanged" });
 }
 
@@ -453,6 +504,7 @@ function dropItem(world: World, events: SimEvent[]) {
   if (!hero.cursor) return;
   const { item } = hero.cursor;
   const pos = { ...hero.pos };
+  if (isBeltCell(hero.cursor.from)) events.push({ type: "BeltChanged" });
   hero.cursor = null;
   world.groundItems.push({ item, pos });
   events.push({ type: "ItemDropped", item: { ...item }, pos: { ...pos } });
@@ -521,7 +573,10 @@ export function returnCursorItem(world: World, events: SimEvent[]) {
   const { hero } = world;
   if (!hero.cursor) return;
   const { item, from } = hero.cursor;
-  if (isSlot(from)) {
+  if (isBeltCell(from)) {
+    hero.belt[from.beltColumn].splice(from.row, 0, item);
+    events.push({ type: "BeltChanged" });
+  } else if (isSlot(from)) {
     hero.equipment[from] = item;
     events.push({ type: "ItemEquipped", item: { ...item }, slot: from });
   } else {
@@ -538,7 +593,7 @@ export function returnCursorItem(world: World, events: SimEvent[]) {
 export function taken(hero: Hero): PlacedType[] {
   const { inventory, cursor } = hero;
   const placed = typesOf(inventory);
-  if (cursor && !isSlot(cursor.from)) {
+  if (cursor && isCell(cursor.from)) {
     placed.push({ type: cursor.item.type, cell: cursor.from });
   }
   return placed;

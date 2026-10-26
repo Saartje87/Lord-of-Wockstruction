@@ -16,6 +16,33 @@ export type BeltColumns = Item[][];
 /** The Belt Columns by Potion type, as the Save keeps them. */
 export type BeltTypes = ItemType[][];
 
+/**
+ * A Belt Column cell: `row` 0 is the bottom one. Lifting from it takes the
+ * Potion in that row; putting a Potion into it lands it at the column's
+ * lowest free row, whatever the row.
+ */
+export type BeltCell = { beltColumn: number; row: number };
+
+/** Whether a spot is a Belt Column cell. */
+export function isBeltCell(spot: unknown): spot is BeltCell {
+  return typeof spot === "object" && spot !== null && "beltColumn" in spot;
+}
+
+/**
+ * Whether Belt Column `column` has room for one more Potion: a Held Item
+ * lifted from it still counts as in it, its row kept for it.
+ */
+export function beltHasRoom(world: World, column: number): boolean {
+  const { belt, cursor } = world.hero;
+  const potions = belt[column];
+  if (!potions) return false;
+  const held =
+    cursor && isBeltCell(cursor.from) && cursor.from.beltColumn === column
+      ? 1
+      : 0;
+  return potions.length + held < beltRows();
+}
+
 /** The key that drinks from Belt Column `column`: "1" for the leftmost on. */
 export function beltColumnKey(column: number): string {
   return String(column + 1);

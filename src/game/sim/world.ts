@@ -61,6 +61,7 @@ import {
 import { findPath } from "./path";
 import {
   drinkFromBelt,
+  drinkItem,
   type PotionEffect,
   potionEffectsOf,
   stepPotionEffects,
@@ -382,7 +383,13 @@ export type Order =
    * ones above dropping down a row: at once, whatever the Hero is doing,
    * Town included. Refused during Death; an empty column does nothing.
    */
-  | { type: "DrinkFromBelt"; column: number };
+  | { type: "DrinkFromBelt"; column: number }
+  /**
+   * Drink the Potion `item` in the Inventory: at once, whatever the Hero is
+   * doing, Town included. Refused during Death; an Item that isn't a Potion
+   * does nothing.
+   */
+  | { type: "DrinkItem"; item: ItemId };
 
 /** Why a cast failed: the Hero is in Town, or lacks the Mana for it. */
 export type CastFailure = "town" | "mana";
@@ -1089,6 +1096,10 @@ function give(world: World, order: Order, events: SimEvent[]) {
   }
   if (order.type === "DrinkFromBelt") {
     drinkFromBelt(world, order.column, events);
+    return;
+  }
+  if (order.type === "DrinkItem") {
+    drinkItem(world, order.item, events);
     return;
   }
   if (moveItem(world, order, events)) {

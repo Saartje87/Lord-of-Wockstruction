@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { beltTuning } from "../tuning/items";
 import { beltOf } from "./belt";
-import { type Belongings, FRESH_BELONGINGS } from "./inventory";
+import { type Belongings, FRESH_BELONGINGS, inventoryOf } from "./inventory";
 import { combatArea } from "./testAreas";
 import {
   createWorld,
@@ -329,5 +329,59 @@ describe("Death and Potions", () => {
     wait(w, 60);
     expect(beltTypes(w)).toEqual([[LIFE], [LIFE], [LIFE], [LIFE]]);
     expect(w.hero.life).toBe(0);
+  });
+});
+
+describe("drinking a Potion in the Inventory", () => {
+  /** Moves the Potion in Belt Column `column` into the Inventory at `cell`. */
+  const intoInventory = (w: World, column: number, row: number) => {
+    step(w, [{ type: "LiftItem", from: { beltColumn: column, row: 0 } }]);
+    step(w, [{ type: "PlaceItem", to: { column: 0, row } }]);
+    return inventoryOf(w).find(({ cell }) => cell.row === row)?.item;
+  };
+
+  it("uses it up, its effect starting as from the Belt", () => {
+    const w = inTown();
+    const potion = intoInventory(w, 0, 0);
+    if (!potion) throw new Error("No Potion in the Inventory");
+
+    const events = step(w, [{ type: "DrinkItem", item: potion.id }]);
+
+    expect(events).toContainEqual({ type: "PotionDrunk", item: potion });
+    expect(events).toContainEqual({ type: "InventoryChanged" });
+    expect(inventoryOf(w)).toEqual([]);
+    // Its first step already given.
+    const [effect] = potionEffectsOf(w);
+    expect(potionEffectsOf(w)).toHaveLength(1);
+    expect(effect.resource).toBe("life");
+    expect(effect.left).toBeCloseTo(30 - 30 / 240);
+  });
+
+  it("does nothing for an Item that isn't a Potion", () => {
+    const w = inTown();
+
+    const sword = createWorld({
+      areas: { town },
+      seed: 1,
+      belongings: {
+        inventory: [{ type: "shortSword", cell: { column: 0, row: 0 } }],
+        equipment: {},
+      },
+    });
+    const [{ item }] = inventoryOf(sword);
+
+    expect(step(sword, [{ type: "DrinkItem", item: item.id }])).toEqual([]);
+    expect(inventoryOf(sword)).toHaveLength(1);
+    expect(step(w, [{ type: "DrinkItem", item: 999 }])).toEqual([]);
+  });
+
+  it("is refused during Death", () => {
+    const w = inCave(7);
+    const potion = intoInventory(w, 0, 0);
+    if (!potion) throw new Error("No Potion in the Inventory");
+    stepUntil(w, "HeroDied");
+
+    expect(step(w, [{ type: "DrinkItem", item: potion.id }])).toEqual([]);
+    expect(inventoryOf(w)).toHaveLength(1);
   });
 });

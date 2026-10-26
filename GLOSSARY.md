@@ -121,7 +121,7 @@ How far the Hero has learned a Skill: 0 until the first Skill Point is spent on 
 _Avoid_: Rank (and never the Hero's Level)
 
 **Skill Bar**:
-The row of slots, one for the right mouse button and four for keys, holding the Skills the player casts at the cursor.
+The row of five slots holding the Skills the player casts, each slot cast by its own button: the right mouse button or a key, a controller button, or an on-screen button; a Skill is cast at the cursor, or at the Target when there is no cursor.
 _Avoid_: Hotbar, action bar
 
 **Held Skill**:
@@ -209,11 +209,11 @@ The Item kind Equipped in the Belt slot; how many rows it has sets how many Poti
 _Avoid_: Sash (that's one Belt), potion bar, quickbar
 
 **Belt Column**:
-One of the four stacks of Potions the Hero carries ready to drink, filled from the bottom; each has its own key, which drinks the bottom Potion and lets the rest drop down a row. Only Potions go in one, of any type, mixed.
+One of the four stacks of Potions the Hero carries ready to drink, filled from the bottom; each has its own button (a key, a D-pad direction, or its square on the Belt strip on a touch screen), which drinks the bottom Potion and lets the rest drop down a row. Only Potions go in one, of any type, mixed.
 _Avoid_: Belt slot (a slot is Equipment), potion slot
 
 **Belt strip**:
-The row of squares on the HUD beside the Skill Bar, one per Belt Column, each showing that column's bottom Potion, its key and how many Potions it holds; a Potion can be lifted from it or put down on it as a Held Item, Inventory panel open or not.
+The row of squares on the HUD beside the Skill Bar, one per Belt Column, each showing that column's bottom Potion, its key and how many Potions it holds; a Potion can be lifted from it or put down on it as a Held Item, Inventory panel open or not, except on a touch screen, where tapping a square drinks from its column.
 _Avoid_: Potion bar, quickbar
 
 **Close button**:
@@ -221,5 +221,33 @@ The × in the top-right corner of the Hero, Inventory and Skill Tree panels; cli
 _Avoid_: X button, exit button
 
 **Panel button**:
-One of the three buttons on the HUD right of the Skill Bar, one each for the Hero, Inventory and Skill Tree panels; clicking it opens or shuts that panel just as its key does, it shows lit while its panel is open, and it does nothing during Death.
+One of the three buttons on the HUD right of the Skill Bar, one each for the Hero, Inventory and Skill Tree panels; clicking or tapping it opens or shuts that panel just as its key does, it shows lit while its panel is open, and it does nothing during Death.
 _Avoid_: Menu button, mini-panel, HUD button
+
+**UI Scale**:
+How big the HUD and panels are drawn, following the screen's height within limits, so they read the same on a phone, a tablet and a desktop.
+_Avoid_: Zoom (that's the World), DPI, resolution
+
+**Compact Layout**:
+How the HUD and panels are arranged on a short screen, such as a phone held sideways: one panel at a time, filling the screen, opening another shuts it.
+_Avoid_: Mobile layout, small mode
+
+**Target**:
+The Monster that auto-aim has picked for the Hero when there is no cursor, with a controller or touch: the nearest one ahead of the Hero within reach. Attacks go to it and Skills are cast at it; it is shown as a hovered Monster is.
+_Avoid_: Lock-on, focus (that's in panels), aim
+
+**Focus**:
+The one cell, slot or button picked in an open panel when there is no cursor, with a controller; it is what lifting, putting down and pressing act on, and its Item shows its tooltip.
+_Avoid_: Selection, highlight, Target (that's a Monster)
+
+**Virtual Stick**:
+The on-screen stick, bottom left on a touch screen, that walks the Hero the way a controller's left stick does.
+_Avoid_: Joystick, d-pad, thumbstick
+
+**Rotate Notice**:
+What shows instead of the game when the screen is held upright or is too small to play on, asking the player to turn or enlarge it; the World is paused while it shows.
+_Avoid_: Orientation warning, portrait screen
+
+**Active Input**:
+The way the player last played, mouse and keyboard, controller or touch, which decides what the game shows: touch controls only for touch, and each hint and tooltip naming that way's buttons. A controller disconnecting while it is the Active Input opens the pause menu.
+_Avoid_: Input mode, device, control scheme

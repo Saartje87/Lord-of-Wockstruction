@@ -326,3 +326,79 @@ describe("an Arrow", () => {
     expect(arrow.pos.x).toBeGreaterThan(5);
   });
 });
+
+describe("an Archer behind its Skeletons", () => {
+  it("looses Arrows that fly through a Skeleton standing between it and the Hero, and reach the Hero", () => {
+    const w = world(["H...S..A.."]);
+    const [skeleton, archer] = w.monsters;
+    expect(skeleton.type).toBe("skeleton");
+    expect(archer.type).toBe("skeleton_archer");
+
+    const arrow = untilLoosed(w);
+    let passed = false;
+    while (w.projectiles.includes(arrow)) {
+      if (distance(arrow.pos, skeleton.pos) < 0.32) passed = true;
+      step(w, []);
+    }
+
+    expect(skeleton.pos.x).toBeLessThan(archer.pos.x);
+    expect(passed).toBe(true);
+    // Gone on touching the Hero, a body 0.3 tiles across.
+    expect(distance(arrow.pos, w.hero.pos)).toBeLessThan(0.3 + 9 / 60);
+  });
+
+  it("joins when the Hero engages the Skeleton, standing further from it than the Skeleton wakes others", () => {
+    // The Skeleton notices the Hero 6 tiles off; the Archer stands 3 tiles
+    // behind it, twice the Skeleton's 1.5-tile spreadRadius, and 9 from the
+    // Hero.
+    const w = world(["H.....S..A"]);
+    const [skeleton, archer] = w.monsters;
+
+    step(w, []);
+
+    expect(skeleton.state).toBe("chase");
+    expect(archer.state).toBe("chase");
+  });
+});
+
+describe("hitting a Skeleton Archer while it draws its bow", () => {
+  it("makes it flinch about half the time, cancelling the shot so no Arrow is loosed", () => {
+    let hits = 0;
+    let flinched = 0;
+    for (let seed = 1; seed <= 100; seed++) {
+      const w = world(["HA.."], seed);
+      const [archer] = w.monsters;
+      untilWindUp(w, archer);
+
+      let events = step(w, [{ type: "Attack", monster: archer.id }]);
+      for (
+        let i = 0;
+        i < 30 && !events.some((e) => e.type === "HitLanded");
+        i++
+      ) {
+        events = step(w, []);
+      }
+      if (!events.some((e) => e.type === "HitLanded")) continue;
+      if (!w.monsters.includes(archer)) continue;
+      // The hit lands before the 600 ms wind-up would have ended.
+      expect(w.projectiles).toEqual([]);
+      hits += 1;
+      if (archer.flinch === 0) {
+        expect(archer.state).toBe("windup");
+        continue;
+      }
+      flinched += 1;
+
+      expect(archer.state).not.toBe("windup");
+      // Past when the wind-up would have ended, nothing is loosed.
+      for (let i = 0; i < 36; i++) {
+        step(w, []);
+        expect(w.projectiles).toEqual([]);
+      }
+    }
+
+    expect(hits).toBeGreaterThan(50);
+    expect(flinched / hits).toBeGreaterThan(0.35);
+    expect(flinched / hits).toBeLessThan(0.65);
+  });
+});

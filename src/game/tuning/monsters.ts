@@ -210,7 +210,9 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
     wanderRadius: 2.5,
     wanderSpeed: 0.35,
     wanderPauseMs: [1000, 3500],
-    aggroRadius: 7,
+    // Further than its range, and than the Skeleton's, so Archers behind a
+    // pack of Skeletons notice the Hero on their own when the Skeletons do.
+    aggroRadius: 9,
     replanMs: 400,
     needsSight: true,
     spreadRadius: 1.5,
@@ -228,9 +230,10 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
     leash: 14,
     returnSpeed: 1.2,
     graceMs: 2000,
-    flinchChance: 0.35,
+    // Hitting it often cancels the shot it's drawing, so reaching it pays.
+    flinchChance: 0.5,
     flinchMs: 200,
-    flinchInterrupts: false,
+    flinchInterrupts: true,
     // The Skeleton's rates to start with.
     growth: {
       life: 0.25,

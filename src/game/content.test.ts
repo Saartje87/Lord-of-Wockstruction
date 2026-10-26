@@ -330,6 +330,29 @@ describe("the shipped Areas", () => {
     // Somewhat bigger, not a horde.
     expect(sum(deeper)).toBeLessThan(sum(shallower) * 2);
   });
+  it("lay the Crypt out as Skeleton packs with Skeleton Archers close behind most of them, and no Zombies", () => {
+    const { crypt } = shippedWorld().areas;
+    const skeletons = crypt.spawns.filter((s) => s.monster === "skeleton");
+    const archers = crypt.spawns.filter((s) => s.monster === "skeleton_archer");
+    const gap = (a: Vec, b: Vec) => Math.hypot(a.x - b.x, a.y - b.y);
+    const backed = skeletons.filter((skeleton) =>
+      archers.some((archer) => gap(archer.pos, skeleton.pos) <= 6),
+    );
+
+    expect(packsOf(crypt, "zombie")).toEqual([]);
+    expect(skeletons.length + archers.length).toBe(crypt.spawns.length);
+    expect(backed.length).toBeGreaterThanOrEqual(skeletons.length - 1);
+    // Each Archer Spawn backs a pack, rather than standing alone, and stays
+    // beyond the Skeletons' 1.5-tile spreadRadius, noticing the Hero itself.
+    for (const archer of archers) {
+      const nearest = Math.min(
+        ...skeletons.map((skeleton) => gap(archer.pos, skeleton.pos)),
+      );
+      expect(nearest).toBeLessThanOrEqual(6);
+      expect(nearest).toBeGreaterThan(1.5);
+    }
+  });
+
   it("place Skeleton Archers in the Crypt once the Hero gets there", () => {
     const world = worldEntering("crypt", "start");
 

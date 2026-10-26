@@ -1491,7 +1491,23 @@ function hurt(world: World, monster: Monster, events: SimEvent[]) {
   }
   noticeHit(world, monster);
   if (random(world.rng) < monsterTuning[monster.type].flinchChance) {
-    monster.flinch = FLINCH_STEPS[monster.type];
+    flinchMonster(monster);
+  }
+}
+
+/**
+ * Roots a Monster in a flinch. A type whose flinch interrupts drops its
+ * wind-up, so its attack never comes, and goes back to the chase to start
+ * another once the flinch is over.
+ */
+function flinchMonster(monster: Monster) {
+  monster.flinch = FLINCH_STEPS[monster.type];
+  if (
+    monsterTuning[monster.type].flinchInterrupts &&
+    monster.state === "windup"
+  ) {
+    monster.state = "chase";
+    monster.attack = 0;
   }
 }
 

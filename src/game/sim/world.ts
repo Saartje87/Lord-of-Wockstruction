@@ -58,6 +58,7 @@ import { createRng, type Rng, random, randomInt } from "./random";
 import {
   emptySkillBar,
   placeLearnedSkill,
+  putSkillOnBar,
   type SkillBar,
   type SkillBarSlot,
 } from "./skillBar";
@@ -342,6 +343,12 @@ export type Order =
    */
   | { type: "SpendSkillPoint"; skill: Skill }
   /**
+   * Put the learned Skill `skill` into Skill Bar slot `slot`, at once and
+   * whatever the Hero is doing, moving it out of any other slot it was in.
+   * Ignored for a Skill not yet learned.
+   */
+  | { type: "PutSkillOnBar"; skill: Skill; slot: SkillBarSlot }
+  /**
    * Cast the Skill in Skill Bar slot `slot` at `target`. Fails in Town or
    * without the Mana for it, and does nothing from an empty slot.
    */
@@ -378,6 +385,8 @@ export type SimEvent =
   | { type: "AttributeRaised"; attribute: Attribute }
   /** A Skill Point raised `skill` to Skill Level `skillLevel`. */
   | { type: "SkillLevelRaised"; skill: Skill; skillLevel: number }
+  /** A `PutSkillOnBar` order rearranged the Skill Bar. */
+  | { type: "SkillBarChanged" }
   /** The Hero started casting `skill` at `target`, its Mana spent. */
   | { type: "SkillCast"; skill: Skill; target: Vec }
   /** A cast did nothing, spending no Mana. */
@@ -991,6 +1000,23 @@ function spendSkillPoint(world: World, skill: Skill, events: SimEvent[]) {
 }
 
 /**
+ * Puts a learned Skill into a Skill Bar slot (see `putSkillOnBar`),
+ * reporting it unless it was there already.
+ */
+function putOnBar(
+  world: World,
+  skill: Skill,
+  slot: SkillBarSlot,
+  events: SimEvent[],
+) {
+  const { progress } = world.hero;
+  if (progress.skillLevels[skill] === 0) return;
+  if (progress.skillBar[slot] === skill) return;
+  progress.skillBar = putSkillOnBar(progress.skillBar, skill, slot);
+  events.push({ type: "SkillBarChanged" });
+}
+
+/**
  * Applies an order, or buffers it during a flinch or a committed swing. A
  * point is spent and Items move at once, whatever the Hero is doing. Taking
  * an Item off keeps current Life and Mana where they are, up to the new max,
@@ -1006,6 +1032,10 @@ function give(world: World, order: Order, events: SimEvent[]) {
   }
   if (order.type === "SpendSkillPoint") {
     spendSkillPoint(world, order.skill, events);
+    return;
+  }
+  if (order.type === "PutSkillOnBar") {
+    putOnBar(world, order.skill, order.slot, events);
     return;
   }
   if (moveItem(world, order, events)) {

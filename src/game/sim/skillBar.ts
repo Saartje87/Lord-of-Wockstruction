@@ -28,3 +28,21 @@ export function placeLearnedSkill(bar: SkillBar, skill: Skill): SkillBar {
   const empty = SKILL_BAR_SLOTS.find((slot) => bar[slot] === null);
   return empty ? { ...bar, [empty]: skill } : { ...bar };
 }
+
+/**
+ * The Skill Bar with `skill` put into `slot`, replacing whatever was there
+ * and leaving empty the slot it was in, if any.
+ */
+export function putSkillOnBar(
+  bar: SkillBar,
+  skill: Skill,
+  slot: SkillBarSlot,
+): SkillBar {
+  const moved = Object.fromEntries(
+    SKILL_BAR_SLOTS.map((name) => [
+      name,
+      bar[name] === skill ? null : bar[name],
+    ]),
+  ) as SkillBar;
+  return { ...moved, [slot]: skill };
+}

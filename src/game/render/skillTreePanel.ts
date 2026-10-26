@@ -87,9 +87,13 @@ export function skillRow(index: number, row: number): number {
   return SKILL_TREE_ROWS.firstSkill + index * SKILL_TREE_ROWS.perSkill + row;
 }
 
-/** Where the panel and each Skill's + button are drawn. */
+/**
+ * Where the panel is drawn, each Skill's rows (where pressing a learned
+ * Skill picks it up to drag onto the Skill Bar) and each Skill's + button.
+ */
 export function skillTreePanelLayout(screen: { width: number }): {
   panel: Rect;
+  skills: Record<Skill, Rect>;
   raise: Record<Skill, Rect>;
 } {
   const { right, top, width, padding, rowHeight, hintHeight, plus } =
@@ -110,8 +114,18 @@ export function skillTreePanelLayout(screen: { width: number }): {
     w: plus,
     h: plus,
   });
+  const rowsOf = (index: number): Rect => {
+    const y = skillTreeRowTop(skillRow(index, SKILL_TREE_ROWS.name));
+    const end = skillTreeRowTop(
+      skillRow(index, SKILL_TREE_ROWS.requiredLevel + 1),
+    );
+    return { x: x + padding, y, w: width - 2 * padding, h: end - y };
+  };
   return {
     panel,
+    skills: Object.fromEntries(
+      SKILLS.map((skill, index) => [skill, rowsOf(index)]),
+    ) as Record<Skill, Rect>,
     raise: Object.fromEntries(
       SKILLS.map((skill, index) => [skill, plusAt(index)]),
     ) as Record<Skill, Rect>,
@@ -120,14 +134,21 @@ export function skillTreePanelLayout(screen: { width: number }): {
 
 /**
  * A click on the open Skill Tree panel, so not for the World: the Skill
- * whose + it pressed, or null between the buttons.
+ * whose + it pressed, the learned Skill it picked up to drag onto the Skill
+ * Bar, or null elsewhere.
  */
-export type SkillTreeHit = { button: { type: "learn"; skill: Skill } | null };
+export type SkillTreeHit = {
+  button:
+    | { type: "learn"; skill: Skill }
+    | { type: "dragSkill"; skill: Skill }
+    | null;
+};
 
 /**
  * What a click at `point` hits of the Skill Tree panel, or null when it's
  * off it or the panel isn't `open`, so it's for the World. A Skill's +
- * button is there only while a Skill Point can be spent on it.
+ * button is there only while a Skill Point can be spent on it; the rest of
+ * a learned Skill's rows pick it up.
  */
 export function skillTreeHitAt(
   screen: { width: number },
@@ -140,6 +161,10 @@ export function skillTreeHitAt(
   for (const skill of SKILLS) {
     if (canRaiseSkill(world, skill) && inside(layout.raise[skill], point)) {
       return { button: { type: "learn", skill } };
+    }
+    const learned = world.hero.progress.skillLevels[skill] > 0;
+    if (learned && inside(layout.skills[skill], point)) {
+      return { button: { type: "dragSkill", skill } };
     }
   }
   return { button: null };

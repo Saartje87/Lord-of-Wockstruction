@@ -151,8 +151,9 @@ describe("skillTreeHitAt", () => {
     expect(skillTreeHitAt(screen, at, withGolem(1), true)).toEqual({
       button: { type: "learn", skill: "golem" },
     });
+    // No + without a Skill Point: there it's just the learned Skill's rows.
     expect(skillTreeHitAt(screen, at, withGolem(2), true)).toEqual({
-      button: null,
+      button: { type: "dragSkill", skill: "golem" },
     });
     expect(skillTreeHitAt(screen, at, withGolem(1), false)).toBeNull();
   });
@@ -164,6 +165,36 @@ describe("skillTreeHitAt", () => {
     expect(skillTreeHitAt(screen, at, withGolem(0), true)).toEqual({
       button: null,
     });
+  });
+
+  it("picks up a learned Skill pressed anywhere on its rows but its +", () => {
+    const skill = layout.skills.golem;
+    const nameRow = { x: skill.x + 4, y: skill.y + 4 };
+    const lastRow = { x: skill.x + skill.w - 4, y: skill.y + skill.h - 4 };
+    const drag = { button: { type: "dragSkill", skill: "golem" } };
+
+    expect(skillTreeHitAt(screen, nameRow, withGolem(1), true)).toEqual(drag);
+    expect(skillTreeHitAt(screen, lastRow, withGolem(2), true)).toEqual(drag);
+    expect(skillTreeHitAt(screen, nameRow, withGolem(1), false)).toBeNull();
+  });
+
+  it("can't pick up a Skill not yet learned", () => {
+    const skill = layout.skills.golem;
+    const at = { x: skill.x + 4, y: skill.y + 4 };
+
+    expect(skillTreeHitAt(screen, at, withGolem(0), true)).toEqual({
+      button: null,
+    });
+  });
+
+  it("puts each Skill's rows under the Skill Points row, its + inside them", () => {
+    const skill = layout.skills.golem;
+    const plus = layout.raise.golem;
+
+    expect(skill.y).toBeGreaterThan(layout.panel.y + 56);
+    expect(plus.y).toBeGreaterThanOrEqual(skill.y);
+    expect(plus.x + plus.w).toBeLessThanOrEqual(skill.x + skill.w);
+    expect(skill.y + skill.h).toBeLessThan(layout.panel.y + layout.panel.h);
   });
 
   it("catches anywhere else on the open panel, and nothing off it", () => {

@@ -28,6 +28,7 @@ import {
   inventoryRightClickOrder,
 } from "./render/inventoryPanel";
 import { createRenderer } from "./render/renderer";
+import { skillDropOrder } from "./render/skillBar";
 import {
   browserStorage,
   changesSave,
@@ -39,6 +40,7 @@ import {
 import { isFloor } from "./sim/area";
 import type { Vec } from "./sim/vec";
 import { createWorld, type Order, step } from "./sim/world";
+import type { Skill } from "./tuning/skills";
 
 /** Mounts the Pixi Application and runs the fixed-step loop. */
 export default function GameCanvas() {
@@ -91,6 +93,8 @@ export default function GameCanvas() {
       const { pause } = menus;
       let orders: Order[] = [];
       let last = performance.now();
+      /** The Skill being dragged from the Skill Tree, while the button is held. */
+      let dragged: Skill | null = null;
 
       attachPointer(app.canvas, input, listeners.signal);
       // Keys and clicks on the pause menu go to the menus; a click anywhere
@@ -186,10 +190,20 @@ export default function GameCanvas() {
           if (button?.type === "learn") {
             orders.push({ type: "SpendSkillPoint", skill: button.skill });
           }
+          if (button?.type === "dragSkill") dragged = button.skill;
           if (!("button" in panel) && pressedAt) {
             const order = inventoryOrder(world, app.screen, pressedAt, panel);
             if (order) orders.push(order);
           }
+        }
+        // A Skill dragged from the Skill Tree goes where the button is let
+        // go: into the Skill Bar slot there, or back, off the slots. A pause
+        // or the Hero's Death drops it.
+        if (dragged && (pause.paused || world.death)) dragged = null;
+        if (dragged && !input.held) {
+          const order = skillDropOrder(app.screen, input.screen, dragged);
+          if (order) orders.push(order);
+          dragged = null;
         }
         // A right-click on the Inventory equips or unequips the Item under
         // it, and on any other panel does nothing; off the panels, `poll`
@@ -231,7 +245,7 @@ export default function GameCanvas() {
         }
         // No hover outline, nameplate or tooltip under the menu.
         const pointer = pause.paused ? null : input.screen;
-        renderer.draw(world, alpha, pointer, now, menus);
+        renderer.draw(world, alpha, pointer, now, menus, dragged);
         app.render();
         frame = requestAnimationFrame(tick);
       };

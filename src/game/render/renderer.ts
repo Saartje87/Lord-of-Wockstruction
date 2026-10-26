@@ -8,12 +8,13 @@ import {
 } from "pixi.js";
 import type { CursorHit } from "../cursor";
 import { toScreen, toTile } from "../iso";
-import type {
-  HeroState,
-  MenuChoice,
-  Menus,
-  Panel,
-  PendingPoints,
+import {
+  type HeroState,
+  type MenuChoice,
+  type Menus,
+  noPendingPoints,
+  type Panel,
+  type PendingPoints,
 } from "../menus";
 import type { Pause } from "../pause";
 import { type Area, isFloor } from "../sim/area";
@@ -62,8 +63,9 @@ import { type Skill, skillTuning } from "../tuning/skills";
 import { type Compass, compassOf, frameAt, swingFrame } from "./animation";
 import { arrivedInDisplayName, bannerOpacityAt } from "./areaBanner";
 import { type Animation, type Art, type CharacterArt, frameOf } from "./art";
-import { beltStripHitAt, beltStripLayout, beltStripSheet } from "./beltStrip";
+import { beltStripLayout, beltStripSheet } from "./beltStrip";
 import { CLOSE_BUTTON } from "./closeButton";
+import { cursorHitAt, type ShownPanels } from "./cursorHit";
 import {
   type DamageNumber,
   damageNumbers,
@@ -84,7 +86,6 @@ import {
   heroPanelLayout,
   heroSheet,
   PANEL_ROWS,
-  panelHitAt,
   rowTop,
 } from "./heroPanel";
 import {
@@ -95,7 +96,6 @@ import {
 } from "./hover";
 import {
   INVENTORY_PANEL,
-  inventoryHitAt,
   inventoryPanelLayout,
   itemRect,
   itemTooltip,
@@ -104,23 +104,13 @@ import {
 } from "./inventoryPanel";
 import { itemColour } from "./itemArt";
 import { type Orb, orbFill } from "./orbs";
-import {
-  panelButtonHitAt,
-  panelButtonsLayout,
-  panelButtonsSheet,
-} from "./panelButtons";
+import { panelButtonsLayout, panelButtonsSheet } from "./panelButtons";
 import { menuChoiceAt, PAUSE_MENU_LAYOUT, pauseMenuLayout } from "./pauseMenu";
-import {
-  SKILL_BAR,
-  skillBarHitAt,
-  skillBarLayout,
-  skillBarSheet,
-} from "./skillBar";
+import { SKILL_BAR, skillBarLayout, skillBarSheet } from "./skillBar";
 import {
   SKILL_TREE_PANEL,
   SKILL_TREE_ROWS,
   skillRow,
-  skillTreeHitAt,
   skillTreePanelLayout,
   skillTreeRowTop,
   skillTreeSheet,
@@ -645,45 +635,20 @@ export function createRenderer(
   };
   /** The World last drawn; a New Hero brings another. */
   let drawnWorld: World | null = null;
-  /** Whether the Hero panel was open when last drawn. */
-  let heroPanelOpenNow = false;
-  /** The Pending Attribute Points when last drawn. */
-  let pendingPointsNow: PendingPoints | undefined;
-  /** Whether the Inventory panel was open when last drawn. */
-  let inventoryOpenNow = false;
-  /** Whether the Skill Tree panel was open when last drawn. */
-  let skillTreeOpenNow = false;
+  /** Which panels were open, and the Pending Attribute Points, when last drawn. */
+  let shownPanels: ShownPanels = {
+    heroPanelOpen: false,
+    inventoryOpen: false,
+    skillTreeOpen: false,
+    pendingPoints: noPendingPoints(),
+  };
 
   /**
-   * What a point on the canvas (CSS px) hits of the Hero panel, the Level Up
-   * button, the Skill Tree panel, the Skill Bar, the Belt strip, the Panel
-   * buttons and the Inventory panel, as last drawn, or
-   * null when it's for the World.
+   * What a point on the canvas (CSS px) hits of the panels and the HUD, as
+   * last drawn, or null when it's for the World.
    */
-  const panelAt = (screen: Vec): CursorHit | null => {
-    if (!drawnWorld) return null;
-    const holding = cursorItemOf(drawnWorld) !== null;
-    return (
-      panelHitAt(
-        app.screen,
-        screen,
-        drawnWorld,
-        heroPanelOpenNow,
-        pendingPointsNow,
-      ) ??
-      skillTreeHitAt(app.screen, screen, drawnWorld, skillTreeOpenNow) ??
-      skillBarHitAt(app.screen, screen) ??
-      beltStripHitAt(app.screen, screen) ??
-      panelButtonHitAt(app.screen, screen) ??
-      inventoryHitAt(
-        app.screen,
-        screen,
-        inventoryOpenNow,
-        holding,
-        beltRows(drawnWorld),
-      )
-    );
-  };
+  const panelAt = (screen: Vec): CursorHit | null =>
+    drawnWorld && cursorHitAt(app.screen, screen, drawnWorld, shownPanels);
 
   /**
    * Starts afresh for another World, whose Monster ids start over: drops
@@ -933,10 +898,12 @@ export function createRenderer(
       heldSkillSlot: SkillBarSlot | null = null,
     ) {
       const active = world.areas[world.areaName];
-      heroPanelOpenNow = menus.heroPanelOpen;
-      pendingPointsNow = { ...menus.pendingPoints };
-      inventoryOpenNow = menus.inventoryOpen;
-      skillTreeOpenNow = menus.skillTreeOpen;
+      shownPanels = {
+        heroPanelOpen: menus.heroPanelOpen,
+        inventoryOpen: menus.inventoryOpen,
+        skillTreeOpen: menus.skillTreeOpen,
+        pendingPoints: { ...menus.pendingPoints },
+      };
       if (world !== drawnWorld) {
         showWorld(world);
         // A new World starts the Hero in an Area: they've arrived there.

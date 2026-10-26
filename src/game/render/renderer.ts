@@ -187,10 +187,10 @@ const TELEGRAPH_ALPHA = { reach: 0.12, filled: 0.35 };
 const TELEGRAPH_SEGMENTS = 12;
 
 /**
- * Each Monster type's size against Flare's native scale. The Skeleton is
- * drawn as Flare made it; this is the one number to change if it looks off.
+ * Each Monster type's size against Flare's native scale: the one number to
+ * change if a type looks off. Each is drawn as Flare made it.
  */
-const MONSTER_SCALE: Record<MonsterType, number> = { skeleton: 1 };
+const MONSTER_SCALE: Record<MonsterType, number> = { skeleton: 1, zombie: 1 };
 /**
  * Placeholder NPCs are drawn with the Hero's art, tinted so they can't be
  * mistaken for the Hero, facing down the screen.

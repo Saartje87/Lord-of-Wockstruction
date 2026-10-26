@@ -7,6 +7,7 @@ import {
   type Monster,
   minionMaxLife,
 } from "../sim/world";
+import type { MonsterType } from "../tuning/monsters";
 import { characterUnder, nameplateOf, type Pickable } from "./hover";
 
 describe("characterUnder", () => {
@@ -40,8 +41,8 @@ describe("characterUnder", () => {
   });
 });
 
-/** A World in a Combat Area with one Skeleton, to read nameplates from. */
-function world() {
+/** A World in a Combat Area with one `monster`, to read nameplates from. */
+function world(monster: MonsterType = "skeleton") {
   const map = {
     orientation: "orthogonal",
     width: 3,
@@ -75,9 +76,7 @@ function world() {
             point: true,
             x: 80,
             y: 16,
-            properties: [
-              { name: "monster", type: "string", value: "skeleton" },
-            ],
+            properties: [{ name: "monster", type: "string", value: monster }],
           },
         ],
       },
@@ -117,6 +116,12 @@ describe("nameplateOf", () => {
     expect(plate.name).toBe("Skeleton");
     expect(plate.fraction).toBe(0.5);
     expect(plate.friendly).toBe(false);
+  });
+
+  it("names a Zombie by its type", () => {
+    const [zombie] = world("zombie").monsters;
+
+    expect(nameplateOf({ monster: zombie }).name).toBe("Zombie");
   });
 
   it("names the Golem, friendly, with its Life bar's fill", () => {

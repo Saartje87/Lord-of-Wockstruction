@@ -11,6 +11,7 @@ import {
   step,
   type World,
 } from "./sim/world";
+import type { MonsterType } from "./tuning/monsters";
 
 // Building the World runs the loader's validation: a `start` Entry, Exits to
 // an Entry that exists and can be reached from `start`, and spawns on tiles
@@ -108,8 +109,11 @@ function heroDistanceTo(world: World, exit: Exit) {
   return Math.hypot(world.hero.pos.x - centre.x, world.hero.pos.y - centre.y);
 }
 
-/** The number of Monsters in each of an Area's packs. */
-const packsOf = (area: Area) => area.spawns.map((spawn) => spawn.count);
+/** How many Monsters each of an Area's `monster` Spawns places. */
+const packsOf = (area: Area, monster: MonsterType) =>
+  area.spawns
+    .filter((spawn) => spawn.monster === monster)
+    .map((spawn) => spawn.count);
 const sum = (values: number[]) => values.reduce((a, b) => a + b, 0);
 
 /** The Combat Area that Town's one Exit leads to. */
@@ -208,13 +212,25 @@ describe("the shipped Areas", () => {
     expectAbout(combat.height, 64, 8);
   });
 
-  it("fill the Combat Area with 3–4 Skeleton groups, one about 7 strong", () => {
+  it("fill the Combat Area with 3–4 Skeleton groups, one about 7 strong, and 1–2 Zombie groups", () => {
     const combat = combatAreaOf(shippedWorld());
-    const counts = combat.spawns.map((spawn) => spawn.count);
+    const skeletons = packsOf(combat, "skeleton");
+    const zombies = packsOf(combat, "zombie");
 
-    expect(combat.spawns.every((s) => s.monster === "skeleton")).toBe(true);
-    expectAbout(counts.length, 3.5, 0.5);
-    expect(counts.some((count) => Math.abs(count - 7) <= 1)).toBe(true);
+    expect(skeletons.length + zombies.length).toBe(combat.spawns.length);
+    expectAbout(skeletons.length, 3.5, 0.5);
+    expect(skeletons.some((count) => Math.abs(count - 7) <= 1)).toBe(true);
+    expectAbout(zombies.length, 1.5, 0.5);
+  });
+
+  it("place Zombies in the Catacombs once the Hero gets there", () => {
+    const world = shippedWorld();
+    walkThrough(world, world.areas.town.exits[0]);
+
+    expect(world.areaName).toBe("catacombs");
+    expect(world.monsters.some((monster) => monster.type === "zombie")).toBe(
+      true,
+    );
   });
 
   it("give the Catacombs Area Level 1, so its Monsters spawn at Monster Level 1", () => {
@@ -296,8 +312,8 @@ describe("the shipped Areas", () => {
 
   it("build the Crypt about the Catacombs' size on the dungeon tileset, with somewhat bigger Skeleton packs", () => {
     const { catacombs, crypt } = shippedWorld().areas;
-    const shallower = packsOf(catacombs);
-    const deeper = packsOf(crypt);
+    const shallower = packsOf(catacombs, "skeleton");
+    const deeper = packsOf(crypt, "skeleton");
 
     expect(crypt.tileset).toBe("dungeon");
     expectAbout(crypt.width, catacombs.width, 8);
@@ -350,8 +366,8 @@ describe("the shipped Areas", () => {
 
   it("build the Ossuary about the Catacombs' size on the dungeon tileset, with bigger Skeleton packs than the Crypt", () => {
     const { catacombs, crypt, ossuary } = shippedWorld().areas;
-    const shallower = packsOf(crypt);
-    const deeper = packsOf(ossuary);
+    const shallower = packsOf(crypt, "skeleton");
+    const deeper = packsOf(ossuary, "skeleton");
 
     expect(ossuary.tileset).toBe("dungeon");
     expectAbout(ossuary.width, catacombs.width, 8);

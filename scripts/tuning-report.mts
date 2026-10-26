@@ -2,7 +2,8 @@
  * Prints each Monster type's numbers from the live tuning, as `tuningReport`
  * in `src/game/sim/tuningReport.ts` works them out: per Hero Level, the
  * Experience to the next and the kills of own-Level Monsters it takes, and
- * per Combat Area in `content/areas/`, its Area Level and the Monster there.
+ * per Combat Area in `content/areas/` that places it, its Area Level and the
+ * Monster there.
  *
  * Run it with `npm run tuning:report`.
  */

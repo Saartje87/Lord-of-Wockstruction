@@ -2,7 +2,7 @@
  * Imports the Flare art Wiablo uses from a pinned flare-game commit into
  * committed files, so the build never needs the network or Flare:
  *
- * - `public/assets/characters/`: Hero and Skeleton atlases and spritesheets.
+ * - `public/assets/characters/`: Hero and Monster atlases and spritesheets.
  * - `public/assets/tilesets/`: tileset atlases and spritesheets.
  * - `content/tilesets/`: the same tilesets for Tiled.
  * - `CREDITS.md`: attribution for all of it.
@@ -39,6 +39,9 @@ const HERO_OUTFIT: Record<string, string> = {
   head: "head_short",
   main: "longsword",
 };
+
+/** The Monsters' Flare enemies, each one layer. */
+const MONSTERS = ["skeleton", "zombie"] as const;
 
 /** Inclusive ranges of id. */
 type Ranges = [number, number][];
@@ -82,7 +85,9 @@ const IMPORTED = {
   hero: Object.values(HERO_OUTFIT).map(
     (item) => `${MOD}/images/avatar/male/${item}.png`,
   ),
-  skeleton: [`${MOD}/images/enemies/skeleton.png`],
+  ...Object.fromEntries(
+    MONSTERS.map((name) => [name, [`${MOD}/images/enemies/${name}.png`]]),
+  ),
   grassland: [
     `${MOD}/images/tilesets/tileset_grassland.png`,
     `${MOD}/images/tilesets/tileset_grassland_water.png`,
@@ -99,7 +104,7 @@ const IMPORTED_PATHS = Object.values(IMPORTED)
 const CREDIT_PATHS = [
   ...IMPORTED_PATHS,
   "/art_src/characters/hero/",
-  "/art_src/characters/skeleton/",
+  ...MONSTERS.map((name) => `/art_src/characters/${name}/`),
   "/art_src/tilesets/grassland/",
   "/art_src/tilesets/dungeon/",
 ];
@@ -116,7 +121,7 @@ checkout(FLARE.url, FLARE.commit, FLARE.dir, [
   ...Object.values(HERO_OUTFIT).map(
     (item) => `/${MOD}/animations/avatar/male/${item}.txt`,
   ),
-  `/${MOD}/animations/enemies/skeleton.txt`,
+  ...MONSTERS.map((name) => `/${MOD}/animations/enemies/${name}.txt`),
   `/${MOD}/tilesetdefs/tileset_grassland.txt`,
   `/${MOD}/tilesetdefs/tileset_dungeon.txt`,
   ...IMPORTED_PATHS,
@@ -136,12 +141,14 @@ importCharacter({
   drawOrder: readHeroLayers(`${modDir}/engine/hero_layers.txt`),
   outDir: out.characters,
 });
-importCharacter({
-  name: "skeleton",
-  modDir,
-  layers: [{ slot: "body", animations: "animations/enemies/skeleton.txt" }],
-  outDir: out.characters,
-});
+for (const name of MONSTERS) {
+  importCharacter({
+    name,
+    modDir,
+    layers: [{ slot: "body", animations: `animations/enemies/${name}.txt` }],
+    outDir: out.characters,
+  });
+}
 
 for (const name of ["grassland", "dungeon"] as const) {
   importTileset({

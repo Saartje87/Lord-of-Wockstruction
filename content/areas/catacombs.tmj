@@ -11,7 +11,7 @@
  "infinite": false,
  "compressionlevel": -1,
  "nextlayerid": 5,
- "nextobjectid": 10,
+ "nextobjectid": 12,
  "properties": [
   {
    "name": "areaLevel",
@@ -12540,6 +12540,54 @@
      "rotation": 0,
      "visible": true,
      "point": true
+    },
+    {
+     "id": 10,
+     "name": "",
+     "type": "monsterSpawn",
+     "x": 5136.0,
+     "y": 432.0,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true,
+     "properties": [
+      {
+       "name": "count",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "monster",
+       "type": "string",
+       "value": "zombie"
+      }
+     ]
+    },
+    {
+     "id": 11,
+     "name": "",
+     "type": "monsterSpawn",
+     "x": 1008.0,
+     "y": 4752.0,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true,
+     "properties": [
+      {
+       "name": "count",
+       "type": "int",
+       "value": 2
+      },
+      {
+       "name": "monster",
+       "type": "string",
+       "value": "zombie"
+      }
+     ]
     }
    ]
   }

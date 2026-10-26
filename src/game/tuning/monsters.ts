@@ -1,7 +1,8 @@
 /**
  * Monster tuning, in human units. The sim converts it to steps once. The
  * Skeleton's numbers are the final knobs of the Monster behaviour prototype
- * (#82), with the damage from the combat numbers (#83).
+ * (#82), with the damage from the combat numbers (#83). The Zombie's are
+ * starting values against the Skeleton's, until a tuning pass sets them.
  */
 export type MonsterTuning = {
   /** Shown on the nameplate. */
@@ -81,7 +82,7 @@ export type MonsterGrowth = {
   experience: number;
 };
 
-export type MonsterType = "skeleton";
+export type MonsterType = "skeleton" | "zombie";
 
 export const monsterTuning: Record<MonsterType, MonsterTuning> = {
   skeleton: {
@@ -129,6 +130,48 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
       // Against Skeletons of the Hero's own Level, 2.5–8 kills per Level up
       // to Level 14, as 5 take a fresh Hero to Level 2. The Experience table
       // grows too fast after that for one rate to keep up.
+      experience: 3,
+    },
+  },
+  // Slow and tough, and hits hard after a long wind-up: easy to walk away
+  // from, costly to stand and trade with.
+  zombie: {
+    name: "Zombie",
+    life: 150,
+    experience: 175,
+    speed: 1.4,
+    damage: [7, 14],
+    // A little easier to hit than a Skeleton.
+    defense: 120,
+    attackRating: 25,
+    radius: 0.36,
+    wanderRadius: 1.5,
+    wanderSpeed: 0.35,
+    wanderPauseMs: [1500, 4500],
+    aggroRadius: 6,
+    replanMs: 400,
+    needsSight: true,
+    spreadRadius: 1.5,
+    reach: 1.2,
+    reachGrace: 0.25,
+    arcDegrees: 60,
+    windUpMs: 750,
+    rootMs: 300,
+    recoveryMs: 1200,
+    jitterMs: 400,
+    maxAttackers: 0,
+    leash: 14,
+    returnSpeed: 1.2,
+    graceMs: 2000,
+    flinchChance: 0.1,
+    flinchMs: 200,
+    flinchInterrupts: false,
+    // The Skeleton's rates to start with.
+    growth: {
+      life: 0.25,
+      damage: 0.2,
+      attackRating: 0.1,
+      defense: 0.15,
       experience: 3,
     },
   },

@@ -28,6 +28,7 @@ Nothing is recoloured.
 | `mods/fantasycore/images/avatar/male/head_short.png` | hero |
 | `mods/fantasycore/images/avatar/male/longsword.png` | hero |
 | `mods/fantasycore/images/enemies/skeleton.png` | skeleton |
+| `mods/fantasycore/images/enemies/zombie.png` | zombie |
 | `mods/fantasycore/images/tilesets/tileset_grassland.png` | grassland |
 | `mods/fantasycore/images/tilesets/tileset_grassland_water.png` | grassland |
 | `mods/fantasycore/images/tilesets/tileset_dungeon.png` | dungeon |

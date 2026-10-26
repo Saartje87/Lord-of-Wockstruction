@@ -9,7 +9,7 @@ npm run tuning:report
 It prints, from the live tuning in `src/game/tuning/`:
 
 - per Hero Level: the Experience to the next Level, an own-Level Monster's Experience, and the kills that takes
-- per Combat Area in `content/areas/*.tmj`: its Area Level and the Monster's max Life, damage, Attack Rating, Defense and Experience there
+- per Combat Area in `content/areas/*.tmj` that places the Monster: its Area Level and the Monster's max Life, damage, Attack Rating, Defense and Experience there
 
 Read numbers from it instead of redoing the growth formulas or grepping `.tmj` files for `areaLevel` by hand. Run it again after changing tuning to see the effect.
 

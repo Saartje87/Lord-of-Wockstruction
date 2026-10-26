@@ -38,12 +38,12 @@ export type TuningReport = { levels: LevelRow[]; areas: AreaRow[] };
 /**
  * A Monster type's numbers from the live tuning, worked out by the sim's own
  * functions: for each Hero Level below the cap, the kills of own-Level
- * Monsters it takes, and for each of `areas` with an Area Level, the Monster
- * there, by Area Level. Town, with none, is left out.
+ * Monsters it takes, and for each of `areas` with an Area Level that places
+ * the type, the Monster there, by Area Level. Town, with none, is left out.
  */
 export function tuningReport(
   type: MonsterType,
-  areas: Pick<Area, "name" | "areaLevel">[],
+  areas: Pick<Area, "name" | "areaLevel" | "spawns">[],
 ): TuningReport {
   const levels: LevelRow[] = [];
   for (let level = 1; ; level++) {
@@ -60,8 +60,9 @@ export function tuningReport(
   }
 
   const areaRows = areas
-    .flatMap(({ name, areaLevel }) => {
+    .flatMap(({ name, areaLevel, spawns }) => {
       if (areaLevel === null) return [];
+      if (!spawns.some((spawn) => spawn.monster === type)) return [];
       const monster = { type, monsterLevel: areaLevel };
       return [
         {

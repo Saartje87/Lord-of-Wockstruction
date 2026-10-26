@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
+import type { MonsterType } from "../tuning/monsters";
 import { tuningReport } from "./tuningReport";
+
+/** A Combat Area's name, Area Level and a Spawn of each of `monsters`. */
+function area(name: string, areaLevel: number | null, monsters: MonsterType[]) {
+  const pos = { x: 1, y: 1 };
+  return {
+    name,
+    areaLevel,
+    spawns: monsters.map((monster) => ({ monster, count: 1, pos })),
+  };
+}
 
 describe("tuningReport", () => {
   it("gives each Hero Level's Experience to the next and the kills of own-Level Skeletons it takes", () => {
@@ -29,9 +40,9 @@ describe("tuningReport", () => {
 
   it("gives the Monster's numbers in each Combat Area, by Area Level", () => {
     const { areas } = tuningReport("skeleton", [
-      { name: "town", areaLevel: null },
-      { name: "crypt", areaLevel: 4 },
-      { name: "catacombs", areaLevel: 1 },
+      area("town", null, []),
+      area("crypt", 4, ["skeleton"]),
+      area("catacombs", 1, ["skeleton", "zombie"]),
     ]);
 
     expect(areas).toEqual([
@@ -52,6 +63,25 @@ describe("tuningReport", () => {
         attackRating: 26,
         defense: 196,
         experience: 1_000,
+      },
+    ]);
+  });
+
+  it("leaves out the Combat Areas that don't place the Monster", () => {
+    const { areas } = tuningReport("zombie", [
+      area("catacombs", 1, ["skeleton", "zombie"]),
+      area("crypt", 4, ["skeleton"]),
+    ]);
+
+    expect(areas).toEqual([
+      {
+        area: "catacombs",
+        areaLevel: 1,
+        maxLife: 150,
+        damage: [7, 14],
+        attackRating: 25,
+        defense: 120,
+        experience: 175,
       },
     ]);
   });

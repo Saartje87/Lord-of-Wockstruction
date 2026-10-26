@@ -366,10 +366,11 @@ export type Order =
   /** Go back to Town after dying. */
   | { type: "Continue" }
   /**
-   * Spend an unspent Attribute Point raising `attribute` by one, at once and
-   * whatever the Hero is doing.
+   * Spend unspent Attribute Points raising each Attribute by its count in
+   * `points`, at once and whatever the Hero is doing; refused whole when it
+   * asks for more points than are unspent.
    */
-  | { type: "SpendAttributePoint"; attribute: Attribute }
+  | { type: "SpendAttributePoints"; points: AttributeCounts }
   /**
    * Spend an unspent Skill Point raising `skill`'s Skill Level by one, at
    * once and whatever the Hero is doing, if the Hero's Level is up to the
@@ -476,6 +477,9 @@ export const ATTRIBUTES = [
 
 /** One of the Hero's Attributes. */
 export type Attribute = (typeof ATTRIBUTES)[number];
+
+/** A count of Attribute Points per Attribute, none where left out. */
+export type AttributeCounts = Partial<Record<Attribute, number>>;
 
 export type { Skill };
 
@@ -1036,22 +1040,72 @@ function stepDeath(
 }
 
 /**
- * Raises an Attribute by one for an unspent point, if there is one. Vitality
+ * Whether the Hero can spend `points` now: each count a whole number of at
+ * least 0, no more in all than are unspent, and the Hero alive.
+ */
+export function canSpendAttributePoints(
+  world: World,
+  points: AttributeCounts,
+): boolean {
+  const counts = Object.values(points);
+  const total = counts.reduce((sum, count) => sum + count, 0);
+  return (
+    !world.death &&
+    counts.every((count) => Number.isInteger(count) && count >= 0) &&
+    total <= world.hero.progress.attributePoints
+  );
+}
+
+/**
+ * The World as it would be with `points` spent: a copy sharing all but the
+ * Hero, whose Attributes, unspent points, Life and Mana it changes as
+ * `SpendAttributePoints` would, so every World query can preview them.
+ */
+export function withAttributePointsSpent(
+  world: World,
+  points: AttributeCounts,
+): World {
+  const hero = {
+    ...world.hero,
+    progress: { ...world.hero.progress },
+  };
+  raiseAttributes(hero, points, []);
+  return { ...world, hero };
+}
+
+/**
+ * Raises each Attribute by its count in `points`, one unspent point each, if
+ * the Hero can spend them all (see `canSpendAttributePoints`).
+ */
+function spendAttributePoints(
+  world: World,
+  points: AttributeCounts,
+  events: SimEvent[],
+) {
+  if (!canSpendAttributePoints(world, points)) return;
+  raiseAttributes(world.hero, points, events);
+}
+
+/**
+ * Raises the Hero's Attributes by `points`, reporting each point. Vitality
  * adds its Life to current Life as well as to max Life, and Energy its Mana
  * to current Mana as well as to max Mana.
  */
-function spendAttributePoint(
-  world: World,
-  attribute: Attribute,
+function raiseAttributes(
+  hero: Hero,
+  points: AttributeCounts,
   events: SimEvent[],
 ) {
-  const { hero } = world;
-  if (hero.progress.attributePoints === 0) return;
-  hero.progress.attributePoints -= 1;
-  hero.progress[attribute] += 1;
-  if (attribute === "vitality") hero.life += heroTuning.lifePerVitality;
-  if (attribute === "energy") hero.mana += heroTuning.manaPerEnergy;
-  events.push({ type: "AttributeRaised", attribute });
+  for (const attribute of ATTRIBUTES) {
+    const count = points[attribute] ?? 0;
+    for (let i = 0; i < count; i++) {
+      hero.progress.attributePoints -= 1;
+      hero.progress[attribute] += 1;
+      if (attribute === "vitality") hero.life += heroTuning.lifePerVitality;
+      if (attribute === "energy") hero.mana += heroTuning.manaPerEnergy;
+      events.push({ type: "AttributeRaised", attribute });
+    }
+  }
 }
 
 /**
@@ -1098,8 +1152,8 @@ function give(world: World, order: Order, events: SimEvent[]) {
   const { hero } = world;
   // Only heeded while dead.
   if (order.type === "Continue") return;
-  if (order.type === "SpendAttributePoint") {
-    spendAttributePoint(world, order.attribute, events);
+  if (order.type === "SpendAttributePoints") {
+    spendAttributePoints(world, order.points, events);
     return;
   }
   if (order.type === "SpendSkillPoint") {

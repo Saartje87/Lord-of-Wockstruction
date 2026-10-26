@@ -146,7 +146,7 @@ describe("Energy", () => {
     w.hero.mana = 10;
 
     const events = step(w, [
-      { type: "SpendAttributePoint", attribute: "energy" },
+      { type: "SpendAttributePoints", points: { energy: 1 } },
     ]);
 
     expect(events).toContainEqual({

@@ -25,6 +25,7 @@ import {
 import {
   clickPaused,
   createMenus,
+  fitMenus,
   type Menus,
   pressKey,
   reactMenus,
@@ -125,6 +126,11 @@ export default function GameCanvas() {
       const tick = (realNow: number) => {
         const wasPaused = pause.paused;
         const inventoryWasOpen = menus.inventoryOpen;
+        // Read every frame, so a resize into the Compact Layout shuts all
+        // but the latest panel at once, the Inventory's Held Item going back
+        // as it would by hand.
+        const viewport = viewportOf(app.screen);
+        fitMenus(menus, viewport);
         let pressed = clickedAt !== null;
         let newHero = false;
         for (const key of keys) {
@@ -164,7 +170,7 @@ export default function GameCanvas() {
         // Stands still while paused, so the clock owes no steps for it and
         // the World and every effect hold still.
         const now = gameTime(pause, realNow);
-        const scene = { world, screen: viewportOf(app.screen) };
+        const scene = { world, screen: viewport };
         // Whether the Hero lies in Death, for the cursor; the World doesn't
         // step again until after it.
         const heroDead = world.death !== null;

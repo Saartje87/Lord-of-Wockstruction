@@ -99,9 +99,9 @@ import {
   HERO_PANEL,
   hasUnspentPoints,
   heroPanelLayout,
+  heroPanelRow,
   heroSheet,
   PANEL_ROWS,
-  rowTop,
 } from "./heroPanel";
 import {
   characterUnder,
@@ -134,7 +134,7 @@ import {
   SKILL_TREE_ROWS,
   skillRow,
   skillTreePanelLayout,
-  skillTreeRowTop,
+  skillTreeRow,
   skillTreeSheet,
 } from "./skillTreePanel";
 
@@ -2163,8 +2163,6 @@ function heroPanelView() {
       const { panel } = layout;
       const scale = screen.uiScale;
       const { padding, rowHeight } = atUiScale(HERO_PANEL, scale);
-      const left = panel.x + padding;
-      const right = panel.x + panel.w - padding;
       // Attribute values leave room for their − and + buttons.
       const beforeButtons = layout.accept.x - style.plusGap * scale;
 
@@ -2182,13 +2180,14 @@ function heroPanelView() {
         at: number,
         name: string,
         value: string,
-        valueRight = right,
+        valueRight?: number,
       ) => {
-        const y = rowTop(screen, at) + rowHeight / 2;
+        const row = heroPanelRow(screen, at);
+        const y = row.y + rowHeight / 2;
         shown.name.text = name;
-        shown.name.position.set(left, y);
+        shown.name.position.set(row.x, y);
         shown.value.text = value;
-        shown.value.position.set(valueRight, y);
+        shown.value.position.set(valueRight ?? row.x + row.w, y);
         shown.value.style.fill = style.value;
       };
       /** Draws a HUD button at `rect` with `label` centred on it. */
@@ -2232,8 +2231,9 @@ function heroPanelView() {
         if (value.changed) derived[i].value.style.fill = style.changed;
       });
       for (const at of [PANEL_ROWS.attributes, PANEL_ROWS.derived]) {
-        const y = rowTop(screen, at) - style.ruleGap * scale;
-        graphics.rect(left, y, right - left, 1).fill(style.edge);
+        const row = heroPanelRow(screen, at);
+        const y = row.y - style.ruleGap * scale;
+        graphics.rect(row.x, y, row.w, 1).fill(style.edge);
       }
       // Rows made this draw too.
       texts.size(scale);
@@ -2297,8 +2297,6 @@ function skillTreePanelView() {
       const { panel } = layout;
       const scale = screen.uiScale;
       const { padding, rowHeight } = atUiScale(SKILL_TREE_PANEL, scale);
-      const left = panel.x + padding;
-      const right = panel.x + panel.w - padding;
 
       graphics.clear();
       graphics
@@ -2310,11 +2308,12 @@ function skillTreePanelView() {
       hint.position.set(panel.x + panel.w / 2, panel.y + panel.h - padding);
 
       const place = (shown: Row, at: number, name: string, value: string) => {
-        const y = skillTreeRowTop(screen, at) + rowHeight / 2;
+        const row = skillTreeRow(screen, at);
+        const y = row.y + rowHeight / 2;
         shown.name.text = name;
-        shown.name.position.set(left, y);
+        shown.name.position.set(row.x, y);
         shown.value.text = value;
-        shown.value.position.set(right, y);
+        shown.value.position.set(row.x + row.w, y);
       };
       const anyRaisable = sheet.skills.some((skill) => skill.canRaise);
       place(
@@ -2365,10 +2364,9 @@ function skillTreePanelView() {
           button(graphics, rect);
           shown.plus.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
         }
-        const y =
-          skillTreeRowTop(screen, at(SKILL_TREE_ROWS.name)) -
-          style.ruleGap * scale;
-        graphics.rect(left, y, right - left, 1).fill(style.edge);
+        const rule = skillTreeRow(screen, at(SKILL_TREE_ROWS.name));
+        const y = rule.y - style.ruleGap * scale;
+        graphics.rect(rule.x, y, rule.w, 1).fill(style.edge);
       });
       // Rows made this draw too.
       texts.size(scale);

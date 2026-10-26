@@ -19,6 +19,11 @@ export type ViewportTuning = {
    * would be blown up blocky.
    */
   maxWorldZoom: number;
+  /**
+   * Below this screen height (CSS px), such as a phone held sideways, the
+   * HUD and panels take the Compact Layout.
+   */
+  compactBelowHeight: number;
 };
 
 export const viewportTuning: ViewportTuning = {
@@ -27,4 +32,5 @@ export const viewportTuning: ViewportTuning = {
   maxUiScale: 1.5,
   minWorldZoom: 0.5,
   maxWorldZoom: 2,
+  compactBelowHeight: 540,
 };

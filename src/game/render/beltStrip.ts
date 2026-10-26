@@ -4,13 +4,7 @@ import type { Vec } from "../sim/vec";
 import type { World } from "../sim/world";
 import { beltTuning, type ItemType, itemOf } from "../tuning/items";
 import type { Viewport } from "../viewport";
-import { SKILL_BAR, skillBarLayout } from "./skillBar";
-
-/**
- * The HUD's Belt strip (CSS px at native scale, drawn at the UI Scale): one square per Belt Column, as big and as
- * far apart as the Skill Bar's slots, ending `toSkillBar` left of it.
- */
-export const BELT_STRIP = { toSkillBar: 16 };
+import { BELT_STRIP, SKILL_BAR, skillBarLayout } from "./skillBar";
 
 /** Where each Belt Column's square of the Belt strip is drawn, from the left. */
 export function beltStripLayout(screen: Viewport): {

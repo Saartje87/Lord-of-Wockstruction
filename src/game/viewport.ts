@@ -5,7 +5,8 @@ export type Screen = { width: number; height: number };
 
 /**
  * What the screen's size decides for everything drawn: the screen itself
- * (CSS px), the UI Scale the HUD is drawn at and the World zoom. Layout
+ * (CSS px), the UI Scale the HUD is drawn at, the World zoom and whether
+ * the Compact Layout applies. Layout
  * functions take this rather than the bare screen.
  */
 export type Viewport = Screen & {
@@ -16,12 +17,17 @@ export type Viewport = Screen & {
    * show top to bottom as at the reference height.
    */
   worldZoom: number;
+  /**
+   * Whether the screen is short enough for the Compact Layout: one panel
+   * at a time, filling the screen.
+   */
+  compact: boolean;
 };
 
 /**
  * The viewport for a screen `screen` CSS px: the UI Scale and the World
  * zoom follow its height against the reference height, each held within
- * its tuned limits.
+ * its tuned limits, and below the tuned height it takes the Compact Layout.
  */
 export function viewportOf(screen: Screen): Viewport {
   const {
@@ -30,6 +36,7 @@ export function viewportOf(screen: Screen): Viewport {
     maxUiScale,
     minWorldZoom,
     maxWorldZoom,
+    compactBelowHeight,
   } = viewportTuning;
   const byHeight = screen.height / referenceHeight;
   return {
@@ -37,6 +44,7 @@ export function viewportOf(screen: Screen): Viewport {
     height: screen.height,
     uiScale: clamp(byHeight, minUiScale, maxUiScale),
     worldZoom: clamp(byHeight, minWorldZoom, maxWorldZoom),
+    compact: screen.height < compactBelowHeight,
   };
 }
 

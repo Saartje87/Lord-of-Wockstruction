@@ -9,8 +9,8 @@ import {
 import { inside, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
 import type { Viewport } from "../viewport";
-import { BELT_STRIP } from "./beltStrip";
-import { SKILL_BAR, skillBarLayout } from "./skillBar";
+import { COMPACT_LAYOUT } from "./compactLayout";
+import { BELT_STRIP, SKILL_BAR, skillBarLayout } from "./skillBar";
 
 /** The Panel buttons from left to right. */
 export const PANEL_BUTTONS: readonly Panel[] = [
@@ -22,13 +22,27 @@ export const PANEL_BUTTONS: readonly Panel[] = [
 /**
  * Where each Panel button is drawn: as big and as far apart as the Skill
  * Bar's slots, in line with them, starting as far right of the Skill Bar as
- * the Belt strip ends left of it.
+ * the Belt strip ends left of it. In the Compact Layout, where the bottom
+ * has no room for them, they stack down the screen's top-right corner
+ * instead, `margin` in, clear of the panels.
  */
 export function panelButtonsLayout(screen: Viewport): {
   buttons: Record<Panel, Rect>;
 } {
   const slot = SKILL_BAR.slot * screen.uiScale;
   const gap = SKILL_BAR.gap * screen.uiScale;
+  if (screen.compact) {
+    const margin = COMPACT_LAYOUT.margin * screen.uiScale;
+    const x = screen.width - margin - slot;
+    return {
+      buttons: Object.fromEntries(
+        PANEL_BUTTONS.map((panel, index) => [
+          panel,
+          { x, y: margin + index * (slot + gap), w: slot, h: slot },
+        ]),
+      ) as Record<Panel, Rect>,
+    };
+  }
   const { right } = skillBarLayout(screen).slots;
   const left = right.x + right.w + BELT_STRIP.toSkillBar * screen.uiScale;
   return {

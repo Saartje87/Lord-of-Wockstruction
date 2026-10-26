@@ -43,12 +43,17 @@ const world = createWorld({
   },
 });
 
-/** The screens the HUD is checked on: desktops and a tablet. */
+/**
+ * The screens the HUD is checked on: desktops, a tablet, and phones held
+ * sideways in the Compact Layout.
+ */
 const SCREENS = [
   { width: 1280, height: 720 },
   { width: 1920, height: 1080 },
   { width: 2560, height: 1440 },
   { width: 1180, height: 820 },
+  { width: 640, height: 360 },
+  { width: 844, height: 390 },
 ];
 
 /** The square an orb is drawn in, its stone rim included. */

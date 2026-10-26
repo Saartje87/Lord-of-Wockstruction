@@ -7,6 +7,8 @@ import {
   clickPanelButton,
   clickPaused,
   createMenus,
+  fitMenus,
+  panelOpen,
   pressKey,
   reactMenus,
   removePendingPoint,
@@ -647,5 +649,130 @@ describe("Pending Attribute Points", () => {
 
     expect(menus.heroPanelOpen).toBe(true);
     expect(menus.pendingPoints.strength).toBe(2);
+  });
+});
+
+describe("the Compact Layout", () => {
+  /** Menus fitted to a short screen, such as a phone held sideways. */
+  function compactMenus() {
+    const menus = createMenus();
+    fitMenus(menus, { compact: true });
+    return menus;
+  }
+
+  /** Which of the three panels are open, by name. */
+  function openPanels(menus: ReturnType<typeof createMenus>) {
+    return (["hero", "inventory", "skillTree"] as const).filter((panel) =>
+      panelOpen(menus, panel),
+    );
+  }
+
+  it("shuts the Inventory or Skill Tree panel as C opens the Hero panel, and the other way round", () => {
+    const menus = compactMenus();
+
+    pressKey(menus, "i", 1000, alive);
+    pressKey(menus, "c", 1000, alive);
+    expect(openPanels(menus)).toEqual(["hero"]);
+
+    pressKey(menus, "t", 1000, alive);
+    expect(openPanels(menus)).toEqual(["skillTree"]);
+
+    pressKey(menus, "c", 1000, alive);
+    pressKey(menus, "i", 1000, alive);
+    expect(openPanels(menus)).toEqual(["inventory"]);
+  });
+
+  it("shuts the open panel as a Panel button opens another", () => {
+    const menus = compactMenus();
+
+    clickPanelButton(menus, "hero", alive);
+    clickPanelButton(menus, "inventory", alive);
+    expect(openPanels(menus)).toEqual(["inventory"]);
+
+    clickPanelButton(menus, "hero", alive);
+    expect(openPanels(menus)).toEqual(["hero"]);
+
+    clickPanelButton(menus, "skillTree", alive);
+    expect(openPanels(menus)).toEqual(["skillTree"]);
+  });
+
+  it("still shuts a panel on its × or its own Panel button, opening none", () => {
+    const menus = compactMenus();
+
+    clickPanelButton(menus, "hero", alive);
+    clickClose(menus, "hero");
+    expect(openPanels(menus)).toEqual([]);
+
+    clickPanelButton(menus, "inventory", alive);
+    clickPanelButton(menus, "inventory", alive);
+    expect(openPanels(menus)).toEqual([]);
+  });
+
+  it("cancels Pending Attribute Points as another panel shuts the Hero panel", () => {
+    const menus = compactMenus();
+    pressKey(menus, "c", 1000, alive);
+    addPendingPoint(menus, "strength", { heroDead: false, attributePoints: 2 });
+
+    pressKey(menus, "i", 1000, alive);
+
+    expect(unplacedPoints(menus, 2)).toBe(2);
+  });
+
+  it("opens only the Hero panel on Level Up with both kinds of points unspent", () => {
+    const menus = compactMenus();
+    pressKey(menus, "i", 1000, alive);
+
+    clickLevelUp(menus, { ...alive, attributePoints: 5, skillPoints: 1 });
+
+    expect(openPanels(menus)).toEqual(["hero"]);
+  });
+
+  it("opens the Skill Tree panel alone on Level Up with Skill Points unspent", () => {
+    const menus = compactMenus();
+    pressKey(menus, "c", 1000, alive);
+
+    clickLevelUp(menus, { ...alive, attributePoints: 0, skillPoints: 1 });
+
+    expect(openPanels(menus)).toEqual(["skillTree"]);
+  });
+
+  it("keeps the panel opened last as the screen turns short, shutting the other", () => {
+    const menus = createMenus();
+    pressKey(menus, "i", 1000, alive);
+    pressKey(menus, "c", 1000, alive);
+    addPendingPoint(menus, "strength", { heroDead: false, attributePoints: 2 });
+
+    fitMenus(menus, { compact: true });
+    expect(openPanels(menus)).toEqual(["hero"]);
+    expect(unplacedPoints(menus, 2)).toBe(1);
+
+    fitMenus(menus, { compact: false });
+    pressKey(menus, "t", 1000, alive);
+    fitMenus(menus, { compact: true });
+    expect(openPanels(menus)).toEqual(["skillTree"]);
+    expect(unplacedPoints(menus, 2)).toBe(2);
+  });
+
+  it("keeps the panel opened last after another was shut in between", () => {
+    const menus = createMenus();
+    pressKey(menus, "c", 1000, alive);
+    pressKey(menus, "i", 1000, alive);
+    pressKey(menus, "t", 1000, alive);
+    pressKey(menus, "t", 1000, alive);
+    pressKey(menus, "i", 1000, alive);
+
+    fitMenus(menus, { compact: true });
+
+    expect(openPanels(menus)).toEqual(["inventory"]);
+  });
+
+  it("lets both panels open together again once the screen is tall enough", () => {
+    const menus = compactMenus();
+
+    fitMenus(menus, { compact: false });
+    pressKey(menus, "c", 1000, alive);
+    pressKey(menus, "i", 1000, alive);
+
+    expect(openPanels(menus)).toEqual(["hero", "inventory"]);
   });
 });

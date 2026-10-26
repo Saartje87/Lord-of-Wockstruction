@@ -55,7 +55,13 @@ function overlapCentre(a: Rect, b: Rect) {
  * screens the HUD is checked on, but the panel must still win where they
  * meet.
  */
-const SMALL = { width: 1024, height: 640, uiScale: 1, worldZoom: 1 };
+const SMALL = {
+  width: 1024,
+  height: 640,
+  uiScale: 1,
+  worldZoom: 1,
+  compact: false,
+};
 const inventoryOpen = { ...createMenus(), inventoryOpen: true };
 
 describe("a press where the open Inventory panel covers the HUD", () => {

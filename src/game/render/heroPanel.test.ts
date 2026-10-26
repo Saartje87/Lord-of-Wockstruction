@@ -24,10 +24,10 @@ import {
 import { viewportOf } from "../viewport";
 import {
   heroPanelLayout,
+  heroPanelRow,
   heroSheet,
   PANEL_ROWS,
   panelHitAt,
-  rowTop,
 } from "./heroPanel";
 
 /** Whether `rect` lies wholly inside `outer`. */
@@ -40,7 +40,7 @@ function inside(outer: Rect, rect: Rect): boolean {
 
 /** The top of the panel's first row, Level, under the title. */
 const firstRowTop = () =>
-  rowTop(viewportOf({ width: 1280, height: 720 }), PANEL_ROWS.level);
+  heroPanelRow(viewportOf({ width: 1280, height: 720 }), PANEL_ROWS.level).y;
 
 /**
  * A Town of three tiles in a row, the Hero's `start` on the first and a

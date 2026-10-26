@@ -57,3 +57,17 @@ describe("the viewport's World zoom", () => {
     expect(viewportOf({ width, height }).worldZoom).toBeCloseTo(worldZoom);
   });
 });
+
+describe("the viewport's Compact Layout", () => {
+  it.each([
+    { screen: "a 640×360 phone", width: 640, height: 360, compact: true },
+    { screen: "an 844×390 phone", width: 844, height: 390, compact: true },
+    { screen: "a 1024×539 window", width: 1024, height: 539, compact: true },
+    { screen: "a 1024×540 window", width: 1024, height: 540, compact: false },
+    { screen: "1280×720", width: 1280, height: 720, compact: false },
+    { screen: "a 1180×820 tablet", width: 1180, height: 820, compact: false },
+    { screen: "1920×1080", width: 1920, height: 1080, compact: false },
+  ])("applies below 540 px tall: $screen", ({ width, height, compact }) => {
+    expect(viewportOf({ width, height }).compact).toBe(compact);
+  });
+});

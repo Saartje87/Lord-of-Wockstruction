@@ -6,7 +6,7 @@ import type { Vec } from "../sim/vec";
 import type { World } from "../sim/world";
 import type { Viewport } from "../viewport";
 import { beltStripHitAt } from "./beltStrip";
-import { panelHitAt } from "./heroPanel";
+import { heroPanelHitAt, levelUpHitAt } from "./heroPanel";
 import { inventoryHitAt } from "./inventoryPanel";
 import { panelButtonHitAt } from "./panelButtons";
 import { skillBarHitAt } from "./skillBar";
@@ -35,7 +35,7 @@ export function cursorHitAt(
   const { inventoryOpen } = shown;
   const holding = cursorItemOf(world) !== null;
   return (
-    panelHitAt(
+    heroPanelHitAt(
       screen,
       point,
       world,
@@ -45,6 +45,8 @@ export function cursorHitAt(
     skillTreeHitAt(screen, point, world, shown.skillTreeOpen) ??
     // Only on the panel itself here: off it, the HUD comes before a drop.
     inventoryHitAt(screen, point, inventoryOpen, false, rows) ??
+    // Under the panels, which cover it in the Compact Layout.
+    levelUpHitAt(screen, point, world) ??
     skillBarHitAt(screen, point) ??
     beltStripHitAt(screen, point) ??
     panelButtonHitAt(screen, point) ??

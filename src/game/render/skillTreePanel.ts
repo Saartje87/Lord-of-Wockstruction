@@ -10,6 +10,7 @@ import {
 import { skillTuning } from "../tuning/skills";
 import { atUiScale, type Viewport } from "../viewport";
 import { type CloseButton, closeButtonRect, closeHitAt } from "./closeButton";
+import { compactPanelRect } from "./compactLayout";
 
 /**
  * The Skill Tree panel at the top right, where the Inventory panel goes
@@ -79,13 +80,42 @@ export function skillTreeSheet(world: World): SkillTreeSheet {
   };
 }
 
-/** The top of the panel's row `row` (CSS px), at the UI Scale. */
-export function skillTreeRowTop(screen: Viewport, row: number): number {
-  const { top, firstRow, rowHeight } = atUiScale(
+/**
+ * Where the panel's row `row` is drawn (CSS px), at the UI Scale: its name
+ * goes at its left and its value at its right. The rows run down the panel
+ * from under its title, inside its padding; in the Compact Layout, where
+ * the panel fills the screen, as wide as on a desktop and centred.
+ */
+export function skillTreeRow(screen: Viewport, row: number): Rect {
+  const { width, padding, firstRow, rowHeight } = atUiScale(
     SKILL_TREE_PANEL,
     screen.uiScale,
   );
-  return top + firstRow + row * rowHeight;
+  const panel = skillTreePanelRect(screen);
+  const w = width - 2 * padding;
+  return {
+    x: panel.x + (panel.w - w) / 2,
+    y: panel.y + firstRow + row * rowHeight,
+    w,
+    h: rowHeight,
+  };
+}
+
+/**
+ * Where the panel itself is drawn: at the top right, as tall as its rows,
+ * or in the Compact Layout filling the screen.
+ */
+function skillTreePanelRect(screen: Viewport): Rect {
+  if (screen.compact) return compactPanelRect(screen);
+  const { right, top, width, padding, firstRow, rowHeight, hintHeight } =
+    atUiScale(SKILL_TREE_PANEL, screen.uiScale);
+  const rows = skillRow(SKILLS.length, 0) - 1;
+  return {
+    x: screen.width - right - width,
+    y: top,
+    w: width,
+    h: firstRow + rows * rowHeight + hintHeight + padding,
+  };
 }
 
 /** The panel row of row `row` within the `index`th Skill's rows. */
@@ -104,29 +134,23 @@ export function skillTreePanelLayout(screen: Viewport): {
   skills: Record<Skill, Rect>;
   raise: Record<Skill, Rect>;
 } {
-  const { right, top, width, padding, rowHeight, hintHeight, plus } = atUiScale(
-    SKILL_TREE_PANEL,
-    screen.uiScale,
-  );
-  const rowTop = (row: number) => skillTreeRowTop(screen, row);
-  const x = screen.width - right - width;
-  const rows = skillRow(SKILLS.length, 0) - 1;
-  const panel = {
-    x,
-    y: top,
-    w: width,
-    h: rowTop(rows) + hintHeight + padding - top,
+  const { rowHeight, plus } = atUiScale(SKILL_TREE_PANEL, screen.uiScale);
+  const panel = skillTreePanelRect(screen);
+  const row = (index: number, within: number) =>
+    skillTreeRow(screen, skillRow(index, within));
+  const plusAt = (index: number): Rect => {
+    const name = row(index, SKILL_TREE_ROWS.name);
+    return {
+      x: name.x + name.w - plus,
+      y: name.y + (rowHeight - plus) / 2,
+      w: plus,
+      h: plus,
+    };
   };
-  const plusAt = (index: number): Rect => ({
-    x: x + width - padding - plus,
-    y: rowTop(skillRow(index, SKILL_TREE_ROWS.name)) + (rowHeight - plus) / 2,
-    w: plus,
-    h: plus,
-  });
   const rowsOf = (index: number): Rect => {
-    const y = rowTop(skillRow(index, SKILL_TREE_ROWS.name));
-    const end = rowTop(skillRow(index, SKILL_TREE_ROWS.requiredLevel + 1));
-    return { x: x + padding, y, w: width - 2 * padding, h: end - y };
+    const name = row(index, SKILL_TREE_ROWS.name);
+    const end = row(index, SKILL_TREE_ROWS.requiredLevel + 1).y;
+    return { ...name, h: end - name.y };
   };
   return {
     panel,

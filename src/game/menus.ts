@@ -9,7 +9,8 @@ import {
 /**
  * What the player opens over the World, by key or by click: the pause menu,
  * the Hero panel, and the Inventory or Skill Tree panel, which share the
- * right of the screen, so one opening shuts the other.
+ * right of the screen, so one opening shuts the other. In the Compact
+ * Layout each panel fills the screen, so any one opening shuts the others.
  */
 export type Menus = {
   pause: Pause;
@@ -22,6 +23,10 @@ export type Menus = {
    * or the Save.
    */
   pendingPoints: PendingPoints;
+  /** Whether the screen takes the Compact Layout, as last fitted. */
+  compact: boolean;
+  /** The panel opened most recently, which a short screen keeps. */
+  lastOpened: Panel | null;
 };
 
 /** A count of Pending Attribute Points on each Attribute. */
@@ -34,6 +39,8 @@ export function createMenus(): Menus {
     inventoryOpen: false,
     skillTreeOpen: false,
     pendingPoints: noPendingPoints(),
+    compact: false,
+    lastOpened: null,
   };
 }
 
@@ -134,35 +141,70 @@ export function clickPanelButton(menus: Menus, panel: Panel, hero: HeroState) {
 function togglePanel(menus: Menus, panel: Panel, hero: HeroState) {
   if (hero.heroDead) return;
   if (panelOpen(menus, panel)) shutPanel(menus, panel);
-  else if (panel === "hero") menus.heroPanelOpen = true;
-  else if (panel === "inventory") openInventory(menus);
-  else openSkillTree(menus);
+  else openPanel(menus, panel);
 }
 
-/** Opens the Inventory panel, shutting the Skill Tree panel in its place. */
-function openInventory(menus: Menus) {
-  menus.inventoryOpen = true;
-  menus.skillTreeOpen = false;
+/**
+ * Opens `panel`, shutting the panels it can't be open with: the Inventory
+ * and Skill Tree panels shut each other, and in the Compact Layout any
+ * panel shuts the others.
+ */
+function openPanel(menus: Menus, panel: Panel) {
+  for (const other of PANELS) {
+    if (other !== panel && !canShareScreen(menus, panel, other)) {
+      shutPanel(menus, other);
+    }
+  }
+  if (panel === "hero") menus.heroPanelOpen = true;
+  if (panel === "inventory") menus.inventoryOpen = true;
+  if (panel === "skillTree") menus.skillTreeOpen = true;
+  menus.lastOpened = panel;
 }
 
-/** Opens the Skill Tree panel, shutting the Inventory panel in its place. */
-function openSkillTree(menus: Menus) {
-  menus.skillTreeOpen = true;
-  menus.inventoryOpen = false;
+/** The three panels. */
+const PANELS: readonly Panel[] = ["hero", "inventory", "skillTree"];
+
+/**
+ * Whether panels `a` and `b` may be open together: only the Hero panel with
+ * another, and never in the Compact Layout.
+ */
+function canShareScreen(menus: Menus, a: Panel, b: Panel): boolean {
+  return !menus.compact && (a === "hero" || b === "hero");
+}
+
+/**
+ * Fits the menus to the screen, as `viewport` lays it out: crossing into
+ * the Compact Layout keeps the panel opened most recently and shuts any
+ * other, as shutting it by hand would.
+ */
+export function fitMenus(menus: Menus, viewport: { compact: boolean }) {
+  menus.compact = viewport.compact;
+  if (!menus.compact) return;
+  const keep =
+    menus.lastOpened && panelOpen(menus, menus.lastOpened)
+      ? menus.lastOpened
+      : PANELS.find((panel) => panelOpen(menus, panel));
+  for (const panel of PANELS) {
+    if (panel !== keep && panelOpen(menus, panel)) shutPanel(menus, panel);
+  }
 }
 
 /**
  * A click on the Level Up button, which opens the Hero panel while
  * Attribute Points are unspent and the Skill Tree panel while Skill Points
- * are, but nothing while `hero` lies dead.
+ * are, but nothing while `hero` lies dead. In the Compact Layout, with both
+ * unspent, it opens only the Hero panel.
  */
 export function clickLevelUp(
   menus: Menus,
   hero: HeroState & { attributePoints: number; skillPoints: number },
 ) {
   if (hero.heroDead) return;
-  if (hero.attributePoints > 0) menus.heroPanelOpen = true;
-  if (hero.skillPoints > 0) openSkillTree(menus);
+  const attributes = hero.attributePoints > 0;
+  if (hero.skillPoints > 0 && !(attributes && menus.compact)) {
+    openPanel(menus, "skillTree");
+  }
+  if (attributes) openPanel(menus, "hero");
 }
 
 /**

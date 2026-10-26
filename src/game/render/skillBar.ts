@@ -7,6 +7,7 @@ import {
 } from "../sim/skillBar";
 import type { Vec } from "../sim/vec";
 import { skillManaCost, type World } from "../sim/world";
+import { beltTuning } from "../tuning/items";
 import { skillTuning } from "../tuning/skills";
 import { atUiScale, type Viewport } from "../viewport";
 
@@ -19,6 +20,13 @@ import { atUiScale, type Viewport } from "../viewport";
  */
 export const SKILL_BAR = { slot: 44, gap: 6, rightGap: 16, bottom: 42 };
 
+/**
+ * The HUD's Belt strip (CSS px at native scale, drawn at the UI Scale): one
+ * square per Belt Column, as big and as far apart as the Skill Bar's
+ * slots, ending `toSkillBar` left of it.
+ */
+export const BELT_STRIP = { toSkillBar: 16 };
+
 /** The Skill Bar's slots from left to right: keys Q/W/E/R, then right-click. */
 const SHOWN_ORDER: readonly SkillBarSlot[] = [...KEYED_SLOTS, "right"];
 
@@ -27,14 +35,23 @@ function keyLabel(slot: SkillBarSlot): string {
   return slot === "right" ? "RMB" : slotKey(slot);
 }
 
-/** Where each slot of the Skill Bar is drawn. */
+/**
+ * Where each slot of the Skill Bar is drawn: centred on the screen, or in
+ * the Compact Layout, where the Panel buttons leave the bottom, centred
+ * together with the Belt strip, so both fit between the orbs.
+ */
 export function skillBarLayout(screen: Viewport): {
   slots: Record<SkillBarSlot, Rect>;
 } {
   const { slot, gap, rightGap, bottom } = atUiScale(SKILL_BAR, screen.uiScale);
   const keyed = SHOWN_ORDER.length - 1;
   const width = SHOWN_ORDER.length * slot + (keyed - 1) * gap + rightGap;
-  const left = (screen.width - width) / 2;
+  const beltStrip = screen.compact
+    ? beltTuning.columns * (slot + gap) -
+      gap +
+      BELT_STRIP.toSkillBar * screen.uiScale
+    : 0;
+  const left = (screen.width - width - beltStrip) / 2 + beltStrip;
   const y = screen.height - bottom - slot;
   const xOf = (index: number) =>
     left + index * (slot + gap) + (index === keyed ? rightGap - gap : 0);

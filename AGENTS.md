@@ -30,6 +30,10 @@ Single-context: one root `GLOSSARY.md` plus `docs/adr/`. See `docs/agents/domain
 
 Seeing the game run (on-screen criteria, dev servers in worktrees, starting at a given Level): see `docs/agents/playtesting.md`.
 
+### Tuning
+
+On tuning tickets, `npm run tuning:report` prints Experience, kills per Level and each Combat Area's Monster numbers from live tuning. See `docs/agents/tuning.md`.
+
 ### From grilling to tickets
 
 When a grilling session reaches a shared understanding, stop once the glossary is updated. Ask the user to type `/mattpocock-skills:to-spec` and then `/mattpocock-skills:to-tickets`. Agents can't call these skills themselves, so never write the spec or tickets by hand instead.

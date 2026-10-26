@@ -31,6 +31,7 @@ import {
   returnCursorItem,
   taken,
 } from "./inventory";
+import { faceToward, lands } from "./melee";
 import {
   type Minion,
   type MinionId,
@@ -67,7 +68,7 @@ import {
 } from "./skillBar";
 import { msToSteps, perStep } from "./units";
 import { validateAreas } from "./validate";
-import { angleBetween, distance, type Vec } from "./vec";
+import { distance, type Vec } from "./vec";
 
 const EXPERIENCE_TABLE = heroTuning.experienceTable;
 /** The most Experience the Hero can have: what the last Level needs. */
@@ -667,10 +668,7 @@ export function maxLife(world: World): number {
   );
 }
 
-/**
- * The Hero's full Mana, growing with their Level and Energy, plus the
- * Equipped Items' +Energy.
- */
+/** The Hero's full Mana, growing with their Level and Energy. */
 export function maxMana(world: World): number {
   const { level } = world.hero.progress;
   return (
@@ -1066,12 +1064,13 @@ function give(world: World, order: Order, events: SimEvent[]) {
     return;
   }
   if (moveItem(world, order, events)) {
-    // Taking off +Life, +Vitality or +Energy can leave Life or Mana over the
-    // new max.
+    // Taking off an Item's bonuses can leave Life or Mana over the new max.
     hero.life = Math.min(hero.life, maxLife(world));
     hero.mana = Math.min(hero.mana, maxMana(world));
     return;
   }
+  // An empty slot does nothing, not even replace a buffered order.
+  if (order.type === "Cast" && !hero.progress.skillBar[order.slot]) return;
   if (hero.flinch > 0 || hero.cast) {
     hero.buffered = order;
     return;
@@ -1146,14 +1145,18 @@ function castFrom(
     return;
   }
   hero.mana -= cost;
-  face(hero, target);
+  faceToward(hero, target);
   hero.path = [];
   hero.attacking = null;
   hero.pickingUp = null;
   hero.cast = { skill, elapsed: 0 };
   events.push({ type: "SkillCast", skill, target: { ...target } });
   const { effect } = skillTuning[skill];
-  summon(world, effect.minion, skillLevel, target, events);
+  switch (effect.type) {
+    case "summon":
+      summon(world, effect.minion, skillLevel, target, events);
+      break;
+  }
 }
 
 /**
@@ -1171,14 +1174,7 @@ function summon(
   const area = world.areas[world.areaName];
   const pos = summonPoint(area, target, minionTuning[type].radius);
   if (!pos) return;
-  const old = world.minion;
-  if (old) {
-    events.push({
-      type: "MinionCrumbled",
-      minion: old.id,
-      pos: { ...old.pos },
-    });
-  }
+  crumbleMinion(world, events);
   const minion = newMinion(
     world.nextMinionId++,
     type,
@@ -1196,13 +1192,6 @@ function advanceCast(world: World, cast: Cast, events: SimEvent[]) {
   if (cast.elapsed < CAST_STEPS[cast.skill]) return;
   world.hero.cast = null;
   giveBuffered(world, events);
-}
-
-/** Turns the Hero towards a point, unless standing on it. */
-function face(hero: Hero, toward: Vec) {
-  const dx = toward.x - hero.pos.x;
-  const dy = toward.y - hero.pos.y;
-  if (dx !== 0 || dy !== 0) hero.facing = Math.atan2(dy, dx);
 }
 
 /** Swings at the Monster the Hero walks to once it is in reach. */
@@ -1256,7 +1245,7 @@ function reachGroundItem(world: World, events: SimEvent[]) {
 }
 
 function startSwing(hero: Hero, monster: MonsterId | null, toward: Vec) {
-  face(hero, toward);
+  faceToward(hero, toward);
   hero.swing = { elapsed: 0, landed: false, monster };
   hero.attacking = null;
   hero.path = [];
@@ -1302,13 +1291,7 @@ function land(world: World, swing: Swing, events: SimEvent[]) {
         gap <= heroTuning.reach + heroTuning.reachGrace
       );
     }
-    if (gap > heroTuning.reach) return false;
-    if (gap === 0) return true;
-    const angle = Math.atan2(
-      monster.pos.y - hero.pos.y,
-      monster.pos.x - hero.pos.x,
-    );
-    return angleBetween(angle, hero.facing) <= ARC;
+    return lands(hero, monster.pos, heroTuning.reach, ARC);
   });
 
   for (const monster of victims) {
@@ -1372,6 +1355,20 @@ function hurt(world: World, monster: Monster, events: SimEvent[]) {
 }
 
 /**
+ * Rolls an attack with `chance` to hit: the damage it deals, from `range`
+ * inclusive, or null for a Miss. A certain hit rolls only its damage, so the
+ * rolls after it stay as they were.
+ */
+function rollAttack(
+  world: World,
+  chance: number,
+  range: [number, number],
+): number | null {
+  if (chance < 1 && random(world.rng) >= chance) return null;
+  return randomInt(world.rng, range);
+}
+
+/**
  * Lands the Hero's Minion's attack on a Monster: it rolls the Minion's
  * Attack Rating against the Monster's Defense, and a hit hurts it as the
  * Hero's do. Neither keeps the Hero In Combat, and there is no hitstop.
@@ -1382,16 +1379,16 @@ function minionStrike(
   monster: Monster,
   events: SimEvent[],
 ) {
-  const chance = chanceToHit(
-    minionAttackRating(minion),
-    monsterDefense(monster),
+  const damage = rollAttack(
+    world,
+    chanceToHit(minionAttackRating(minion), monsterDefense(monster)),
+    minionDamageRange(minion),
   );
-  if (random(world.rng) >= chance) {
+  if (damage === null) {
     events.push({ type: "Missed", target: monster.id });
     noticeHit(world, monster);
     return;
   }
-  const damage = randomInt(world.rng, minionDamageRange(minion));
   monster.life = Math.max(0, monster.life - damage);
   events.push({
     type: "HitLanded",
@@ -1422,14 +1419,15 @@ function rollDrop(world: World, pos: Vec, events: SimEvent[]) {
  */
 function hitHero(world: World, monster: Monster, events: SimEvent[]) {
   const { hero } = world;
-  // No roll at 0 Defense, so the rolls after it stay as they were.
-  if (heroDefense(world) > 0) {
-    if (random(world.rng) >= monsterChanceToHit(world, monster)) {
-      events.push({ type: "Missed", target: "hero" });
-      return;
-    }
+  const damage = rollAttack(
+    world,
+    monsterChanceToHit(world, monster),
+    monsterDamageRange(monster),
+  );
+  if (damage === null) {
+    events.push({ type: "Missed", target: "hero" });
+    return;
   }
-  const damage = randomInt(world.rng, monsterDamageRange(monster));
   hero.life = Math.max(0, hero.life - damage);
   hero.combat = COMBAT_STEPS;
   events.push({ type: "HeroHit", damage });
@@ -1458,15 +1456,15 @@ function hitHero(world: World, monster: Monster, events: SimEvent[]) {
 function hitMinion(world: World, monster: Monster, events: SimEvent[]) {
   const { minion } = world;
   if (!minion) return;
-  const chance = chanceToHit(
-    monsterAttackRating(monster),
-    minionDefense(minion),
+  const damage = rollAttack(
+    world,
+    chanceToHit(monsterAttackRating(monster), minionDefense(minion)),
+    monsterDamageRange(monster),
   );
-  if (random(world.rng) >= chance) {
+  if (damage === null) {
     events.push({ type: "MinionMissed", minion: minion.id });
     return;
   }
-  const damage = randomInt(world.rng, monsterDamageRange(monster));
   minion.life = Math.max(0, minion.life - damage);
   events.push({ type: "MinionHit", minion: minion.id, damage });
   if (minion.life > 0) return;
@@ -1478,21 +1476,25 @@ function hitMinion(world: World, monster: Monster, events: SimEvent[]) {
   });
 }
 
+/** Crumbles the Hero's Minion away, if any, leaving nothing behind. */
+function crumbleMinion(world: World, events: SimEvent[]) {
+  const { minion } = world;
+  if (!minion) return;
+  events.push({
+    type: "MinionCrumbled",
+    minion: minion.id,
+    pos: { ...minion.pos },
+  });
+  world.minion = null;
+}
+
 /**
  * Lays the Hero down, stopping whatever they were doing, crumbles their
  * Minion away and sends every Monster home.
  */
 function die(world: World, events: SimEvent[]) {
   world.death = { elapsed: 0 };
-  const { minion } = world;
-  if (minion) {
-    events.push({
-      type: "MinionCrumbled",
-      minion: minion.id,
-      pos: { ...minion.pos },
-    });
-    world.minion = null;
-  }
+  crumbleMinion(world, events);
   for (const monster of world.monsters) sendHome(monster);
   stopHero(world.hero);
   returnCursorItem(world, events);

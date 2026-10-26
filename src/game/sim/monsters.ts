@@ -7,10 +7,11 @@ import {
   monsterTuning,
 } from "../tuning/monsters";
 import { isWalkable } from "./area";
+import { faceToward, lands } from "./melee";
 import { canSee, isClear } from "./path";
 import { random, randomInt } from "./random";
 import { msToSteps, perStep } from "./units";
-import { angleBetween, distance, type Vec } from "./vec";
+import { distance, type Vec } from "./vec";
 import { type Gait, goToward, walkAlong } from "./walking";
 import type { Monster, MonsterTarget, World } from "./world";
 
@@ -350,9 +351,7 @@ export function windUpProgress(monster: Monster): number {
 function startWindUp(monster: Monster, at: Vec) {
   monster.state = "windup";
   monster.attack = 0;
-  const dx = at.x - monster.pos.x;
-  const dy = at.y - monster.pos.y;
-  if (dx !== 0 || dy !== 0) monster.facing = Math.atan2(dy, dx);
+  faceToward(monster, at);
 }
 
 /**
@@ -374,11 +373,7 @@ function windUp(world: World, monster: Monster): boolean {
   const { reach, reachGrace } = monsterTuning[monster.type];
   const at = targetPos(world, monster.target);
   if (!at) return false;
-  const gap = distance(monster.pos, at);
-  if (gap > reach + reachGrace) return false;
-  if (gap === 0) return true;
-  const angle = Math.atan2(at.y - monster.pos.y, at.x - monster.pos.x);
-  return angleBetween(angle, monster.facing) <= STEPPED[monster.type].arc;
+  return lands(monster, at, reach + reachGrace, stepped.arc);
 }
 
 /**

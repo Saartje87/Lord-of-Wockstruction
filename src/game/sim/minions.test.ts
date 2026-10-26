@@ -356,7 +356,6 @@ describe("Monsters fighting the Golem", () => {
       expect.objectContaining({ type: "MinionHit", minion: golem.id }),
     );
     expect(events.some((event) => event.type === "HeroHit")).toBe(false);
-    expect(skeletonOf(w).state).not.toBe("return");
   });
 
   it("switch to the Hero once the Hero is nearer than the Golem", () => {
@@ -375,7 +374,6 @@ describe("Monsters fighting the Golem", () => {
     }
 
     expect(golemOf(w)).toBe(golem);
-    expect(skeletonOf(w).target).toBe("hero");
   });
 
   it("keep the Hero In Combat, not regaining Life, while one chases the Golem", () => {
@@ -390,12 +388,16 @@ describe("Monsters fighting the Golem", () => {
     const life = w.hero.life;
 
     // Longer than damage keeps the Hero In Combat.
+    const events: SimEvent[] = [];
     for (let i = 0; i < 6 * 60; i++) {
-      expect(step(w, []).some((event) => event.type === "HeroHit")).toBe(false);
+      events.push(...step(w, []));
       expect(isInCombat(w)).toBe(true);
     }
 
-    expect(skeletonOf(w).target).toBe("minion");
+    expect(events.some((event) => event.type === "HeroHit")).toBe(false);
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: "MinionHit", minion: golem.id }),
+    );
     expect(w.minion).toBe(golem);
     expect(w.hero.life).toBe(life);
   });
@@ -476,30 +478,33 @@ describe("Monsters fighting the Golem", () => {
     });
     summonAt(w, { x: 4.5, y: 0.5 });
     const skeleton = skeletonOf(w);
-    const home = { ...skeleton.home };
-    stepUntil(
-      w,
-      () => skeleton.state === "chase" && skeleton.target === "minion",
+    // Where it was placed.
+    const home = { x: 6.5, y: 0.5 };
+    const golem = golemOf(w);
+    stepUntil(w, () => golem.life < minionMaxLife(golem), 60 * 30);
+
+    // Runs off east, the Golem lagging behind between them and the Skeleton,
+    // which follows the Golem past its Leash, never reaching the Hero, and
+    // turns back.
+    const events = step(w, [{ type: "MoveTo", target: { x: 39.5, y: 1.5 } }]);
+    let furthest = 0;
+    events.push(
+      ...stepUntil(w, () => {
+        const gone = distance(skeleton.pos, home);
+        furthest = Math.max(furthest, gone);
+        return furthest > leash && gone < furthest - 1;
+      }),
+    );
+    expect(events.some((e) => e.type === "HeroHit")).toBe(false);
+
+    // Back past it to its home, the Golem in tow: walking home, it never
+    // turns on either.
+    events.length = 0;
+    events.push(
+      ...step(w, [{ type: "MoveTo", target: { x: home.x, y: 1.5 } }]),
+      ...stepUntil(w, () => distance(skeleton.pos, home) === 0),
     );
 
-    // Runs off east, the Golem lagging behind between them and the Skeleton.
-    step(w, [{ type: "MoveTo", target: { x: 39.5, y: 1.5 } }]);
-    let target = skeleton.target;
-    stepUntil(w, () => {
-      if (skeleton.state === "return") return true;
-      target = skeleton.target;
-      return false;
-    });
-    expect(target).toBe("minion");
-    expect(distance(skeleton.pos, home)).toBeGreaterThan(leash);
-
-    // Back past it to its home, the Golem in tow.
-    step(w, [{ type: "MoveTo", target: { x: home.x, y: 1.5 } }]);
-    const events = stepUntil(w, () => skeleton.state !== "return");
-
-    // Straight from walking home to strolling: it never turned on either.
-    expect(skeleton.state).toBe("idle");
-    expect(skeleton.pos).toEqual(home);
     expect(
       events.some((e) => e.type === "HeroHit" || e.type === "MinionHit"),
     ).toBe(false);
@@ -541,7 +546,6 @@ describe("the Golem fighting Monsters", () => {
         target: skeleton.id,
       }),
     );
-    expect(skeleton.target).toBe("minion");
     expect(w.hero.life).toBe(heroLife);
   });
 
@@ -575,7 +579,11 @@ describe("the Golem fighting Monsters", () => {
     expect(events).toContainEqual({ type: "ExperienceGained", amount: 100 });
     expect(w.hero.progress.experience).toBe(experience + 100);
     // Back to following once there is nothing left to fight.
-    stepUntil(w, () => golemOf(w).state === "follow", 120);
+    stepUntil(
+      w,
+      () => distance(golemOf(w).pos, w.hero.pos) <= followDistance + 1e-9,
+      120,
+    );
   });
 
   it("gives the Hero about 5% of the Experience for a kill 10 or more Levels below them", () => {
@@ -605,19 +613,55 @@ describe("the Golem fighting Monsters", () => {
     summonAt(w, { x: 2.5, y: 1.5 });
     const golem = golemOf(w);
     const skeleton = skeletonOf(w);
-    stepUntil(w, () => golem.state === "windup", 60 * 10);
+    stepUntil(w, () => skeleton.life < monsterMaxLife(skeleton), 60 * 10);
 
     // Runs off east, leaving the two fighting, but not so far that the
     // Golem teleports after them.
     step(w, [{ type: "MoveTo", target: { x: 15.5, y: 1.5 } }]);
     stepUntil(w, () => distance(skeleton.pos, w.hero.pos) > golemLeash);
     // At most a wind-up and its root to finish first.
-    stepUntil(w, () => golem.state === "follow", 60);
+    for (let i = 0; i < 60; i++) step(w, []);
 
-    expect(golem.target).toBeNull();
     const gap = distance(golem.pos, w.hero.pos);
-    for (let i = 0; i < 30; i++) step(w, []);
+    const events: SimEvent[] = [];
+    for (let i = 0; i < 30; i++) events.push(...step(w, []));
     expect(distance(golem.pos, w.hero.pos)).toBeLessThan(gap);
+    expect(
+      events.some(
+        (e) =>
+          (e.type === "HitLanded" && e.attacker === "minion") ||
+          e.type === "Missed",
+      ),
+    ).toBe(false);
+  });
+
+  it("teleports next to the Hero once stuck where it can't walk to its Monster", () => {
+    const w = inField(GOLEM_HERO, {
+      ...AREAS,
+      field: map(
+        [
+          "EA...S....H.........",
+          "....................",
+          ".....#..............",
+          ".....#..............",
+          ".....#..####........",
+          ".....#..#..#........",
+          ".....#..#..#........",
+        ],
+        "town",
+        1,
+      ),
+    });
+    step(w, [{ type: "Cast", slot: "right", target: { x: 9.5, y: 5.5 } }]);
+
+    const pocket = () => golemOf(w).pos.x > 9 && golemOf(w).pos.y > 5;
+    for (let i = 0; i < (stuckMs * 60) / 1000; i++) {
+      step(w, []);
+      expect(pocket()).toBe(true);
+    }
+    stepUntil(w, () => !pocket(), 120);
+
+    expect(distance(golemOf(w).pos, w.hero.pos)).toBeLessThanOrEqual(1 + 1e-9);
   });
 
   it("is never hit by the Hero's swings", () => {

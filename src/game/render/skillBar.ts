@@ -1,5 +1,10 @@
 import { inside, type Rect } from "../sim/rect";
-import { SKILL_BAR_SLOTS, type SkillBarSlot } from "../sim/skillBar";
+import {
+  KEYED_SLOTS,
+  SKILL_BAR_SLOTS,
+  type SkillBarSlot,
+  slotKey,
+} from "../sim/skillBar";
 import type { Vec } from "../sim/vec";
 import { type Order, skillManaCost, type World } from "../sim/world";
 import { type Skill, skillTuning } from "../tuning/skills";
@@ -13,22 +18,12 @@ import { type Skill, skillTuning } from "../tuning/skills";
 export const SKILL_BAR = { slot: 44, gap: 6, rightGap: 16, bottom: 42 };
 
 /** The Skill Bar's slots from left to right: keys 1–4, then right-click. */
-const SHOWN_ORDER: readonly SkillBarSlot[] = [
-  "key1",
-  "key2",
-  "key3",
-  "key4",
-  "right",
-];
+const SHOWN_ORDER: readonly SkillBarSlot[] = [...KEYED_SLOTS, "right"];
 
-/** The key shown on each slot. */
-const KEY_LABELS: Record<SkillBarSlot, string> = {
-  key1: "1",
-  key2: "2",
-  key3: "3",
-  key4: "4",
-  right: "RMB",
-};
+/** The key shown on a slot. */
+function keyLabel(slot: SkillBarSlot): string {
+  return slot === "right" ? "RMB" : slotKey(slot);
+}
 
 /** Where each slot of the Skill Bar is drawn. */
 export function skillBarLayout(screen: { width: number; height: number }): {
@@ -70,7 +65,7 @@ export function skillBarSheet(world: World): SkillBarSlotSheet[] {
     const cost = skill && skillManaCost(skill, progress.skillLevels[skill]);
     return {
       slot,
-      key: KEY_LABELS[slot],
+      key: keyLabel(slot),
       name: skill && skillTuning[skill].name,
       dimmed: cost !== null && mana < cost,
     };

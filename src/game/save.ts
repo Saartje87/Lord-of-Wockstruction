@@ -191,11 +191,8 @@ function parseBelongings(
  * whole number at least 0 for each Skill and nothing else.
  */
 function parseSkillLevels(stored: unknown): Record<Skill, number> | null {
-  if (typeof stored !== "object" || stored === null) return null;
-  if (Array.isArray(stored)) return null;
-  const levels = stored as Record<string, unknown>;
-  const known = (key: string) => (SKILLS as string[]).includes(key);
-  if (!Object.keys(levels).every(known)) return null;
+  const levels = objectWithin(stored, SKILLS);
+  if (!levels) return null;
   const fits = (skill: Skill) => {
     const level = levels[skill];
     return Number.isInteger(level) && (level as number) >= 0;
@@ -215,12 +212,8 @@ function parseSkillBar(
   stored: unknown,
   skillLevels: Record<Skill, number>,
 ): SkillBar | null {
-  if (typeof stored !== "object" || stored === null) return null;
-  if (Array.isArray(stored)) return null;
-  const slots = stored as Record<string, unknown>;
-  const known = (key: string) =>
-    (SKILL_BAR_SLOTS as readonly string[]).includes(key);
-  if (!Object.keys(slots).every(known)) return null;
+  const slots = objectWithin(stored, SKILL_BAR_SLOTS);
+  if (!slots) return null;
   const held: unknown[] = [];
   for (const slot of SKILL_BAR_SLOTS) {
     const skill = slots[slot];
@@ -234,15 +227,31 @@ function parseSkillBar(
   ) as SkillBar;
 }
 
+/**
+ * A stored value as an object, or null when it isn't a plain object with
+ * no keys but `keys`.
+ */
+function objectWithin(
+  stored: unknown,
+  keys: readonly string[],
+): Record<string, unknown> | null {
+  if (typeof stored !== "object" || stored === null) return null;
+  if (Array.isArray(stored)) return null;
+  const object = stored as Record<string, unknown>;
+  return Object.keys(object).every((key) => keys.includes(key)) ? object : null;
+}
+
 /** The fields of the stored progress that aren't whole numbers. */
-type ObjectField = "skillLevels" | "skillBar";
+const OBJECT_FIELDS = ["skillLevels", "skillBar"] as const;
+
+type ObjectField = (typeof OBJECT_FIELDS)[number];
 
 /** Every whole-number field of the stored progress. */
 const PROGRESS_FIELDS = (
   Object.keys(FRESH_PROGRESS) as (keyof Progress)[]
 ).filter(
   (field): field is Exclude<keyof Progress, ObjectField> =>
-    field !== "skillLevels" && field !== "skillBar",
+    !(OBJECT_FIELDS as readonly string[]).includes(field),
 );
 
 /**

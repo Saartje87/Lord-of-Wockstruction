@@ -100,7 +100,7 @@ const golem = (life: number): Minion => ({
   facing: 0,
   state: "follow",
   target: null,
-  attack: 0,
+  attackSteps: 0,
   cooldown: 0,
   path: [],
   replan: 0,

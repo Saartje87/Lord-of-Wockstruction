@@ -58,6 +58,7 @@ export type SkillSheet = {
 /** What the Skill Tree panel shows of the Hero, as text. */
 export type SkillTreeSheet = { skillPoints: string; skills: SkillSheet[] };
 
+/** What the Skill Tree panel shows, from the Hero's progress. */
 export function skillTreeSheet(world: World): SkillTreeSheet {
   const { progress } = world.hero;
   return {

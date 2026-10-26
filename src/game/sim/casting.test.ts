@@ -264,6 +264,21 @@ describe("a failed cast", () => {
     expect(w.minion).toBeNull();
   });
 
+  it("from an empty slot during a cast keeps the order given before it", () => {
+    const w = inField();
+    const at = { ...w.hero.pos };
+    cast(w, { x: 5.5, y: 1.5 });
+    step(w, [{ type: "MoveTo", target: { x: 1.5, y: 1.5 } }]);
+
+    cast(w, { x: 6.5, y: 0.5 }, "key1");
+    const castSteps = Math.round((skillTuning.golem.castMs * 60) / 1000);
+    for (let i = 0; i < castSteps; i++) step(w, []);
+
+    // Walking to the MoveTo's (1.5, 1.5), straight down from (1.5, 0.5).
+    expect(w.hero.pos.x).toBeCloseTo(1.5);
+    expect(w.hero.pos.y).toBeGreaterThan(at.y);
+  });
+
   it("from a keyed slot casts its Skill", () => {
     const w = inField({
       ...GOLEM_HERO,

@@ -4,9 +4,10 @@ import {
   minionTuning,
 } from "../tuning/minions";
 import { type Area, isWalkable } from "./area";
+import { faceToward, lands } from "./melee";
 import { isClear } from "./path";
 import { msToSteps, perStep } from "./units";
-import { angleBetween, distance, type Vec } from "./vec";
+import { distance, type Vec } from "./vec";
 import { type Gait, goToward } from "./walking";
 import type { Monster, MonsterId, World } from "./world";
 
@@ -43,7 +44,7 @@ export type Minion = {
    * While winding up, steps into the wind-up; while recovering, steps left
    * rooted.
    */
-  attack: number;
+  attackSteps: number;
   /** Steps left before it can wind up again. */
   cooldown: number;
   /** The waypoints it is walking around walls. */
@@ -61,6 +62,7 @@ const STEPPED = Object.fromEntries(
     {
       speed: perStep(tuning.speed),
       stuckSteps: msToSteps(tuning.stuckMs),
+      stuckStride: perStep(tuning.speed) * tuning.stuckStride,
       gait: { radius: tuning.radius, replanSteps: msToSteps(tuning.replanMs) },
       windUpSteps: msToSteps(tuning.windUpMs),
       rootSteps: msToSteps(tuning.rootMs),
@@ -73,6 +75,7 @@ const STEPPED = Object.fromEntries(
   {
     speed: number;
     stuckSteps: number;
+    stuckStride: number;
     gait: Gait;
     windUpSteps: number;
     rootSteps: number;
@@ -92,18 +95,18 @@ function grown(value: number, rate: number, skillLevel: number): number {
   return Math.round(value * (1 + rate * (skillLevel - 1)));
 }
 
-/** A Minion type's `stat` grown to its Skill Level. */
-function grownStat(
+/** One of a Minion type's single numbers grown to its Skill Level. */
+function scaled(
   { type, skillLevel }: MinionOfLevel,
-  stat: Exclude<keyof MinionGrowth, "damage">,
+  number: Exclude<keyof MinionGrowth, "damage">,
 ): number {
   const tuning = minionTuning[type];
-  return grown(tuning[stat], tuning.growth[stat], skillLevel);
+  return grown(tuning[number], tuning.growth[number], skillLevel);
 }
 
 /** A Minion's full Life at its Skill Level, which it is summoned with. */
 export function minionMaxLife(minion: MinionOfLevel): number {
-  return grownStat(minion, "life");
+  return scaled(minion, "life");
 }
 
 /** The least and most damage a Minion's hit deals at its Skill Level. */
@@ -120,7 +123,7 @@ export function minionDamageRange({
 
 /** A Minion's Attack Rating at its Skill Level, against Monsters' Defense. */
 export function minionAttackRating(minion: MinionOfLevel): number {
-  return grownStat(minion, "attackRating");
+  return scaled(minion, "attackRating");
 }
 
 /**
@@ -128,12 +131,12 @@ export function minionAttackRating(minion: MinionOfLevel): number {
  * to beat.
  */
 export function minionDefense(minion: MinionOfLevel): number {
-  return grownStat(minion, "defense");
+  return scaled(minion, "defense");
 }
 
 /** How far through its wind-up a winding-up Minion is, from 0 to 1. */
 export function minionWindUpProgress(minion: Minion): number {
-  return minion.attack / STEPPED[minion.type].windUpSteps;
+  return minion.attackSteps / STEPPED[minion.type].windUpSteps;
 }
 
 /**
@@ -156,7 +159,7 @@ export function newMinion(
     facing,
     state: "follow",
     target: null,
-    attack: 0,
+    attackSteps: 0,
     cooldown: 0,
     path: [],
     replan: 0,
@@ -191,9 +194,6 @@ export function summonPoint(
   return nearest;
 }
 
-/** How far from the Hero a Minion is put beside them (tiles). */
-const BESIDE = 1;
-
 /**
  * Puts the Minion next to the Hero, facing their way, as if it had always
  * been there: behind them if it can walk straight there from the Hero, else
@@ -202,13 +202,13 @@ const BESIDE = 1;
 export function placeBesideHero(world: World, minion: Minion) {
   const area = world.areas[world.areaName];
   const { pos, facing } = world.hero;
-  const { radius } = minionTuning[minion.type];
+  const { radius, besideDistance } = minionTuning[minion.type];
   const at =
     [0, 1, -1, 2, -2, 3, -3, 4]
       .map((turn) => facing + Math.PI + (turn * Math.PI) / 4)
       .map((angle) => ({
-        x: pos.x + BESIDE * Math.cos(angle),
-        y: pos.y + BESIDE * Math.sin(angle),
+        x: pos.x + besideDistance * Math.cos(angle),
+        y: pos.y + besideDistance * Math.sin(angle),
       }))
       .find(
         (point) => isWalkable(area, point) && isClear(area, pos, point, radius),
@@ -217,7 +217,7 @@ export function placeBesideHero(world: World, minion: Minion) {
   minion.prevPos = { ...at };
   minion.facing = facing;
   stopChasing(minion);
-  minion.attack = 0;
+  minion.attackSteps = 0;
 }
 
 /**
@@ -231,8 +231,8 @@ export function stepMinion(world: World): Monster | null {
   if (minion.cooldown > 0) minion.cooldown -= 1;
   if (minion.state === "windup") return windUp(world, minion);
   if (minion.state === "recover") {
-    minion.attack -= 1;
-    if (minion.attack > 0) return null;
+    minion.attackSteps -= 1;
+    if (minion.attackSteps > 0) return null;
     minion.state = "chase";
   }
   const quarry = quarryOf(world, minion);
@@ -254,7 +254,7 @@ export function stepMinion(world: World): Monster | null {
 /**
  * The Monster a Minion goes after: the one it is after while that one stays
  * within its Leash to the Hero, else the nearest to it of those within its
- * aggro radius of the Hero. None while it is so far from the Hero that it
+ * guard radius of the Hero. None while it is so far from the Hero that it
  * should teleport back to them.
  */
 function quarryOf(world: World, minion: Minion): Monster | null {
@@ -265,7 +265,7 @@ function quarryOf(world: World, minion: Minion): Monster | null {
   if (current && distance(current.pos, hero) <= tuning.leash) return current;
   let nearest: Monster | null = null;
   for (const monster of world.monsters) {
-    if (distance(monster.pos, hero) > tuning.aggroRadius) continue;
+    if (distance(monster.pos, hero) > tuning.guardRadius) continue;
     if (
       !nearest ||
       distance(minion.pos, monster.pos) < distance(minion.pos, nearest.pos)
@@ -285,28 +285,28 @@ function stopChasing(minion: Minion) {
   minion.stuck = 0;
 }
 
-/** Walks to `monster`, stopping once in reach, and attacks when ready. */
+/**
+ * Walks to `monster`, stopping once in reach, and attacks when ready;
+ * teleports next to the Hero when stuck for a while.
+ */
 function chase(world: World, minion: Minion, monster: Monster) {
   const { reach } = minionTuning[minion.type];
-  const stepped = STEPPED[minion.type];
   const gap = distance(minion.pos, monster.pos);
   // A chase stops at reach only up to rounding.
   if (gap <= reach + 1e-9) {
     minion.path = [];
+    minion.stuck = 0;
     if (minion.cooldown === 0) startWindUp(minion, monster.pos);
     return;
   }
-  const area = world.areas[world.areaName];
-  goToward(area, minion, stepped.gait, monster.pos, stepped.speed, gap - reach);
+  walkOrTeleport(world, minion, monster.pos, gap - reach);
 }
 
 /** Starts winding up an attack, facing its Monster at `at`. */
 function startWindUp(minion: Minion, at: Vec) {
   minion.state = "windup";
-  minion.attack = 0;
-  const dx = at.x - minion.pos.x;
-  const dy = at.y - minion.pos.y;
-  if (dx !== 0 || dy !== 0) minion.facing = Math.atan2(dy, dx);
+  minion.attackSteps = 0;
+  faceToward(minion, at);
 }
 
 /**
@@ -317,22 +317,17 @@ function startWindUp(minion: Minion, at: Vec) {
  */
 function windUp(world: World, minion: Minion): Monster | null {
   const stepped = STEPPED[minion.type];
-  minion.attack += 1;
-  if (minion.attack < stepped.windUpSteps) return null;
+  minion.attackSteps += 1;
+  if (minion.attackSteps < stepped.windUpSteps) return null;
   minion.state = "recover";
-  minion.attack = stepped.rootSteps;
+  minion.attackSteps = stepped.rootSteps;
   minion.cooldown = stepped.rootSteps + stepped.recoverySteps;
   const monster = world.monsters.find((m) => m.id === minion.target);
   if (!monster) return null;
   const { reach, reachGrace } = minionTuning[minion.type];
-  const gap = distance(minion.pos, monster.pos);
-  if (gap > reach + reachGrace) return null;
-  if (gap === 0) return monster;
-  const angle = Math.atan2(
-    monster.pos.y - minion.pos.y,
-    monster.pos.x - minion.pos.x,
-  );
-  return angleBetween(angle, minion.facing) <= stepped.arc ? monster : null;
+  return lands(minion, monster.pos, reach + reachGrace, stepped.arc)
+    ? monster
+    : null;
 }
 
 /**
@@ -344,7 +339,6 @@ function follow(world: World, minion: Minion) {
   const area = world.areas[world.areaName];
   const hero = world.hero.pos;
   const tuning = minionTuning[minion.type];
-  const stepped = STEPPED[minion.type];
   const gap = distance(minion.pos, hero);
   if (gap > tuning.teleportDistance) {
     placeBesideHero(world, minion);
@@ -359,18 +353,21 @@ function follow(world: World, minion: Minion) {
     minion.stuck = 0;
     return;
   }
+  walkOrTeleport(world, minion, hero, gap - tuning.followDistance);
+}
+
+/**
+ * Walks up to `limit` towards `to`, and teleports next to the Hero once it
+ * has hardly moved for a while: stuck where it can't walk to `to`.
+ */
+function walkOrTeleport(world: World, minion: Minion, to: Vec, limit: number) {
+  const area = world.areas[world.areaName];
+  const stepped = STEPPED[minion.type];
   const from = minion.pos;
-  goToward(
-    area,
-    minion,
-    stepped.gait,
-    hero,
-    stepped.speed,
-    gap - tuning.followDistance,
-  );
-  // Short of half its stride counts as stuck; a walk ending at the follow
-  // distance is over before this adds up.
-  if (distance(from, minion.pos) < stepped.speed / 2) minion.stuck += 1;
+  goToward(area, minion, stepped.gait, to, stepped.speed, limit);
+  // A walk ending at the follow distance or in reach is over before this
+  // adds up.
+  if (distance(from, minion.pos) < stepped.stuckStride) minion.stuck += 1;
   else minion.stuck = 0;
   if (minion.stuck >= stepped.stuckSteps) placeBesideHero(world, minion);
 }

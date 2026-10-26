@@ -27,12 +27,18 @@ export type MinionTuning = {
   followDistance: number;
   /** Further than this from the Hero, it teleports next to them (tiles). */
   teleportDistance: number;
-  /** Stuck this long while following, it teleports next to the Hero (ms). */
+  /** How far from the Hero it lands when it teleports next to them (tiles). */
+  besideDistance: number;
+  /**
+   * Walking less than this fraction of its speed in a step counts as stuck.
+   */
+  stuckStride: number;
+  /** Stuck this long while walking, it teleports next to the Hero (ms). */
   stuckMs: number;
   /** While walking around walls, how often it re-plans its path (ms). */
   replanMs: number;
-  /** It goes after Monsters this near the Hero (tiles). */
-  aggroRadius: number;
+  /** It goes after Monsters this near the Hero, guarding them (tiles). */
+  guardRadius: number;
   /**
    * Its Leash to the Hero: it gives up on a Monster further than this from
    * them (tiles).
@@ -85,9 +91,11 @@ export const minionTuning: Record<MinionType, MinionTuning> = {
     speed: 4,
     followDistance: 3,
     teleportDistance: 12,
+    besideDistance: 1,
+    stuckStride: 0.5,
     stuckMs: 1000,
     replanMs: 400,
-    aggroRadius: 6,
+    guardRadius: 6,
     leash: 8,
     reach: 1.2,
     reachGrace: 0.25,

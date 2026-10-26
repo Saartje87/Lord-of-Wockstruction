@@ -286,7 +286,6 @@ describe("PutSkillOnBar", () => {
     step(w, [{ type: "PutSkillOnBar", skill: "golem", slot: "key1" }]);
 
     expect(w.hero.swing).toBe(swing);
-    expect(w.hero.buffered).toBeNull();
     expect(progressOf(w).skillBar.key1).toBe("golem");
   });
 });

@@ -1,16 +1,21 @@
 import type { Skill } from "../tuning/skills";
 
-/** The Skill Bar's slots: the right mouse button's, then keys 1–4's. */
-export const SKILL_BAR_SLOTS = [
-  "right",
-  "key1",
-  "key2",
-  "key3",
-  "key4",
-] as const;
+/** The Skill Bar's keyed slots, cast by keys 1–4 in turn. */
+export const KEYED_SLOTS = ["key1", "key2", "key3", "key4"] as const;
+
+/** One of the Skill Bar's keyed slots. */
+export type KeyedSlot = (typeof KEYED_SLOTS)[number];
+
+/** The Skill Bar's slots: the right mouse button's, then the keyed ones. */
+export const SKILL_BAR_SLOTS = ["right", ...KEYED_SLOTS] as const;
 
 /** One slot of the Skill Bar. */
 export type SkillBarSlot = (typeof SKILL_BAR_SLOTS)[number];
+
+/** The key that casts a keyed slot, as `KeyboardEvent.key`: "1" to "4". */
+export function slotKey(slot: KeyedSlot): string {
+  return String(KEYED_SLOTS.indexOf(slot) + 1);
+}
 
 /** The Skill in each slot of the Skill Bar, or null for an empty one. */
 export type SkillBar = Record<SkillBarSlot, Skill | null>;

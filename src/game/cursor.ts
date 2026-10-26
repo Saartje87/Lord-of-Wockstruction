@@ -93,8 +93,9 @@ export function createCursor(): Cursor {
  * - On a learned Skill in the Skill Tree, or a filled Skill Bar slot, with
  *   no Item held, it picks it up as the Held Skill. The Skill Bar stays as
  *   it is until the Skill lands.
- * - With a Held Skill, on a Skill Bar slot it puts it there; anywhere else,
- *   the World too, it lets go of it, changing nothing.
+ * - With a Held Skill, on a Skill Bar slot it puts it there; on a Panel
+ *   button it keeps it, as that panel's key does; anywhere else, the World
+ *   too, it lets go of it, changing nothing.
  *
  * Any press on the panels and HUD is taken, its buttons left to the menus
  * unless it put down or let go of a Held Skill; a press over the World with
@@ -109,6 +110,9 @@ export function pressCursor(
   const hit = asItemSpot(press.hit);
   cursor = { ...cursor, liftedFrom: null };
   const { heldSkill } = cursor;
+  if (heldSkill !== null && onPanelButton(hit)) {
+    return { cursor, orders: [], taken: true };
+  }
   if (heldSkill !== null) return landHeldSkill(cursor, heldSkill, hit);
   if (hit === null) {
     // Over the World with an Item held, even with the Inventory panel shut
@@ -150,8 +154,9 @@ export function pressCursor(
  * does with Held Items and Held Skills.
  *
  * - A Held Skill lands in the Skill Bar slot there; over the Skill Tree spot
- *   or Skill Bar slot it was picked up from it stays held, for a second
- *   click; anywhere else it is let go of, changing nothing.
+ *   or Skill Bar slot it was picked up from, or a Panel button, it stays
+ *   held, for a second click; anywhere else it is let go of, changing
+ *   nothing.
  * - A Held Item lifted by the press and let go over a different spot (a
  *   Belt strip square or the World among them) was dragged, however short
  *   the move: it is put down, swapped or dropped there, just as a second
@@ -175,7 +180,9 @@ export function releaseCursor(
     cursor.heldSkillSlot === null
       ? button?.type === "pickUpSkill" && button.skill === heldSkill
       : button?.type === "skillBarSlot" && button.slot === cursor.heldSkillSlot;
-  if (pickedUpHere) return { cursor, orders: [], taken: true };
+  if (pickedUpHere || onPanelButton(release.hit)) {
+    return { cursor, orders: [], taken: true };
+  }
   return landHeldSkill(cursor, heldSkill, release.hit);
 }
 
@@ -246,6 +253,11 @@ function sameSpot(a: ItemSpot, b: ItemSpot): boolean {
 /** The panel or HUD button `hit`, if it is one. */
 function buttonOf(hit: CursorHit | null) {
   return hit && "button" in hit ? hit.button : null;
+}
+
+/** Whether `hit` is a Panel button, which leaves a Held Skill held. */
+function onPanelButton(hit: CursorHit | null): boolean {
+  return buttonOf(hit)?.type === "panelButton";
 }
 
 /** A pause or the Hero's Death lets go of the Held Skill. */

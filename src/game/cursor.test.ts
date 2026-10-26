@@ -266,6 +266,24 @@ describe("the cursor with Skills", () => {
     }
   });
 
+  it("keeps the Held Skill through a click on a Panel button, as the panel's key does", () => {
+    const at = scene();
+    const held = { ...createCursor(), heldSkill: "golem" as const };
+    const click = {
+      at: { x: 850, y: 740 },
+      hit: { button: { type: "panelButton", panel: "inventory" } } as const,
+    };
+
+    const pressed = pressCursor(held, click, at);
+    expect(pressed.cursor).toEqual(held);
+    expect(pressed.orders).toEqual([]);
+    expect(pressed.taken).toBe(true);
+
+    const released = releaseCursor(pressed.cursor, click, at);
+    expect(released.cursor).toEqual(held);
+    expect(released.orders).toEqual([]);
+  });
+
   it("orders nothing for the release of the click that put down or let go of the Held Skill", () => {
     const at = scene();
     const after = pressCursor(

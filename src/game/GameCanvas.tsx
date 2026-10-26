@@ -173,7 +173,7 @@ export default function GameCanvas() {
         // that puts down or drops what it holds, is not for the World.
         const pressedAt = input.pressedAt;
         const panel = pressedAt && renderer.panelAt(pressedAt);
-        // A press with a Held Skill only puts it down or lets go of it.
+        // A press that puts down or lets go of a Held Skill does only that.
         const heldSkillAtPress = cursor.heldSkill;
         if (pressedAt) {
           const press = { at: pressedAt, hit: panel };
@@ -199,8 +199,11 @@ export default function GameCanvas() {
         // the Hero panel's +, − and Accept plan and spend Pending Attribute
         // Points, and a panel's × or Panel button shuts it as its key does
         // (a Panel button opening it too), while the game
-        // runs on. A press that let go of a Held Skill does none of that.
-        if (panel && "button" in panel && heldSkillAtPress === null) {
+        // runs on. A press that put down or let go of a Held Skill does none
+        // of that; one on a Panel button keeps it held, as the key would.
+        const landedSkill =
+          heldSkillAtPress !== null && cursor.heldSkill === null;
+        if (panel && "button" in panel && !landedSkill) {
           const { button } = panel;
           if (button?.type === "levelUp") {
             const { attributePoints, skillPoints } = world.hero.progress;

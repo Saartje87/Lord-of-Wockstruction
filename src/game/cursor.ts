@@ -11,6 +11,7 @@ import {
 import type { SkillBarHit } from "./render/skillBar";
 import type { SkillTreeHit } from "./render/skillTreePanel";
 import { cursorItemOf, type ItemSpot } from "./sim/inventory";
+import type { SkillBarSlot } from "./sim/skillBar";
 import type { Vec } from "./sim/vec";
 import type { Order, World } from "./sim/world";
 import type { ItemType } from "./tuning/items";
@@ -23,6 +24,11 @@ import type { Skill } from "./tuning/skills";
 export type Cursor = {
   /** The Held Skill, until it lands on the Skill Bar or is let go of. */
   heldSkill: Skill | null;
+  /**
+   * The Skill Bar slot the Held Skill was picked up from, drawn dimmed while
+   * it is held; null for one picked up from the Skill Tree.
+   */
+  heldSkillSlot: SkillBarSlot | null;
   /**
    * The spot the press still held down lifted the Held Item from, and its
    * type, so letting go elsewhere after a drag puts it down there. Null when
@@ -71,7 +77,7 @@ export type CursorOutcome = {
 };
 
 export function createCursor(): Cursor {
-  return { heldSkill: null, liftedFrom: null };
+  return { heldSkill: null, heldSkillSlot: null, liftedFrom: null };
 }
 
 /**
@@ -83,8 +89,9 @@ export function createCursor(): Cursor {
  *   it puts it down there (on the strip, at the column's lowest free row).
  * - Off the panels with an Item held, it drops it, and orders nothing else,
  *   whether or not the Inventory panel is open.
- * - On a learned Skill in the Skill Tree, with no Item held, it picks it up
- *   as the Held Skill.
+ * - On a learned Skill in the Skill Tree, or a filled Skill Bar slot, with
+ *   no Item held, it picks it up as the Held Skill. The Skill Bar stays as
+ *   it is until the Skill lands.
  * - With a Held Skill, on a Skill Bar slot it puts it there; anywhere else,
  *   the World too, it lets go of it, changing nothing.
  *
@@ -117,9 +124,24 @@ export function pressCursor(
     return { cursor, orders: order ? [order] : [], taken: true };
   }
   // The cursor holds a Held Item or a Held Skill, never both.
-  if (hit.button?.type === "dragSkill" && cursorItemOf(world) === null) {
-    const heldSkill = hit.button.skill;
-    return { cursor: { ...cursor, heldSkill }, orders: [], taken: true };
+  if (cursorItemOf(world) === null) {
+    const { button } = hit;
+    if (button?.type === "dragSkill") {
+      const heldSkill = button.skill;
+      return {
+        cursor: { ...cursor, heldSkill, heldSkillSlot: null },
+        orders: [],
+        taken: true,
+      };
+    }
+    const onBar =
+      button?.type === "skillBarSlot"
+        ? world.hero.progress.skillBar[button.slot]
+        : null;
+    if (button?.type === "skillBarSlot" && onBar) {
+      const held = { heldSkill: onBar, heldSkillSlot: button.slot };
+      return { cursor: { ...cursor, ...held }, orders: [], taken: true };
+    }
   }
   return { cursor, orders: [], taken: true };
 }
@@ -129,8 +151,8 @@ export function pressCursor(
  * does with Held Items and Held Skills.
  *
  * - A Held Skill lands in the Skill Bar slot there; over the Skill Tree spot
- *   it was picked up from it stays held, for a second click; anywhere else
- *   it is let go of, changing nothing.
+ *   or Skill Bar slot it was picked up from it stays held, for a second
+ *   click; anywhere else it is let go of, changing nothing.
  * - A Held Item lifted by the press, dragged and let go over a different
  *   spot (a Belt strip square among them), is put down, swapped or dropped
  *   there, just as a second click there would; otherwise it stays held,
@@ -151,16 +173,19 @@ export function releaseCursor(
   if (heldSkill === null) return { cursor, orders: [], taken: false };
   const button = buttonOf(release.hit);
   // Released where it was picked up: a click, so it stays for the next one.
-  if (button?.type === "dragSkill" && button.skill === heldSkill) {
-    return { cursor, orders: [], taken: true };
-  }
+  const pickedUpHere =
+    cursor.heldSkillSlot === null
+      ? button?.type === "dragSkill" && button.skill === heldSkill
+      : button?.type === "skillBarSlot" && button.slot === cursor.heldSkillSlot;
+  if (pickedUpHere) return { cursor, orders: [], taken: true };
   return landHeldSkill(cursor, heldSkill, release.hit);
 }
 
 /**
- * Puts the Held Skill into the Skill Bar slot `hit`, or anywhere else lets
- * go of it, changing nothing. Either way the cursor is empty after, and the
- * press or release is not for the World.
+ * Puts the Held Skill into the Skill Bar slot `hit`, by the Skill Bar's
+ * swap rule, or anywhere else lets go of it, changing nothing. Either way
+ * the cursor holds no Skill after, and the press or release is not for the
+ * World.
  */
 function landHeldSkill(
   cursor: Cursor,
@@ -172,7 +197,7 @@ function landHeldSkill(
     button?.type === "skillBarSlot"
       ? [{ type: "PutSkillOnBar", skill: heldSkill, slot: button.slot }]
       : [];
-  return { cursor: { ...cursor, heldSkill: null }, orders, taken: true };
+  return { cursor: letGoOfSkill(cursor), orders, taken: true };
 }
 
 /**
@@ -220,7 +245,12 @@ export function settleCursor(
   cursor: Cursor,
   { paused, heroDead }: { paused: boolean; heroDead: boolean },
 ): Cursor {
-  return paused || heroDead ? { ...cursor, heldSkill: null } : cursor;
+  return paused || heroDead ? letGoOfSkill(cursor) : cursor;
+}
+
+/** The cursor with no Held Skill. */
+function letGoOfSkill(cursor: Cursor): Cursor {
+  return { ...cursor, heldSkill: null, heldSkillSlot: null };
 }
 
 /**

@@ -78,6 +78,18 @@ describe("the Skill Bar's sheet", () => {
     w.hero.mana = 14.9;
     expect(skillBarSheet(w)[1].dimmed).toBe(true);
   });
+
+  it("dims the slot a Held Skill was picked up from, still showing its Skill", () => {
+    const sheet = skillBarSheet(world(GOLEM_IN_KEY2), "key2");
+
+    expect(sheet[1]).toEqual({
+      slot: "key2",
+      key: "W",
+      name: "Golem",
+      dimmed: true,
+    });
+    expect(sheet.filter((shown) => shown.dimmed)).toHaveLength(1);
+  });
 });
 
 describe("a click on the Skill Bar", () => {

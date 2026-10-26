@@ -279,7 +279,15 @@ export default function GameCanvas() {
         }
         // No hover outline, nameplate or tooltip under the menu.
         const pointer = pause.paused ? null : input.screen;
-        renderer.draw(world, alpha, pointer, now, menus, cursor.heldSkill);
+        renderer.draw(
+          world,
+          alpha,
+          pointer,
+          now,
+          menus,
+          cursor.heldSkill,
+          cursor.heldSkillSlot,
+        );
         app.render();
         frame = requestAnimationFrame(tick);
       };

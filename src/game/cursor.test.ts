@@ -329,6 +329,180 @@ describe("the cursor with Skills", () => {
   });
 });
 
+describe("the cursor on the Skill Bar", () => {
+  const ON_RIGHT: CursorHit = {
+    button: { type: "skillBarSlot", slot: "right" },
+  };
+  const ON_KEY1: CursorHit = { button: { type: "skillBarSlot", slot: "key1" } };
+
+  /** A Hero with the Golem learned, so in the right-click slot. */
+  function learned() {
+    const at = scene();
+    at.world.hero.progress.skillPoints = 1;
+    step(at.world, [{ type: "SpendSkillPoint", skill: "golem" }]);
+    return at;
+  }
+
+  it("picks up the Skill in a filled slot pressed on as the Held Skill", () => {
+    const { cursor, orders, taken } = pressCursor(
+      createCursor(),
+      { at: { x: 700, y: 740 }, hit: ON_RIGHT },
+      learned(),
+    );
+
+    expect(cursor.heldSkill).toBe("golem");
+    expect(cursor.heldSkillSlot).toBe("right");
+    expect(orders).toEqual([]);
+    expect(taken).toBe(true);
+  });
+
+  it("picks up nothing from an empty slot", () => {
+    const { cursor, orders, taken } = pressCursor(
+      createCursor(),
+      { at: { x: 500, y: 740 }, hit: ON_KEY1 },
+      learned(),
+    );
+
+    expect(cursor.heldSkill).toBeNull();
+    expect(orders).toEqual([]);
+    expect(taken).toBe(true);
+  });
+
+  it("picks up nothing from a slot while an Item is held", () => {
+    const at = learned();
+    step(at.world, [{ type: "LiftItem", from: { column: 4, row: 1 } }]);
+
+    const { cursor, orders } = pressCursor(
+      createCursor(),
+      { at: { x: 700, y: 740 }, hit: ON_RIGHT },
+      at,
+    );
+
+    expect(cursor.heldSkill).toBeNull();
+    expect(orders).toEqual([]);
+  });
+
+  it("leaves the Skill Bar as it is while the Skill is held", () => {
+    const at = learned();
+    pressCursor(createCursor(), { at: { x: 700, y: 740 }, hit: ON_RIGHT }, at);
+
+    expect(at.world.hero.progress.skillBar.right).toBe("golem");
+  });
+
+  it("keeps the Skill held when released over the slot it was picked up from, for a second click", () => {
+    const at = learned();
+    const held = pressCursor(
+      createCursor(),
+      { at: { x: 700, y: 740 }, hit: ON_RIGHT },
+      at,
+    ).cursor;
+
+    const { cursor, orders, taken } = releaseCursor(
+      held,
+      { at: { x: 701, y: 741 }, hit: ON_RIGHT, dragged: false },
+      at,
+    );
+
+    expect(cursor.heldSkill).toBe("golem");
+    expect(orders).toEqual([]);
+    expect(taken).toBe(true);
+  });
+
+  it("moves it by dragging onto another slot", () => {
+    const at = learned();
+    const held = pressCursor(
+      createCursor(),
+      { at: { x: 700, y: 740 }, hit: ON_RIGHT },
+      at,
+    ).cursor;
+
+    const { cursor, orders } = releaseCursor(
+      held,
+      { at: { x: 500, y: 740 }, hit: ON_KEY1, dragged: true },
+      at,
+    );
+    step(at.world, orders);
+
+    expect(cursor).toEqual(createCursor());
+    expect(at.world.hero.progress.skillBar).toMatchObject({
+      right: null,
+      key1: "golem",
+    });
+  });
+
+  it("moves it by clicking another slot", () => {
+    const at = learned();
+    const press = { at: { x: 700, y: 740 }, hit: ON_RIGHT };
+    let { cursor } = pressCursor(createCursor(), press, at);
+    cursor = releaseCursor(cursor, { ...press, dragged: false }, at).cursor;
+
+    const landed = pressCursor(
+      cursor,
+      { at: { x: 500, y: 740 }, hit: ON_KEY1 },
+      at,
+    );
+    step(at.world, landed.orders);
+
+    expect(landed.cursor).toEqual(createCursor());
+    expect(at.world.hero.progress.skillBar).toMatchObject({
+      right: null,
+      key1: "golem",
+    });
+  });
+
+  it("orders a put onto the slot clicked next, swapping with the Skill there by the Skill Bar's rule", () => {
+    const { orders } = pressCursor(
+      { ...createCursor(), heldSkill: "golem", heldSkillSlot: "right" },
+      { at: { x: 600, y: 740 }, hit: ON_KEY4 },
+      learned(),
+    );
+
+    expect(orders).toEqual([
+      { type: "PutSkillOnBar", skill: "golem", slot: "key4" },
+    ]);
+  });
+
+  it("lets go of it released off the Skill Bar, changing nothing", () => {
+    const at = learned();
+    const { cursor, orders } = releaseCursor(
+      { ...createCursor(), heldSkill: "golem", heldSkillSlot: "right" },
+      { ...OVER_THE_WORLD, dragged: true },
+      at,
+    );
+
+    expect(cursor).toEqual(createCursor());
+    expect(orders).toEqual([]);
+  });
+
+  it("forgets the slot it came from once landed, let go of, or settled", () => {
+    const held = {
+      ...createCursor(),
+      heldSkill: "golem" as const,
+      heldSkillSlot: "right" as const,
+    };
+    const at = learned();
+
+    expect(
+      pressCursor(held, { at: { x: 500, y: 740 }, hit: ON_KEY1 }, at).cursor,
+    ).toEqual(createCursor());
+    const release = { ...OVER_THE_WORLD, dragged: true };
+    expect(releaseCursor(held, release, at).cursor).toEqual(createCursor());
+    expect(settleCursor(held, { paused: true, heroDead: false })).toEqual(
+      createCursor(),
+    );
+  });
+
+  it("forgets the slot a Skill came from once picked up from the Skill Tree", () => {
+    const { cursor } = pressCursor(
+      createCursor(),
+      { at: { x: 1000, y: 100 }, hit: ON_GOLEM },
+      learned(),
+    );
+
+    expect(cursor.heldSkillSlot).toBeNull();
+  });
+});
+
 describe("the cursor and casting", () => {
   it("leaves a point off the panels to the World while an Item is held, so a right-click there casts", () => {
     expect(forTheWorld({ drop: true })).toBeNull();

@@ -6,6 +6,7 @@ import { advance, createClock } from "./clock";
 import { areaDisplayNames, areas, tilesets } from "./content";
 import {
   createCursor,
+  forTheWorld,
   pressCursor,
   releaseCursor,
   settleCursor,
@@ -168,6 +169,8 @@ export default function GameCanvas() {
         // that puts down or drops what it holds, is not for the World.
         const pressedAt = input.pressedAt;
         const panel = pressedAt && renderer.panelAt(pressedAt);
+        // A press with a Held Skill only puts it down or lets go of it.
+        const heldSkillAtPress = cursor.heldSkill;
         if (pressedAt) {
           const press = { at: pressedAt, hit: panel };
           const outcome = pressCursor(cursor, press, scene);
@@ -183,14 +186,15 @@ export default function GameCanvas() {
           monsterAt: renderer.monsterAt,
           groundLabelAt: renderer.groundLabelAt,
           groundItemAt: renderer.groundItemAt,
-          panelAt: renderer.panelAt,
+          panelAt: (at) => forTheWorld(renderer.panelAt(at)),
         });
         orders.push(...newOrders);
         // A press on a panel's button never orders the Hero about, nor goes
         // on from their Death: Level Up opens the Hero or Skill Tree panel
         // (but for a dead Hero), a + on either spends a point, and a panel's
-        // × shuts it as its key does, while the game runs on.
-        if (panel && "button" in panel) {
+        // × shuts it as its key does, while the game runs on. A press that
+        // let go of a Held Skill does none of that.
+        if (panel && "button" in panel && heldSkillAtPress === null) {
           const { button } = panel;
           if (button?.type === "levelUp") {
             const { attributePoints, skillPoints } = world.hero.progress;

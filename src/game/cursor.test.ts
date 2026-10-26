@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   type CursorHit,
   createCursor,
+  forTheWorld,
   pressCursor,
   releaseCursor,
   settleCursor,
@@ -185,6 +186,25 @@ describe("the cursor with Skills", () => {
     expect(cursor.heldSkill).toBeNull();
   });
 
+  it("keeps the Held Skill held when released where it was picked up, for a second click", () => {
+    const at = scene();
+    const held = pressCursor(
+      createCursor(),
+      { at: { x: 1000, y: 100 }, hit: ON_GOLEM },
+      at,
+    ).cursor;
+
+    const { cursor, orders, taken } = releaseCursor(
+      held,
+      { at: { x: 1002, y: 101 }, hit: ON_GOLEM },
+      at,
+    );
+
+    expect(cursor.heldSkill).toBe("golem");
+    expect(orders).toEqual([]);
+    expect(taken).toBe(true);
+  });
+
   it("lets go of the Held Skill released anywhere else, changing nothing", () => {
     const at = scene();
     const held = { heldSkill: "golem" as const };
@@ -199,6 +219,74 @@ describe("the cursor with Skills", () => {
       expect(orders).toEqual([]);
       expect(cursor.heldSkill).toBeNull();
     }
+  });
+
+  it("puts the Held Skill into the Skill Bar slot clicked next", () => {
+    const { cursor, orders, taken } = pressCursor(
+      { heldSkill: "golem" },
+      { at: { x: 600, y: 740 }, hit: ON_KEY4 },
+      scene(),
+    );
+
+    expect(orders).toEqual([
+      { type: "PutSkillOnBar", skill: "golem", slot: "key4" },
+    ]);
+    expect(cursor.heldSkill).toBeNull();
+    expect(taken).toBe(true);
+  });
+
+  it("lets go of the Held Skill on a click anywhere else, changing nothing", () => {
+    for (const press of [
+      OVER_THE_WORLD,
+      pressOnCell(4, 1),
+      { at: { x: 0, y: 0 }, hit: { button: { type: "levelUp" } } as const },
+      { at: { x: 1000, y: 100 }, hit: ON_GOLEM },
+    ]) {
+      const at = scene();
+      const { cursor, orders, taken } = pressCursor(
+        { heldSkill: "golem" },
+        press,
+        at,
+      );
+
+      expect(orders).toEqual([]);
+      expect(cursor.heldSkill).toBeNull();
+      // Not for the World either: the click neither walks nor attacks.
+      expect(taken).toBe(true);
+    }
+  });
+
+  it("orders nothing for the release of the click that put down or let go of the Held Skill", () => {
+    const at = scene();
+    const after = pressCursor(
+      { heldSkill: "golem" },
+      { at: { x: 600, y: 740 }, hit: ON_KEY4 },
+      at,
+    ).cursor;
+
+    const { cursor, orders } = releaseCursor(
+      after,
+      { at: { x: 600, y: 740 }, hit: ON_KEY4 },
+      at,
+    );
+
+    expect(orders).toEqual([]);
+    expect(cursor.heldSkill).toBeNull();
+  });
+
+  it("picks up no Skill while an Item is held, keeping the Item", () => {
+    const at = scene();
+    step(at.world, [{ type: "LiftItem", from: { column: 4, row: 1 } }]);
+
+    const { cursor, orders, taken } = pressCursor(
+      createCursor(),
+      { at: { x: 1000, y: 100 }, hit: ON_GOLEM },
+      at,
+    );
+
+    expect(cursor.heldSkill).toBeNull();
+    expect(orders).toEqual([]);
+    expect(taken).toBe(true);
   });
 
   it("orders nothing for a release with nothing held", () => {
@@ -224,5 +312,17 @@ describe("the cursor with Skills", () => {
     expect(settleCursor(held, { paused: false, heroDead: false })).toEqual(
       held,
     );
+  });
+});
+
+describe("the cursor and casting", () => {
+  it("leaves a point off the panels to the World while an Item is held, so a right-click there casts", () => {
+    expect(forTheWorld({ drop: true })).toBeNull();
+  });
+
+  it("keeps the panels and HUD from the World", () => {
+    expect(forTheWorld(ON_KEY4)).toEqual(ON_KEY4);
+    expect(forTheWorld(onCell(0, 0))).toEqual(onCell(0, 0));
+    expect(forTheWorld(null)).toBeNull();
   });
 });

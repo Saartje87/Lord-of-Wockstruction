@@ -8,6 +8,7 @@ import {
 } from "./render/inventoryPanel";
 import type { SkillBarHit } from "./render/skillBar";
 import type { SkillTreeHit } from "./render/skillTreePanel";
+import { cursorItemOf } from "./sim/inventory";
 import type { Vec } from "./sim/vec";
 import type { Order, World } from "./sim/world";
 import type { Skill } from "./tuning/skills";
@@ -63,10 +64,14 @@ export function createCursor(): Cursor {
  * - On the Inventory panel, with nothing held, it lifts the Item there as
  *   the Held Item; with one held, it puts it down there.
  * - Off the panels with an Item held, it drops it, and orders nothing else.
- * - On a learned Skill in the Skill Tree, it picks it up as the Held Skill.
+ * - On a learned Skill in the Skill Tree, with no Item held, it picks it up
+ *   as the Held Skill.
+ * - With a Held Skill, on a Skill Bar slot it puts it there; anywhere else,
+ *   the World too, it lets go of it, changing nothing.
  *
- * Any press on the panels and HUD is taken, its buttons left to the menus;
- * a press over the World with nothing held is not.
+ * Any press on the panels and HUD is taken, its buttons left to the menus
+ * unless it put down or let go of a Held Skill; a press over the World with
+ * nothing held is not.
  */
 export function pressCursor(
   cursor: Cursor,
@@ -74,12 +79,14 @@ export function pressCursor(
   { world, screen }: CursorScene,
 ): CursorOutcome {
   const { hit, at } = press;
+  if (cursor.heldSkill !== null) return landHeldSkill(cursor.heldSkill, hit);
   if (hit === null) return { cursor, orders: [], taken: false };
   if (!("button" in hit)) {
     const order = inventoryOrder(world, screen, at, hit);
     return { cursor, orders: order ? [order] : [], taken: true };
   }
-  if (hit.button?.type === "dragSkill") {
+  // The cursor holds a Held Item or a Held Skill, never both.
+  if (hit.button?.type === "dragSkill" && cursorItemOf(world) === null) {
     return { cursor: { heldSkill: hit.button.skill }, orders: [], taken: true };
   }
   return { cursor, orders: [], taken: true };
@@ -89,8 +96,9 @@ export function pressCursor(
  * What a release of the left button, at a point or off the canvas (null),
  * does with Held Items and Held Skills.
  *
- * - A Held Skill lands in the Skill Bar slot there; anywhere else it is let
- *   go of, changing nothing.
+ * - A Held Skill lands in the Skill Bar slot there; over the Skill Tree spot
+ *   it was picked up from it stays held, for a second click; anywhere else
+ *   it is let go of, changing nothing.
  * - A Held Item stays held, for a second click to put it down.
  */
 export function releaseCursor(
@@ -100,12 +108,31 @@ export function releaseCursor(
 ): CursorOutcome {
   const { heldSkill } = cursor;
   if (heldSkill === null) return { cursor, orders: [], taken: false };
-  const button = release.hit && "button" in release.hit && release.hit.button;
+  const button = buttonOf(release.hit);
+  // Released where it was picked up: a click, so it stays for the next one.
+  if (button?.type === "dragSkill" && button.skill === heldSkill) {
+    return { cursor, orders: [], taken: true };
+  }
+  return landHeldSkill(heldSkill, release.hit);
+}
+
+/**
+ * Puts the Held Skill into the Skill Bar slot `hit`, or anywhere else lets
+ * go of it, changing nothing. Either way the cursor is empty after, and the
+ * press or release is not for the World.
+ */
+function landHeldSkill(heldSkill: Skill, hit: CursorHit | null): CursorOutcome {
+  const button = buttonOf(hit);
   const orders: Order[] =
-    button && button.type === "skillBarSlot"
+    button?.type === "skillBarSlot"
       ? [{ type: "PutSkillOnBar", skill: heldSkill, slot: button.slot }]
       : [];
   return { cursor: { heldSkill: null }, orders, taken: true };
+}
+
+/** The panel or HUD button `hit`, if it is one. */
+function buttonOf(hit: CursorHit | null) {
+  return hit && "button" in hit ? hit.button : null;
 }
 
 /** A pause or the Hero's Death lets go of the Held Skill. */
@@ -114,4 +141,13 @@ export function settleCursor(
   { paused, heroDead }: { paused: boolean; heroDead: boolean },
 ): Cursor {
   return paused || heroDead ? { heldSkill: null } : cursor;
+}
+
+/**
+ * What a point hits that isn't for the World, as `poll` needs it. Off the
+ * panels with an Item held, the point hits a `DropHit`, which only a press
+ * of the left button uses: it is still the World for a right-click's cast.
+ */
+export function forTheWorld(hit: CursorHit | null): CursorHit | null {
+  return hit && "drop" in hit ? null : hit;
 }

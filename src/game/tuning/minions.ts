@@ -4,6 +4,8 @@ export type MinionTuning = {
   name: string;
   /** Life when summoned at Skill Level 1; it never regains any. */
   life: number;
+  /** What Monsters' Attack Rating has to beat to hit it, at Skill Level 1. */
+  defense: number;
   /** How big it is: kept this far inside walls when summoned (tiles). */
   radius: number;
   /** Walking speed, in tiles per second. */
@@ -30,6 +32,8 @@ export const minionTuning: Record<MinionType, MinionTuning> = {
   golem: {
     name: "Golem",
     life: 180,
+    // A Monster Level 1 Skeleton hits it four times in five.
+    defense: 30,
     radius: 0.4,
     // Slower than the Hero's 5.5, faster than a Skeleton's 2.8: it lags
     // behind a walking Hero and teleports to them now and then.

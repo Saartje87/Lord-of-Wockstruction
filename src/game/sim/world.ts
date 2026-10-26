@@ -35,6 +35,7 @@ import {
   type Minion,
   type MinionId,
   type MinionType,
+  minionDefense,
   minionMaxLife,
   newMinion,
   placeBesideHero,
@@ -189,9 +190,14 @@ export type Monster = {
   state: MonsterState;
   /**
    * Which way it faces, in radians in tile space: the direction it last
-   * walked, or the Hero's as it started winding up.
+   * walked, or its target's as it started winding up.
    */
   facing: number;
+  /**
+   * Who it last went after: the nearer of the Hero and their Minion. A
+   * wind-up resolves against this one.
+   */
+  target: MonsterTarget;
   /**
    * While winding up, steps into the wind-up; while recovering, steps left
    * rooted.
@@ -214,10 +220,14 @@ export type Monster = {
   pause: number;
 };
 
+/** Who a Monster goes after: the Hero, or their Minion. */
+export type MonsterTarget = "hero" | "minion";
+
 /**
- * `idle` and `wander` stroll around the spawn, `chase` goes after the Hero,
- * `windup` telegraphs an attack on them, `recover` stands rooted after it and
- * `return` walks home after giving up.
+ * `idle` and `wander` stroll around the spawn, `chase` goes after the nearer
+ * of the Hero and their Minion, `windup` telegraphs an attack on it,
+ * `recover` stands rooted after it and `return` walks home after giving up,
+ * ignoring both.
  */
 export type MonsterState =
   | "idle"
@@ -398,6 +408,12 @@ export type SimEvent =
    * Hero died.
    */
   | { type: "MinionCrumbled"; minion: MinionId; pos: Vec }
+  /** A Monster's attack hit Minion `minion` for `damage`. */
+  | { type: "MinionHit"; minion: MinionId; damage: number }
+  /** A Monster's attack failed to hit Minion `minion`. */
+  | { type: "MinionMissed"; minion: MinionId }
+  /** Minion `minion` was killed at `pos`, leaving no Corpse. */
+  | { type: "MinionDied"; minion: MinionId; pos: Vec }
   | { type: "HeroDied" }
   /** The Hero arrived at Entry `entry` in Area `area`. */
   | { type: "AreaChanged"; area: string; entry: string };
@@ -856,6 +872,7 @@ function placePack(world: World, area: Area, spawn: Spawn) {
       state: "idle",
       // Down the screen, as the Hero starts.
       facing: Math.PI / 4,
+      target: "hero",
       attack: 0,
       cooldown: 0,
       home: { ...pos },
@@ -925,8 +942,9 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   }
   approach(world);
   reachGroundItem(world, events);
-  for (const monster of stepMonsters(world)) {
-    if (!world.death) hitHero(world, monster, events);
+  for (const { monster, target } of stepMonsters(world)) {
+    if (target === "minion") hitMinion(world, monster, events);
+    else if (!world.death) hitHero(world, monster, events);
   }
   if (isRegenerating(world)) {
     hero.life = Math.min(maxLife(world), hero.life + REGEN_PER_STEP);
@@ -1382,6 +1400,34 @@ function hitHero(world: World, monster: Monster, events: SimEvent[]) {
   hero.attacking = null;
   hero.pickingUp = null;
   hero.path = [];
+}
+
+/**
+ * Lands a Monster's attack on the Hero's Minion, if it still lives: it rolls
+ * the Monster's Attack Rating against the Minion's Defense, and at 0 Life
+ * the Minion dies, leaving no Corpse. Neither keeps the Hero In Combat.
+ */
+function hitMinion(world: World, monster: Monster, events: SimEvent[]) {
+  const { minion } = world;
+  if (!minion) return;
+  const chance = chanceToHit(
+    monsterAttackRating(monster),
+    minionDefense(minion),
+  );
+  if (random(world.rng) >= chance) {
+    events.push({ type: "MinionMissed", minion: minion.id });
+    return;
+  }
+  const damage = randomInt(world.rng, monsterDamageRange(monster));
+  minion.life = Math.max(0, minion.life - damage);
+  events.push({ type: "MinionHit", minion: minion.id, damage });
+  if (minion.life > 0) return;
+  world.minion = null;
+  events.push({
+    type: "MinionDied",
+    minion: minion.id,
+    pos: { ...minion.pos },
+  });
 }
 
 /**

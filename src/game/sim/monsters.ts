@@ -1,4 +1,5 @@
 import { heroTuning } from "../tuning/hero";
+import { minionTuning } from "../tuning/minions";
 import {
   experienceDropOff,
   type MonsterGrowth,
@@ -11,7 +12,7 @@ import { random, randomInt } from "./random";
 import { msToSteps, perStep } from "./units";
 import { angleBetween, distance, type Vec } from "./vec";
 import { type Gait, goToward, walkAlong } from "./walking";
-import type { Monster, World } from "./world";
+import type { Monster, MonsterTarget, World } from "./world";
 
 /** Each Monster type's tuning converted to steps. */
 const STEPPED = Object.fromEntries(
@@ -118,17 +119,22 @@ export function killExperience(
   return Math.round(monsterExperience(monster) * factor);
 }
 
+/** A Monster's attack landing on its target this step. */
+export type Strike = { monster: Monster; target: MonsterTarget };
+
 /**
  * Moves every Monster one step: noticing, chasing, attacking and walking
- * home. Returns the Monsters whose attack hits the Hero this step.
+ * home. Returns the attacks that land on the Hero or their Minion this step.
  */
-export function stepMonsters(world: World): Monster[] {
-  const strikers: Monster[] = [];
+export function stepMonsters(world: World): Strike[] {
+  const strikes: Strike[] = [];
   for (const monster of world.monsters) {
     if (monster.grace > 0) monster.grace -= 1;
     if (monster.cooldown > 0) monster.cooldown -= 1;
     if (monster.state === "windup") {
-      if (windUp(world, monster)) strikers.push(monster);
+      if (windUp(world, monster)) {
+        strikes.push({ monster, target: monster.target });
+      }
       continue;
     }
     if (monster.state === "recover") {
@@ -158,7 +164,7 @@ export function stepMonsters(world: World): Monster[] {
     }
   }
   separate(world);
-  return strikers;
+  return strikes;
 }
 
 /** A Monster the Hero hits notices them, unless it is walking home. */
@@ -167,7 +173,7 @@ export function noticeHit(world: World, monster: Monster) {
 }
 
 /**
- * Sends a Monster after the Hero, waking the strolling Monsters near it that
+ * Sends a Monster after the Hero or their Minion, waking the strolling Monsters near it that
  * aren't in their grace period. Those it wakes don't wake others in turn.
  */
 function notice(world: World, monster: Monster) {
@@ -194,17 +200,51 @@ function isStrolling(monster: Monster): boolean {
   return monster.state === "idle" || monster.state === "wander";
 }
 
+/** Who a Monster can go after, and where they stand. */
+type Quarry = { target: MonsterTarget; pos: Vec };
+
+/** The Hero, while alive, and their Minion, if any. */
+function quarriesOf(world: World): Quarry[] {
+  const quarries: Quarry[] = [];
+  if (!world.death) quarries.push({ target: "hero", pos: world.hero.pos });
+  if (world.minion) quarries.push({ target: "minion", pos: world.minion.pos });
+  return quarries;
+}
+
 /**
- * Whether the Monster can see the Hero near enough to go after them, and
- * they're alive.
+ * The nearer to the Monster of the Hero and their Minion, the Hero on a tie,
+ * or null with neither there.
+ */
+function nearestQuarry(world: World, monster: Monster): Quarry | null {
+  let nearest: Quarry | null = null;
+  for (const quarry of quarriesOf(world)) {
+    if (
+      !nearest ||
+      distance(monster.pos, quarry.pos) < distance(monster.pos, nearest.pos)
+    ) {
+      nearest = quarry;
+    }
+  }
+  return nearest;
+}
+
+/** Where a Monster's target stands, or null when it's gone. */
+function targetPos(world: World, target: MonsterTarget): Vec | null {
+  if (target === "hero") return world.death ? null : world.hero.pos;
+  return world.minion?.pos ?? null;
+}
+
+/**
+ * Whether the Monster can see the living Hero or their Minion near enough to
+ * go after them.
  */
 function sees(world: World, monster: Monster): boolean {
-  if (world.death) return false;
   const tuning = monsterTuning[monster.type];
-  const { pos } = world.hero;
-  if (distance(monster.pos, pos) > tuning.aggroRadius) return false;
-  return (
-    !tuning.needsSight || canSee(world.areas[world.areaName], monster.pos, pos)
+  const area = world.areas[world.areaName];
+  return quarriesOf(world).some(
+    ({ pos }) =>
+      distance(monster.pos, pos) <= tuning.aggroRadius &&
+      (!tuning.needsSight || canSee(area, monster.pos, pos)),
   );
 }
 
@@ -252,19 +292,24 @@ export function wanderPause(world: World, type: MonsterType): number {
   return randomInt(world.rng, STEPPED[type].pauseSteps);
 }
 
-/** Goes after the Hero, stopping once in reach, or gives up beyond its leash. */
+/**
+ * Goes after the nearer of the Hero and their Minion, stopping once in
+ * reach, or gives up beyond its leash.
+ */
 function chase(world: World, monster: Monster) {
   const { reach, leash } = monsterTuning[monster.type];
   if (distance(monster.pos, monster.home) > leash) {
     sendHome(monster);
     return;
   }
-  const hero = world.hero.pos;
-  const gap = distance(monster.pos, hero);
+  const quarry = nearestQuarry(world, monster);
+  if (!quarry) return;
+  monster.target = quarry.target;
+  const gap = distance(monster.pos, quarry.pos);
   // A chase stops at reach only up to rounding.
   if (gap <= reach + 1e-9) {
     monster.path = [];
-    if (canWindUp(world, monster)) startWindUp(monster, hero);
+    if (canWindUp(world, monster)) startWindUp(monster, quarry.pos);
     return;
   }
   const area = world.areas[world.areaName];
@@ -272,13 +317,13 @@ function chase(world: World, monster: Monster) {
     area,
     monster,
     gaitOf(monster),
-    hero,
+    quarry.pos,
     STEPPED[monster.type].speed,
     gap - reach,
   );
 }
 
-/** Gives up on the Hero and walks home. */
+/** Gives up on the Hero and their Minion and walks home. */
 export function sendHome(monster: Monster) {
   monster.state = "return";
   monster.path = [];
@@ -301,19 +346,19 @@ export function windUpProgress(monster: Monster): number {
   return monster.attack / STEPPED[monster.type].windUpSteps;
 }
 
-/** Starts telegraphing an attack, facing the Hero. */
-function startWindUp(monster: Monster, hero: Vec) {
+/** Starts telegraphing an attack, facing its target at `at`. */
+function startWindUp(monster: Monster, at: Vec) {
   monster.state = "windup";
   monster.attack = 0;
-  const dx = hero.x - monster.pos.x;
-  const dy = hero.y - monster.pos.y;
+  const dx = at.x - monster.pos.x;
+  const dy = at.y - monster.pos.y;
   if (dx !== 0 || dy !== 0) monster.facing = Math.atan2(dy, dx);
 }
 
 /**
- * Winds up, rooted, and at its end resolves the attack: it hits the Hero
- * only if they are still in reach, plus grace, and in the arc of the facing
- * it wound up in. Then it recovers, rooted, and waits a while longer, with
+ * Winds up, rooted, and at its end resolves the attack: it hits its target
+ * only if it is still there, in reach, plus grace, and in the arc of the
+ * facing it wound up in. Then it recovers, rooted, and waits a while longer, with
  * some jitter, before it can attack again. Returns whether it hit.
  */
 function windUp(world: World, monster: Monster): boolean {
@@ -327,17 +372,18 @@ function windUp(world: World, monster: Monster): boolean {
     stepped.recoverySteps +
     randomInt(world.rng, [0, stepped.jitterSteps]);
   const { reach, reachGrace } = monsterTuning[monster.type];
-  const hero = world.hero.pos;
-  const gap = distance(monster.pos, hero);
+  const at = targetPos(world, monster.target);
+  if (!at) return false;
+  const gap = distance(monster.pos, at);
   if (gap > reach + reachGrace) return false;
   if (gap === 0) return true;
-  const angle = Math.atan2(hero.y - monster.pos.y, hero.x - monster.pos.x);
+  const angle = Math.atan2(at.y - monster.pos.y, at.x - monster.pos.x);
   return angleBetween(angle, monster.facing) <= STEPPED[monster.type].arc;
 }
 
 /**
- * Walks home, ignoring the Hero, and on arrival heals to full and starts a
- * grace period before it can notice the Hero again.
+ * Walks home, ignoring the Hero and their Minion, and on arrival heals to
+ * full and starts a grace period before it can notice either again.
  */
 function goHome(world: World, monster: Monster) {
   const area = world.areas[world.areaName];
@@ -358,27 +404,38 @@ function gaitOf(monster: Monster): Gait {
 }
 
 /**
- * Pushes overlapping Monsters apart, and out of the Hero, as circles. The Hero
- * is never moved. A push into a wall slides along it, keeping only the part
- * along whichever axis is open.
+ * Pushes overlapping Monsters apart, out of the Hero, and apart from the
+ * Hero's Minion, as circles. The Hero is never moved. A push into a wall
+ * slides along it, keeping only the part along whichever axis is open.
  */
 function separate(world: World) {
   const area = world.areas[world.areaName];
   const hero = world.hero.pos;
-  const push = (monster: Monster, by: Vec) => {
-    const { x, y } = monster.pos;
+  const { minion } = world;
+  const push = (creature: { pos: Vec }, by: Vec) => {
+    const { x, y } = creature.pos;
     const to = [
       { x: x + by.x, y: y + by.y },
       { x: x + by.x, y },
       { x, y: y + by.y },
     ].find((point) => isWalkable(area, point));
-    if (to) monster.pos = to;
+    if (to) creature.pos = to;
   };
 
   for (const [i, a] of world.monsters.entries()) {
     const { radius } = monsterTuning[a.type];
     const overlap = radius + heroTuning.radius - distance(a.pos, hero);
     if (overlap > 0) push(a, scaled(away(hero, a.pos, a.id), overlap));
+
+    if (minion) {
+      const apart = radius + minionTuning[minion.type].radius;
+      const overlap = apart - distance(a.pos, minion.pos);
+      if (overlap > 0) {
+        const out = away(minion.pos, a.pos, a.id);
+        push(minion, scaled(out, -overlap / 2));
+        push(a, scaled(out, overlap / 2));
+      }
+    }
 
     for (const b of world.monsters.slice(i + 1)) {
       const apart = radius + monsterTuning[b.type].radius;

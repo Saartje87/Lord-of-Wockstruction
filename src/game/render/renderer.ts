@@ -76,6 +76,12 @@ import {
   rowTop,
 } from "./heroPanel";
 import {
+  characterUnder,
+  type Hovered,
+  nameplateOf,
+  type Pickable,
+} from "./hover";
+import {
   type DropHit,
   INVENTORY_PANEL,
   type InventoryHit,
@@ -187,8 +193,6 @@ const NPC = { tint: 0x8c9ccc, compass: "s" } satisfies {
 };
 /** How far apart NPCs' idle animations run (ms), so they don't breathe in step. */
 const NPC_STAGGER_MS = 337;
-/** A Monster's clickable box around its feet at native scale (CSS px). */
-const MONSTER_BOX = { left: -35, right: 35, top: -135, bottom: 15 };
 /**
  * How far behind the living a Corpse sorts (CSS px of screen y): one row of
  * tiles, so anyone standing on or just behind a Corpse is drawn over it.
@@ -223,6 +227,8 @@ const NAMEPLATE = {
 };
 /** A Life bar's fill, and its dark back with how opaque that is (0..1). */
 const LIFE_COLOUR = 0xc02020;
+/** The hovered Golem's nameplate: a green name and Life bar, on the Hero's side. */
+const FRIENDLY = { name: 0x9ee08a, life: 0x3fa83a };
 const LIFE_BACK = { colour: 0x2a0606, alpha: 0.85 };
 /** Damage numbers: their size and black outline (CSS px). */
 const NUMBER = { size: 18, stroke: 3, gap: 2 };
@@ -702,28 +708,34 @@ export function createRenderer(
       y: screen.y - camera.position.y,
     });
 
-  /** The Monster drawn under a point on the canvas (CSS px), as last drawn. */
-  const monsterAt = (screen: Vec): MonsterId | null => {
-    const x = screen.x - camera.position.x;
-    const y = screen.y - camera.position.y;
-    let nearest: { id: MonsterId; y: number } | null = null;
+  /**
+   * The living Monster or the Golem drawn under a point on the canvas (CSS
+   * px), as last drawn: the one in front where they overlap.
+   */
+  const characterAt = (screen: Vec): MonsterId | "golem" | null => {
+    const characters: Pickable<MonsterId | "golem">[] = [];
     for (const [id, view] of monsters) {
       if (view.diedAtMs !== null) continue;
       const { position } = view.sprite;
-      const scale = MONSTER_SCALE[view.type];
-      const dx = (x - position.x) / scale;
-      const dy = (y - position.y) / scale;
-      const inside =
-        dx >= MONSTER_BOX.left &&
-        dx <= MONSTER_BOX.right &&
-        dy >= MONSTER_BOX.top &&
-        dy <= MONSTER_BOX.bottom;
-      // The one in front wins where they overlap.
-      if (inside && (!nearest || position.y > nearest.y)) {
-        nearest = { id, y: position.y };
-      }
+      characters.push({ id, at: position, scale: MONSTER_SCALE[view.type] });
     }
-    return nearest?.id ?? null;
+    if (golem) {
+      const { position } = golem.view.sprite;
+      characters.push({ id: "golem", at: position, scale: GOLEM.scale });
+    }
+    return characterUnder(characters, {
+      x: screen.x - camera.position.x,
+      y: screen.y - camera.position.y,
+    });
+  };
+
+  /**
+   * The Monster drawn under a point on the canvas (CSS px), as last drawn;
+   * none where the Golem stands in front, so a click there is a move.
+   */
+  const monsterAt = (screen: Vec): MonsterId | null => {
+    const id = characterAt(screen);
+    return id === "golem" ? null : id;
   };
 
   /** The Ground Item whose label is under a canvas point (CSS px). */
@@ -819,7 +831,11 @@ export function createRenderer(
       if (arrivedIn !== null) showBanner(arrivedIn, nowMs);
       for (const number of damageNumbers(events)) {
         const sprite =
-          number.on === "hero" ? hero.sprite : monsters.get(number.on)?.sprite;
+          number.on === "hero"
+            ? hero.sprite
+            : number.on === "minion"
+              ? golem?.view.sprite
+              : monsters.get(number.on)?.sprite;
         if (!sprite) continue;
         const text = new Text({
           text: floatText(number),
@@ -845,7 +861,10 @@ export function createRenderer(
           const view = monsters.get(event.id);
           if (view) view.diedAtMs = nowMs;
         }
-        if (event.type === "MinionCrumbled" && golem?.id === event.minion) {
+        // Killed, it crumbles away as when replaced.
+        const gone =
+          event.type === "MinionCrumbled" || event.type === "MinionDied";
+        if (gone && golem?.id === event.minion) {
           crumbling.push({ ...golem, atMs: nowMs });
           golem = null;
         }
@@ -1071,18 +1090,28 @@ export function createRenderer(
       // What a click there picks: a label over a Monster, a Monster over an
       // Item lying under it.
       const hoveredLabel = onWorld && groundLabelUnder(onWorld);
-      const hoveredId = onWorld && !hoveredLabel && monsterAt(onWorld);
+      const hoveredId = onWorld && !hoveredLabel && characterAt(onWorld);
       const hoveredItem =
-        hoveredLabel || (onWorld && !hoveredId ? groundItemAt(onWorld) : null);
+        hoveredLabel ||
+        (onWorld && typeof hoveredId !== "number"
+          ? groundItemAt(onWorld)
+          : null);
       drawGroundItems(world, hoveredItem);
-      const hovered =
+      const hoveredMonster =
         world.monsters.find((monster) => monster.id === hoveredId) ?? null;
-      const hoveredView = hovered && monsters.get(hovered.id);
+      const hovered: Hovered | null = hoveredMonster
+        ? { monster: hoveredMonster }
+        : hoveredId === "golem" && world.minion
+          ? { minion: world.minion }
+          : null;
+      const hoveredView = hoveredMonster
+        ? monsters.get(hoveredMonster.id)
+        : hovered && golem?.view;
       outline.show(hoveredView?.sprite ?? null);
       nameplate.clear();
       nameplateText.visible = hovered !== null;
       if (hovered) {
-        const { name } = monsterTuning[hovered.type];
+        const { name, fraction, friendly } = nameplateOf(hovered);
         const centre = app.screen.width / 2;
         nameplate
           .rect(
@@ -1101,14 +1130,21 @@ export function createRenderer(
             NAMEPLATE.barBottom,
           width: NAMEPLATE.bar,
           height: NAMEPLATE.barHeight,
-          fraction: hovered.life / monsterMaxLife(hovered),
+          fraction,
+          colour: friendly ? FRIENDLY.life : LIFE_COLOUR,
         });
         nameplateText.text = name;
+        nameplateText.style.fill = friendly
+          ? FRIENDLY.name
+          : NAMEPLATE.nameColour;
         nameplateText.position.set(centre, NAMEPLATE.top + NAMEPLATE.nameTop);
       }
 
+      // A click on the Golem is a move, so its tile is shown too.
       const tile =
-        cursor && !hovered && isFloor(active, cursor) ? tileOf(cursor) : null;
+        cursor && !hoveredMonster && isFloor(active, cursor)
+          ? tileOf(cursor)
+          : null;
       if (tile?.x !== hoveredTile?.x || tile?.y !== hoveredTile?.y) {
         hoveredTile = tile;
         hover.clear();
@@ -1318,7 +1354,10 @@ function barTop(sprite: Sprite): number {
   );
 }
 
-/** A Life bar: a dark back, filled from the left by `fraction` (0..1). */
+/**
+ * A Life bar: a dark back, filled from the left by `fraction` (0..1), in
+ * `colour`, a Monster's red if not given.
+ */
 function lifeBar(
   graphics: Graphics,
   bar: {
@@ -1327,6 +1366,7 @@ function lifeBar(
     width: number;
     height: number;
     fraction: number;
+    colour?: number;
   },
 ) {
   graphics
@@ -1334,7 +1374,7 @@ function lifeBar(
     .fill({ color: LIFE_BACK.colour, alpha: LIFE_BACK.alpha });
   graphics
     .rect(bar.x, bar.y, bar.width * bar.fraction, bar.height)
-    .fill(LIFE_COLOUR);
+    .fill(bar.colour ?? LIFE_COLOUR);
 }
 
 /**

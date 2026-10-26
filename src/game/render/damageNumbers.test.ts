@@ -45,6 +45,18 @@ describe("damageNumbers", () => {
     ]);
   });
 
+  it("shows damage the Golem takes, and Misses on it, on the Golem", () => {
+    expect(
+      damageNumbers([
+        { type: "MinionHit", minion: 3, damage: 7 },
+        { type: "MinionMissed", minion: 3 },
+      ]),
+    ).toEqual([
+      { on: "minion", damage: 7, kind: "taken" },
+      { on: "minion", kind: "miss" },
+    ]);
+  });
+
   it("shows No room over the Hero", () => {
     expect(damageNumbers([{ type: "NoRoom" }])).toEqual([
       { on: "hero", kind: "noRoom" },

@@ -7,14 +7,19 @@ const RISE_SPEED = 30;
 
 /**
  * A number to float up from whoever was hit: `hit` for the Hero's hits,
- * `kill` for a killing blow and `taken` for damage the Hero takes; a
- * `miss` floating up from a Monster the Hero Missed, or from the Hero a
- * Monster Missed; `noRoom` over the Hero, who found no room for a Ground
- * Item; or `castFailed` over the Hero, whose cast failed for `reason`.
+ * `kill` for a killing blow and `taken` for damage the Hero or their Minion
+ * takes; a `miss` floating up from a Monster the Hero Missed, or from the
+ * Hero or their Minion a Monster Missed; `noRoom` over the Hero, who found
+ * no room for a Ground Item; or `castFailed` over the Hero, whose cast
+ * failed for `reason`.
  */
 export type DamageNumber =
-  | { on: MonsterId | "hero"; damage: number; kind: "hit" | "kill" | "taken" }
-  | { on: MonsterId | "hero"; kind: "miss" }
+  | {
+      on: MonsterId | "hero" | "minion";
+      damage: number;
+      kind: "hit" | "kill" | "taken";
+    }
+  | { on: MonsterId | "hero" | "minion"; kind: "miss" }
   | { on: "hero"; kind: "noRoom" }
   | { on: "hero"; kind: "castFailed"; reason: CastFailure };
 
@@ -44,6 +49,12 @@ export function damageNumbers(events: readonly SimEvent[]): DamageNumber[] {
     }
     if (event.type === "HeroHit") {
       numbers.push({ on: "hero", damage: event.damage, kind: "taken" });
+    }
+    if (event.type === "MinionHit") {
+      numbers.push({ on: "minion", damage: event.damage, kind: "taken" });
+    }
+    if (event.type === "MinionMissed") {
+      numbers.push({ on: "minion", kind: "miss" });
     }
     if (event.type === "NoRoom") numbers.push({ on: "hero", kind: "noRoom" });
     if (event.type === "CastFailed") {

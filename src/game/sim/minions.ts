@@ -56,6 +56,11 @@ export function minionMaxLife(minion: Pick<Minion, "type">): number {
   return minionTuning[minion.type].life;
 }
 
+/** A Minion's Defense, which Monsters' Attack Rating has to beat. */
+export function minionDefense(minion: Pick<Minion, "type">): number {
+  return minionTuning[minion.type].defense;
+}
+
 /**
  * A fresh Minion of `type` at `pos`, facing `facing`, following the Hero.
  */

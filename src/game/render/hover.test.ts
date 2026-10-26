@@ -124,6 +124,12 @@ describe("nameplateOf", () => {
     expect(nameplateOf({ monster: zombie }).name).toBe("Zombie");
   });
 
+  it("names a Skeleton Archer by its type", () => {
+    const [archer] = world("skeleton_archer").monsters;
+
+    expect(nameplateOf({ monster: archer }).name).toBe("Skeleton Archer");
+  });
+
   it("names the Golem, friendly, with its Life bar's fill", () => {
     const max = minionMaxLife({ type: "golem", skillLevel: 1 });
 

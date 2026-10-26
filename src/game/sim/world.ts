@@ -72,6 +72,11 @@ import {
   potionEffectsOf,
   stepPotionEffects,
 } from "./potions";
+import {
+  type AttackNumbers,
+  type Projectile,
+  stepProjectiles,
+} from "./projectiles";
 import { createRng, type Rng, random, randomInt } from "./random";
 import {
   emptySkillBar,
@@ -124,6 +129,7 @@ export const CAST_STEPS = Object.fromEntries(
 ) as Record<Skill, number>;
 
 export type { Minion, MinionId, MinionType, SkillBar, SkillBarSlot };
+export type { Projectile };
 export { minionMaxLife, potionEffectsOf };
 
 export type Hero = {
@@ -304,6 +310,8 @@ export type World = {
   death: Death | null;
   /** The living Monsters in the active Area. */
   monsters: Monster[];
+  /** The Projectiles in flight in the active Area. */
+  projectiles: Projectile[];
   /** The Corpses in the active Area. */
   corpses: Corpse[];
   /** The Ground Items in the active Area, never kept by the Save. */
@@ -602,6 +610,7 @@ export function createWorld(options: {
       buffered: null,
     },
     monsters: [],
+    projectiles: [],
     corpses: [],
     groundItems: [],
     minion: null,
@@ -790,9 +799,17 @@ export function monsterChanceToHit(
   world: World,
   monster: MonsterOfLevel,
 ): number {
+  return heroChanceToBeHit(world, monsterAttackRating(monster));
+}
+
+/**
+ * The chance an attack with `attackRating` hits the Hero: certain while the
+ * Hero has 0 Defense.
+ */
+function heroChanceToBeHit(world: World, attackRating: number): number {
   const defense = heroDefense(world);
   if (defense === 0) return 1;
-  return chanceToHit(monsterAttackRating(monster), defense);
+  return chanceToHit(attackRating, defense);
 }
 
 /**
@@ -951,6 +968,9 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   const events: SimEvent[] = [];
   hero.prevPos = { ...hero.pos };
   for (const monster of world.monsters) monster.prevPos = { ...monster.pos };
+  for (const projectile of world.projectiles) {
+    projectile.prevPos = { ...projectile.pos };
+  }
   if (world.minion) world.minion.prevPos = { ...world.minion.pos };
   if (hero.combat > 0) hero.combat -= 1;
 
@@ -999,9 +1019,13 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   }
   approach(world);
   reachGroundItem(world, events);
+  // Before the Monsters, so an Arrow first shows where it is loosed.
+  for (const projectile of stepProjectiles(world)) {
+    if (!world.death) hitHero(world, projectile, events);
+  }
   for (const { monster, target } of stepMonsters(world)) {
     if (target === "minion") hitMinion(world, monster, events);
-    else if (!world.death) hitHero(world, monster, events);
+    else if (!world.death) hitHero(world, monsterAttack(monster), events);
   }
   if (isRegenerating(world)) {
     hero.life = Math.min(maxLife(world), hero.life + REGEN_PER_STEP);
@@ -1531,17 +1555,25 @@ function rollDrop(world: World, pos: Vec, events: SimEvent[]) {
   }
 }
 
+/** A Monster's melee attack numbers at its Monster Level. */
+function monsterAttack(monster: Monster): AttackNumbers {
+  return {
+    attackRating: monsterAttackRating(monster),
+    damage: monsterDamageRange(monster),
+  };
+}
+
 /**
- * Lands a Monster's attack on the Hero. A Hero with 0 Defense is always hit;
- * above it the attack can Miss, which deals no damage, so it neither flinches
- * the Hero nor keeps them In Combat.
+ * Lands a Monster's attack, a melee one or a Projectile, on the Hero. A Hero
+ * with 0 Defense is always hit; above it the attack can Miss, which deals no
+ * damage, so it neither flinches the Hero nor keeps them In Combat.
  */
-function hitHero(world: World, monster: Monster, events: SimEvent[]) {
+function hitHero(world: World, attack: AttackNumbers, events: SimEvent[]) {
   const { hero } = world;
   const damage = rollAttack(
     world,
-    monsterChanceToHit(world, monster),
-    monsterDamageRange(monster),
+    heroChanceToBeHit(world, attack.attackRating),
+    attack.damage,
   );
   if (damage === null) {
     events.push({ type: "Missed", target: "hero" });

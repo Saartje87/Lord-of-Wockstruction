@@ -14,7 +14,7 @@ import {
   writePng,
 } from "./image.mts";
 
-/** The only animations the game plays. */
+/** The animations the game plays for every character. */
 export const ANIMATIONS = ["stance", "run", "swing", "hit", "die"] as const;
 
 /** The animations the game loops; the rest play once and hold. */
@@ -34,7 +34,8 @@ type Layer = {
 };
 
 /**
- * Bakes a character's layers into one atlas holding only `ANIMATIONS`, and
+ * Bakes a character's layers into one atlas holding only `ANIMATIONS` and its
+ * `extraAnimations`, and
  * writes it with a Pixi spritesheet next to it as `<outDir>/<name>.png|json`.
  *
  * Frames are named `<name>/<animation>_<compass>/<i>` and listed under
@@ -48,6 +49,8 @@ export function importCharacter(opts: {
   layers: CharacterLayer[];
   /** Per direction, the slots back to front. Unset for a single layer. */
   drawOrder?: Map<Compass, string[]>;
+  /** Animations it plays besides `ANIMATIONS`, such as `shoot`. */
+  extraAnimations?: string[];
   outDir: string;
 }) {
   const layers: Layer[] = opts.layers.map(({ slot, animations }) => {
@@ -69,7 +72,7 @@ export function importCharacter(opts: {
   const animations: Record<string, string[]> = {};
   const timing: Record<string, { frameMs: number; loop: boolean }> = {};
 
-  for (const name of ANIMATIONS) {
+  for (const name of [...ANIMATIONS, ...(opts.extraAnimations ?? [])]) {
     const anim = base.get(name);
     if (!anim) throw new Error(`${opts.name} has no ${name} animation`);
     timing[name] = {

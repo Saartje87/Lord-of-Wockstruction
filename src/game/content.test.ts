@@ -318,7 +318,11 @@ describe("the shipped Areas", () => {
     expect(crypt.tileset).toBe("dungeon");
     expectAbout(crypt.width, catacombs.width, 8);
     expectAbout(crypt.height, catacombs.height, 8);
-    expect(crypt.spawns.every((s) => s.monster === "skeleton")).toBe(true);
+    expect(
+      crypt.spawns.every((s) =>
+        ["skeleton", "skeleton_archer"].includes(s.monster),
+      ),
+    ).toBe(true);
     expect(Math.max(...deeper)).toBeGreaterThan(Math.max(...shallower));
     expect(sum(deeper) / deeper.length).toBeGreaterThan(
       sum(shallower) / shallower.length,
@@ -326,6 +330,14 @@ describe("the shipped Areas", () => {
     // Somewhat bigger, not a horde.
     expect(sum(deeper)).toBeLessThan(sum(shallower) * 2);
   });
+  it("place Skeleton Archers in the Crypt once the Hero gets there", () => {
+    const world = worldEntering("crypt", "start");
+
+    expect(
+      world.monsters.some((monster) => monster.type === "skeleton_archer"),
+    ).toBe(true);
+  });
+
   it("give the Ossuary Area Level 8 and only an Exit back up to the Crypt", () => {
     const { ossuary } = shippedWorld().areas;
 

@@ -14,7 +14,8 @@ licence (CC-BY-SA 3.0), and so are our versions of it.
 
 **Changes:** the Hero's equipment layers are composited into one outfit;
 the character sheets are cut down to the animations Wiablo uses and
-repacked; the tilesets are cut into one padded image per tile for Tiled.
+repacked; the Projectile sheets are cut down to one direction, which Wiablo
+rotates; the tilesets are cut into one padded image per tile for Tiled.
 Nothing is recoloured.
 
 ### Imported files
@@ -29,6 +30,8 @@ Nothing is recoloured.
 | `mods/fantasycore/images/avatar/male/longsword.png` | hero |
 | `mods/fantasycore/images/enemies/skeleton.png` | skeleton |
 | `mods/fantasycore/images/enemies/zombie.png` | zombie |
+| `mods/fantasycore/images/enemies/skeleton_archer.png` | skeleton_archer |
+| `mods/fantasycore/images/powers/arrows.png` | arrow |
 | `mods/fantasycore/images/tilesets/tileset_grassland.png` | grassland |
 | `mods/fantasycore/images/tilesets/tileset_grassland_water.png` | grassland |
 | `mods/fantasycore/images/tilesets/tileset_dungeon.png` | dungeon |

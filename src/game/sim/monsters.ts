@@ -298,7 +298,7 @@ export function wanderPause(world: World, type: MonsterType): number {
  * reach, or gives up beyond its leash.
  */
 function chase(world: World, monster: Monster) {
-  const { reach, leash } = monsterTuning[monster.type];
+  const { reach, leash, ranged } = monsterTuning[monster.type];
   if (distance(monster.pos, monster.home) > leash) {
     sendHome(monster);
     return;
@@ -306,21 +306,25 @@ function chase(world: World, monster: Monster) {
   const quarry = nearestQuarry(world, monster);
   if (!quarry) return;
   monster.target = quarry.target;
+  const area = world.areas[world.areaName];
   const gap = distance(monster.pos, quarry.pos);
+  // A ranged Monster stops only where it can also see its target, and walks
+  // on, behind a wall, until it can.
+  const stopAt = ranged ? ranged.range : reach;
+  const inSight = !ranged || canSee(area, monster.pos, quarry.pos);
   // A chase stops at reach only up to rounding.
-  if (gap <= reach + 1e-9) {
+  if (gap <= stopAt + 1e-9 && inSight) {
     monster.path = [];
     if (canWindUp(world, monster)) startWindUp(monster, quarry.pos);
     return;
   }
-  const area = world.areas[world.areaName];
   goToward(
     area,
     monster,
     gaitOf(monster),
     quarry.pos,
     STEPPED[monster.type].speed,
-    gap - reach,
+    inSight ? gap - stopAt : gap,
   );
 }
 
@@ -355,10 +359,11 @@ function startWindUp(monster: Monster, at: Vec) {
 }
 
 /**
- * Winds up, rooted, and at its end resolves the attack: it hits its target
- * only if it is still there, in reach, plus grace, and in the arc of the
- * facing it wound up in. Then it recovers, rooted, and waits a while longer, with
- * some jitter, before it can attack again. Returns whether it hit.
+ * Winds up, rooted, and at its end resolves the attack: a melee one hits its
+ * target only if it is still there, in reach, plus grace, and in the arc of
+ * the facing it wound up in; a ranged one looses a Projectile at where its
+ * target is then. Then it recovers, rooted, and waits a while longer, with
+ * some jitter, before it can attack again. Returns whether a melee attack hit.
  */
 function windUp(world: World, monster: Monster): boolean {
   const stepped = STEPPED[monster.type];
@@ -370,10 +375,31 @@ function windUp(world: World, monster: Monster): boolean {
     stepped.rootSteps +
     stepped.recoverySteps +
     randomInt(world.rng, [0, stepped.jitterSteps]);
-  const { reach, reachGrace } = monsterTuning[monster.type];
+  const { reach, reachGrace, ranged } = monsterTuning[monster.type];
   const at = targetPos(world, monster.target);
   if (!at) return false;
+  if (ranged) {
+    loose(world, monster, at);
+    return false;
+  }
   return lands(monster, at, reach + reachGrace, stepped.arc);
+}
+
+/** Looses a ranged Monster's Projectile from where it stands at `at`. */
+function loose(world: World, monster: Monster, at: Vec) {
+  const { ranged } = monsterTuning[monster.type];
+  if (!ranged) return;
+  faceToward(monster, at);
+  world.projectiles.push({
+    pos: { ...monster.pos },
+    prevPos: { ...monster.pos },
+    direction: { x: Math.cos(monster.facing), y: Math.sin(monster.facing) },
+    speed: perStep(ranged.projectileSpeed),
+    left: ranged.projectileRange,
+    from: monster.id,
+    attackRating: monsterAttackRating(monster),
+    damage: monsterDamageRange(monster),
+  });
 }
 
 /**

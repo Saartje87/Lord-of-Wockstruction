@@ -1,8 +1,9 @@
 /**
  * Monster tuning, in human units. The sim converts it to steps once. The
  * Skeleton's numbers are the final knobs of the Monster behaviour prototype
- * (#82), with the damage from the combat numbers (#83). The Zombie's are
- * starting values against the Skeleton's, until a tuning pass sets them.
+ * (#82), with the damage from the combat numbers (#83). The Zombie's and
+ * the Skeleton Archer's are starting values against the Skeleton's, until a
+ * tuning pass sets them.
  */
 export type MonsterTuning = {
   /** Shown on the nameplate. */
@@ -34,7 +35,7 @@ export type MonsterTuning = {
   needsSight: boolean;
   /** How near idle Monsters must be to wake with one that notices (tiles). */
   spreadRadius: number;
-  /** How near the Hero must be to start an attack (tiles). */
+  /** How near the Hero must be to start a melee attack (tiles). */
   reach: number;
   /**
    * How much further the Hero may get during the wind-up and still be hit
@@ -43,7 +44,12 @@ export type MonsterTuning = {
   reachGrace: number;
   /** An attack hits the Hero within this of the facing it wound up in. */
   arcDegrees: number;
-  /** The telegraph before an attack's hit (ms). */
+  /**
+   * How a ranged type attacks, or null for a melee type, which swings at
+   * `reach`. A ranged type ignores `reach`, `reachGrace` and `arcDegrees`.
+   */
+  ranged: RangedTuning | null;
+  /** The telegraph before an attack's hit, or before a ranged type looses (ms). */
   windUpMs: number;
   /** How long a Monster is rooted after its hit (ms). */
   rootMs: number;
@@ -73,6 +79,19 @@ export type MonsterTuning = {
   growth: MonsterGrowth;
 };
 
+/**
+ * A ranged attack: the Monster stops once its target is within `range` and in
+ * sight, winds up, and looses a Projectile at where its target then is.
+ */
+export type RangedTuning = {
+  /** How near its target must be, and in sight, to start an attack (tiles). */
+  range: number;
+  /** How fast its Projectile flies (tiles per second). */
+  projectileSpeed: number;
+  /** How far its Projectile flies before it vanishes (tiles). */
+  projectileRange: number;
+};
+
 /** A growth rate per Monster Level for each number that scales with it. */
 export type MonsterGrowth = {
   life: number;
@@ -82,7 +101,7 @@ export type MonsterGrowth = {
   experience: number;
 };
 
-export type MonsterType = "skeleton" | "zombie";
+export type MonsterType = "skeleton" | "zombie" | "skeleton_archer";
 
 export const monsterTuning: Record<MonsterType, MonsterTuning> = {
   skeleton: {
@@ -107,6 +126,7 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
     reach: 1.2,
     reachGrace: 0.25,
     arcDegrees: 60,
+    ranged: null,
     windUpMs: 400,
     rootMs: 200,
     recoveryMs: 1000,
@@ -155,6 +175,7 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
     reach: 1.2,
     reachGrace: 0.25,
     arcDegrees: 60,
+    ranged: null,
     windUpMs: 750,
     rootMs: 300,
     recoveryMs: 1200,
@@ -164,6 +185,50 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
     returnSpeed: 1.2,
     graceMs: 2000,
     flinchChance: 0.1,
+    flinchMs: 200,
+    flinchInterrupts: false,
+    // The Skeleton's rates to start with.
+    growth: {
+      life: 0.25,
+      damage: 0.2,
+      attackRating: 0.1,
+      defense: 0.15,
+      experience: 3,
+    },
+  },
+  // Fragile, and looses Arrows from range: it chips at the Hero rather than
+  // bursting them down, and pays off when reached.
+  skeleton_archer: {
+    name: "Skeleton Archer",
+    life: 36,
+    experience: 110,
+    speed: 2.8,
+    damage: [3, 6],
+    defense: 135,
+    attackRating: 20,
+    radius: 0.32,
+    wanderRadius: 2.5,
+    wanderSpeed: 0.35,
+    wanderPauseMs: [1000, 3500],
+    aggroRadius: 7,
+    replanMs: 400,
+    needsSight: true,
+    spreadRadius: 1.5,
+    reach: 1.2,
+    reachGrace: 0.25,
+    arcDegrees: 60,
+    // Faster than the Hero's 5.5 tiles/s walk, so it threatens, but slow
+    // enough at range to step aside from.
+    ranged: { range: 6, projectileSpeed: 9, projectileRange: 10 },
+    windUpMs: 600,
+    rootMs: 200,
+    recoveryMs: 1600,
+    jitterMs: 400,
+    maxAttackers: 0,
+    leash: 14,
+    returnSpeed: 1.2,
+    graceMs: 2000,
+    flinchChance: 0.35,
     flinchMs: 200,
     flinchInterrupts: false,
     // The Skeleton's rates to start with.

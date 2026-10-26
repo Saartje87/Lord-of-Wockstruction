@@ -190,7 +190,20 @@ const TELEGRAPH_SEGMENTS = 12;
  * Each Monster type's size against Flare's native scale: the one number to
  * change if a type looks off. Each is drawn as Flare made it.
  */
-const MONSTER_SCALE: Record<MonsterType, number> = { skeleton: 1, zombie: 1 };
+const MONSTER_SCALE: Record<MonsterType, number> = {
+  skeleton: 1,
+  zombie: 1,
+  skeleton_archer: 1,
+};
+/**
+ * How long a screen-east Projectile's art is per tile it spans: a tile of
+ * flight straight across the screen, so flight in any other direction is
+ * drawn foreshortened as the floor is.
+ */
+const PROJECTILE_EAST_LENGTH = Math.hypot(
+  toScreen({ x: Math.SQRT1_2, y: -Math.SQRT1_2 }).x,
+  toScreen({ x: Math.SQRT1_2, y: -Math.SQRT1_2 }).y,
+);
 /**
  * Placeholder NPCs are drawn with the Hero's art, tinted so they can't be
  * mistaken for the Hero, facing down the screen.
@@ -545,6 +558,8 @@ export function createRenderer(
   camera.addChild(scene);
   const hero = characterView(art.hero, heroTuning.walkSpeed);
   scene.addChild(hero.sprite);
+  /** A sprite for each Projectile in flight, in the World's order. */
+  const projectiles: Sprite[] = [];
   // Under the scene, so the ring spreads at the Hero's feet.
   const levelRing = new Graphics();
   camera.addChildAt(levelRing, camera.getChildIndex(scene));
@@ -1040,10 +1055,22 @@ export function createRenderer(
         if (monster.state === "windup") {
           // A flinch doesn't stop a wind-up, so it shows over one.
           const progress = windUpProgress(monster);
-          const { frames } = view.art.timing.swing;
+          // An archer draws its bow with its own animation.
+          const animation = view.art.timing.shoot ? "shoot" : "swing";
+          const { frames } =
+            view.art.timing[animation] ?? view.art.timing.swing;
           const frame = Math.min(frames - 1, Math.floor(progress * frames));
-          show(view, "swing", compass, frame);
-          telegraph(telegraphs, monster.type, monsterAt, view.facing, progress);
+          show(view, animation, compass, frame);
+          // A ranged attack has no reach to show: the drawn bow is the tell.
+          if (!monsterTuning[monster.type].ranged) {
+            telegraph(
+              telegraphs,
+              monster.type,
+              monsterAt,
+              view.facing,
+              progress,
+            );
+          }
         } else if (monster.flinch > 0) {
           const ms = (FLINCH_STEPS[monster.type] - monster.flinch) * STEP_MS;
           show(view, "hit", compass, frameAt(view.art.timing.hit, ms));
@@ -1052,6 +1079,35 @@ export function createRenderer(
         }
         flash(view, nowMs);
       }
+
+      while (projectiles.length < world.projectiles.length) {
+        const sprite = new Sprite(art.projectiles.arrow.frames[0]);
+        projectiles.push(sprite);
+        scene.addChild(sprite);
+      }
+      for (const sprite of projectiles.splice(world.projectiles.length)) {
+        sprite.destroy();
+      }
+      world.projectiles.forEach((projectile, i) => {
+        const sprite = projectiles[i];
+        const { frames, timing, height } = art.projectiles.arrow;
+        const texture = frames[frameAt(timing, nowMs)];
+        sprite.texture = texture;
+        sprite.anchor.copyFrom(texture.defaultAnchor ?? { x: 0.5, y: 0.5 });
+        const ground = toScreen(
+          lerp(projectile.prevPos, projectile.pos, alpha),
+        );
+        sprite.position.set(snap(ground.x), snap(ground.y - height));
+        sprite.zIndex = ground.y;
+        // Rotated to its direction of flight on screen, and foreshortened
+        // along it as the floor is.
+        const flight = toScreen(projectile.direction);
+        sprite.rotation = Math.atan2(flight.y, flight.x);
+        sprite.scale.set(
+          Math.hypot(flight.x, flight.y) / PROJECTILE_EAST_LENGTH,
+          1,
+        );
+      });
 
       for (const corpse of world.corpses) {
         seen.add(corpse.id);

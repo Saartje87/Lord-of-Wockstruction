@@ -65,7 +65,7 @@ The Hero's or a Monster's health; reaching zero means death.
 _Avoid_: HP, health
 
 **Death**:
-The Hero's state once their Life reaches zero: they lie where they fell, and Monsters leave them be, until the player sends them back to Town.
+The Hero's state once their Life reaches zero: they lie where they fell, and Monsters and their Projectiles leave them be, until the player sends them back to Town.
 _Avoid_: Game over, defeat
 
 **In Combat**:
@@ -147,6 +147,10 @@ _Avoid_: Armor (that's the Item), AC, evasion
 **Miss**:
 A swing that plays out in full but deals no damage because it failed its chance to hit.
 _Avoid_: Dodge, whiff
+
+**Projectile**:
+Something loosed by an attack that flies in a straight line through an Area until it hits the first Hero or Minion it touches, meets a wall, or runs out of range; it flies through Monsters. The Skeleton Archer's is the Arrow.
+_Avoid_: Missile, bullet, shot
 
 **Save**:
 The Hero's kept progress (Level, Experience, Attributes, unspent Attribute Points, Skill Levels, unspent Skill Points, the Skill Bar and Belongings), written whenever it changes; there is only one, and loading it starts the Hero in Town.

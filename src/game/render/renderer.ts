@@ -27,6 +27,7 @@ import {
 import { minionWindUpProgress } from "../sim/minions";
 import { monsterMaxLife, windUpProgress } from "../sim/monsters";
 import type { Rect } from "../sim/rect";
+import type { SkillBarSlot } from "../sim/skillBar";
 import { STEP_MS } from "../sim/units";
 import { tileOf, type Vec } from "../sim/vec";
 import {
@@ -901,7 +902,8 @@ export function createRenderer(
      * tooltip of the Item it's over on one. `menus` shows the Hero and
      * Inventory panels while they're open, and the pause menu over
      * everything while paused. `heldSkill` is the Held Skill, if any, drawn
-     * at the pointer.
+     * at the pointer, and `heldSkillSlot` the Skill Bar slot it was picked
+     * up from, drawn dimmed.
      */
     draw(
       world: World,
@@ -910,6 +912,7 @@ export function createRenderer(
       nowMs: number,
       menus: Menus,
       heldSkill: Skill | null = null,
+      heldSkillSlot?: SkillBarSlot,
     ) {
       const active = world.areas[world.areaName];
       heroPanelOpenNow = menus.heroPanelOpen;
@@ -1180,7 +1183,7 @@ export function createRenderer(
       }
 
       orb.draw(app.screen, world, nowMs);
-      skillBar.draw(app.screen, world);
+      skillBar.draw(app.screen, world, heldSkillSlot);
       beltStrip.draw(app.screen, world);
       experience.draw(app.screen, world);
       levelUp.draw(app.screen, world, nowMs);
@@ -1557,7 +1560,8 @@ function orbsView() {
 
 /**
  * The Skill Bar between the orbs: each slot's key in its corner and its
- * Skill's name, dimmed while the Hero lacks the Mana for it.
+ * Skill's name, dimmed while the Hero lacks the Mana for it or while it's
+ * the Held Skill.
  */
 function skillBarView() {
   const style = SKILL_BAR_STYLE;
@@ -1577,10 +1581,14 @@ function skillBarView() {
 
   return {
     layer,
-    draw(screen: { width: number; height: number }, world: World) {
+    draw(
+      screen: { width: number; height: number },
+      world: World,
+      heldFrom?: SkillBarSlot,
+    ) {
       const { slots } = skillBarLayout(screen);
       graphics.clear();
-      skillBarSheet(world).forEach((shown, index) => {
+      skillBarSheet(world, heldFrom).forEach((shown, index) => {
         if (!labels[index]) {
           const key = text(style.key, style.keySize);
           key.anchor.set(1, 0);

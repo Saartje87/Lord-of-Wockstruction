@@ -48,7 +48,8 @@ export function skillBarLayout(screen: { width: number; height: number }): {
 
 /**
  * What a Skill Bar slot shows: its key, its Skill's name or null when
- * empty, and whether it's dimmed because the Hero lacks the Mana for it.
+ * empty, and whether it's dimmed because the Hero lacks the Mana for it or
+ * its Skill is the Held Skill.
  */
 export type SkillBarSlotSheet = {
   slot: SkillBarSlot;
@@ -57,8 +58,15 @@ export type SkillBarSlotSheet = {
   dimmed: boolean;
 };
 
-/** What the Skill Bar shows, slot by slot from left to right. */
-export function skillBarSheet(world: World): SkillBarSlotSheet[] {
+/**
+ * What the Skill Bar shows, slot by slot from left to right. `heldFrom` is
+ * the slot the Held Skill was picked up from, if any: it stays filled, as
+ * the Skill Bar doesn't change until the Skill lands, but shows dimmed.
+ */
+export function skillBarSheet(
+  world: World,
+  heldFrom?: SkillBarSlot,
+): SkillBarSlotSheet[] {
   const { progress, mana } = world.hero;
   return SHOWN_ORDER.map((slot) => {
     const skill = progress.skillBar[slot];
@@ -67,7 +75,7 @@ export function skillBarSheet(world: World): SkillBarSlotSheet[] {
       slot,
       key: keyLabel(slot),
       name: skill && skillTuning[skill].name,
-      dimmed: cost !== null && mana < cost,
+      dimmed: (cost !== null && mana < cost) || slot === heldFrom,
     };
   });
 }

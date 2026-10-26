@@ -1,4 +1,11 @@
 import { describe, expect, it } from "vitest";
+import {
+  acceptPendingPoints,
+  addPendingPoint,
+  createMenus,
+  pressKey,
+} from "../menus";
+import { changesSave, saveOf } from "../save";
 import { emptyBelt } from "../sim/belt";
 import { inventoryOf } from "../sim/inventory";
 import { inside as insidePoint, overlaps, type Rect } from "../sim/rect";
@@ -479,5 +486,32 @@ describe("panelHitAt", () => {
     });
     expect(panelHitAt(screen, inside, withPoints(0), false)).toBeNull();
     expect(panelHitAt(screen, outside, withPoints(5), true)).toBeNull();
+  });
+});
+
+describe("Pending Attribute Points and the Save", () => {
+  it("are never kept by the Save, until Accept spends them", () => {
+    const w = withPoints(5);
+    const menus = createMenus();
+    pressKey(menus, "c", 1000, { heroDead: false });
+    const hero = { heroDead: false, attributePoints: 5 };
+    addPendingPoint(menus, "strength", hero);
+    addPendingPoint(menus, "vitality", hero);
+
+    expect(saveOf(w).progress).toMatchObject({
+      strength: 20,
+      vitality: 20,
+      attributePoints: 5,
+    });
+
+    const accept = acceptPendingPoints(menus);
+    const events = step(w, accept ? [accept] : []);
+
+    expect(changesSave(events)).toBe(true);
+    expect(saveOf(w).progress).toMatchObject({
+      strength: 21,
+      vitality: 21,
+      attributePoints: 3,
+    });
   });
 });

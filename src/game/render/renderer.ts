@@ -64,19 +64,29 @@ import {
   monsterTuning,
 } from "../tuning/monsters";
 import { type Skill, skillTuning } from "../tuning/skills";
+import { atUiScale, type Viewport, viewportOf } from "../viewport";
 import { type Compass, compassOf, frameAt, swingFrame } from "./animation";
-import { arrivedInDisplayName, bannerOpacityAt } from "./areaBanner";
+import {
+  areaBannerLayout,
+  arrivedInDisplayName,
+  bannerOpacityAt,
+} from "./areaBanner";
 import { type Animation, type Art, type CharacterArt, frameOf } from "./art";
 import { beltStripLayout, beltStripSheet } from "./beltStrip";
 import { CLOSE_BUTTON } from "./closeButton";
 import { cursorHitAt, type ShownPanels } from "./cursorHit";
 import {
+  DAMAGE_NUMBER,
   type DamageNumber,
   damageNumbers,
   floatAt,
   floatText,
 } from "./damageNumbers";
-import { experienceBar } from "./experienceBar";
+import {
+  EXPERIENCE_BAR,
+  experienceBar,
+  experienceBarLayout,
+} from "./experienceBar";
 import {
   GROUND_LABEL,
   type GroundLabel,
@@ -95,6 +105,7 @@ import {
 import {
   characterUnder,
   type Hovered,
+  nameplateLayout,
   nameplateOf,
   type Pickable,
 } from "./hover";
@@ -107,7 +118,7 @@ import {
   landingCell,
 } from "./inventoryPanel";
 import { itemColour } from "./itemArt";
-import { type Orb, orbFill } from "./orbs";
+import { type Orb, orbFill, orbsLayout } from "./orbs";
 import {
   hoveredPanelButton,
   panelButtonsLayout,
@@ -235,28 +246,15 @@ const HEAD_HEIGHT = 120;
 /** The Life bar over a damaged Monster's head (CSS px). */
 const MONSTER_BAR = { width: 30, height: 5, above: 8 };
 /**
- * The top-centre nameplate of a hovered Monster (CSS px): a dark panel with
- * the name `nameTop` below its top and a Life bar `barBottom` above its bottom.
+ * The top-centre nameplate's look: a dark panel `alpha` opaque (0..1); where
+ * things go is `nameplateLayout`.
  */
-const NAMEPLATE = {
-  width: 220,
-  height: 46,
-  top: 10,
-  alpha: 0.6,
-  nameTop: 6,
-  nameColour: 0xe8e0c8,
-  nameSize: 16,
-  bar: 180,
-  barHeight: 8,
-  barBottom: 8,
-};
+const NAMEPLATE_STYLE = { alpha: 0.6, nameColour: 0xe8e0c8 };
 /** A Life bar's fill, and its dark back with how opaque that is (0..1). */
 const LIFE_COLOUR = 0xc02020;
 /** The hovered Golem's nameplate: a green name and Life bar, on the Hero's side. */
 const FRIENDLY = { name: 0x9ee08a, life: 0x3fa83a };
 const LIFE_BACK = { colour: 0x2a0606, alpha: 0.85 };
-/** Damage numbers: their size and black outline (CSS px). */
-const NUMBER = { size: 18, stroke: 3, gap: 2 };
 /**
  * White for the Hero's hits, gold for a killing blow, red for damage taken
  * grey for a Miss and pale gold for No room.
@@ -295,29 +293,15 @@ const SKILL_BAR_STYLE = {
 };
 
 /**
- * The Area Banner (CSS px): pale gold with a black outline,
- * centred `top` of the way down the screen.
+ * The Area Banner's look: pale gold with a black outline; where it goes is
+ * `areaBannerLayout`.
  */
-const BANNER = { size: 34, stroke: 4, colour: 0xe8d27a, top: 0.22 };
+const BANNER_COLOUR = 0xe8d27a;
 
-/** The stone strip along the bottom of the screen (CSS px). */
-const STRIP = {
-  height: 34,
-  colour: 0x15120e,
-  alpha: 0.92,
-  edge: 2,
-  edgeColour: 0x4a4236,
-};
-/**
- * The Hero's orbs, Life at the bottom left and Mana mirroring it at the
- * bottom right (CSS px): `side` from the screen's side and `bottom` from its
- * bottom to the stone rim, which is `rim` wide.
- */
+/** The stone strip along the bottom of the screen; where it goes is `orbsLayout`. */
+const STRIP = { colour: 0x15120e, alpha: 0.92, edgeColour: 0x4a4236 };
+/** The Hero's orbs' look; where they go is `orbsLayout`. */
 const ORB = {
-  radius: 52,
-  rim: 8,
-  side: 24,
-  bottom: 10,
   rimColour: 0x2a241c,
   rimLine: 0x4a4236,
   glassLine: 0x6b6258,
@@ -339,11 +323,15 @@ const ORB_COLOURS: Record<
   },
   mana: { empty: 0x040414, fill: 0x0e1e8a, lighten: 0x30, lightenStep: 0x1 },
 };
-/** How far across an orb is from its rim to the far side of it (CSS px). */
-const ORB_SPAN = 2 * (ORB.rim + ORB.radius);
-/** How far the surface ripples either way (CSS px) and how fast (rad/s). */
+/**
+ * How far the surface ripples either way and how deep (CSS px at native
+ * scale) and how fast (rad/s).
+ */
 const RIPPLE = { calm: 1, combat: 2.5, speed: 5, depth: 3 };
-/** Bubbles rising through the Life orb while the Hero regenerates Life. */
+/**
+ * Bubbles rising through the Life orb while the Hero regenerates Life,
+ * `radius` CSS px at native scale.
+ */
 const BUBBLES = {
   count: 6,
   radius: 2,
@@ -353,15 +341,10 @@ const BUBBLES = {
   rate: 0.6,
 };
 /**
- * The Experience bar along the strip between the orbs (CSS px): `gap` from
- * each orb's rim, with `Lv N` before it and
- * `current / next` after it, each `textGap` from the bar.
+ * The Experience bar's look; where it goes is `experienceBarLayout`, and
+ * its sizes `EXPERIENCE_BAR`.
  */
-const EXPERIENCE_BAR = {
-  gap: 14,
-  height: 6,
-  textGap: 8,
-  textSize: 13,
+const EXPERIENCE_BAR_STYLE = {
   textColour: 0xd8c890,
   fill: 0xc8a040,
   back: 0x2a241c,
@@ -467,8 +450,9 @@ const PANEL_BUTTON_STYLE = {
 };
 /**
  * A Ground Item: a small diamond on the floor tinted as its type, `size`
- * across (CSS px), under a dark label with its name, gold while hovered.
- * A click within `grab` of the diamond's box picks it up too.
+ * across (CSS px), under a dark label with its name, gold while hovered
+ * (where the label goes and how big is `groundLabels`). A click within
+ * `grab` of the diamond's box picks it up too.
  */
 const GROUND_ITEM = {
   size: 14,
@@ -478,7 +462,6 @@ const GROUND_ITEM = {
   labelAlpha: 0.7,
   name: 0xe8e0c8,
   hoveredName: 0xe8d27a,
-  textSize: 13,
 };
 
 /** The name shown in each empty Equipment slot. */
@@ -491,7 +474,10 @@ const SLOT_NAMES: Record<EquipmentSlot, string> = {
   belt: "Belt",
 };
 
-/** The badge over the orb: its size, gap over the rim (CSS px) and colours. */
+/**
+ * The badge over the Life orb: its size and gap over the rim (CSS px at
+ * native scale) and colours.
+ */
 const BADGE = { size: 13, gap: 4, combat: 0xd84a3a, regen: 0x9cd89c };
 
 /** The frame of the Hero's `swing` where the blade connects. */
@@ -590,8 +576,7 @@ export function createRenderer(
   const nameplateText = new Text({
     text: "",
     style: {
-      fill: NAMEPLATE.nameColour,
-      fontSize: NAMEPLATE.nameSize,
+      fill: NAMEPLATE_STYLE.nameColour,
       fontFamily: SERIF,
     },
   });
@@ -623,12 +608,7 @@ export function createRenderer(
   // Over the whole screen, stretched to it each frame.
   const banner = new Text({
     text: "",
-    style: {
-      fill: BANNER.colour,
-      fontSize: BANNER.size,
-      fontFamily: SERIF,
-      stroke: { color: 0x000000, width: BANNER.stroke },
-    },
+    style: { fill: BANNER_COLOUR, fontFamily: SERIF },
   });
   banner.anchor.set(0.5);
   banner.visible = false;
@@ -702,7 +682,8 @@ export function createRenderer(
    * last drawn, or null when it's for the World.
    */
   const panelAt = (screen: Vec): CursorHit | null =>
-    drawnWorld && cursorHitAt(app.screen, screen, drawnWorld, shownPanels);
+    drawnWorld &&
+    cursorHitAt(viewportOf(app.screen), screen, drawnWorld, shownPanels);
 
   /**
    * Starts afresh for another World, whose Monster ids start over: drops
@@ -809,7 +790,11 @@ export function createRenderer(
    * Draws each Ground Item on the floor with its name label over it, gold
    * for `hovered`, and drops the labels of Items no longer lying there.
    */
-  const drawGroundItems = (world: World, hovered: ItemId | null) => {
+  const drawGroundItems = (
+    world: World,
+    hovered: ItemId | null,
+    uiScale: number,
+  ) => {
     const lying = groundItemsOf(world);
     groundItems.clear();
     labelBacks.clear();
@@ -833,16 +818,17 @@ export function createRenderer(
       if (!text) {
         text = new Text({
           text: itemOf(item.type).name,
-          style: { fontSize: GROUND_ITEM.textSize, fontFamily: SERIF },
+          style: { fontFamily: SERIF },
         });
         text.anchor.set(0.5, 0.5);
         labelTexts.set(item.id, text);
         camera.addChild(text);
       }
-      const width = text.width + 2 * GROUND_LABEL.padding;
+      sizeText(text, GROUND_LABEL.textSize * uiScale);
+      const width = text.width + 2 * GROUND_LABEL.padding * uiScale;
       return { id: item.id, at, width };
     });
-    labels = groundLabels(sized);
+    labels = groundLabels(sized, uiScale);
     lyingAt = sized.map(({ id, at }) => ({ id, at }));
     for (const { id, rect } of labels) {
       labelBacks
@@ -891,17 +877,13 @@ export function createRenderer(
         if (!sprite) continue;
         const text = new Text({
           text: floatText(number),
-          style: {
-            fill: NUMBER_COLOUR[number.kind],
-            fontSize: NUMBER.size,
-            fontFamily: SERIF,
-            stroke: { color: 0x000000, width: NUMBER.stroke },
-          },
+          style: { fill: NUMBER_COLOUR[number.kind], fontFamily: SERIF },
         });
         text.anchor.set(0.5, 1);
         numbers.addChild(text);
-        // Just over where a Monster's Life bar goes.
-        const at = { x: sprite.position.x, y: barTop(sprite) - NUMBER.gap };
+        // Over where a Monster's Life bar goes; `gap` more at the UI Scale
+        // as it's drawn.
+        const at = { x: sprite.position.x, y: barTop(sprite) };
         floating.push({ text, bornMs: nowMs, at });
       }
       for (const event of events) {
@@ -952,6 +934,9 @@ export function createRenderer(
       heldSkillSlot: SkillBarSlot | null = null,
     ) {
       const active = world.areas[world.areaName];
+      // Read afresh each frame, so a resized window re-lays the HUD at once.
+      const viewport = viewportOf(app.screen);
+      const { uiScale } = viewport;
       shownPanels = {
         heroPanelOpen: menus.heroPanelOpen,
         inventoryOpen: menus.inventoryOpen,
@@ -1172,13 +1157,15 @@ export function createRenderer(
 
       for (let i = floating.length - 1; i >= 0; i--) {
         const { text, bornMs, at } = floating[i];
-        const float = floatAt(nowMs - bornMs);
+        const float = floatAt(nowMs - bornMs, uiScale);
         if (!float) {
           text.destroy();
           floating.splice(i, 1);
           continue;
         }
-        text.position.set(snap(at.x), snap(at.y - float.rise));
+        const look = atUiScale(DAMAGE_NUMBER, uiScale);
+        sizeText(text, look.size, look.stroke);
+        text.position.set(snap(at.x), snap(at.y - look.gap - float.rise));
         text.alpha = float.alpha;
       }
 
@@ -1196,7 +1183,7 @@ export function createRenderer(
         (onWorld && typeof hoveredId !== "number"
           ? groundItemAt(onWorld)
           : null);
-      drawGroundItems(world, hoveredItem);
+      drawGroundItems(world, hoveredItem, uiScale);
       const hoveredMonster =
         world.monsters.find((monster) => monster.id === hoveredId) ?? null;
       const hovered: Hovered | null = hoveredMonster
@@ -1212,32 +1199,25 @@ export function createRenderer(
       nameplateText.visible = hovered !== null;
       if (hovered) {
         const { name, fraction, friendly } = nameplateOf(hovered);
-        const centre = app.screen.width / 2;
+        const layout = nameplateLayout(viewport);
+        const { panel, bar } = layout;
         nameplate
-          .rect(
-            centre - NAMEPLATE.width / 2,
-            NAMEPLATE.top,
-            NAMEPLATE.width,
-            NAMEPLATE.height,
-          )
-          .fill({ color: 0x000000, alpha: NAMEPLATE.alpha });
+          .rect(panel.x, panel.y, panel.w, panel.h)
+          .fill({ color: 0x000000, alpha: NAMEPLATE_STYLE.alpha });
         lifeBar(nameplate, {
-          x: centre - NAMEPLATE.bar / 2,
-          y:
-            NAMEPLATE.top +
-            NAMEPLATE.height -
-            NAMEPLATE.barHeight -
-            NAMEPLATE.barBottom,
-          width: NAMEPLATE.bar,
-          height: NAMEPLATE.barHeight,
+          x: bar.x,
+          y: bar.y,
+          width: bar.w,
+          height: bar.h,
           fraction,
           colour: friendly ? FRIENDLY.life : LIFE_COLOUR,
         });
         nameplateText.text = name;
         nameplateText.style.fill = friendly
           ? FRIENDLY.name
-          : NAMEPLATE.nameColour;
-        nameplateText.position.set(centre, NAMEPLATE.top + NAMEPLATE.nameTop);
+          : NAMEPLATE_STYLE.nameColour;
+        sizeText(nameplateText, layout.nameSize);
+        nameplateText.position.set(layout.nameAt.x, layout.nameAt.y);
       }
 
       // A click on the Golem is a move, so its tile is shown too.
@@ -1257,33 +1237,22 @@ export function createRenderer(
         }
       }
 
-      orb.draw(app.screen, world, nowMs);
-      skillBar.draw(app.screen, world, heldSkillSlot);
-      beltStrip.draw(app.screen, world);
+      orb.draw(viewport, world, nowMs);
+      skillBar.draw(viewport, world, heldSkillSlot);
+      beltStrip.draw(viewport, world);
       panelButtons.draw(
-        app.screen,
+        viewport,
         menus,
         { heroDead: world.death !== null },
         hoveredPanelButton(onPanel),
       );
-      experience.draw(app.screen, world);
-      levelUp.draw(app.screen, world, nowMs);
-      heroPanel.draw(
-        app.screen,
-        world,
-        menus.heroPanelOpen,
-        menus.pendingPoints,
-      );
-      skillTreePanel.draw(app.screen, world, menus.skillTreeOpen);
-      heldSkillView.draw(heldSkill, pointer);
+      experience.draw(viewport, world);
+      levelUp.draw(viewport, world, nowMs);
+      heroPanel.draw(viewport, world, menus.heroPanelOpen, menus.pendingPoints);
+      skillTreePanel.draw(viewport, world, menus.skillTreeOpen);
+      heldSkillView.draw(heldSkill, pointer, uiScale);
       const spot = onPanel && "inventory" in onPanel ? onPanel.inventory : null;
-      inventoryPanel.draw(
-        app.screen,
-        world,
-        menus.inventoryOpen,
-        spot,
-        pointer,
-      );
+      inventoryPanel.draw(viewport, world, menus.inventoryOpen, spot, pointer);
 
       const hurtLeft = hurtAtMs === null ? 0 : 1 - (nowMs - hurtAtMs) / HURT_MS;
       hurt.visible = hurtLeft > 0;
@@ -1296,11 +1265,10 @@ export function createRenderer(
         arrivedAtMs === null ? null : bannerOpacityAt(nowMs - arrivedAtMs);
       banner.visible = bannerAlpha !== null;
       if (bannerAlpha !== null) {
+        const layout = areaBannerLayout(viewport);
         banner.alpha = bannerAlpha;
-        banner.position.set(
-          app.screen.width / 2,
-          Math.round(app.screen.height * BANNER.top),
-        );
+        sizeText(banner, layout.size, layout.stroke);
+        banner.position.set(layout.at.x, layout.at.y);
       } else arrivedAtMs = null;
 
       death.draw(app.screen, world, nowMs);
@@ -1548,50 +1516,45 @@ function orbsView() {
   const graphics = new Graphics();
   const badge = new Text({
     text: "",
-    style: { fill: BADGE.combat, fontSize: BADGE.size, fontFamily: SERIF },
+    style: { fill: BADGE.combat, fontFamily: SERIF },
   });
   badge.anchor.set(0.5, 1);
   layer.addChild(graphics, badge);
 
   return {
     layer,
-    draw(
-      screen: { width: number; height: number },
-      world: World,
-      nowMs: number,
-    ) {
-      const { radius: r } = ORB;
-      const cy = screen.height - ORB.bottom - ORB.rim - r;
-      const lifeX = ORB.side + ORB.rim + r;
-      const manaX = screen.width - lifeX;
+    draw(screen: Viewport, world: World, nowMs: number) {
+      const { uiScale } = screen;
+      const { strip, edge, life: lifeOrb, mana: manaOrb } = orbsLayout(screen);
+      const { radius: r, rim, y: cy } = lifeOrb;
+      const lifeX = lifeOrb.x;
+      const manaX = manaOrb.x;
       const seconds = nowMs / 1000;
       const inCombat = isInCombat(world);
       const regenerating = isRegenerating(world);
 
       graphics.clear();
       graphics
-        .rect(0, screen.height - STRIP.height, screen.width, STRIP.height)
+        .rect(strip.x, strip.y, strip.w, strip.h)
         .fill({ color: STRIP.colour, alpha: STRIP.alpha });
-      graphics
-        .rect(0, screen.height - STRIP.height, screen.width, STRIP.edge)
-        .fill(STRIP.edgeColour);
+      graphics.rect(strip.x, strip.y, strip.w, edge).fill(STRIP.edgeColour);
 
       /** Draws an orb's rim, its fill up to `fraction` and its glass. */
       const drawOrb = (orb: Orb, cx: number, fraction: number) => {
         const colours = ORB_COLOURS[orb];
         graphics
-          .circle(cx, cy, r + ORB.rim)
+          .circle(cx, cy, r + rim)
           .fill(ORB.rimColour)
           .stroke({ width: 2, color: ORB.rimLine });
         graphics.circle(cx, cy, r).fill(colours.empty);
 
         // One 1 px row at a time, so the surface can ripple.
         const surface = cy + r - fraction * r * 2;
-        const ripple = inCombat ? RIPPLE.combat : RIPPLE.calm;
+        const ripple = (inCombat ? RIPPLE.combat : RIPPLE.calm) * uiScale;
         for (let y = Math.floor(surface); y < cy + r; y++) {
           const half = Math.sqrt(Math.max(0, r * r - (y - cy) ** 2));
           const wave =
-            y < surface + RIPPLE.depth
+            y < surface + RIPPLE.depth * uiScale
               ? Math.sin(seconds * RIPPLE.speed + y) * ripple
               : 0;
           const height = (cy + r - y) / (r * 2);
@@ -1615,7 +1578,7 @@ function orbsView() {
           const x = lifeX + Math.sin(i * 2.3 + seconds * 2) * r * 0.5;
           const y = cy + r - rise * life * r * 2;
           graphics
-            .circle(x, y, BUBBLES.radius)
+            .circle(x, y, BUBBLES.radius * uiScale)
             .fill({ color: BUBBLES.colour, alpha: BUBBLES.alpha * (1 - rise) });
         }
       }
@@ -1633,7 +1596,8 @@ function orbsView() {
         ? "⚔ In Combat"
         : `+${heroTuning.regenPerSecond} Life/s`;
       badge.style.fill = inCombat ? BADGE.combat : BADGE.regen;
-      badge.position.set(lifeX, cy - r - ORB.rim - BADGE.gap);
+      sizeText(badge, BADGE.size * uiScale);
+      badge.position.set(lifeX, cy - r - rim - BADGE.gap * uiScale);
     },
   };
 }
@@ -1648,11 +1612,8 @@ function skillBarView() {
   const layer = new Container();
   const graphics = new Graphics();
   layer.addChild(graphics);
-  const text = (fill: number, size: number) => {
-    const t = new Text({
-      text: "",
-      style: { fill, fontSize: size, fontFamily: SERIF },
-    });
+  const text = (fill: number) => {
+    const t = new Text({ text: "", style: { fill, fontFamily: SERIF } });
     layer.addChild(t);
     return t;
   };
@@ -1661,40 +1622,45 @@ function skillBarView() {
 
   return {
     layer,
-    draw(
-      screen: { width: number; height: number },
-      world: World,
-      heldFrom: SkillBarSlot | null,
-    ) {
+    draw(screen: Viewport, world: World, heldFrom: SkillBarSlot | null) {
       const { slots } = skillBarLayout(screen);
+      const scale = screen.uiScale;
       graphics.clear();
       skillBarSheet(world, heldFrom).forEach((shown, index) => {
         if (!labels[index]) {
-          const key = text(style.key, style.keySize);
+          const key = text(style.key);
           key.anchor.set(1, 0);
-          const name = text(style.name, style.nameSize);
+          const name = text(style.name);
           name.anchor.set(0.5);
           labels[index] = { key, name };
         }
         const { key, name } = labels[index];
         const rect = slots[shown.slot];
         const alpha = shown.dimmed ? style.dimmed : 1;
+        const inset = 3 * scale;
         graphics
           .rect(rect.x, rect.y, rect.w, rect.h)
           .fill(style.fill)
           .stroke({ color: style.edge, width: 1.5 });
         if (shown.name !== null) {
           graphics
-            .rect(rect.x + 3, rect.y + 3, rect.w - 6, rect.h - 6)
+            .rect(
+              rect.x + inset,
+              rect.y + inset,
+              rect.w - 2 * inset,
+              rect.h - 2 * inset,
+            )
             .fill({ color: style.skill, alpha })
             .stroke({ color: style.skillEdge, width: 1, alpha });
         }
         name.visible = shown.name !== null;
         name.text = shown.name ?? "";
         name.alpha = alpha;
-        name.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2 + 4);
+        sizeText(name, style.nameSize * scale);
+        name.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2 + 4 * scale);
         key.text = shown.key;
-        key.position.set(rect.x + rect.w - 3, rect.y + 2);
+        sizeText(key, style.keySize * scale);
+        key.position.set(rect.x + rect.w - inset, rect.y + 2 * scale);
       });
     },
   };
@@ -1710,11 +1676,8 @@ function beltStripView() {
   const layer = new Container();
   const graphics = new Graphics();
   layer.addChild(graphics);
-  const text = (fill: number, size: number) => {
-    const label = new Text({
-      text: "",
-      style: { fill, fontSize: size, fontFamily: SERIF },
-    });
+  const text = (fill: number) => {
+    const label = new Text({ text: "", style: { fill, fontFamily: SERIF } });
     layer.addChild(label);
     return label;
   };
@@ -1723,14 +1686,15 @@ function beltStripView() {
 
   return {
     layer,
-    draw(screen: { width: number; height: number }, world: World) {
+    draw(screen: Viewport, world: World) {
       const { columns } = beltStripLayout(screen);
+      const scale = screen.uiScale;
       graphics.clear();
       beltStripSheet(world).forEach((shown, index) => {
         if (!labels[index]) {
-          const key = text(style.key, style.keySize);
+          const key = text(style.key);
           key.anchor.set(1, 0);
-          const count = text(style.name, style.nameSize);
+          const count = text(style.name);
           count.anchor.set(0, 1);
           labels[index] = { key, count };
         }
@@ -1744,21 +1708,28 @@ function beltStripView() {
           // A placeholder Potion: a round body under a narrow neck.
           const colour = itemColour(shown.type);
           const centreX = rect.x + rect.w / 2;
-          const centreY = rect.y + rect.h / 2 + 3;
+          const centreY = rect.y + rect.h / 2 + 3 * scale;
           graphics
-            .rect(centreX - 3, centreY - 15, 6, 7)
+            .rect(
+              centreX - 3 * scale,
+              centreY - 15 * scale,
+              6 * scale,
+              7 * scale,
+            )
             .fill(colour)
             .stroke({ color: style.skillEdge, width: 1 });
           graphics
-            .circle(centreX, centreY, 10)
+            .circle(centreX, centreY, 10 * scale)
             .fill(colour)
             .stroke({ color: style.skillEdge, width: 1 });
         }
         count.visible = shown.count > 0;
         count.text = String(shown.count);
-        count.position.set(rect.x + 3, rect.y + rect.h - 2);
+        sizeText(count, style.nameSize * scale);
+        count.position.set(rect.x + 3 * scale, rect.y + rect.h - 2 * scale);
         key.text = shown.key;
-        key.position.set(rect.x + rect.w - 3, rect.y + 2);
+        sizeText(key, style.keySize * scale);
+        key.position.set(rect.x + rect.w - 3 * scale, rect.y + 2 * scale);
       });
     },
   };
@@ -1796,12 +1767,13 @@ function panelButtonsView() {
     tooltipLayer,
     /** `hovered` is the Panel button under the cursor, if any. */
     draw(
-      screen: { width: number; height: number },
+      screen: Viewport,
       menus: Menus,
       hero: HeroState,
       hovered: Panel | null,
     ) {
       const { buttons } = panelButtonsLayout(screen);
+      const scale = screen.uiScale;
       graphics.clear();
       tooltipBox.clear();
       tooltipText.visible = false;
@@ -1814,7 +1786,7 @@ function panelButtonsView() {
           .fill({ color: shown.lit ? style.skill : style.fill, alpha })
           .stroke({ color: edge, width: look.frame, alpha });
         // The stone frame's inner bevel, deeper when pressed in.
-        const bevel = shown.lit ? look.litBevel : look.bevel;
+        const bevel = (shown.lit ? look.litBevel : look.bevel) * scale;
         graphics
           .rect(
             rect.x + bevel,
@@ -1827,9 +1799,10 @@ function panelButtonsView() {
           graphics,
           shown.panel,
           // Pressed in: the icon sits lower.
-          shown.lit ? { ...rect, y: rect.y + look.pressOffset } : rect,
+          shown.lit ? { ...rect, y: rect.y + look.pressOffset * scale } : rect,
           shown.lit ? style.name : style.key,
           alpha,
+          scale,
         );
         if (shown.panel === hovered) {
           tooltipText.text = shown.tooltip;
@@ -1873,9 +1846,9 @@ function drawTooltip(
 }
 
 /**
- * Draws a Panel button's icon centred in `rect`: a figure for the Hero
- * panel, a bag for the Inventory panel, and linked nodes for the Skill Tree
- * panel.
+ * Draws a Panel button's icon centred in `rect` at the UI Scale `scale`: a
+ * figure for the Hero panel, a bag for the Inventory panel, and linked
+ * nodes for the Skill Tree panel.
  */
 function panelIcon(
   graphics: Graphics,
@@ -1883,14 +1856,18 @@ function panelIcon(
   rect: Rect,
   colour: number,
   alpha: number,
+  scale: number,
 ) {
   const { icon, iconStroke } = PANEL_BUTTON_STYLE;
   const fill = { color: colour, alpha };
-  const line = { color: colour, width: iconStroke, alpha };
+  const line = { color: colour, width: iconStroke * scale, alpha };
   const x = rect.x + rect.w / 2;
   const y = rect.y + rect.h / 2;
   if (panel === "hero") {
-    const { headY, head, shoulders, shouldersY, feet, feetY } = icon.hero;
+    const { headY, head, shoulders, shouldersY, feet, feetY } = atUiScale(
+      icon.hero,
+      scale,
+    );
     graphics.circle(x, y + headY, head).fill(fill);
     graphics
       .poly([
@@ -1906,7 +1883,7 @@ function panelIcon(
       .fill(fill);
   }
   if (panel === "inventory") {
-    const bag = icon.inventory;
+    const bag = atUiScale(icon.inventory, scale);
     graphics
       .roundRect(x - bag.w / 2, y + bag.y, bag.w, bag.h, bag.corner)
       .fill(fill)
@@ -1914,7 +1891,7 @@ function panelIcon(
       .stroke(line);
   }
   if (panel === "skillTree") {
-    const { rootY, leafX, leafY, node } = icon.skillTree;
+    const { rootY, leafX, leafY, node } = atUiScale(icon.skillTree, scale);
     graphics
       .moveTo(x, y + rootY)
       .lineTo(x - leafX, y + leafY)
@@ -1937,7 +1914,7 @@ function createHeldSkillView() {
   const graphics = new Graphics();
   const name = new Text({
     text: "",
-    style: { fill: style.name, fontSize: style.nameSize, fontFamily: SERIF },
+    style: { fill: style.name, fontFamily: SERIF },
   });
   name.anchor.set(0.5);
   layer.addChild(graphics, name);
@@ -1945,10 +1922,12 @@ function createHeldSkillView() {
 
   return {
     layer,
-    draw(skill: Skill | null, pointer: Vec | null) {
+    /** `uiScale` is the UI Scale the Skill Bar is drawn at. */
+    draw(skill: Skill | null, pointer: Vec | null, uiScale: number) {
       layer.visible = skill !== null && pointer !== null;
       if (!skill || !pointer) return;
-      const { slot } = SKILL_BAR;
+      const slot = SKILL_BAR.slot * uiScale;
+      sizeText(name, style.nameSize * uiScale);
       graphics.clear();
       graphics
         .rect(-slot / 2, -slot / 2, slot, slot)
@@ -1967,11 +1946,7 @@ function createHeldSkillView() {
 function experienceBarView() {
   const layer = new Container();
   const graphics = new Graphics();
-  const style = {
-    fill: EXPERIENCE_BAR.textColour,
-    fontSize: EXPERIENCE_BAR.textSize,
-    fontFamily: SERIF,
-  };
+  const style = { fill: EXPERIENCE_BAR_STYLE.textColour, fontFamily: SERIF };
   const level = new Text({ text: "", style });
   level.anchor.set(0, 0.5);
   const amount = new Text({ text: "", style });
@@ -1980,34 +1955,36 @@ function experienceBarView() {
 
   return {
     layer,
-    draw(screen: { width: number; height: number }, world: World) {
+    draw(screen: Viewport, world: World) {
       const bar = experienceBar(
         world.hero.progress.level,
         world.hero.progress.experience,
       );
-      const y = screen.height - (STRIP.height - STRIP.edge) / 2;
-      const left = ORB.side + ORB_SPAN + EXPERIENCE_BAR.gap;
-      const right = screen.width - ORB.side - ORB_SPAN - EXPERIENCE_BAR.gap;
+      const span = experienceBarLayout(screen);
+      const sizes = atUiScale(EXPERIENCE_BAR, screen.uiScale);
+      const y = span.y + span.h / 2;
+      const left = span.x;
+      const right = span.x + span.w;
       level.text = bar.level;
+      sizeText(level, sizes.textSize);
       level.position.set(left, y);
       amount.text = bar.experience;
+      sizeText(amount, sizes.textSize);
       amount.position.set(right, y);
 
-      const from = left + level.width + EXPERIENCE_BAR.textGap;
-      const width = Math.max(
-        0,
-        right - amount.width - EXPERIENCE_BAR.textGap - from,
-      );
-      const top = y - EXPERIENCE_BAR.height / 2;
+      const from = left + level.width + sizes.textGap;
+      const width = Math.max(0, right - amount.width - sizes.textGap - from);
+      const top = y - sizes.height / 2;
+      const look = EXPERIENCE_BAR_STYLE;
       graphics.clear();
       graphics
-        .rect(from, top, width, EXPERIENCE_BAR.height)
-        .fill(EXPERIENCE_BAR.back)
-        .stroke({ width: 1, color: EXPERIENCE_BAR.edge });
+        .rect(from, top, width, sizes.height)
+        .fill(look.back)
+        .stroke({ width: 1, color: look.edge });
       if (bar.fill > 0) {
         graphics
-          .rect(from, top, width * bar.fill, EXPERIENCE_BAR.height)
-          .fill(EXPERIENCE_BAR.fill);
+          .rect(from, top, width * bar.fill, sizes.height)
+          .fill(look.fill);
       }
     },
   };
@@ -2023,11 +2000,7 @@ function levelUpButtonView() {
   const graphics = new Graphics();
   const label = new Text({
     text: "Level Up",
-    style: {
-      fill: HUD_BUTTON.text,
-      fontSize: HUD_BUTTON.textSize,
-      fontFamily: SERIF,
-    },
+    style: { fill: HUD_BUTTON.text, fontFamily: SERIF },
   });
   label.anchor.set(0.5);
   layer.addChild(graphics, label);
@@ -2035,14 +2008,11 @@ function levelUpButtonView() {
 
   return {
     layer,
-    draw(
-      screen: { width: number; height: number },
-      world: World,
-      nowMs: number,
-    ) {
+    draw(screen: Viewport, world: World, nowMs: number) {
       layer.visible = !world.death && hasUnspentPoints(world);
       if (!layer.visible) return;
       const rect = heroPanelLayout(screen).levelUp;
+      sizeText(label, HUD_BUTTON.textSize * screen.uiScale);
       const { pulsesPerSecond, edgeFaint } = HUD_BUTTON;
       const pulse =
         (Math.sin((nowMs / 1000) * pulsesPerSecond * 2 * Math.PI) + 1) / 2;
@@ -2137,7 +2107,7 @@ function heroPanelView() {
   return {
     layer,
     draw(
-      screen: { width: number; height: number },
+      screen: Viewport,
       world: World,
       open: boolean,
       pending: PendingPoints,
@@ -2785,6 +2755,21 @@ function menuLabel(layer: Container): Text {
 }
 
 /** The point `alpha` (0..1) of the way from `from` to `to`. */
+/** The width of the black outline `sizeText` last gave each text. */
+const strokeWidths = new WeakMap<Text, number>();
+
+/**
+ * Sets `text`'s font size, and its black outline's width if given, only
+ * when they change, as each change renders the text afresh.
+ */
+function sizeText(text: Text, size: number, stroke?: number) {
+  if (text.style.fontSize !== size) text.style.fontSize = size;
+  if (stroke !== undefined && strokeWidths.get(text) !== stroke) {
+    text.style.stroke = { color: 0x000000, width: stroke };
+    strokeWidths.set(text, stroke);
+  }
+}
+
 function lerp(from: Vec, to: Vec, alpha: number): Vec {
   return {
     x: from.x + (to.x - from.x) * alpha,

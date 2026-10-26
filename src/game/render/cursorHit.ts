@@ -4,6 +4,7 @@ import { beltRows } from "../sim/belt";
 import { cursorItemOf } from "../sim/inventory";
 import type { Vec } from "../sim/vec";
 import type { World } from "../sim/world";
+import type { Viewport } from "../viewport";
 import { beltStripHitAt } from "./beltStrip";
 import { panelHitAt } from "./heroPanel";
 import { inventoryHitAt } from "./inventoryPanel";
@@ -25,7 +26,7 @@ export type ShownPanels = Pick<
  * them is a drop.
  */
 export function cursorHitAt(
-  screen: { width: number; height: number },
+  screen: Viewport,
   point: Vec,
   world: World,
   shown: ShownPanels,

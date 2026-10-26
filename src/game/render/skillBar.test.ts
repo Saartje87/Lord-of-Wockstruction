@@ -7,6 +7,7 @@ import {
   type Progress,
   type World,
 } from "../sim/world";
+import { viewportOf } from "../viewport";
 import { skillBarHitAt, skillBarLayout, skillBarSheet } from "./skillBar";
 
 const town = {
@@ -39,7 +40,15 @@ function world(progress?: Progress): World {
   return createWorld({ areas: { town }, seed: 1, progress });
 }
 
-const screen = { width: 1280, height: 720 };
+const screen = viewportOf({ width: 1280, height: 720 });
+
+/** The screens the HUD is checked on: desktops and a tablet. */
+const SCREENS = [
+  { width: 1280, height: 720 },
+  { width: 1920, height: 1080 },
+  { width: 2560, height: 1440 },
+  { width: 1180, height: 820 },
+];
 
 describe("the Skill Bar's layout", () => {
   it("sits centred between the orbs, keyed slots Q/W/E/R then the right-click slot", () => {
@@ -56,6 +65,23 @@ describe("the Skill Bar's layout", () => {
     // Above the stone strip, clear of the orbs' 144 px at each side.
     expect(left).toBeGreaterThan(144);
     expect(slots.key1.y + slots.key1.h).toBeLessThan(screen.height - 34);
+  });
+
+  it.each(SCREENS)("is drawn at the UI Scale on $width×$height", (size) => {
+    const viewport = viewportOf(size);
+    const { slots } = skillBarLayout(viewport);
+
+    for (const slot of SKILL_BAR_SLOTS) {
+      // 44 px square at native scale.
+      expect(slots[slot].w).toBeCloseTo(44 * viewport.uiScale);
+      expect(slots[slot].h).toBeCloseTo(44 * viewport.uiScale);
+      expect(slots[slot].x).toBeGreaterThanOrEqual(0);
+      expect(slots[slot].x + slots[slot].w).toBeLessThanOrEqual(size.width);
+      expect(slots[slot].y + slots[slot].h).toBeLessThanOrEqual(size.height);
+    }
+    const left = slots.key1.x;
+    const right = slots.right.x + slots.right.w;
+    expect((left + right) / 2).toBeCloseTo(size.width / 2);
   });
 });
 
@@ -101,6 +127,20 @@ describe("a click on the Skill Bar", () => {
         y: slots[slot].y + slots[slot].h / 2,
       };
       expect(skillBarHitAt(screen, centre)).toEqual({
+        button: { type: "skillBarSlot", slot },
+      });
+    }
+  });
+
+  it.each(SCREENS)("hits each slot at its centre on $width×$height", (size) => {
+    const viewport = viewportOf(size);
+    const { slots } = skillBarLayout(viewport);
+    for (const slot of SKILL_BAR_SLOTS) {
+      const centre = {
+        x: slots[slot].x + slots[slot].w / 2,
+        y: slots[slot].y + slots[slot].h / 2,
+      };
+      expect(skillBarHitAt(viewport, centre)).toEqual({
         button: { type: "skillBarSlot", slot },
       });
     }

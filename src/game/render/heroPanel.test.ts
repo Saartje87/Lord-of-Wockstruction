@@ -21,6 +21,7 @@ import {
   step,
   type World,
 } from "../sim/world";
+import { viewportOf } from "../viewport";
 import {
   heroPanelLayout,
   heroSheet,
@@ -330,7 +331,7 @@ describe("heroSheet with Pending Attribute Points", () => {
 });
 
 describe("panelHitAt", () => {
-  const screen = { width: 1280, height: 720 };
+  const screen = viewportOf({ width: 1280, height: 720 });
   const layout = heroPanelLayout(screen);
   const centre = (rect: { x: number; y: number; w: number; h: number }) => ({
     x: rect.x + rect.w / 2,

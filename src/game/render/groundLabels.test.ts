@@ -34,6 +34,44 @@ describe("groundLabels", () => {
   });
 });
 
+describe("groundLabels at the UI Scale", () => {
+  it("draws each label UI Scale times as tall, as far over its Item", () => {
+    const [label] = groundLabels(
+      [{ id: 1, at: { x: 100, y: 200 }, width: 90 }],
+      1.5,
+    );
+
+    expect(label.rect).toEqual({
+      x: 55,
+      y: 200 - 1.5 * (above + height),
+      w: 90,
+      h: 1.5 * height,
+    });
+  });
+
+  it("stacks labels UI Scale times as far apart, each picked where drawn", () => {
+    const labels = groundLabels(
+      [
+        { id: 1, at: { x: 100, y: 200 }, width: 90 },
+        { id: 2, at: { x: 110, y: 204 }, width: 90 },
+      ],
+      1.5,
+    );
+    const rectOf = (id: number) =>
+      labels.find((label) => label.id === id)?.rect ?? null;
+
+    expect(rectOf(1)?.y).toBeCloseTo(
+      204 - 1.5 * (above + height + gap + height),
+    );
+    for (const id of [1, 2]) {
+      const rect = rectOf(id);
+      if (!rect) throw new Error(`no label ${id}`);
+      const centre = { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
+      expect(groundLabelAt(labels, centre)).toBe(id);
+    }
+  });
+});
+
 describe("groundLabelAt", () => {
   it("is the Ground Item whose label is under the point, or null", () => {
     const labels = groundLabels([{ id: 1, at: { x: 100, y: 200 }, width: 60 }]);

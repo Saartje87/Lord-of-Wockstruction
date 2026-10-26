@@ -6,6 +6,7 @@ import {
   pressKey,
 } from "../menus";
 import { overlaps } from "../sim/rect";
+import { viewportOf } from "../viewport";
 import { beltStripLayout } from "./beltStrip";
 import {
   hoveredPanelButton,
@@ -19,7 +20,8 @@ describe("the Panel buttons' layout", () => {
   it.each([
     { width: 1280, height: 720 },
     { width: 1024, height: 640 },
-  ])("sits right of the Skill Bar in line with it, clear of the Mana orb at $width px", (screen) => {
+  ])("sits right of the Skill Bar in line with it, clear of the Mana orb at $width px", (size) => {
+    const screen = viewportOf(size);
     const { hero, inventory, skillTree } = panelButtonsLayout(screen).buttons;
     const { slots } = skillBarLayout(screen);
     const buttons = [hero, inventory, skillTree];
@@ -39,7 +41,7 @@ describe("the Panel buttons' layout", () => {
   });
 
   it("mirrors the Belt strip across the Skill Bar", () => {
-    const screen = { width: 1280, height: 720 };
+    const screen = viewportOf({ width: 1280, height: 720 });
     const { hero } = panelButtonsLayout(screen).buttons;
     const { slots } = skillBarLayout(screen);
     const belt = beltStripLayout(screen).columns;
@@ -51,7 +53,7 @@ describe("the Panel buttons' layout", () => {
 });
 
 describe("a click on the Panel buttons", () => {
-  const screen = { width: 1280, height: 720 };
+  const screen = viewportOf({ width: 1280, height: 720 });
   const { buttons } = panelButtonsLayout(screen);
 
   it.each([

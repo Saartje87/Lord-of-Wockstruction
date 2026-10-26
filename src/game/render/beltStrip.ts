@@ -3,23 +3,25 @@ import { inside, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
 import type { World } from "../sim/world";
 import { beltTuning, type ItemType, itemOf } from "../tuning/items";
+import type { Viewport } from "../viewport";
 import { SKILL_BAR, skillBarLayout } from "./skillBar";
 
 /**
- * The HUD's Belt strip (CSS px): one square per Belt Column, as big and as
+ * The HUD's Belt strip (CSS px at native scale, drawn at the UI Scale): one square per Belt Column, as big and as
  * far apart as the Skill Bar's slots, ending `toSkillBar` left of it.
  */
 export const BELT_STRIP = { toSkillBar: 16 };
 
 /** Where each Belt Column's square of the Belt strip is drawn, from the left. */
-export function beltStripLayout(screen: { width: number; height: number }): {
+export function beltStripLayout(screen: Viewport): {
   columns: Rect[];
 } {
-  const { slot, gap } = SKILL_BAR;
+  const slot = SKILL_BAR.slot * screen.uiScale;
+  const gap = SKILL_BAR.gap * screen.uiScale;
   const { key1 } = skillBarLayout(screen).slots;
   const count = beltTuning.columns;
   const width = count * slot + (count - 1) * gap;
-  const left = key1.x - BELT_STRIP.toSkillBar - width;
+  const left = key1.x - BELT_STRIP.toSkillBar * screen.uiScale - width;
   return {
     columns: Array.from({ length: count }, (_, index) => ({
       x: left + index * (slot + gap),
@@ -42,7 +44,7 @@ export type BeltStripHit = { button: null; beltColumn: number };
  * on, or null off its squares.
  */
 export function beltStripHitAt(
-  screen: { width: number; height: number },
+  screen: Viewport,
   point: Vec,
 ): BeltStripHit | null {
   const beltColumn = beltStripLayout(screen).columns.findIndex((rect) =>

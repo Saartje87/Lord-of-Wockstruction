@@ -113,4 +113,12 @@ describe("floatAt", () => {
     );
     expect(floatAt(FLOAT_MS)).toBeNull();
   });
+
+  it("rises UI Scale times as far at the UI Scale", () => {
+    const native = floatAt(FLOAT_MS / 2)?.rise ?? 0;
+
+    expect(native).toBeGreaterThan(0);
+    expect(floatAt(FLOAT_MS / 2, 1.5)?.rise).toBeCloseTo(1.5 * native);
+    expect(floatAt(FLOAT_MS / 2, 1.5)?.alpha).toBe(1);
+  });
 });

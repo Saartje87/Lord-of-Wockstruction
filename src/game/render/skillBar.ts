@@ -8,9 +8,11 @@ import {
 import type { Vec } from "../sim/vec";
 import { skillManaCost, type World } from "../sim/world";
 import { skillTuning } from "../tuning/skills";
+import { atUiScale, type Viewport } from "../viewport";
 
 /**
- * The Skill Bar, centred along the bottom between the orbs (CSS px): square
+ * The Skill Bar, centred along the bottom between the orbs (CSS px at
+ * native scale, drawn at the UI Scale): square
  * slots `slot` wide and `gap` apart, the right-click slot `rightGap` past
  * the keyed ones, and the bar's bottom `bottom` over the screen's, clear of
  * the stone strip.
@@ -26,10 +28,10 @@ function keyLabel(slot: SkillBarSlot): string {
 }
 
 /** Where each slot of the Skill Bar is drawn. */
-export function skillBarLayout(screen: { width: number; height: number }): {
+export function skillBarLayout(screen: Viewport): {
   slots: Record<SkillBarSlot, Rect>;
 } {
-  const { slot, gap, rightGap, bottom } = SKILL_BAR;
+  const { slot, gap, rightGap, bottom } = atUiScale(SKILL_BAR, screen.uiScale);
   const keyed = SHOWN_ORDER.length - 1;
   const width = SHOWN_ORDER.length * slot + (keyed - 1) * gap + rightGap;
   const left = (screen.width - width) / 2;
@@ -87,7 +89,7 @@ export type SkillBarHit = {
 
 /** What a click at `point` hits of the Skill Bar, or null off its slots. */
 export function skillBarHitAt(
-  screen: { width: number; height: number },
+  screen: Viewport,
   point: Vec,
 ): SkillBarHit | null {
   const { slots } = skillBarLayout(screen);

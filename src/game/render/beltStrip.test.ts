@@ -3,6 +3,7 @@ import { FRESH_BELONGINGS } from "../sim/inventory";
 import { overlaps } from "../sim/rect";
 import { createWorld, step, type World } from "../sim/world";
 import { beltTuning } from "../tuning/items";
+import { viewportOf } from "../viewport";
 import { beltStripHitAt, beltStripLayout, beltStripSheet } from "./beltStrip";
 import { skillBarLayout } from "./skillBar";
 
@@ -38,7 +39,8 @@ describe("the Belt strip's layout", () => {
   it.each([
     { width: 1280, height: 720 },
     { width: 1024, height: 640 },
-  ])("sits left of the Skill Bar in line with it, clear of the Life orb at $width px", (screen) => {
+  ])("sits left of the Skill Bar in line with it, clear of the Life orb at $width px", (size) => {
+    const screen = viewportOf(size);
     const columns = beltStripLayout(screen).columns;
     const { slots } = skillBarLayout(screen);
 
@@ -59,7 +61,7 @@ describe("the Belt strip's layout", () => {
 });
 
 describe("a click on the Belt strip", () => {
-  const screen = { width: 1280, height: 720 };
+  const screen = viewportOf({ width: 1280, height: 720 });
 
   it("hands back the Belt Column under it, no button but not for the World", () => {
     for (const [beltColumn, rect] of beltStripLayout(

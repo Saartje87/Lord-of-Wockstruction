@@ -20,8 +20,10 @@ import {
   type World,
   withAttributePointsSpent,
 } from "../sim/world";
+import { atUiScale, type Viewport } from "../viewport";
 import { type CloseButton, closeButtonRect, closeHitAt } from "./closeButton";
 import { experienceBar } from "./experienceBar";
+import { orbsLayout } from "./orbs";
 
 /**
  * The Hero panel at the top left (CSS px): `left` and `top` from the
@@ -56,15 +58,11 @@ export const PANEL_ROWS = {
 } as const;
 
 /**
- * The Level Up button over the strip, just right of the Life orb (CSS px):
- * `left` and `bottom` from the screen's corner.
+ * The Level Up button centred over the Life orb (CSS px at native scale,
+ * drawn at the UI Scale like the rest of the HUD): `overOrb` above its rim,
+ * leaving room for the orb's In Combat badge between them.
  */
-export const LEVEL_UP_BUTTON = {
-  left: 160,
-  bottom: 44,
-  width: 96,
-  height: 26,
-};
+export const LEVEL_UP_BUTTON = { width: 96, height: 26, overOrb: 22 };
 
 const ATTRIBUTE_NAMES: Record<Attribute, string> = {
   strength: "Strength",
@@ -194,7 +192,7 @@ export function hasUnspentPoints(world: World): boolean {
  * Where the panel, its × close button, its + and − buttons, Accept and the
  * Level Up button are drawn.
  */
-export function heroPanelLayout(screen: { width: number; height: number }): {
+export function heroPanelLayout(screen: Viewport): {
   panel: Rect;
   closeButton: Rect;
   raise: Record<Attribute, Rect>;
@@ -234,13 +232,16 @@ export function heroPanelLayout(screen: { width: number; height: number }): {
       PANEL_ROWS.attributePoints,
       plusX + HERO_PANEL.plus - minusX,
     ),
-    levelUp: {
-      x: LEVEL_UP_BUTTON.left,
-      y: screen.height - LEVEL_UP_BUTTON.bottom - LEVEL_UP_BUTTON.height,
-      w: LEVEL_UP_BUTTON.width,
-      h: LEVEL_UP_BUTTON.height,
-    },
+    levelUp: levelUpRect(screen),
   };
+}
+
+/** Where the Level Up button is drawn, at the UI Scale. */
+function levelUpRect(screen: Viewport): Rect {
+  const { width, height, overOrb } = atUiScale(LEVEL_UP_BUTTON, screen.uiScale);
+  const { life } = orbsLayout(screen);
+  const top = life.y - life.radius - life.rim - overOrb - height;
+  return { x: life.x - width / 2, y: top, w: width, h: height };
 }
 
 /** The top of the panel's row `row` (CSS px). */
@@ -273,7 +274,7 @@ export type PanelHit = { button: PanelButton | null };
  * on an Attribute with `pending` points, and Accept only while any are.
  */
 export function panelHitAt(
-  screen: { width: number; height: number },
+  screen: Viewport,
   point: Vec,
   world: World,
   open: boolean,

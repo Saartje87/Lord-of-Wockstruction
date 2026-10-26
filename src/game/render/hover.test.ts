@@ -8,7 +8,13 @@ import {
   minionMaxLife,
 } from "../sim/world";
 import type { MonsterType } from "../tuning/monsters";
-import { characterUnder, nameplateOf, type Pickable } from "./hover";
+import { viewportOf } from "../viewport";
+import {
+  characterUnder,
+  nameplateLayout,
+  nameplateOf,
+  type Pickable,
+} from "./hover";
 
 describe("characterUnder", () => {
   it("picks the character whose box is under the point", () => {
@@ -104,6 +110,33 @@ const golem = (life: number): Minion => ({
   path: [],
   replan: 0,
   stuck: 0,
+});
+
+describe("the nameplate's layout", () => {
+  it.each([
+    { width: 1280, height: 720 },
+    { width: 1920, height: 1080 },
+    { width: 2560, height: 1440 },
+    { width: 1180, height: 820 },
+  ])("is centred at the top at the UI Scale on $width×$height", (size) => {
+    const viewport = viewportOf(size);
+    const { panel, bar, nameAt, nameSize } = nameplateLayout(viewport);
+
+    // 220×46 px at native scale, its name 16 px.
+    expect(panel.w).toBeCloseTo(220 * viewport.uiScale);
+    expect(panel.h).toBeCloseTo(46 * viewport.uiScale);
+    expect(nameSize).toBeCloseTo(16 * viewport.uiScale);
+    expect(panel.x + panel.w / 2).toBeCloseTo(size.width / 2);
+    expect(panel.y).toBeGreaterThanOrEqual(0);
+    // The name and Life bar inside the panel, the name over the bar.
+    for (const rect of [bar, { ...nameAt, w: 0, h: nameSize }]) {
+      expect(rect.x).toBeGreaterThanOrEqual(panel.x);
+      expect(rect.x + rect.w).toBeLessThanOrEqual(panel.x + panel.w);
+      expect(rect.y).toBeGreaterThanOrEqual(panel.y);
+      expect(rect.y + rect.h).toBeLessThanOrEqual(panel.y + panel.h);
+    }
+    expect(nameAt.y + nameSize).toBeLessThanOrEqual(bar.y);
+  });
 });
 
 describe("nameplateOf", () => {

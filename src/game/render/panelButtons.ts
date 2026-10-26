@@ -8,6 +8,7 @@ import {
 } from "../menus";
 import { inside, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
+import type { Viewport } from "../viewport";
 import { BELT_STRIP } from "./beltStrip";
 import { SKILL_BAR, skillBarLayout } from "./skillBar";
 
@@ -23,12 +24,13 @@ export const PANEL_BUTTONS: readonly Panel[] = [
  * Bar's slots, in line with them, starting as far right of the Skill Bar as
  * the Belt strip ends left of it.
  */
-export function panelButtonsLayout(screen: { width: number; height: number }): {
+export function panelButtonsLayout(screen: Viewport): {
   buttons: Record<Panel, Rect>;
 } {
-  const { slot, gap } = SKILL_BAR;
+  const slot = SKILL_BAR.slot * screen.uiScale;
+  const gap = SKILL_BAR.gap * screen.uiScale;
   const { right } = skillBarLayout(screen).slots;
-  const left = right.x + right.w + BELT_STRIP.toSkillBar;
+  const left = right.x + right.w + BELT_STRIP.toSkillBar * screen.uiScale;
   return {
     buttons: Object.fromEntries(
       PANEL_BUTTONS.map((panel, index) => [
@@ -47,7 +49,7 @@ export type PanelButtonHit = { button: PanelButton };
 
 /** What a click at `point` hits of the Panel buttons, or null off them. */
 export function panelButtonHitAt(
-  screen: { width: number; height: number },
+  screen: Viewport,
   point: Vec,
 ): PanelButtonHit | null {
   const { buttons } = panelButtonsLayout(screen);

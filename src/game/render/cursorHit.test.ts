@@ -4,6 +4,7 @@ import { beltRows, emptyBelt } from "../sim/belt";
 import { overlaps, type Rect } from "../sim/rect";
 import { createWorld, step } from "../sim/world";
 import type { ItemType } from "../tuning/items";
+import { viewportOf } from "../viewport";
 import { cursorHitAt } from "./cursorHit";
 import { inventoryPanelLayout } from "./inventoryPanel";
 import { panelButtonsLayout } from "./panelButtons";
@@ -48,7 +49,7 @@ function overlapCentre(a: Rect, b: Rect) {
   return { x: (left + right) / 2, y: (top + bottom) / 2 };
 }
 
-const SMALL = { width: 1024, height: 640 };
+const SMALL = viewportOf({ width: 1024, height: 640 });
 const inventoryOpen = { ...createMenus(), inventoryOpen: true };
 
 describe("a press where the open Inventory panel covers the HUD", () => {
@@ -92,7 +93,7 @@ describe("a press where the open Inventory panel covers the HUD", () => {
   });
 
   it("finds a Panel button the panel leaves clear at 1280 px, rather than a drop", () => {
-    const screen = { width: 1280, height: 720 };
+    const screen = viewportOf({ width: 1280, height: 720 });
     const w = world("platedBelt");
     step(w, [{ type: "LiftItem", from: { column: 0, row: 0 } }]);
     const { panel } = inventoryPanelLayout(screen, beltRows(w));

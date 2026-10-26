@@ -77,10 +77,12 @@ export function createCursor(): Cursor {
 /**
  * What a press of the left button does with Held Items and Held Skills.
  *
- * - On the Inventory panel, with nothing held, it lifts the Item there as
- *   the Held Item, for its release to put down if it's dragged; with one
- *   held, it puts it down there.
- * - Off the panels with an Item held, it drops it, and orders nothing else.
+ * - On the Inventory panel or a Belt strip square, with nothing held, it
+ *   lifts the Item there as the Held Item (a Belt Column's bottom Potion on
+ *   the strip), for its release to put down if it's dragged; with one held,
+ *   it puts it down there (on the strip, at the column's lowest free row).
+ * - Off the panels with an Item held, it drops it, and orders nothing else,
+ *   whether or not the Inventory panel is open.
  * - On a learned Skill in the Skill Tree, with no Item held, it picks it up
  *   as the Held Skill.
  * - With a Held Skill, on a Skill Bar slot it puts it there; anywhere else,
@@ -95,11 +97,19 @@ export function pressCursor(
   press: CursorPoint,
   { world, screen }: CursorScene,
 ): CursorOutcome {
-  const { hit, at } = press;
+  const { at } = press;
+  const hit = asItemSpot(press.hit);
   cursor = { ...cursor, liftedFrom: null };
   const { heldSkill } = cursor;
   if (heldSkill !== null) return landHeldSkill(cursor, heldSkill, hit);
-  if (hit === null) return { cursor, orders: [], taken: false };
+  if (hit === null) {
+    // Over the World with an Item held, even with the Inventory panel shut
+    // after a lift from the Belt strip, the press drops it, and only that.
+    if (cursorItemOf(world) === null) {
+      return { cursor, orders: [], taken: false };
+    }
+    return { cursor, orders: [{ type: "DropItem" }], taken: true };
+  }
   if (!("button" in hit)) {
     const order = inventoryOrder(world, screen, at, hit);
     const lifted = order?.type === "LiftItem" && itemUnder(world, order.from);
@@ -122,8 +132,9 @@ export function pressCursor(
  *   it was picked up from it stays held, for a second click; anywhere else
  *   it is let go of, changing nothing.
  * - A Held Item lifted by the press, dragged and let go over a different
- *   spot, is put down, swapped or dropped there, just as a second click
- *   there would; otherwise it stays held, for a second click to put down.
+ *   spot (a Belt strip square among them), is put down, swapped or dropped
+ *   there, just as a second click there would; otherwise it stays held,
+ *   for a second click to put down.
  */
 export function releaseCursor(
   cursor: Cursor,
@@ -171,16 +182,28 @@ function landHeldSkill(
  * the panel didn't yet hit-test the point as a drop.
  */
 function putDownOnRelease(
-  { at, hit }: CursorRelease,
+  release: CursorRelease,
   lifted: NonNullable<Cursor["liftedFrom"]>,
   { world, screen }: CursorScene,
 ): Order[] {
+  const { at } = release;
+  const hit = asItemSpot(release.hit);
   if (at === null) return [];
   if (hit === null || "drop" in hit) return [{ type: "DropItem" }];
   if (!("inventory" in hit) || hit.inventory === null) return [];
   const spot = hit.inventory;
   if (sameSpot(spot, lifted.spot)) return [];
   return [putDownOrder(world, screen, at, spot, lifted.type)];
+}
+
+/**
+ * A point on a Belt strip square as the Belt Column spot it stands for: its
+ * bottom row, the Potion lifted from there, and where a Potion put down
+ * there goes in at the lowest free row. Any other hit is as it was.
+ */
+function asItemSpot(hit: CursorHit | null): CursorHit | null {
+  if (hit === null || !("beltColumn" in hit)) return hit;
+  return { inventory: { beltColumn: hit.beltColumn, row: 0 } };
 }
 
 function sameSpot(a: ItemSpot, b: ItemSpot): boolean {

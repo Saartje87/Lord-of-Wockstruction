@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   type CursorHit,
   createCursor,
@@ -7,6 +7,7 @@ import {
   releaseCursor,
   settleCursor,
 } from "./cursor";
+import { beltStripLayout } from "./render/beltStrip";
 import { inventoryPanelLayout } from "./render/inventoryPanel";
 import { beltOf, emptyBelt } from "./sim/belt";
 import {
@@ -19,6 +20,7 @@ import {
 } from "./sim/inventory";
 import type { Vec } from "./sim/vec";
 import { createWorld, groundItemsOf, step, type World } from "./sim/world";
+import { beltTuning } from "./tuning/items";
 
 const SCREEN = { width: 1280, height: 800 };
 
@@ -562,5 +564,174 @@ describe("clicking an Item", () => {
 
     expect(typeAt(world, 7, 1)).toBe("axe");
     expect(released.orders).toEqual([]);
+  });
+});
+
+const stripColumns = beltStripLayout(SCREEN).columns;
+/** Where a Belt Column's square of the Belt strip is, and what it hits. */
+const onStrip = (beltColumn: number): { at: Vec; hit: CursorHit } => ({
+  at: centreOfRect(stripColumns[beltColumn]),
+  hit: { button: null, beltColumn },
+});
+
+/**
+ * A Belt of two rows: two Life Potions and a Mana Potion above them in the
+ * first column, a Mana Potion in the third, and the Inventory empty.
+ */
+const belted: Belongings = {
+  inventory: [],
+  equipment: {},
+  belt: [["lifePotion", "manaPotion"], [], ["manaPotion"], []],
+};
+const beltedWorld = () => {
+  beltTuning.rowsWithoutBelt = 2;
+  return createWorld({ areas: { town }, seed: 1, belongings: belted });
+};
+const beltTypes = (world: World) =>
+  beltOf(world).map((column) => column.map((item) => item.type));
+
+const tunedBelt = { ...beltTuning };
+afterEach(() => {
+  Object.assign(beltTuning, tunedBelt);
+});
+
+describe("the cursor on the Belt strip", () => {
+  it("lifts the bottom Potion of the Belt Column pressed on, the ones above dropping down a row", () => {
+    const world = beltedWorld();
+
+    const { orders, taken } = pressCursor(createCursor(), onStrip(0), {
+      world,
+      screen: SCREEN,
+    });
+    step(world, orders);
+
+    expect(taken).toBe(true);
+    expect(heldType(world)).toBe("lifePotion");
+    expect(beltTypes(world)[0]).toEqual(["manaPotion"]);
+  });
+
+  it("lifts nothing from an empty square, still keeping the press from the World", () => {
+    const { orders, taken } = pressCursor(createCursor(), onStrip(1), {
+      world: beltedWorld(),
+      screen: SCREEN,
+    });
+
+    expect(orders).toEqual([]);
+    expect(taken).toBe(true);
+  });
+
+  it("puts a held Potion into the Belt Column clicked next, at its lowest free row", () => {
+    const { world, cursor } = drag(onStrip(0), onStrip(0), {
+      dragged: false,
+      world: beltedWorld(),
+    });
+    expect(heldType(world)).toBe("lifePotion");
+
+    const { orders } = pressCursor(cursor, onStrip(2), {
+      world,
+      screen: SCREEN,
+    });
+    step(world, orders);
+
+    expect(heldType(world)).toBeUndefined();
+    expect(beltTypes(world)).toEqual([
+      ["manaPotion"],
+      [],
+      ["manaPotion", "lifePotion"],
+      [],
+    ]);
+  });
+
+  it("puts a dragged Potion into the Belt Column it's let go over", () => {
+    const { world } = drag(onStrip(0), onStrip(1), { world: beltedWorld() });
+
+    expect(heldType(world)).toBeUndefined();
+    expect(beltTypes(world)).toEqual([
+      ["manaPotion"],
+      ["lifePotion"],
+      ["manaPotion"],
+      [],
+    ]);
+  });
+
+  it("leaves it held when let go over its own square, for a second click", () => {
+    const { world, orders } = drag(onStrip(0), onStrip(0), {
+      world: beltedWorld(),
+    });
+
+    expect(orders).toEqual([]);
+    expect(heldType(world)).toBe("lifePotion");
+  });
+
+  it("leaves it held when its Belt Column is full", () => {
+    const world = beltedWorld();
+    step(world, [{ type: "LiftItem", from: { beltColumn: 2, row: 0 } }]);
+
+    const { orders } = pressCursor(createCursor(), onStrip(0), {
+      world,
+      screen: SCREEN,
+    });
+    step(world, orders);
+
+    expect(heldType(world)).toBe("manaPotion");
+    expect(beltTypes(world)[0]).toEqual(["lifePotion", "manaPotion"]);
+  });
+
+  it("moves a Potion from the Belt strip to the open Inventory panel and back, by drag or click", () => {
+    const { world } = drag(onStrip(0), at({ column: 9, row: 3 }));
+
+    expect(typeAt(world, 9, 3)).toBe("lifePotion");
+    expect(beltTypes(world)[0]).toEqual([]);
+
+    drag(at({ column: 9, row: 3 }), onStrip(3), { world });
+
+    expect(typeAt(world, 9, 3)).toBeUndefined();
+    expect(beltTypes(world)[3]).toEqual(["lifePotion"]);
+
+    const clicked = drag(onStrip(3), onStrip(3), { world, dragged: false });
+    const { orders } = pressCursor(clicked.cursor, at({ column: 7, row: 3 }), {
+      world,
+      screen: SCREEN,
+    });
+    step(world, orders);
+
+    expect(typeAt(world, 7, 3)).toBe("lifePotion");
+    expect(beltTypes(world)[3]).toEqual([]);
+  });
+
+  it("moves a Potion between the panel's Belt Columns and the Belt strip", () => {
+    const { world } = drag(at({ beltColumn: 0, row: 0 }), onStrip(1));
+
+    expect(beltTypes(world)).toEqual([[], ["lifePotion"], [], []]);
+
+    drag(onStrip(1), at({ beltColumn: 2, row: 0 }), { world });
+
+    expect(beltTypes(world)).toEqual([[], [], ["lifePotion"], []]);
+  });
+
+  it("drops a Potion let go over the World with the Inventory panel shut, ordering nothing else", () => {
+    const { world, orders } = drag(onStrip(0), OVER_THE_WORLD, {
+      world: beltedWorld(),
+    });
+
+    expect(orders).toEqual([{ type: "DropItem" }]);
+    expect(groundItemsOf(world).map(({ item }) => item.type)).toEqual([
+      "lifePotion",
+    ]);
+  });
+
+  it("drops a held Potion on the next click over the World with the Inventory panel shut, so the Hero doesn't walk", () => {
+    const { world, cursor } = drag(onStrip(0), onStrip(0), {
+      world: beltedWorld(),
+      dragged: false,
+    });
+
+    const { orders, taken } = pressCursor(cursor, OVER_THE_WORLD, {
+      world,
+      screen: SCREEN,
+    });
+
+    expect(orders).toEqual([{ type: "DropItem" }]);
+    expect(taken).toBe(true);
   });
 });

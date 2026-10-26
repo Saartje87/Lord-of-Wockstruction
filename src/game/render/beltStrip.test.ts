@@ -61,11 +61,25 @@ describe("the Belt strip's layout", () => {
 describe("a click on the Belt strip", () => {
   const screen = { width: 1280, height: 720 };
 
-  it("is on the strip but no button over a Belt Column, so it's not for the World", () => {
-    for (const rect of beltStripLayout(screen).columns) {
+  it("hands back the Belt Column under it, no button but not for the World", () => {
+    for (const [beltColumn, rect] of beltStripLayout(
+      screen,
+    ).columns.entries()) {
       const centre = { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
-      expect(beltStripHitAt(screen, centre)).toEqual({ button: null });
+      expect(beltStripHitAt(screen, centre)).toEqual({
+        button: null,
+        beltColumn,
+      });
     }
+  });
+
+  it("hands back the Belt Column at a square's edges", () => {
+    const [, second] = beltStripLayout(screen).columns;
+
+    expect(beltStripHitAt(screen, { x: second.x, y: second.y })).toEqual({
+      button: null,
+      beltColumn: 1,
+    });
   });
 
   it("is for the World off the strip", () => {

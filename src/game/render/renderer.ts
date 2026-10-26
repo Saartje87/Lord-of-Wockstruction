@@ -557,6 +557,7 @@ export function createRenderer(
   app.stage.addChild(inventoryPanel.layer);
   const skillTreePanel = skillTreePanelView();
   app.stage.addChild(skillTreePanel.layer);
+  app.stage.addChild(inventoryPanel.heldLayer);
   const heldSkillView = createHeldSkillView();
   app.stage.addChild(heldSkillView.layer);
   // Over the whole screen, stretched to it each frame.
@@ -2144,10 +2145,21 @@ function inventoryPanelView() {
   layer.addChild(tooltipBox);
   /** Tooltip lines, made as more are needed, over its box. */
   const tooltipLines: Text[] = [];
-  /** The held Item, over everything else on the panel. */
+  /**
+   * The Held Item on the cursor, over the panels, drawn even with the panel
+   * shut after a lift from the Belt strip.
+   */
+  const heldLayer = new Container();
   const heldBox = new Graphics();
-  layer.addChild(heldBox);
-  const heldName = text(look.itemText, look.itemTextSize);
+  const heldName = new Text({
+    text: "",
+    style: {
+      fill: look.itemText,
+      fontSize: look.itemTextSize,
+      fontFamily: SERIF,
+    },
+  });
+  heldLayer.addChild(heldBox, heldName);
 
   /** Draws an Item's box, tinted as its type, with its name in `name`. */
   const drawItem = (
@@ -2170,8 +2182,26 @@ function inventoryPanelView() {
     name.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
   };
 
+  /** Draws the Held Item, if any, centred on `pointer`, cells `cell` big. */
+  const drawHeld = (world: World, pointer: Vec | null, cell: number) => {
+    heldBox.clear();
+    heldName.visible = false;
+    const held = cursorItemOf(world);
+    if (!held || !pointer) return;
+    const { type } = held.item;
+    const { columns, rows } = itemOf(type).size;
+    const rect = {
+      x: pointer.x - (columns * cell) / 2,
+      y: pointer.y - (rows * cell) / 2,
+      w: columns * cell,
+      h: rows * cell,
+    };
+    drawItem(heldBox, heldName, rect, type, look.heldAlpha);
+  };
+
   return {
     layer,
+    heldLayer,
     /**
      * `hovered` is the spot under `pointer`, the cursor on the canvas (CSS
      * px), if it's on the panel.
@@ -2183,10 +2213,11 @@ function inventoryPanelView() {
       hovered: ItemSpot | null,
       pointer: Vec | null,
     ) {
-      layer.visible = open;
-      if (!open) return;
       const layout = inventoryPanelLayout(screen, beltRows(world));
       const { panel, grid, cell, slots } = layout;
+      drawHeld(world, pointer, cell);
+      layer.visible = open;
+      if (!open) return;
 
       graphics.clear();
       graphics
@@ -2248,8 +2279,6 @@ function inventoryPanelView() {
 
       tooltipBox.clear();
       for (const line of tooltipLines) line.visible = false;
-      heldBox.clear();
-      heldName.visible = false;
       const held = cursorItemOf(world);
       if (held && pointer) {
         const { type } = held.item;
@@ -2289,16 +2318,6 @@ function inventoryPanelView() {
             .rect(rect.x, rect.y, rect.w, rect.h)
             .fill({ color: colour, alpha: look.landingAlpha });
         }
-        const { columns, rows } = itemOf(type).size;
-        const rect = {
-          x: pointer.x - (columns * cell) / 2,
-          y: pointer.y - (rows * cell) / 2,
-          w: columns * cell,
-          h: rows * cell,
-        };
-        layer.setChildIndex(heldBox, layer.children.length - 1);
-        layer.setChildIndex(heldName, layer.children.length - 1);
-        drawItem(heldBox, heldName, rect, type, look.heldAlpha);
         // No tooltip while holding an Item, as in Diablo 2.
         return;
       }

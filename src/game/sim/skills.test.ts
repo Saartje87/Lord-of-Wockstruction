@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { skillTuning } from "../tuning/skills";
+import { emptySkillBar, placeLearnedSkill } from "./skillBar";
 import {
   createWorld,
   FRESH_PROGRESS,
@@ -178,5 +179,57 @@ describe("SpendSkillPoint", () => {
     expect(saved.skillLevels.golem).toBe(0);
     expect(kept.skillLevels.golem).toBe(1);
     expect(progressOf(w).skillLevels).not.toBe(kept.skillLevels);
+    expect(saved.skillBar.right).toBeNull();
+    expect(progressOf(w).skillBar).not.toBe(kept.skillBar);
+  });
+});
+
+describe("learning a Skill", () => {
+  it("puts it into the right-click slot of an empty Skill Bar", () => {
+    const w = world(withSkillPoints(2, 1));
+
+    spend(w, "golem");
+
+    expect(progressOf(w).skillBar).toEqual({
+      right: "golem",
+      key1: null,
+      key2: null,
+      key3: null,
+      key4: null,
+    });
+  });
+
+  it("leaves the Skill Bar as it is when raising a Skill already learned", () => {
+    const w = world(withSkillPoints(3, 1));
+
+    spend(w, "golem");
+
+    expect(progressOf(w).skillBar).toEqual(emptySkillBar());
+  });
+});
+
+describe("placeLearnedSkill", () => {
+  // A second Skill, which the tuning doesn't have yet.
+  const other = "boneWall" as Skill;
+
+  it("takes the first empty keyed slot when the right-click slot is taken", () => {
+    const bar = { ...emptySkillBar(), right: other, key1: other };
+
+    expect(placeLearnedSkill(bar, "golem")).toEqual({
+      ...bar,
+      key2: "golem",
+    });
+  });
+
+  it("leaves a full Skill Bar as it is", () => {
+    const full = {
+      right: other,
+      key1: other,
+      key2: other,
+      key3: other,
+      key4: other,
+    };
+
+    expect(placeLearnedSkill(full, "golem")).toEqual(full);
   });
 });

@@ -51,6 +51,18 @@ describe("damageNumbers", () => {
     ]);
   });
 
+  it("shows a failed cast over the Hero, with why", () => {
+    expect(
+      damageNumbers([
+        { type: "CastFailed", reason: "town" },
+        { type: "CastFailed", reason: "mana" },
+      ]),
+    ).toEqual([
+      { on: "hero", kind: "castFailed", reason: "town" },
+      { on: "hero", kind: "castFailed", reason: "mana" },
+    ]);
+  });
+
   it("shows a Monster's Miss over the Hero", () => {
     expect(damageNumbers([{ type: "Missed", target: "hero" }])).toEqual([
       { on: "hero", kind: "miss" },
@@ -64,6 +76,15 @@ describe("floatText", () => {
     expect(floatText({ on: 1, kind: "miss" })).toBe("Miss");
     expect(floatText({ on: "hero", kind: "miss" })).toBe("Miss");
     expect(floatText({ on: "hero", kind: "noRoom" })).toBe("No room");
+  });
+
+  it("names why a cast failed", () => {
+    expect(floatText({ on: "hero", kind: "castFailed", reason: "town" })).toBe(
+      "Can't cast in Town",
+    );
+    expect(floatText({ on: "hero", kind: "castFailed", reason: "mana" })).toBe(
+      "Not enough Mana",
+    );
   });
 });
 

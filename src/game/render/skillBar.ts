@@ -1,0 +1,93 @@
+import { inside, type Rect } from "../sim/rect";
+import { SKILL_BAR_SLOTS, type SkillBarSlot } from "../sim/skillBar";
+import type { Vec } from "../sim/vec";
+import { skillManaCost, type World } from "../sim/world";
+import { skillTuning } from "../tuning/skills";
+
+/**
+ * The Skill Bar, centred along the bottom between the orbs (CSS px): square
+ * slots `slot` wide and `gap` apart, the right-click slot `rightGap` past
+ * the keyed ones, and the bar's bottom `bottom` over the screen's, clear of
+ * the stone strip.
+ */
+export const SKILL_BAR = { slot: 44, gap: 6, rightGap: 16, bottom: 42 };
+
+/** The Skill Bar's slots from left to right: keys 1–4, then right-click. */
+const SHOWN_ORDER: readonly SkillBarSlot[] = [
+  "key1",
+  "key2",
+  "key3",
+  "key4",
+  "right",
+];
+
+/** The key shown on each slot. */
+const KEY_LABELS: Record<SkillBarSlot, string> = {
+  key1: "1",
+  key2: "2",
+  key3: "3",
+  key4: "4",
+  right: "RMB",
+};
+
+/** Where each slot of the Skill Bar is drawn. */
+export function skillBarLayout(screen: { width: number; height: number }): {
+  slots: Record<SkillBarSlot, Rect>;
+} {
+  const { slot, gap, rightGap, bottom } = SKILL_BAR;
+  const keyed = SHOWN_ORDER.length - 1;
+  const width = SHOWN_ORDER.length * slot + (keyed - 1) * gap + rightGap;
+  const left = (screen.width - width) / 2;
+  const y = screen.height - bottom - slot;
+  const xOf = (index: number) =>
+    left + index * (slot + gap) + (index === keyed ? rightGap - gap : 0);
+  return {
+    slots: Object.fromEntries(
+      SHOWN_ORDER.map((name, index) => [
+        name,
+        { x: xOf(index), y, w: slot, h: slot },
+      ]),
+    ) as Record<SkillBarSlot, Rect>,
+  };
+}
+
+/**
+ * What a Skill Bar slot shows: its key, its Skill's name or null when
+ * empty, and whether it's dimmed because the Hero lacks the Mana for it.
+ */
+export type SkillBarSlotSheet = {
+  slot: SkillBarSlot;
+  key: string;
+  name: string | null;
+  dimmed: boolean;
+};
+
+/** What the Skill Bar shows, slot by slot from left to right. */
+export function skillBarSheet(world: World): SkillBarSlotSheet[] {
+  const { progress, mana } = world.hero;
+  return SHOWN_ORDER.map((slot) => {
+    const skill = progress.skillBar[slot];
+    const cost = skill && skillManaCost(skill, progress.skillLevels[skill]);
+    return {
+      slot,
+      key: KEY_LABELS[slot],
+      name: skill && skillTuning[skill].name,
+      dimmed: cost !== null && mana < cost,
+    };
+  });
+}
+
+/** A click on a Skill Bar slot, so not for the World. */
+export type SkillBarHit = {
+  button: { type: "skillBarSlot"; slot: SkillBarSlot };
+};
+
+/** What a click at `point` hits of the Skill Bar, or null off its slots. */
+export function skillBarHitAt(
+  screen: { width: number; height: number },
+  point: Vec,
+): SkillBarHit | null {
+  const { slots } = skillBarLayout(screen);
+  const slot = SKILL_BAR_SLOTS.find((name) => inside(slots[name], point));
+  return slot ? { button: { type: "skillBarSlot", slot } } : null;
+}

@@ -1,4 +1,4 @@
-import type { MonsterId, SimEvent } from "../sim/world";
+import type { CastFailure, MonsterId, SimEvent } from "../sim/world";
 
 /** How long a damage number floats (ms). */
 export const FLOAT_MS = 900;
@@ -9,15 +9,25 @@ const RISE_SPEED = 30;
  * A number to float up from whoever was hit: `hit` for the Hero's hits,
  * `kill` for a killing blow and `taken` for damage the Hero takes; a
  * `miss` floating up from a Monster the Hero Missed, or from the Hero a
- * Monster Missed; or `noRoom` over the Hero, who found no room for a Ground
- * Item.
+ * Monster Missed; `noRoom` over the Hero, who found no room for a Ground
+ * Item; or `castFailed` over the Hero, whose cast failed for `reason`.
  */
 export type DamageNumber =
   | { on: MonsterId | "hero"; damage: number; kind: "hit" | "kill" | "taken" }
   | { on: MonsterId | "hero"; kind: "miss" }
-  | { on: "hero"; kind: "noRoom" };
+  | { on: "hero"; kind: "noRoom" }
+  | { on: "hero"; kind: "castFailed"; reason: CastFailure };
 
-/** The damage numbers, Misses and No rooms a step's events show. */
+/** What a failed cast floats, by why it failed. */
+const CAST_FAILED_TEXT: Record<CastFailure, string> = {
+  town: "Can't cast in Town",
+  mana: "Not enough Mana",
+};
+
+/**
+ * The damage numbers, Misses, No rooms and failed casts a step's events
+ * show.
+ */
 export function damageNumbers(events: readonly SimEvent[]): DamageNumber[] {
   const died = new Set<MonsterId>();
   for (const event of events) {
@@ -36,6 +46,9 @@ export function damageNumbers(events: readonly SimEvent[]): DamageNumber[] {
       numbers.push({ on: "hero", damage: event.damage, kind: "taken" });
     }
     if (event.type === "NoRoom") numbers.push({ on: "hero", kind: "noRoom" });
+    if (event.type === "CastFailed") {
+      numbers.push({ on: "hero", kind: "castFailed", reason: event.reason });
+    }
   }
   return numbers;
 }
@@ -44,6 +57,7 @@ export function damageNumbers(events: readonly SimEvent[]): DamageNumber[] {
 export function floatText(number: DamageNumber): string {
   if (number.kind === "miss") return "Miss";
   if (number.kind === "noRoom") return "No room";
+  if (number.kind === "castFailed") return CAST_FAILED_TEXT[number.reason];
   return String(number.damage);
 }
 

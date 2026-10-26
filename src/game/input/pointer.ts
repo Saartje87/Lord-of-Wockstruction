@@ -79,7 +79,7 @@ export function attachPointer(
     listener: (e: HTMLElementEventMap[K]) => void,
   ) => canvas.addEventListener(type, listener, { signal });
 
-  // The right button is for the panels, not the browser's menu.
+  // The right button is for casting and the panels, not the browser's menu.
   on("contextmenu", (e) => e.preventDefault());
   on("pointerdown", (e) => {
     if (e.button === 2) pressRight(input, { x: e.offsetX, y: e.offsetY });
@@ -114,8 +114,9 @@ export function pressRight(input: PointerInput, screen: Vec) {
 }
 
 /**
- * Where the right button went down since this was last called, if it did,
- * for the panels to handle: it never orders the Hero about.
+ * Where the right button went down on a panel since this was last called,
+ * if it did, for the panels to handle. `poll` turns one anywhere else into a
+ * cast.
  */
 export function takeRightClick(input: PointerInput): Vec | null {
   const at = input.rightPressedAt;
@@ -153,8 +154,26 @@ export function cancel(input: PointerInput) {
  * attacking as soon as the cursor passes over a Monster. A click on a panel
  * orders nothing, nor does holding it on, and steering doesn't follow the
  * cursor onto a panel.
+ *
+ * A right-click off the panels casts the right-click slot's Skill at the
+ * point under it; one on a panel is left for `takeRightClick`.
  */
 export function poll<Panel>(
+  input: PointerInput,
+  nowMs: number,
+  view: PointerView<Panel>,
+): { orders: Order[]; click: Vec | null; panel: Panel | null } {
+  const polled = pollLeft(input, nowMs, view);
+  const rightAt = input.rightPressedAt;
+  if (!rightAt || view.panelAt(rightAt) !== null) return polled;
+  input.rightPressedAt = null;
+  const target = view.toTile(rightAt);
+  const cast: Order = { type: "Cast", slot: "right", target };
+  return { ...polled, orders: [...polled.orders, cast] };
+}
+
+/** What the left button orders this frame (see `poll`). */
+function pollLeft<Panel>(
   input: PointerInput,
   nowMs: number,
   view: PointerView<Panel>,

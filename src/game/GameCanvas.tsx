@@ -4,6 +4,7 @@ import { Application } from "pixi.js";
 import { useEffect, useRef } from "react";
 import { advance, createClock } from "./clock";
 import { areaDisplayNames, areas, tilesets } from "./content";
+import { castKeyOrder } from "./input/keys";
 import {
   attachPointer,
   cancel,
@@ -121,7 +122,13 @@ export default function GameCanvas() {
         for (const key of keys) {
           const hero = { heroDead: world.death !== null };
           const used = pressKey(menus, key, realNow, hero);
-          if (used === null) pressed = true;
+          if (used === null) {
+            pressed = true;
+            // Keys 1–4 cast at the cursor.
+            const cursor = input.screen && renderer.screenToTile(input.screen);
+            const cast = castKeyOrder(key, cursor);
+            if (cast) orders.push(cast);
+          }
           if (used === "newHero") newHero = true;
         }
         if (clickedAt && wasPaused && pause.paused) {
@@ -185,7 +192,8 @@ export default function GameCanvas() {
           }
         }
         // A right-click on the Inventory equips or unequips the Item under
-        // it; anywhere else it does nothing.
+        // it, and on any other panel does nothing; off the panels, `poll`
+        // made it a cast.
         const rightAt = takeRightClick(input);
         const rightHit = rightAt && renderer.panelAt(rightAt);
         if (rightHit && !("button" in rightHit)) {

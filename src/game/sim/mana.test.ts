@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { emptySkillBar } from "./skillBar";
 import {
   createWorld,
   isInCombat,
@@ -136,6 +137,7 @@ const UNSPENT: Progress = {
   attributePoints: 10,
   skillPoints: 2,
   skillLevels: { golem: 0 },
+  skillBar: emptySkillBar(),
 };
 
 describe("Energy", () => {

@@ -3,6 +3,7 @@ import {
   belongingsOf,
   isValidBelongings,
 } from "./sim/inventory";
+import { SKILL_BAR_SLOTS, type SkillBar } from "./sim/skillBar";
 import {
   ATTRIBUTES,
   FRESH_PROGRESS,
@@ -22,7 +23,7 @@ import { heroTuning } from "./tuning/hero";
  * is no Save, so the Hero starts fresh instead of loading something
  * misread.
  */
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 
 /** What the Save keeps of the Hero: their progress and their Belongings. */
 export type HeroSave = { progress: Progress; belongings: Belongings };
@@ -122,7 +123,8 @@ export function encodeSave({ progress, belongings }: HeroSave): string {
  * Stored text as the Hero, or null for no Save: missing, corrupt or another
  * version's text, a Level and Experience that don't fit the Experience
  * table, Attributes and unspent points or Skill Levels and unspent Skill
- * Points that don't fit the Level, or Belongings the Hero couldn't have (see
+ * Points that don't fit the Level, a Skill Bar holding anything but learned
+ * Skills each in one slot, or Belongings the Hero couldn't have (see
  * `isValidBelongings`).
  */
 export function parseSave(text: string | null): HeroSave | null {
@@ -141,11 +143,14 @@ export function parseSave(text: string | null): HeroSave | null {
   }
   const skillLevels = parseSkillLevels(fields.skillLevels);
   if (!skillLevels) return null;
+  const skillBar = parseSkillBar(fields.skillBar, skillLevels);
+  if (!skillBar) return null;
   const progress = {
     ...Object.fromEntries(
       PROGRESS_FIELDS.map((field) => [field, fields[field]]),
     ),
     skillLevels,
+    skillBar,
   } as Progress;
   if (!fitsTable(progress.level, progress.experience)) return null;
   if (!fitsPoints(progress)) return null;
@@ -200,12 +205,43 @@ function parseSkillLevels(stored: unknown): Record<Skill, number> | null {
   ) as Record<Skill, number>;
 }
 
-/** Every whole-number field of the stored progress: all but the Skill Levels. */
+/**
+ * The stored Skill Bar, or null when it isn't an object holding each slot
+ * and nothing else, every slot empty or holding a Skill learned in
+ * `skillLevels`, none in two slots.
+ */
+function parseSkillBar(
+  stored: unknown,
+  skillLevels: Record<Skill, number>,
+): SkillBar | null {
+  if (typeof stored !== "object" || stored === null) return null;
+  if (Array.isArray(stored)) return null;
+  const slots = stored as Record<string, unknown>;
+  const known = (key: string) =>
+    (SKILL_BAR_SLOTS as readonly string[]).includes(key);
+  if (!Object.keys(slots).every(known)) return null;
+  const held: unknown[] = [];
+  for (const slot of SKILL_BAR_SLOTS) {
+    const skill = slots[slot];
+    if (skill === null) continue;
+    if (!(SKILLS as unknown[]).includes(skill)) return null;
+    if (skillLevels[skill as Skill] === 0 || held.includes(skill)) return null;
+    held.push(skill);
+  }
+  return Object.fromEntries(
+    SKILL_BAR_SLOTS.map((slot) => [slot, slots[slot]]),
+  ) as SkillBar;
+}
+
+/** The fields of the stored progress that aren't whole numbers. */
+type ObjectField = "skillLevels" | "skillBar";
+
+/** Every whole-number field of the stored progress. */
 const PROGRESS_FIELDS = (
   Object.keys(FRESH_PROGRESS) as (keyof Progress)[]
 ).filter(
-  (field): field is Exclude<keyof Progress, "skillLevels"> =>
-    field !== "skillLevels",
+  (field): field is Exclude<keyof Progress, ObjectField> =>
+    field !== "skillLevels" && field !== "skillBar",
 );
 
 /**

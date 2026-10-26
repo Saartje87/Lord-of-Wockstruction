@@ -1,3 +1,5 @@
+import type { MinionType } from "./minions";
+
 /** Skill tuning, in human units. The sim converts it to steps once. */
 export type SkillTuning = {
   /** Shown in the Skill Tree. */
@@ -10,7 +12,12 @@ export type SkillTuning = {
   manaCostPerSkillLevel: number;
   /** How long a cast roots the Hero (ms). */
   castMs: number;
+  /** What a cast does, as it starts. */
+  effect: SkillEffect;
 };
+
+/** What a Skill's cast does: summon a Minion at the cast point. */
+export type SkillEffect = { type: "summon"; minion: MinionType };
 
 /** One of the Skills, by the name the sim and the Save know it by. */
 export type Skill = "golem";
@@ -24,5 +31,6 @@ export const skillTuning: Record<Skill, SkillTuning> = {
     manaCost: 15,
     manaCostPerSkillLevel: 2,
     castMs: 400,
+    effect: { type: "summon", minion: "golem" },
   },
 };

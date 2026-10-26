@@ -28,6 +28,7 @@ import { tileOf, type Vec } from "../sim/vec";
 import {
   ATTRIBUTES,
   areaFade,
+  CAST_STEPS,
   DEATH_STEPS,
   FLINCH_STEPS,
   groundItemsOf,
@@ -35,6 +36,7 @@ import {
   HIT_STEP,
   isInCombat,
   isRegenerating,
+  type MinionId,
   type MonsterId,
   type SimEvent,
   SWING_STEPS,
@@ -84,6 +86,12 @@ import {
 } from "./inventoryPanel";
 import { type Orb, orbFill } from "./orbs";
 import { menuChoiceAt, PAUSE_MENU_LAYOUT, pauseMenuLayout } from "./pauseMenu";
+import {
+  type SkillBarHit,
+  skillBarHitAt,
+  skillBarLayout,
+  skillBarSheet,
+} from "./skillBar";
 import {
   SKILL_TREE_PANEL,
   SKILL_TREE_ROWS,
@@ -225,6 +233,31 @@ const NUMBER_COLOUR: Record<DamageNumber["kind"], number> = {
   taken: 0xff4a4a,
   miss: 0x9a9a9a,
   noRoom: 0xe8e0c8,
+  castFailed: 0x8ab4ff,
+};
+
+/**
+ * The placeholder Golem: the Skeleton's art, `scale` times as big and
+ * tinted clay. Replaced, it crumbles away: its `die` animation, fading out
+ * over `crumbleMs`.
+ */
+const GOLEM = { tint: 0xc0804a, scale: 1.3, crumbleMs: 900 };
+
+/**
+ * The Skill Bar's look, in the HUD's colours; where things go is
+ * `skillBarLayout`. A Skill the Hero lacks the Mana for shows `dimmed`
+ * opaque (0..1).
+ */
+const SKILL_BAR_STYLE = {
+  fill: 0x17130e,
+  edge: 0x5a4a2e,
+  skill: 0x6a4428,
+  skillEdge: 0xe8d27a,
+  name: 0xe8e0c8,
+  nameSize: 11,
+  key: 0xd8c890,
+  keySize: 10,
+  dimmed: 0.35,
 };
 
 /**
@@ -502,6 +535,8 @@ export function createRenderer(
   app.stage.addChild(nameplateText);
   const orb = orbsView();
   app.stage.addChild(orb.layer);
+  const skillBar = skillBarView();
+  app.stage.addChild(skillBar.layer);
   const experience = experienceBarView();
   app.stage.addChild(experience.layer);
   const levelUp = levelUpButtonView();
@@ -549,6 +584,25 @@ export function createRenderer(
     }
     return view;
   };
+  /** The living Golem's view, made on first sight, and its facing as drawn. */
+  let golem: { id: MinionId; view: CharacterView; compass: Compass } | null =
+    null;
+  /** Replaced Golems crumbling away, each from when it began. */
+  const crumbling: { view: CharacterView; atMs: number; compass: Compass }[] =
+    [];
+  /** A Golem's view: the Skeleton's art, tinted clay and bigger. */
+  const golemView = (): CharacterView => {
+    const view = characterView(art.monsters.skeleton, 0);
+    view.sprite.tint = GOLEM.tint;
+    view.sprite.scale.set(GOLEM.scale);
+    scene.addChild(view.sprite);
+    return view;
+  };
+  /** Drops the living Golem's view, if any. */
+  const dropGolem = () => {
+    golem?.view.sprite.destroy();
+    golem = null;
+  };
   let hoveredTile: Vec | null = null;
   let markedAtMs: number | null = null;
   let hurtAtMs: number | null = null;
@@ -576,12 +630,13 @@ export function createRenderer(
    */
   const panelAt = (
     screen: Vec,
-  ): PanelHit | SkillTreeHit | InventoryHit | DropHit | null => {
+  ): PanelHit | SkillTreeHit | SkillBarHit | InventoryHit | DropHit | null => {
     if (!drawnWorld) return null;
     const holding = cursorItemOf(drawnWorld) !== null;
     return (
       panelHitAt(app.screen, screen, drawnWorld, heroPanelOpenNow) ??
       skillTreeHitAt(app.screen, screen, drawnWorld, skillTreeOpenNow) ??
+      skillBarHitAt(app.screen, screen) ??
       inventoryHitAt(app.screen, screen, inventoryOpenNow, holding)
     );
   };
@@ -598,6 +653,8 @@ export function createRenderer(
       view.flash?.destroy();
     }
     monsters.clear();
+    // Minion ids start over too.
+    dropGolem();
     // Item ids start over too.
     for (const text of labelTexts.values()) text.destroy();
     labelTexts.clear();
@@ -627,6 +684,7 @@ export function createRenderer(
     npcs = next.npcs.map(() => npcView(art));
     if (npcs.length > 0) scene.addChild(...npcs.map((npc) => npc.sprite));
     for (const { text } of floating.splice(0)) text.destroy();
+    for (const { view } of crumbling.splice(0)) view.sprite.destroy();
     markedAtMs = null;
     hoveredTile = null;
     hover.clear();
@@ -782,6 +840,10 @@ export function createRenderer(
           const view = monsters.get(event.id);
           if (view) view.diedAtMs = nowMs;
         }
+        if (event.type === "MinionCrumbled" && golem?.id === event.minion) {
+          crumbling.push({ ...golem, atMs: nowMs });
+          golem = null;
+        }
         if (event.type === "HeroHit") hurtAtMs = nowMs;
         if (event.type === "LevelReached") levelAtMs = nowMs;
       }
@@ -856,6 +918,17 @@ export function createRenderer(
           swing.elapsed * STEP_MS,
         );
         show(hero, "swing", heroCompass, frame);
+      } else if (world.hero.cast) {
+        // A placeholder: the swing, slowed to the cast time.
+        const { skill, elapsed } = world.hero.cast;
+        const { frames } = art.hero.timing.swing;
+        const progress = elapsed / CAST_STEPS[skill];
+        show(
+          hero,
+          "swing",
+          heroCompass,
+          Math.min(frames - 1, Math.floor(progress * frames)),
+        );
       } else if (world.hero.flinch > 0) {
         const ms = (HERO_FLINCH_STEPS - world.hero.flinch) * STEP_MS;
         show(hero, "hit", heroCompass, frameAt(art.hero.timing.hit, ms));
@@ -926,6 +999,28 @@ export function createRenderer(
         const frame = frameAt(view.art.timing.die, ms);
         show(view, "die", compassOf(view.facing), frame);
         flash(view, nowMs);
+      }
+
+      const { minion } = world;
+      if (minion?.id !== golem?.id) dropGolem();
+      if (minion) {
+        golem ??= { id: minion.id, view: golemView(), compass: "s" };
+        const minionAt = lerp(minion.prevPos, minion.pos, alpha);
+        place(golem.view, minionAt);
+        golem.compass = compassOf(minion.facing);
+        walkOrStand(golem.view, minion, minionAt, golem.compass, nowMs);
+      }
+      for (let i = crumbling.length - 1; i >= 0; i--) {
+        const { view, atMs } = crumbling[i];
+        const ms = nowMs - atMs;
+        if (ms >= GOLEM.crumbleMs) {
+          view.sprite.destroy();
+          crumbling.splice(i, 1);
+          continue;
+        }
+        const { compass } = crumbling[i];
+        show(view, "die", compass, frameAt(view.art.timing.die, ms));
+        view.sprite.alpha = 1 - ms / GOLEM.crumbleMs;
       }
 
       for (const [id, view] of monsters) {
@@ -1020,6 +1115,7 @@ export function createRenderer(
       }
 
       orb.draw(app.screen, world, nowMs);
+      skillBar.draw(app.screen, world);
       experience.draw(app.screen, world);
       levelUp.draw(app.screen, world, nowMs);
       heroPanel.draw(app.screen, world, menus.heroPanelOpen);
@@ -1379,6 +1475,63 @@ function orbsView() {
         : `+${heroTuning.regenPerSecond} Life/s`;
       badge.style.fill = inCombat ? BADGE.combat : BADGE.regen;
       badge.position.set(lifeX, cy - r - ORB.rim - BADGE.gap);
+    },
+  };
+}
+
+/**
+ * The Skill Bar between the orbs: each slot's key in its corner and its
+ * Skill's name, dimmed while the Hero lacks the Mana for it.
+ */
+function skillBarView() {
+  const style = SKILL_BAR_STYLE;
+  const layer = new Container();
+  const graphics = new Graphics();
+  layer.addChild(graphics);
+  const text = (fill: number, size: number) => {
+    const t = new Text({
+      text: "",
+      style: { fill, fontSize: size, fontFamily: SERIF },
+    });
+    layer.addChild(t);
+    return t;
+  };
+  /** Made as the sheet first lists them. */
+  const labels: { key: Text; name: Text }[] = [];
+
+  return {
+    layer,
+    draw(screen: { width: number; height: number }, world: World) {
+      const { slots } = skillBarLayout(screen);
+      graphics.clear();
+      skillBarSheet(world).forEach((shown, index) => {
+        if (!labels[index]) {
+          const key = text(style.key, style.keySize);
+          key.anchor.set(1, 0);
+          const name = text(style.name, style.nameSize);
+          name.anchor.set(0.5);
+          labels[index] = { key, name };
+        }
+        const { key, name } = labels[index];
+        const rect = slots[shown.slot];
+        const alpha = shown.dimmed ? style.dimmed : 1;
+        graphics
+          .rect(rect.x, rect.y, rect.w, rect.h)
+          .fill(style.fill)
+          .stroke({ color: style.edge, width: 1.5 });
+        if (shown.name !== null) {
+          graphics
+            .rect(rect.x + 3, rect.y + 3, rect.w - 6, rect.h - 6)
+            .fill({ color: style.skill, alpha })
+            .stroke({ color: style.skillEdge, width: 1, alpha });
+        }
+        name.visible = shown.name !== null;
+        name.text = shown.name ?? "";
+        name.alpha = alpha;
+        name.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2 + 4);
+        key.text = shown.key;
+        key.position.set(rect.x + rect.w - 3, rect.y + 2);
+      });
     },
   };
 }

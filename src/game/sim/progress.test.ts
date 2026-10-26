@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { emptySkillBar } from "./skillBar";
 import { createWorld, maxLife, maxMana, progressOf } from "./world";
 
 /** A Town of open floor with its `start` Entry in the middle tile. */
@@ -30,6 +31,7 @@ describe("a World created from a saved progress", () => {
       attributePoints: 0,
       skillPoints: 1,
       skillLevels: { golem: 3 },
+      skillBar: emptySkillBar(),
     };
     const w = createWorld({
       areas: { town },
@@ -64,6 +66,7 @@ describe("a World created without a saved progress", () => {
       attributePoints: 0,
       skillPoints: 0,
       skillLevels: { golem: 0 },
+      skillBar: emptySkillBar(),
     });
     expect(w.hero.life).toBe(100);
   });

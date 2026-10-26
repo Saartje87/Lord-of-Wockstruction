@@ -1,6 +1,7 @@
 import { areaTuning } from "../tuning/areas";
 import { heroTuning } from "../tuning/hero";
 import { type Bonus, dropTuning, itemOf } from "../tuning/items";
+import { minionTuning } from "../tuning/minions";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import { type Skill, skillTuning } from "../tuning/skills";
 import {
@@ -31,6 +32,13 @@ import {
   taken,
 } from "./inventory";
 import {
+  type Minion,
+  type MinionId,
+  type MinionType,
+  minionMaxLife,
+  summonPoint,
+} from "./minions";
+import {
   killExperience,
   type MonsterOfLevel,
   monsterAttackRating,
@@ -44,6 +52,12 @@ import {
 } from "./monsters";
 import { findPath } from "./path";
 import { createRng, type Rng, random, randomInt } from "./random";
+import {
+  emptySkillBar,
+  placeLearnedSkill,
+  type SkillBar,
+  type SkillBarSlot,
+} from "./skillBar";
 import { msToSteps, perStep } from "./units";
 import { validateAreas } from "./validate";
 import { angleBetween, distance, type Vec } from "./vec";
@@ -79,6 +93,16 @@ export const FLINCH_STEPS = Object.fromEntries(
     msToSteps(tuning.flinchMs),
   ]),
 ) as Record<MonsterType, number>;
+/** How many steps a cast of each Skill roots the Hero for. */
+export const CAST_STEPS = Object.fromEntries(
+  Object.entries(skillTuning).map(([skill, tuning]) => [
+    skill,
+    msToSteps(tuning.castMs),
+  ]),
+) as Record<Skill, number>;
+
+export type { Minion, MinionId, MinionType, SkillBar, SkillBarSlot };
+export { minionMaxLife };
 
 export type Hero = {
   life: number;
@@ -110,6 +134,8 @@ export type Hero = {
   /** The Ground Item the Hero is walking to, to pick up. */
   pickingUp: ItemId | null;
   swing: Swing | null;
+  /** The cast rooting the Hero, if any. */
+  cast: Cast | null;
   /** Steps of flinching left; 0 when not flinching. */
   flinch: number;
   /**
@@ -118,10 +144,17 @@ export type Hero = {
    */
   combat: number;
   /**
-   * The order given during a swing or a flinch, run when it ends; the newest
-   * wins.
+   * The order given during a swing, a cast or a flinch, run when it ends;
+   * the newest wins.
    */
   buffered: Order | null;
+};
+
+/** A Skill being cast: its effect happened as it started. */
+export type Cast = {
+  skill: Skill;
+  /** Steps since the cast started, not counting hitstop. */
+  elapsed: number;
 };
 
 export type Swing = {
@@ -240,8 +273,12 @@ export type World = {
   corpses: Corpse[];
   /** The Ground Items in the active Area, never kept by the Save. */
   groundItems: GroundItem[];
+  /** The Hero's Golem, if one lives; never kept by the Save. */
+  minion: Minion | null;
   /** The id the next Monster gets. */
   nextMonsterId: MonsterId;
+  /** The id the next Minion gets. */
+  nextMinionId: MinionId;
   /** The id the next Item gets. */
   nextItemId: ItemId;
 };
@@ -300,7 +337,15 @@ export type Order =
    * once and whatever the Hero is doing, if the Hero's Level is up to the
    * Skill's required Level.
    */
-  | { type: "SpendSkillPoint"; skill: Skill };
+  | { type: "SpendSkillPoint"; skill: Skill }
+  /**
+   * Cast the Skill in Skill Bar slot `slot` at `target`. Fails in Town or
+   * without the Mana for it, and does nothing from an empty slot.
+   */
+  | { type: "Cast"; slot: SkillBarSlot; target: Vec };
+
+/** Why a cast failed: the Hero is in Town, or lacks the Mana for it. */
+export type CastFailure = "town" | "mana";
 
 /** What happened during a step. */
 export type SimEvent =
@@ -330,6 +375,14 @@ export type SimEvent =
   | { type: "AttributeRaised"; attribute: Attribute }
   /** A Skill Point raised `skill` to Skill Level `skillLevel`. */
   | { type: "SkillLevelRaised"; skill: Skill; skillLevel: number }
+  /** The Hero started casting `skill` at `target`, its Mana spent. */
+  | { type: "SkillCast"; skill: Skill; target: Vec }
+  /** A cast did nothing, spending no Mana. */
+  | { type: "CastFailed"; reason: CastFailure }
+  /** Minion `minion` appeared at `pos`. */
+  | { type: "MinionSummoned"; minion: MinionId; pos: Vec }
+  /** Minion `minion` crumbled away at `pos`, replaced by a fresh one. */
+  | { type: "MinionCrumbled"; minion: MinionId; pos: Vec }
   | { type: "HeroDied" }
   /** The Hero arrived at Entry `entry` in Area `area`. */
   | { type: "AreaChanged"; area: string; entry: string };
@@ -373,9 +426,11 @@ export type Progress = {
   skillPoints: number;
   /** Each Skill's Skill Level; 0 is not learned. */
   skillLevels: Record<Skill, number>;
+  /** The learned Skills on the Skill Bar, each in at most one slot. */
+  skillBar: SkillBar;
 };
 
-/** A fresh Level 1 Hero's progress: no Skill learned. */
+/** A fresh Level 1 Hero's progress: no Skill learned, an empty Skill Bar. */
 export const FRESH_PROGRESS: Progress = {
   level: 1,
   experience: 0,
@@ -389,11 +444,16 @@ export const FRESH_PROGRESS: Progress = {
     Skill,
     number
   >,
+  skillBar: emptySkillBar(),
 };
 
 /** A copy of `progress` sharing nothing with it. */
 function copyProgress(progress: Progress): Progress {
-  return { ...progress, skillLevels: { ...progress.skillLevels } };
+  return {
+    ...progress,
+    skillLevels: { ...progress.skillLevels },
+    skillBar: { ...progress.skillBar },
+  };
 }
 
 /**
@@ -451,6 +511,7 @@ export function createWorld(options: {
       attacking: null,
       pickingUp: null,
       swing: null,
+      cast: null,
       flinch: 0,
       combat: 0,
       buffered: null,
@@ -458,7 +519,9 @@ export function createWorld(options: {
     monsters: [],
     corpses: [],
     groundItems: [],
+    minion: null,
     nextMonsterId: 1,
+    nextMinionId: 1,
     nextItemId: 1,
   };
   giveBelongings(world, belongings);
@@ -681,12 +744,13 @@ function startAreaChange(
   returnCursorItem(world, events);
 }
 
-/** Stops whatever the Hero is doing: walking, attacking or flinching. */
+/** Stops whatever the Hero is doing: walking, attacking, casting or flinching. */
 function stopHero(hero: Hero) {
   hero.path = [];
   hero.attacking = null;
   hero.pickingUp = null;
   hero.swing = null;
+  hero.cast = null;
   hero.flinch = 0;
   hero.buffered = null;
 }
@@ -720,6 +784,8 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   world.monsters = [];
   world.corpses = [];
   world.groundItems = [];
+  // Until it can follow the Hero, a Golem stays behind and is gone.
+  world.minion = null;
   world.heldOrders = [];
   for (const spawn of area.spawns) placePack(world, area, spawn);
   events.push({ type: "AreaChanged", area: area.name, entry: change.entry });
@@ -797,6 +863,7 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   const events: SimEvent[] = [];
   hero.prevPos = { ...hero.pos };
   for (const monster of world.monsters) monster.prevPos = { ...monster.pos };
+  if (world.minion) world.minion.prevPos = { ...world.minion.pos };
   if (hero.combat > 0) hero.combat -= 1;
 
   if (world.areaChange) {
@@ -816,6 +883,7 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
     if (monster.flinch > 0) monster.flinch -= 1;
   }
   if (hero.swing) advanceSwing(world, hero.swing, events);
+  if (hero.cast) advanceCast(world, hero.cast, events);
   if (world.death) {
     stepDeath(world, world.death, orders, events);
     world.tick += 1;
@@ -897,11 +965,18 @@ function spendAttributePoint(
   events.push({ type: "AttributeRaised", attribute });
 }
 
-/** Raises a Skill's Skill Level by one for an unspent Skill Point, if it can be. */
+/**
+ * Raises a Skill's Skill Level by one for an unspent Skill Point, if it can
+ * be, putting a newly learned Skill on the Skill Bar (see
+ * `placeLearnedSkill`).
+ */
 function spendSkillPoint(world: World, skill: Skill, events: SimEvent[]) {
   if (!canRaiseSkill(world, skill)) return;
   const { progress } = world.hero;
   progress.skillPoints -= 1;
+  if (progress.skillLevels[skill] === 0) {
+    progress.skillBar = placeLearnedSkill(progress.skillBar, skill);
+  }
   progress.skillLevels[skill] += 1;
   const skillLevel = progress.skillLevels[skill];
   events.push({ type: "SkillLevelRaised", skill, skillLevel });
@@ -932,7 +1007,7 @@ function give(world: World, order: Order, events: SimEvent[]) {
     hero.mana = Math.min(hero.mana, maxMana(world));
     return;
   }
-  if (hero.flinch > 0) {
+  if (hero.flinch > 0 || hero.cast) {
     hero.buffered = order;
     return;
   }
@@ -973,7 +1048,98 @@ function give(world: World, order: Order, events: SimEvent[]) {
       hero.pickingUp = null;
       startSwing(hero, null, order.target);
       break;
+    case "Cast":
+      castFrom(world, order.slot, order.target, events);
+      break;
   }
+}
+
+/**
+ * Casts the Skill in a Skill Bar slot at `target`: in a Combat Area with the
+ * Mana for it, this spends the Mana, roots the Hero facing `target` for the
+ * cast time and has the Skill's effect at once. In Town or without the Mana
+ * it fails, and from an empty slot it does nothing; neither spends Mana nor
+ * stops the Hero.
+ */
+function castFrom(
+  world: World,
+  slot: SkillBarSlot,
+  target: Vec,
+  events: SimEvent[],
+) {
+  const { hero } = world;
+  const skill = hero.progress.skillBar[slot];
+  if (!skill) return;
+  if (world.areaName === TOWN) {
+    events.push({ type: "CastFailed", reason: "town" });
+    return;
+  }
+  const skillLevel = hero.progress.skillLevels[skill];
+  const cost = skillManaCost(skill, skillLevel);
+  if (hero.mana < cost) {
+    events.push({ type: "CastFailed", reason: "mana" });
+    return;
+  }
+  hero.mana -= cost;
+  face(hero, target);
+  hero.path = [];
+  hero.attacking = null;
+  hero.pickingUp = null;
+  hero.cast = { skill, elapsed: 0 };
+  events.push({ type: "SkillCast", skill, target: { ...target } });
+  const { effect } = skillTuning[skill];
+  summon(world, effect.minion, skillLevel, target, events);
+}
+
+/**
+ * Brings a fresh Minion at full Life at `target`, or the nearest point to it
+ * a Minion can stand on, crumbling away the one already there: the Hero has
+ * at most one.
+ */
+function summon(
+  world: World,
+  type: MinionType,
+  skillLevel: number,
+  target: Vec,
+  events: SimEvent[],
+) {
+  const area = world.areas[world.areaName];
+  const pos = summonPoint(area, target, minionTuning[type].radius);
+  if (!pos) return;
+  const old = world.minion;
+  if (old) {
+    events.push({
+      type: "MinionCrumbled",
+      minion: old.id,
+      pos: { ...old.pos },
+    });
+  }
+  const minion: Minion = {
+    id: world.nextMinionId++,
+    type,
+    skillLevel,
+    pos,
+    prevPos: { ...pos },
+    life: minionMaxLife({ type }),
+    facing: world.hero.facing,
+  };
+  world.minion = minion;
+  events.push({ type: "MinionSummoned", minion: minion.id, pos: { ...pos } });
+}
+
+/** Counts a cast through, running the buffered order once it ends. */
+function advanceCast(world: World, cast: Cast, events: SimEvent[]) {
+  cast.elapsed += 1;
+  if (cast.elapsed < CAST_STEPS[cast.skill]) return;
+  world.hero.cast = null;
+  giveBuffered(world, events);
+}
+
+/** Turns the Hero towards a point, unless standing on it. */
+function face(hero: Hero, toward: Vec) {
+  const dx = toward.x - hero.pos.x;
+  const dy = toward.y - hero.pos.y;
+  if (dx !== 0 || dy !== 0) hero.facing = Math.atan2(dy, dx);
 }
 
 /** Swings at the Monster the Hero walks to once it is in reach. */
@@ -1027,9 +1193,7 @@ function reachGroundItem(world: World, events: SimEvent[]) {
 }
 
 function startSwing(hero: Hero, monster: MonsterId | null, toward: Vec) {
-  const dx = toward.x - hero.pos.x;
-  const dy = toward.y - hero.pos.y;
-  if (dx !== 0 || dy !== 0) hero.facing = Math.atan2(dy, dx);
+  face(hero, toward);
   hero.swing = { elapsed: 0, landed: false, monster };
   hero.attacking = null;
   hero.path = [];
@@ -1177,6 +1341,8 @@ function hitHero(world: World, monster: Monster, events: SimEvent[]) {
   if (random(world.rng) >= heroTuning.flinchChance) return;
   hero.flinch = HERO_FLINCH_STEPS;
   hero.swing = null;
+  // Its effect has happened; the flinch roots the Hero in its place.
+  hero.cast = null;
   hero.attacking = null;
   hero.pickingUp = null;
   hero.path = [];

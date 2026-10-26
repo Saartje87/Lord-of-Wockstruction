@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { inventoryOf } from "../sim/inventory";
+import { emptySkillBar } from "../sim/skillBar";
 import { createWorld, type Progress, step, type World } from "../sim/world";
 import { heroPanelLayout, heroSheet, panelHitAt } from "./heroPanel";
 
@@ -52,6 +53,7 @@ function withPoints(points: number): World {
     attributePoints: points,
     skillPoints: 0,
     skillLevels: { golem: 1 },
+    skillBar: emptySkillBar(),
   });
 }
 
@@ -136,6 +138,7 @@ describe("heroSheet", () => {
       attributePoints: 10,
       skillPoints: 4,
       skillLevels: { golem: 0 },
+      skillBar: emptySkillBar(),
     });
     step(w, [{ type: "SpendAttributePoint", attribute: "dexterity" }]);
 
@@ -207,6 +210,7 @@ describe("panelHitAt", () => {
       attributePoints: 0,
       skillPoints: 1,
       skillLevels: { golem: 0 },
+      skillBar: emptySkillBar(),
     });
 
     expect(panelHitAt(screen, centre(layout.levelUp), w, false)).toEqual({

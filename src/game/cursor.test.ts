@@ -708,15 +708,15 @@ describe("clicking an Item", () => {
     expect(heldType(world)).toBe("axe");
   });
 
-  it("leaves it held when let go below the drag threshold, even over another spot", () => {
-    const { world, orders } = drag(
+  it("moves it when let go over another cell without passing the drag threshold", () => {
+    const { world } = drag(
       at({ column: 4, row: 1 }),
-      at({ column: 5, row: 1 }),
+      at({ column: 7, row: 2 }),
       { dragged: false },
     );
 
-    expect(orders).toEqual([]);
-    expect(heldType(world)).toBe("axe");
+    expect(typeAt(world, 7, 1)).toBe("axe");
+    expect(heldType(world)).toBeUndefined();
   });
 
   it("puts it down on the next press, a drag after it ordering nothing more", () => {

@@ -85,8 +85,9 @@ export function createCursor(): Cursor {
  *
  * - On the Inventory panel or a Belt strip square, with nothing held, it
  *   lifts the Item there as the Held Item (a Belt Column's bottom Potion on
- *   the strip), for its release to put down if it's dragged; with one held,
- *   it puts it down there (on the strip, at the column's lowest free row).
+ *   the strip), for its release to put down if it's dragged off that spot;
+ *   with one held, it puts it down there (on the strip, at the column's
+ *   lowest free row).
  * - Off the panels with an Item held, it drops it, and orders nothing else,
  *   whether or not the Inventory panel is open.
  * - On a learned Skill in the Skill Tree, or a filled Skill Bar slot, with
@@ -153,10 +154,11 @@ export function pressCursor(
  * - A Held Skill lands in the Skill Bar slot there; over the Skill Tree spot
  *   or Skill Bar slot it was picked up from it stays held, for a second
  *   click; anywhere else it is let go of, changing nothing.
- * - A Held Item lifted by the press, dragged and let go over a different
- *   spot (a Belt strip square among them), is put down, swapped or dropped
- *   there, just as a second click there would; otherwise it stays held,
- *   for a second click to put down.
+ * - A Held Item lifted by the press and let go over a different spot (a
+ *   Belt strip square or the World among them) was dragged, however short
+ *   the move: it is put down, swapped or dropped there, just as a second
+ *   click there would. Let go over the spot it was lifted from, it stays
+ *   held, for a second click to put down.
  */
 export function releaseCursor(
   cursor: Cursor,
@@ -165,9 +167,7 @@ export function releaseCursor(
 ): CursorOutcome {
   const { heldSkill, liftedFrom } = cursor;
   if (heldSkill === null && liftedFrom !== null) {
-    const orders = release.dragged
-      ? putDownOnRelease(release, liftedFrom, scene)
-      : [];
+    const orders = putDownOnRelease(release, liftedFrom, scene);
     return { cursor: { ...cursor, liftedFrom: null }, orders, taken: true };
   }
   if (heldSkill === null) return { cursor, orders: [], taken: false };
@@ -201,7 +201,7 @@ function landHeldSkill(
 }
 
 /**
- * What letting go of a dragged Held Item does: what a second click there
+ * What letting go of a lifted Held Item does: what a second click there
  * would, but nothing over the spot it was lifted from or off the canvas.
  * Over the World it drops, even before the World has the Item held, when
  * the panel didn't yet hit-test the point as a drop.

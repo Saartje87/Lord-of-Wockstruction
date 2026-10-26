@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { combatArea } from "./testAreas";
 import {
   areaFade,
   createWorld,
@@ -7,14 +8,6 @@ import {
   step,
   type World,
 } from "./world";
-
-/** A map made a Combat Area by giving it Area Level `areaLevel`. */
-function combatArea(map: object, areaLevel = 1) {
-  return {
-    ...map,
-    properties: [{ name: "areaLevel", type: "int", value: areaLevel }],
-  };
-}
 
 /**
  * An orthogonal Area drawn row by row: `.` floor, `#` wall, `H` the Hero's

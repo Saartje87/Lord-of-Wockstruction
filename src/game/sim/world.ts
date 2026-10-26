@@ -138,7 +138,7 @@ export type Monster = {
    * Its Monster Level, which scales its Life, damage, Attack Rating, Defense
    * and Experience: its Area's Area Level when it spawned.
    */
-  level: number;
+  monsterLevel: number;
   pos: Vec;
   prevPos: Vec;
   life: number;
@@ -684,13 +684,16 @@ function placePack(world: World, area: Area, spawn: Spawn) {
       y: spawn.pos.y + radius * Math.sin(angle),
     };
     const pos = i > 0 && isWalkable(area, around) ? around : { ...spawn.pos };
-    const kind = { type: spawn.monster, level: monsterLevelIn(area) };
+    const typeAtLevel: MonsterOfLevel = {
+      type: spawn.monster,
+      monsterLevel: monsterLevelIn(area),
+    };
     world.monsters.push({
       id: world.nextMonsterId++,
-      ...kind,
+      ...typeAtLevel,
       pos,
       prevPos: { ...pos },
-      life: monsterMaxLife(kind),
+      life: monsterMaxLife(typeAtLevel),
       flinch: 0,
       state: "idle",
       // Down the screen, as the Hero starts.

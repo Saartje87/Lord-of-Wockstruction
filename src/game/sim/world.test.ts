@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { combatArea } from "./testAreas";
 import { createWorld, type Order, step, type World } from "./world";
 
 // A 3×2 orthogonal Area with 32 px tiles and a `start` Entry in the middle
@@ -24,14 +25,6 @@ function tmj(objects: object[]) {
 }
 
 const start = { name: "start", type: "entry", point: true, x: 48, y: 48 };
-
-/** A map with an `areaLevel` map property, as a Combat Area's has. */
-function withAreaLevel(map: object, areaLevel: unknown) {
-  return {
-    ...map,
-    properties: [{ name: "areaLevel", type: "int", value: areaLevel }],
-  };
-}
 
 /** An Exit covering tile (x, y), to an Entry in another Area. */
 function exit(x: number, y: number, area: string, entry: string) {
@@ -134,7 +127,7 @@ describe("createWorld", () => {
   });
 
   it("throws naming Town when it has an Area Level", () => {
-    const town = withAreaLevel(tmj([start]), 1);
+    const town = combatArea(tmj([start]), 1);
 
     expect(() => createWorld({ areas: { town }, seed: 1 })).toThrow(
       'Area "town" has an Area Level; Town has none',
@@ -145,7 +138,7 @@ describe("createWorld", () => {
     const town = tmj([start]);
 
     for (const bad of [0, 1.5, "2"]) {
-      const cave = withAreaLevel(tmj([start]), bad);
+      const cave = combatArea(tmj([start]), bad);
       expect(() => createWorld({ areas: { town, cave }, seed: 1 })).toThrow(
         `Area "cave" has a bad Area Level: ${bad}`,
       );
@@ -154,7 +147,7 @@ describe("createWorld", () => {
 
   it("keeps a Combat Area's Area Level", () => {
     const town = tmj([start]);
-    const cave = withAreaLevel(tmj([start]), 3);
+    const cave = combatArea(tmj([start]), 3);
 
     const world = createWorld({ areas: { town, cave }, seed: 1 });
 

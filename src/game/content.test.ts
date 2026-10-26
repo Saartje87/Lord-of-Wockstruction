@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { areaDisplayNames, areas, tilesets } from "./content";
 import type { Area, Exit } from "./sim/area";
+import { type MonsterOfLevel, monsterExperience } from "./sim/monsters";
 import type { Vec } from "./sim/vec";
 import {
   createWorld,
@@ -15,6 +16,14 @@ import {
 // an Entry that exists and can be reached from `start`, and spawns on tiles
 // Monsters can stand on.
 const shippedWorld = () => createWorld({ areas, tilesets, seed: 1 });
+
+/**
+ * Whether a Monster is as strong as one of its type at `monsterLevel`, by the
+ * Experience it's worth, which differs at every Monster Level.
+ */
+const isAtMonsterLevel = (monsterLevel: number) => (monster: MonsterOfLevel) =>
+  monsterExperience(monster) ===
+  monsterExperience({ type: monster.type, monsterLevel });
 
 /**
  * The shipped Areas with a stand-in Town of three floor tiles, whose one
@@ -149,7 +158,7 @@ describe("the shipped Areas", () => {
     expect(Object.keys(world.areas).sort()).toEqual(Object.keys(areas).sort());
   });
 
-  it("each have a display name for the banner on arriving, with no Level in it", () => {
+  it("each have a display name for the Area Banner on arriving, with no Level in it", () => {
     expect(Object.keys(areaDisplayNames).sort()).toEqual(
       Object.keys(areas).sort(),
     );
@@ -216,7 +225,7 @@ describe("the shipped Areas", () => {
     expect(world.areas.catacombs.areaLevel).toBe(1);
     expect(world.areaName).toBe("catacombs");
     expect(world.monsters.length).toBeGreaterThan(0);
-    expect(world.monsters.every((monster) => monster.level === 1)).toBe(true);
+    expect(world.monsters.every(isAtMonsterLevel(1))).toBe(true);
   });
 
   it("put the Combat Area's Exit back to Town at its start", () => {
@@ -282,7 +291,7 @@ describe("the shipped Areas", () => {
 
     expect(world.areas.crypt.areaLevel).toBe(4);
     expect(world.monsters.length).toBeGreaterThan(0);
-    expect(world.monsters.every((monster) => monster.level === 4)).toBe(true);
+    expect(world.monsters.every(isAtMonsterLevel(4))).toBe(true);
   });
 
   it("build the Crypt about the Catacombs' size on the dungeon tileset, with somewhat bigger Skeleton packs", () => {
@@ -336,7 +345,7 @@ describe("the shipped Areas", () => {
     const world = worldEntering("ossuary", "start");
 
     expect(world.monsters.length).toBeGreaterThan(0);
-    expect(world.monsters.every((monster) => monster.level === 8)).toBe(true);
+    expect(world.monsters.every(isAtMonsterLevel(8))).toBe(true);
   });
 
   it("build the Ossuary about the Catacombs' size on the dungeon tileset, with bigger Skeleton packs than the Crypt", () => {

@@ -31,3 +31,29 @@ describe("the viewport's UI Scale", () => {
     expect(viewport.height).toBe(height);
   });
 });
+
+describe("the viewport's World zoom", () => {
+  it.each([
+    // At the reference height, the World is drawn at native size.
+    { screen: "1280×720", width: 1280, height: 720, worldZoom: 1 },
+    {
+      screen: "a 1180×820 tablet",
+      width: 1180,
+      height: 820,
+      worldZoom: 820 / 720,
+    },
+    { screen: "1920×1080", width: 1920, height: 1080, worldZoom: 1.5 },
+    { screen: "2560×1440", width: 2560, height: 1440, worldZoom: 2 },
+    { screen: "a 640×360 phone", width: 640, height: 360, worldZoom: 0.5 },
+    // 3 by height, held to the upper limit.
+    { screen: "a 3840×2160 screen", width: 3840, height: 2160, worldZoom: 2 },
+    // 300 / 720 by height, held to the lower limit.
+    { screen: "below the minimum", width: 500, height: 300, worldZoom: 0.5 },
+  ])("follows the screen's height on $screen", ({
+    width,
+    height,
+    worldZoom,
+  }) => {
+    expect(viewportOf({ width, height }).worldZoom).toBeCloseTo(worldZoom);
+  });
+});

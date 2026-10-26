@@ -73,6 +73,7 @@ import {
 } from "./areaBanner";
 import { type Animation, type Art, type CharacterArt, frameOf } from "./art";
 import { beltStripLayout, beltStripSheet } from "./beltStrip";
+import { type Camera, cameraOn, onScreen, onWorld } from "./camera";
 import { CLOSE_BUTTON } from "./closeButton";
 import { cursorHitAt, type ShownPanels } from "./cursorHit";
 import {
@@ -524,8 +525,15 @@ export function createRenderer(
   art: Art,
   areaDisplayNames: Readonly<Record<string, string>>,
 ) {
+  // The World, drawn at the World zoom.
   const camera = new Container();
   app.stage.addChild(camera);
+  /** Where the camera was last drawn. */
+  let shot: Camera = { x: 0, y: 0, zoom: 1 };
+  // Over the World, following it but drawn at the UI Scale, not the World
+  // zoom: damage numbers and Ground Item labels.
+  const overWorld = new Container();
+  app.stage.addChild(overWorld);
 
   // Filled by `showArea`.
   let area: Area | null = null;
@@ -564,14 +572,14 @@ export function createRenderer(
   camera.addChild(overheads);
   // Ground Items' name labels, always shown.
   const labelBacks = new Graphics();
-  camera.addChild(labelBacks);
+  overWorld.addChild(labelBacks);
   const labelTexts = new Map<ItemId, Text>();
-  /** Where each Ground Item's label was last drawn, in camera space. */
+  /** Where each Ground Item's label was last drawn on the screen. */
   let labels: GroundLabel[] = [];
   /** Where each Ground Item was last drawn on the floor, in camera space. */
   let lyingAt: { id: ItemId; at: Vec }[] = [];
   const numbers = new Container();
-  camera.addChild(numbers);
+  overWorld.addChild(numbers);
   const floating: { text: Text; bornMs: number; at: Vec }[] = [];
   const nameplate = new Graphics();
   app.stage.addChild(nameplate);
@@ -737,11 +745,7 @@ export function createRenderer(
   };
 
   /** Maps a point on the canvas (CSS px) to tile units, as last drawn. */
-  const screenToTile = (screen: Vec): Vec =>
-    toTile({
-      x: screen.x - camera.position.x,
-      y: screen.y - camera.position.y,
-    });
+  const screenToTile = (screen: Vec): Vec => toTile(onWorld(shot, screen));
 
   /**
    * The living Monster or the Golem drawn under a point on the canvas (CSS
@@ -758,10 +762,7 @@ export function createRenderer(
       const { position } = golem.view.sprite;
       characters.push({ id: "golem", at: position, scale: GOLEM.scale });
     }
-    return characterUnder(characters, {
-      x: screen.x - camera.position.x,
-      y: screen.y - camera.position.y,
-    });
+    return characterUnder(characters, onWorld(shot, screen));
   };
 
   /**
@@ -775,16 +776,13 @@ export function createRenderer(
 
   /** The Ground Item whose label is under a canvas point (CSS px). */
   const groundLabelUnder = (screen: Vec): ItemId | null =>
-    groundLabelAt(labels, {
-      x: screen.x - camera.position.x,
-      y: screen.y - camera.position.y,
-    });
+    groundLabelAt(labels, screen);
 
   /** The Ground Item drawn on the floor under a canvas point (CSS px). */
   const groundItemAt = (screen: Vec): ItemId | null =>
     groundItemUnder(
       lyingAt,
-      { x: screen.x - camera.position.x, y: screen.y - camera.position.y },
+      onWorld(shot, screen),
       GROUND_ITEM.size / 2 + GROUND_ITEM.grab,
     );
 
@@ -824,13 +822,17 @@ export function createRenderer(
         });
         text.anchor.set(0.5, 0.5);
         labelTexts.set(item.id, text);
-        camera.addChild(text);
+        overWorld.addChild(text);
       }
       sizeText(text, GROUND_LABEL.textSize * uiScale);
       const width = text.width + 2 * GROUND_LABEL.padding * uiScale;
       return { id: item.id, at, width };
     });
-    labels = groundLabels(sized, uiScale);
+    // Labels are laid out on the screen, at the UI Scale.
+    labels = groundLabels(
+      sized.map(({ id, at, width }) => ({ id, at: onScreen(shot, at), width })),
+      uiScale,
+    );
     lyingAt = sized.map(({ id, at }) => ({ id, at }));
     for (const { id, rect } of labels) {
       labelBacks
@@ -955,10 +957,15 @@ export function createRenderer(
 
       // Snap the camera and sprites to device pixels so the art stays
       // crisp, with the Hero at the centre of the screen.
-      const centre = { x: app.screen.width / 2, y: app.screen.height / 2 };
-      const snap = (v: number) =>
-        Math.round(v * app.renderer.resolution) / app.renderer.resolution;
-      camera.position.set(snap(centre.x - at.x), snap(centre.y - at.y));
+      const { resolution } = app.renderer;
+      shot = cameraOn(viewport, at, resolution);
+      camera.position.set(shot.x, shot.y);
+      camera.scale.set(shot.zoom);
+      // A device pixel, in the World's own pixels.
+      const pixel = shot.zoom * resolution;
+      const snap = (v: number) => Math.round(v * pixel) / pixel;
+      const snapOnScreen = (v: number) =>
+        Math.round(v * resolution) / resolution;
       const place = (view: CharacterView, at: Vec, depth = 0) => {
         const screen = toScreen(at);
         view.sprite.position.set(snap(screen.x), snap(screen.y));
@@ -1167,7 +1174,11 @@ export function createRenderer(
         }
         const look = atUiScale(DAMAGE_NUMBER, uiScale);
         sizeText(text, look.size, look.stroke);
-        text.position.set(snap(at.x), snap(at.y - look.gap - float.rise));
+        const over = onScreen(shot, at);
+        text.position.set(
+          snapOnScreen(over.x),
+          snapOnScreen(over.y - look.gap - float.rise),
+        );
         text.alpha = float.alpha;
       }
 

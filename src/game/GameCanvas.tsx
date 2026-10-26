@@ -190,7 +190,10 @@ export default function GameCanvas() {
           }
           if (button?.type === "raise") {
             const { attribute } = button;
-            orders.push({ type: "SpendAttributePoint", attribute });
+            orders.push({
+              type: "SpendAttributePoints",
+              points: { [attribute]: 1 },
+            });
           }
           if (button?.type === "close") clickClose(menus, button.panel);
           if (button?.type === "learn") {

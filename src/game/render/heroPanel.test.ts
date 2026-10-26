@@ -151,7 +151,7 @@ describe("heroSheet", () => {
       skillLevels: { golem: 0 },
       skillBar: emptySkillBar(),
     });
-    step(w, [{ type: "SpendAttributePoint", attribute: "dexterity" }]);
+    step(w, [{ type: "SpendAttributePoints", points: { dexterity: 1 } }]);
 
     const sheet = heroSheet(w);
     expect(sheet).toMatchObject({

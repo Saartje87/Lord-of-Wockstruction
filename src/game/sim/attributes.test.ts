@@ -138,12 +138,14 @@ const UNSPENT: Progress = {
 function spend(w: World, attribute: Attribute, times = 1): SimEvent[] {
   const events: SimEvent[] = [];
   for (let i = 0; i < times; i++) {
-    events.push(...step(w, [{ type: "SpendAttributePoint", attribute }]));
+    events.push(
+      ...step(w, [{ type: "SpendAttributePoints", points: { [attribute]: 1 } }]),
+    );
   }
   return events;
 }
 
-describe("SpendAttributePoint", () => {
+describe("SpendAttributePoints", () => {
   it("raises the Attribute by one for one point and reports it", () => {
     const w = world(1, UNSPENT);
 
@@ -176,6 +178,84 @@ describe("SpendAttributePoint", () => {
     expect(progressOf(w).vitality).toBe(21);
     expect(w.hero.swing).toBe(swing);
     expect(w.hero.buffered).toBeNull();
+  });
+
+  it("raises each Attribute by its count in one step, reporting every point", () => {
+    const w = world(1, UNSPENT);
+
+    const events = step(w, [
+      { type: "SpendAttributePoints", points: { strength: 2, energy: 1 } },
+    ]);
+
+    expect(events).toEqual([
+      { type: "AttributeRaised", attribute: "strength" },
+      { type: "AttributeRaised", attribute: "strength" },
+      { type: "AttributeRaised", attribute: "energy" },
+    ]);
+    expect(progressOf(w)).toMatchObject({
+      strength: 22,
+      dexterity: 20,
+      vitality: 20,
+      energy: 21,
+      attributePoints: 7,
+    });
+  });
+
+  it("adds Vitality's Life to current Life and Energy's Mana to current Mana", () => {
+    const w = world(1, UNSPENT);
+    w.hero.life = 50;
+    w.hero.mana = 10;
+
+    step(w, [
+      { type: "SpendAttributePoints", points: { vitality: 2, energy: 1 } },
+    ]);
+
+    expect(w.hero.life).toBe(56);
+    // And a step of Mana regeneration.
+    expect(w.hero.mana).toBeCloseTo(12, 1);
+  });
+
+  it("is refused whole when it asks for more points than are unspent", () => {
+    const w = world(1, { ...UNSPENT, attributePoints: 3 });
+
+    const events = step(w, [
+      { type: "SpendAttributePoints", points: { strength: 2, dexterity: 2 } },
+    ]);
+
+    expect(events).toEqual([]);
+    expect(progressOf(w)).toMatchObject({
+      strength: 20,
+      dexterity: 20,
+      attributePoints: 3,
+    });
+  });
+
+  it("is refused for a negative or broken count", () => {
+    const w = world(1, UNSPENT);
+
+    step(w, [
+      { type: "SpendAttributePoints", points: { strength: 3, dexterity: -1 } },
+    ]);
+    step(w, [{ type: "SpendAttributePoints", points: { vitality: 0.5 } }]);
+
+    expect(progressOf(w)).toMatchObject({
+      strength: 20,
+      dexterity: 20,
+      vitality: 20,
+      attributePoints: 10,
+    });
+  });
+
+  it("is refused while the Hero lies dead", () => {
+    const w = world(1, UNSPENT);
+    for (let i = 0; !w.death; i++) {
+      if (i > 60 * 60) throw new Error("The Hero didn't die");
+      step(w, []);
+    }
+
+    step(w, [{ type: "SpendAttributePoints", points: { strength: 1 } }]);
+
+    expect(progressOf(w)).toMatchObject({ strength: 20, attributePoints: 10 });
   });
 });
 

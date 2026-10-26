@@ -7,6 +7,7 @@ import {
   FRESH_PROGRESS,
   type Monster,
   type Progress,
+  type Projectile,
   type SimEvent,
   step,
   type World,
@@ -272,6 +273,44 @@ describe("an Arrow and the Hero's Death", () => {
         at = { ...arrow.pos };
         if (arrow.pos.x < w.hero.pos.x - 0.5) passed = true;
       }
+    }
+
+    expect(onHero(after)).toEqual([]);
+    expect(passed).toBe(true);
+  });
+
+  it("flies on over the Hero when it touches them on the step another Arrow kills them", () => {
+    // Two Archers the same distance off either side loose at once, so their
+    // Arrows reach the Hero on the same step.
+    const w = inTown(["A.....H.....A"]);
+    w.hero.life = 1;
+    const [west, east] = w.monsters;
+
+    let events: SimEvent[] = [];
+    let inFlight: Projectile[] = [];
+    for (let i = 0; !events.some((e) => e.type === "HeroDied"); i++) {
+      if (i > 60 * 5) throw new Error("The Hero never died");
+      inFlight = [...w.projectiles];
+      events = step(w, []);
+    }
+    expect(inFlight.map((p) => p.from).sort()).toEqual(
+      [west.id, east.id].sort(),
+    );
+    expect(onHero(events)).toHaveLength(1);
+    const [arrow] = w.projectiles;
+    expect(w.projectiles).toHaveLength(1);
+
+    const after: SimEvent[] = [];
+    const from = arrow.from;
+    let passed = false;
+    while (w.projectiles.includes(arrow)) {
+      if (after.length > 1000) throw new Error("Too many events");
+      after.push(...step(w, []));
+      const beyond =
+        from === west.id
+          ? arrow.pos.x > w.hero.pos.x + 0.5
+          : arrow.pos.x < w.hero.pos.x - 0.5;
+      if (beyond) passed = true;
     }
 
     expect(onHero(after)).toEqual([]);

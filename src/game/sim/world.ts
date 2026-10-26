@@ -54,6 +54,7 @@ import {
 import {
   killExperience,
   type MonsterOfLevel,
+  monsterAttack,
   monsterAttackRating,
   monsterDamageRange,
   monsterDefense,
@@ -1024,8 +1025,7 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   // Before the Monsters, so an Arrow first shows where it is loosed.
   landProjectiles(world, events);
   for (const { monster, target } of stepMonsters(world)) {
-    if (target === "minion") hitMinion(world, monsterAttack(monster), events);
-    else if (!world.death) hitHero(world, monsterAttack(monster), events);
+    strike(world, target, monsterAttack(monster), events);
   }
   if (isRegenerating(world)) {
     hero.life = Math.min(maxLife(world), hero.life + REGEN_PER_STEP);
@@ -1067,13 +1067,26 @@ function stepDeath(
 
 /**
  * Moves every Projectile and lands those that touch the Hero or their Minion.
- * One reaching the Hero on the step another kills them is spent unrolled.
+ * One reaching the Hero on the step another kills them flies on over them.
  */
 function landProjectiles(world: World, events: SimEvent[]) {
-  for (const { projectile, target } of stepProjectiles(world)) {
-    if (target === "minion") hitMinion(world, projectile, events);
-    else if (!world.death) hitHero(world, projectile, events);
-  }
+  stepProjectiles(world, (projectile, target) =>
+    strike(world, target, projectile, events),
+  );
+}
+
+/**
+ * Lands a Monster's attack, a melee one or a Projectile, on `target`: the
+ * Hero, unless they are in Death, or their Minion.
+ */
+function strike(
+  world: World,
+  target: MonsterTarget,
+  attack: AttackNumbers,
+  events: SimEvent[],
+) {
+  if (target === "minion") hitMinion(world, attack, events);
+  else if (!world.death) hitHero(world, attack, events);
 }
 
 /**
@@ -1582,14 +1595,6 @@ function rollDrop(world: World, pos: Vec, events: SimEvent[]) {
     world.groundItems.push({ item, pos: { ...pos } });
     events.push({ type: "ItemDropped", item: { ...item }, pos: { ...pos } });
   }
-}
-
-/** A Monster's melee attack numbers at its Monster Level. */
-function monsterAttack(monster: Monster): AttackNumbers {
-  return {
-    attackRating: monsterAttackRating(monster),
-    damage: monsterDamageRange(monster),
-  };
 }
 
 /**

@@ -1,5 +1,6 @@
 import { heroTuning } from "../tuning/hero";
 import { minionTuning } from "../tuning/minions";
+import type { ProjectileKind } from "../tuning/monsters";
 import { canSee } from "./path";
 import type { Vec } from "./vec";
 import type { MonsterId, MonsterTarget, World } from "./world";
@@ -19,6 +20,7 @@ export type AttackNumbers = {
  * a Skeleton Archer's Arrow.
  */
 export type Projectile = AttackNumbers & {
+  kind: ProjectileKind;
   pos: Vec;
   prevPos: Vec;
   /** Which way it flies: a unit vector in tile space. */
@@ -26,52 +28,57 @@ export type Projectile = AttackNumbers & {
   /** How far it flies each step (tiles). */
   speed: number;
   /** How far it has left to fly before it vanishes (tiles). */
-  left: number;
+  rangeLeft: number;
   /** The Monster that loosed it. */
   from: MonsterId;
 };
 
-/** A Projectile landing on the Hero or their Minion this step. */
-export type Landing = { projectile: Projectile; target: MonsterTarget };
-
 /**
- * Moves every Projectile one step along its line. One that touches the Hero,
- * unless they are in Death, or their Minion lands on the first of them it
- * touches and is removed, as is one that meets a blocking tile or has flown
- * its range. It flies through Monsters. Returns those that landed.
+ * Moves every Projectile one step along its line, in order, calling `land`
+ * on each that touches the Hero, unless they are in Death, or their Minion,
+ * the first of them it touches, with no wall between. Each lands before the
+ * next moves, so one reaching the Hero on the step another kills them flies
+ * on over them. A Projectile that lands, meets a blocking tile or has flown
+ * its range is removed. It flies through Monsters.
  */
-export function stepProjectiles(world: World): Landing[] {
+export function stepProjectiles(
+  world: World,
+  land: (projectile: Projectile, target: MonsterTarget) => void,
+) {
   const area = world.areas[world.areaName];
-  const landings: Landing[] = [];
   world.projectiles = world.projectiles.filter((projectile) => {
     const from = projectile.pos;
-    const move = Math.min(projectile.speed, projectile.left);
+    const move = Math.min(projectile.speed, projectile.rangeLeft);
     const to = {
       x: from.x + projectile.direction.x * move,
       y: from.y + projectile.direction.y * move,
     };
     projectile.prevPos = { ...from };
     projectile.pos = to;
-    projectile.left -= move;
-    const target = firstTouched(world, from, to);
-    if (target) {
-      landings.push({ projectile, target });
+    projectile.rangeLeft -= move;
+    const touched = firstTouched(world, from, to);
+    // A wall before what it touches stops it short.
+    if (touched && canSee(area, from, touched.at)) {
+      land(projectile, touched.target);
       return false;
     }
     if (!canSee(area, from, to)) return false;
-    return projectile.left > 0;
+    return projectile.rangeLeft > 0;
   });
-  return landings;
 }
 
 /**
  * Which of the living Hero and their Minion a Projectile flying from `a` to
- * `b` touches first, if either.
+ * `b` touches first, if either, and where along its flight it does.
  */
-function firstTouched(world: World, a: Vec, b: Vec): MonsterTarget | null {
-  const bodies: { target: MonsterTarget; pos: Vec; radius: number }[] = [];
+function firstTouched(
+  world: World,
+  a: Vec,
+  b: Vec,
+): { target: MonsterTarget; at: Vec } | null {
+  const targets: { target: MonsterTarget; pos: Vec; radius: number }[] = [];
   if (!world.death) {
-    bodies.push({
+    targets.push({
       target: "hero",
       pos: world.hero.pos,
       radius: heroTuning.radius,
@@ -79,23 +86,23 @@ function firstTouched(world: World, a: Vec, b: Vec): MonsterTarget | null {
   }
   const { minion } = world;
   if (minion) {
-    bodies.push({
+    targets.push({
       target: "minion",
       pos: minion.pos,
       radius: minionTuning[minion.type].radius,
     });
   }
-  let first: { target: MonsterTarget; along: number } | null = null;
-  for (const { target, pos, radius } of bodies) {
+  let first: { target: MonsterTarget; at: Vec; along: number } | null = null;
+  for (const { target, pos, radius } of targets) {
     const along = alongSegment(pos, a, b);
     const nearest = {
       x: a.x + along * (b.x - a.x),
       y: a.y + along * (b.y - a.y),
     };
     if (Math.hypot(pos.x - nearest.x, pos.y - nearest.y) > radius) continue;
-    if (!first || along < first.along) first = { target, along };
+    if (!first || along < first.along) first = { target, at: nearest, along };
   }
-  return first?.target ?? null;
+  return first;
 }
 
 /**

@@ -35,20 +35,8 @@ export type MonsterTuning = {
   needsSight: boolean;
   /** How near idle Monsters must be to wake with one that notices (tiles). */
   spreadRadius: number;
-  /** How near the Hero must be to start a melee attack (tiles). */
-  reach: number;
-  /**
-   * How much further the Hero may get during the wind-up and still be hit
-   * (tiles).
-   */
-  reachGrace: number;
-  /** An attack hits the Hero within this of the facing it wound up in. */
-  arcDegrees: number;
-  /**
-   * How a ranged type attacks, or null for a melee type, which swings at
-   * `reach`. A ranged type ignores `reach`, `reachGrace` and `arcDegrees`.
-   */
-  ranged: RangedTuning | null;
+  /** How it attacks: a swing at what is in reach, or a Projectile loosed. */
+  attack: MeleeTuning | RangedTuning;
   /** The telegraph before an attack's hit, or before a ranged type looses (ms). */
   windUpMs: number;
   /** How long a Monster is rooted after its hit (ms). */
@@ -80,10 +68,36 @@ export type MonsterTuning = {
 };
 
 /**
+ * A melee attack: the Monster stops once its target is within `reach`, winds
+ * up, and swings.
+ */
+export type MeleeTuning = {
+  kind: "melee";
+  /** How near its target must be to start an attack (tiles). */
+  reach: number;
+  /**
+   * How much further its target may get during the wind-up and still be hit
+   * (tiles).
+   */
+  reachGrace: number;
+  /** An attack hits its target within this of the facing it wound up in. */
+  arcDegrees: number;
+};
+
+/** The Projectiles Monsters loose, each with its own art. */
+export const PROJECTILE_KINDS = ["arrow"] as const;
+
+/** One kind of Projectile. */
+export type ProjectileKind = (typeof PROJECTILE_KINDS)[number];
+
+/**
  * A ranged attack: the Monster stops once its target is within `range` and in
  * sight, winds up, and looses a Projectile at where its target then is.
  */
 export type RangedTuning = {
+  kind: "ranged";
+  /** What it looses. */
+  projectile: ProjectileKind;
   /** How near its target must be, and in sight, to start an attack (tiles). */
   range: number;
   /** How fast its Projectile flies (tiles per second). */
@@ -123,10 +137,7 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
     replanMs: 400,
     needsSight: true,
     spreadRadius: 1.5,
-    reach: 1.2,
-    reachGrace: 0.25,
-    arcDegrees: 60,
-    ranged: null,
+    attack: { kind: "melee", reach: 1.2, reachGrace: 0.25, arcDegrees: 60 },
     windUpMs: 400,
     rootMs: 200,
     recoveryMs: 1000,
@@ -174,10 +185,7 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
     replanMs: 400,
     needsSight: true,
     spreadRadius: 1.5,
-    reach: 1.2,
-    reachGrace: 0.25,
-    arcDegrees: 60,
-    ranged: null,
+    attack: { kind: "melee", reach: 1.2, reachGrace: 0.25, arcDegrees: 60 },
     windUpMs: 750,
     rootMs: 300,
     recoveryMs: 1200,
@@ -221,14 +229,17 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
     replanMs: 400,
     needsSight: true,
     spreadRadius: 1.5,
-    reach: 1.2,
-    reachGrace: 0.25,
-    arcDegrees: 60,
     // Faster than the Hero's 5.5 tiles/s walk, so it threatens, but slow
     // enough at range to step aside from. From its furthest shot an Arrow
     // flies on 4 tiles past where it was aimed: enough to land on whatever
     // stands just behind, and a Hero backing straight off has outrun it.
-    ranged: { range: 6, projectileSpeed: 9, projectileRange: 10 },
+    attack: {
+      kind: "ranged",
+      projectile: "arrow",
+      range: 6,
+      projectileSpeed: 9,
+      projectileRange: 10,
+    },
     windUpMs: 600,
     rootMs: 200,
     recoveryMs: 1600,

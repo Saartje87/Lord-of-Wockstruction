@@ -12,6 +12,7 @@
  * the gitignored `.cache/`, and re-runs without fetching while the pins stay.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
+import type { ProjectileKind } from "../../src/game/tuning/monsters.ts";
 import { importCharacter } from "./characters.mts";
 import { filterFileCredits, readFlareArtists } from "./credits.mts";
 import { readHeroLayers } from "./flare.mts";
@@ -55,7 +56,7 @@ const MONSTER_ANIMATIONS: Record<string, string[]> = {
 const MONSTERS = Object.keys(MONSTER_ANIMATIONS);
 
 /** The Projectiles' Flare powers: Projectile to its flying animation. */
-const PROJECTILES: Record<string, string> = { arrow: "arrows" };
+const PROJECTILES: Record<ProjectileKind, string> = { arrow: "arrows" };
 
 /** Inclusive ranges of id. */
 type Ranges = [number, number][];

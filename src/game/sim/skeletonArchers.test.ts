@@ -1,12 +1,23 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { monsterTuning } from "../tuning/monsters";
 import { emptyBelt } from "./belt";
 import type { Belongings } from "./inventory";
+import {
+  monsterAttackRating,
+  monsterDamageRange,
+  monsterDefense,
+  monsterExperience,
+  monsterMaxLife,
+} from "./monsters";
+import { combatArea } from "./testAreas";
 import type { Vec } from "./vec";
 import {
   createWorld,
+  FRESH_PROGRESS,
   isInCombat,
   type Monster,
   type Order,
+  type Progress,
   type SimEvent,
   step,
   type World,
@@ -14,10 +25,11 @@ import {
 
 /**
  * An orthogonal Area drawn row by row: `.` floor, `#` wall, `H` the Hero's
- * `start`, `A` one Skeleton Archer and `S` one Skeleton, each in the middle
- * of its tile.
+ * `start`, `N` an Entry named `arrive`, `E` an Exit to `exitTo`'s `arrive`,
+ * `A` one Skeleton Archer and `S` one Skeleton, each in the middle of its
+ * tile.
  */
-function map(rows: string[]) {
+function map(rows: string[], exitTo = "town") {
   const width = rows[0].length;
   const height = rows.length;
   const cells = rows.join("");
@@ -36,8 +48,23 @@ function map(rows: string[]) {
     if (cell === "H") {
       objects.push({ name: "start", type: "entry", point: true, x, y });
     }
+    if (cell === "N") objects.push({ name: "arrive", type: "entry", x, y });
     if (cell === "A") objects.push(spawn("skeleton_archer", x, y));
     if (cell === "S") objects.push(spawn("skeleton", x, y));
+    if (cell === "E") {
+      objects.push({
+        name: "",
+        type: "exit",
+        x: x - 16,
+        y: y - 16,
+        width: 32,
+        height: 32,
+        properties: [
+          { name: "area", type: "string", value: exitTo },
+          { name: "entry", type: "string", value: "arrive" },
+        ],
+      });
+    }
   });
   const layer = (name: string, data: number[]) => ({
     type: "tilelayer",
@@ -82,6 +109,46 @@ function world(
 ): World {
   return createWorld({ areas: { town: map(rows) }, seed, belongings });
 }
+
+/**
+ * A World with the Hero just arrived in a crypt of Area Level `areaLevel`,
+ * a few tiles from one Skeleton Archer.
+ */
+function inCrypt(areaLevel: number, progress: Progress = FRESH_PROGRESS) {
+  const w = createWorld({
+    areas: {
+      town: map(["HNE"], "crypt"),
+      crypt: combatArea(map(["EN...A", ".....H"]), areaLevel),
+    },
+    seed: 1,
+    progress,
+  });
+  for (let i = 0; w.areaName === "town"; i++) {
+    if (i > 60 * 20) throw new Error("Never left Town");
+    step(w, [{ type: "MoveTo", target: { x: 2.5, y: 0.5 } }]);
+  }
+  for (let i = 0; w.areaChange; i++) {
+    if (i > 600) throw new Error("The Area change never ended");
+    step(w, []);
+  }
+  return w;
+}
+
+/** Attacks the first Monster until it dies, returning the events. */
+function killOne(world: World): SimEvent[] {
+  const [target] = world.monsters;
+  const all: SimEvent[] = [];
+  for (let i = 0; world.monsters.includes(target); i++) {
+    if (i > 60 * 120) throw new Error("The Archer never died");
+    all.push(...step(world, [{ type: "Attack", monster: target.id }]));
+  }
+  return all;
+}
+
+const tunedGrowth = { ...monsterTuning.skeleton_archer.growth };
+afterEach(() => {
+  monsterTuning.skeleton_archer.growth = { ...tunedGrowth };
+});
 
 /** Steps until the first Arrow is loosed, returning it. */
 function untilLoosed(world: World) {
@@ -298,6 +365,7 @@ describe("an Arrow", () => {
       "#..........",
     ]);
     const arrow = untilLoosed(w);
+    const from = { ...arrow.pos };
 
     const events = untilGone(w, arrow, [
       { type: "MoveTo", target: { x: 1.5, y: 3.5 } },
@@ -307,7 +375,7 @@ describe("an Arrow", () => {
     // Gone on reaching the wall's tile, with range to spare.
     expect(arrow.pos.x).toBeLessThan(1);
     expect(arrow.pos.x).toBeGreaterThan(1 - 9 / 60 - 1e-9);
-    expect(arrow.left).toBeGreaterThan(3);
+    expect(distance(from, arrow.pos)).toBeLessThan(10 - 3);
   });
 
   it("vanishes after flying its 10 tiles' range", () => {
@@ -353,52 +421,79 @@ describe("an Archer behind its Skeletons", () => {
     // Hero.
     const w = world(["H.....S..A"]);
     const [skeleton, archer] = w.monsters;
+    const archerHome = { ...archer.pos };
+    const skeletonHome = { ...skeleton.pos };
 
-    step(w, []);
+    // A second: a chase at 2.8 tiles/s, where a wander covers under one.
+    for (let i = 0; i < 60; i++) step(w, []);
 
-    expect(skeleton.state).toBe("chase");
-    expect(archer.state).toBe("chase");
+    expect(skeleton.pos.x).toBeLessThan(skeletonHome.x - 2);
+    expect(archer.pos.x).toBeLessThan(archerHome.x - 2);
   });
 });
 
 describe("hitting a Skeleton Archer while it draws its bow", () => {
-  it("makes it flinch about half the time, cancelling the shot so no Arrow is loosed", () => {
+  it("cancels the shot about half the time, so no Arrow is loosed when the wind-up would have ended", () => {
+    // Its 600 ms wind-up, and a little more for the hit's hitstop: well
+    // short of a 200 ms flinch and a fresh wind-up.
+    const windUpSteps = 36 + 6;
     let hits = 0;
-    let flinched = 0;
+    let cancelled = 0;
     for (let seed = 1; seed <= 100; seed++) {
       const w = world(["HA.."], seed);
       const [archer] = w.monsters;
       untilWindUp(w, archer);
 
+      let steps = 1;
       let events = step(w, [{ type: "Attack", monster: archer.id }]);
-      for (
-        let i = 0;
-        i < 30 && !events.some((e) => e.type === "HitLanded");
-        i++
-      ) {
+      for (; steps < 30 && !events.some((e) => e.type === "HitLanded"); ) {
         events = step(w, []);
+        steps += 1;
       }
       if (!events.some((e) => e.type === "HitLanded")) continue;
-      if (!w.monsters.includes(archer)) continue;
-      // The hit lands before the 600 ms wind-up would have ended.
+      if (events.some((e) => e.type === "MonsterDied")) continue;
+      // The hit lands before the wind-up would have ended.
       expect(w.projectiles).toEqual([]);
       hits += 1;
-      if (archer.flinch === 0) {
-        expect(archer.state).toBe("windup");
-        continue;
-      }
-      flinched += 1;
 
-      expect(archer.state).not.toBe("windup");
-      // Past when the wind-up would have ended, nothing is loosed.
-      for (let i = 0; i < 36; i++) {
+      for (; steps < windUpSteps && w.projectiles.length === 0; steps++) {
         step(w, []);
-        expect(w.projectiles).toEqual([]);
       }
+      if (w.projectiles.length === 0) cancelled += 1;
     }
 
     expect(hits).toBeGreaterThan(50);
-    expect(flinched / hits).toBeGreaterThan(0.35);
-    expect(flinched / hits).toBeLessThan(0.65);
+    expect(cancelled / hits).toBeGreaterThan(0.35);
+    expect(cancelled / hits).toBeLessThan(0.65);
+  });
+});
+
+describe("a Skeleton Archer's Monster Level", () => {
+  it("grows its numbers by the Skeleton Archer's own rates", () => {
+    monsterTuning.skeleton_archer.growth = {
+      life: 0.5,
+      damage: 1,
+      attackRating: 0.25,
+      defense: 0.1,
+      experience: 2,
+    };
+    const [archer] = inCrypt(3).monsters;
+
+    expect(archer.monsterLevel).toBe(3);
+    expect(monsterMaxLife(archer)).toBe(72);
+    expect(monsterDamageRange(archer)).toEqual([9, 18]);
+    expect(monsterAttackRating(archer)).toBe(30);
+    expect(monsterDefense(archer)).toBe(162);
+    expect(monsterExperience(archer)).toBe(550);
+  });
+
+  it("gives the Skeleton Archer's Experience when one dies", () => {
+    monsterTuning.skeleton_archer.growth.experience = 2;
+    // Enough Vitality to outlast the Archer's Arrows.
+    const w = inCrypt(3, { ...FRESH_PROGRESS, level: 3, vitality: 500 });
+
+    const gained = killOne(w).filter((e) => e.type === "ExperienceGained");
+
+    expect(gained).toEqual([{ type: "ExperienceGained", amount: 550 }]);
   });
 });

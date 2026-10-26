@@ -2,13 +2,16 @@ import { heroTuning } from "../tuning/hero";
 import { minionTuning } from "../tuning/minions";
 import {
   experienceDropOff,
+  type MeleeTuning,
   type MonsterGrowth,
   type MonsterType,
   monsterTuning,
+  type RangedTuning,
 } from "../tuning/monsters";
 import { isWalkable } from "./area";
 import { faceToward, lands } from "./melee";
 import { canSee, isClear } from "./path";
+import type { AttackNumbers } from "./projectiles";
 import { random, randomInt } from "./random";
 import { msToSteps, perStep } from "./units";
 import { distance, type Vec } from "./vec";
@@ -30,7 +33,7 @@ const STEPPED = Object.fromEntries(
       rootSteps: msToSteps(tuning.rootMs),
       recoverySteps: msToSteps(tuning.recoveryMs),
       jitterSteps: msToSteps(tuning.jitterMs),
-      arc: (tuning.arcDegrees * Math.PI) / 180,
+      attack: steppedAttack(tuning.attack),
     },
   ]),
 ) as Record<
@@ -46,9 +49,30 @@ const STEPPED = Object.fromEntries(
     rootSteps: number;
     recoverySteps: number;
     jitterSteps: number;
-    arc: number;
+    attack: SteppedAttack;
   }
 >;
+
+/**
+ * A Monster type's attack converted to steps: a melee one's arc in radians,
+ * a ranged one's Projectile speed in tiles per step.
+ */
+type SteppedAttack =
+  | { kind: "melee"; reach: number; reachGrace: number; arc: number }
+  | (Omit<RangedTuning, "projectileSpeed"> & { projectileSpeed: number });
+
+function steppedAttack(attack: MeleeTuning | RangedTuning): SteppedAttack {
+  if (attack.kind === "ranged") {
+    return { ...attack, projectileSpeed: perStep(attack.projectileSpeed) };
+  }
+  const { reach, reachGrace, arcDegrees } = attack;
+  return {
+    kind: "melee",
+    reach,
+    reachGrace,
+    arc: (arcDegrees * Math.PI) / 180,
+  };
+}
 
 /** A Monster type at a Monster Level: all its scaled numbers depend on. */
 export type MonsterOfLevel = Pick<Monster, "type" | "monsterLevel">;
@@ -118,6 +142,14 @@ export function killExperience(
   const factor =
     experienceDropOff[Math.min(below, experienceDropOff.length - 1)];
   return Math.round(monsterExperience(monster) * factor);
+}
+
+/** The numbers a Monster's attacks roll with at its Monster Level. */
+export function monsterAttack(monster: MonsterOfLevel): AttackNumbers {
+  return {
+    attackRating: monsterAttackRating(monster),
+    damage: monsterDamageRange(monster),
+  };
 }
 
 /** A Monster's attack landing on its target this step. */
@@ -298,7 +330,8 @@ export function wanderPause(world: World, type: MonsterType): number {
  * reach, or gives up beyond its leash.
  */
 function chase(world: World, monster: Monster) {
-  const { reach, leash, ranged } = monsterTuning[monster.type];
+  const { leash } = monsterTuning[monster.type];
+  const { attack } = STEPPED[monster.type];
   if (distance(monster.pos, monster.home) > leash) {
     sendHome(monster);
     return;
@@ -310,7 +343,8 @@ function chase(world: World, monster: Monster) {
   const gap = distance(monster.pos, quarry.pos);
   // A ranged Monster stops only where it can also see its target, and walks
   // on, behind a wall, until it can.
-  const stopAt = ranged ? ranged.range : reach;
+  const ranged = attack.kind === "ranged";
+  const stopAt = ranged ? attack.range : attack.reach;
   const inSight = !ranged || canSee(area, monster.pos, quarry.pos);
   // A chase stops at reach only up to rounding.
   if (gap <= stopAt + 1e-9 && inSight) {
@@ -375,30 +409,33 @@ function windUp(world: World, monster: Monster): boolean {
     stepped.rootSteps +
     stepped.recoverySteps +
     randomInt(world.rng, [0, stepped.jitterSteps]);
-  const { reach, reachGrace, ranged } = monsterTuning[monster.type];
+  const { attack } = stepped;
   const at = targetPos(world, monster.target);
   if (!at) return false;
-  if (ranged) {
-    loose(world, monster, at);
+  if (attack.kind === "ranged") {
+    loose(world, monster, attack, at);
     return false;
   }
-  return lands(monster, at, reach + reachGrace, stepped.arc);
+  return lands(monster, at, attack.reach + attack.reachGrace, attack.arc);
 }
 
 /** Looses a ranged Monster's Projectile from where it stands at `at`. */
-function loose(world: World, monster: Monster, at: Vec) {
-  const { ranged } = monsterTuning[monster.type];
-  if (!ranged) return;
+function loose(
+  world: World,
+  monster: Monster,
+  ranged: Extract<SteppedAttack, { kind: "ranged" }>,
+  at: Vec,
+) {
   faceToward(monster, at);
   world.projectiles.push({
+    kind: ranged.projectile,
     pos: { ...monster.pos },
     prevPos: { ...monster.pos },
     direction: { x: Math.cos(monster.facing), y: Math.sin(monster.facing) },
-    speed: perStep(ranged.projectileSpeed),
-    left: ranged.projectileRange,
+    speed: ranged.projectileSpeed,
+    rangeLeft: ranged.projectileRange,
     from: monster.id,
-    attackRating: monsterAttackRating(monster),
-    damage: monsterDamageRange(monster),
+    ...monsterAttack(monster),
   });
 }
 

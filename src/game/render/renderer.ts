@@ -58,7 +58,11 @@ import { heroTuning } from "../tuning/hero";
 import { inputTuning } from "../tuning/input";
 import { type ItemType, itemOf } from "../tuning/items";
 import { minionTuning } from "../tuning/minions";
-import { type MonsterType, monsterTuning } from "../tuning/monsters";
+import {
+  type MeleeTuning,
+  type MonsterType,
+  monsterTuning,
+} from "../tuning/monsters";
 import { type Skill, skillTuning } from "../tuning/skills";
 import { type Compass, compassOf, frameAt, swingFrame } from "./animation";
 import { arrivedInDisplayName, bannerOpacityAt } from "./areaBanner";
@@ -1056,20 +1060,15 @@ export function createRenderer(
           // A flinch doesn't stop a wind-up, so it shows over one.
           const progress = windUpProgress(monster);
           // An archer draws its bow with its own animation.
-          const animation = view.art.timing.shoot ? "shoot" : "swing";
-          const { frames } =
-            view.art.timing[animation] ?? view.art.timing.swing;
+          const { shoot, swing } = view.art.timing;
+          const animation = shoot ? "shoot" : "swing";
+          const { frames } = shoot ?? swing;
           const frame = Math.min(frames - 1, Math.floor(progress * frames));
           show(view, animation, compass, frame);
           // A ranged attack has no reach to show: the drawn bow is the tell.
-          if (!monsterTuning[monster.type].ranged) {
-            telegraph(
-              telegraphs,
-              monster.type,
-              monsterAt,
-              view.facing,
-              progress,
-            );
+          const { attack } = monsterTuning[monster.type];
+          if (attack.kind === "melee") {
+            telegraph(telegraphs, attack, monsterAt, view.facing, progress);
           }
         } else if (monster.flinch > 0) {
           const ms = (FLINCH_STEPS[monster.type] - monster.flinch) * STEP_MS;
@@ -1081,7 +1080,7 @@ export function createRenderer(
       }
 
       while (projectiles.length < world.projectiles.length) {
-        const sprite = new Sprite(art.projectiles.arrow.frames[0]);
+        const sprite = new Sprite();
         projectiles.push(sprite);
         scene.addChild(sprite);
       }
@@ -1090,7 +1089,7 @@ export function createRenderer(
       }
       world.projectiles.forEach((projectile, i) => {
         const sprite = projectiles[i];
-        const { frames, timing, height } = art.projectiles.arrow;
+        const { frames, timing, height } = art.projectiles[projectile.kind];
         const texture = frames[frameAt(timing, nowMs)];
         sprite.texture = texture;
         sprite.anchor.copyFrom(texture.defaultAnchor ?? { x: 0.5, y: 0.5 });
@@ -1429,12 +1428,11 @@ function washTo(colour: number): ColorMatrixFilter["matrix"] {
  */
 function telegraph(
   graphics: Graphics,
-  type: MonsterType,
+  { reach, arcDegrees }: MeleeTuning,
   at: Vec,
   facing: number,
   progress: number,
 ) {
-  const { reach, arcDegrees } = monsterTuning[type];
   const arc = (arcDegrees * Math.PI) / 180;
   const wedge = (radius: number) => {
     const points = [toScreen(at)];

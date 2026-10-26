@@ -1,5 +1,10 @@
 import { Assets, type Spritesheet, type Texture } from "pixi.js";
-import { type MonsterType, monsterTuning } from "../tuning/monsters";
+import {
+  type MonsterType,
+  monsterTuning,
+  PROJECTILE_KINDS,
+  type ProjectileKind,
+} from "../tuning/monsters";
 import type { Compass, Timing } from "./animation";
 
 /** The animations the Flare import keeps for every character. */
@@ -8,6 +13,7 @@ type EveryAnimation = "stance" | "run" | "swing" | "hit" | "die";
 /** The animations some characters also have, such as an archer's `shoot`. */
 type ExtraAnimation = "shoot";
 
+/** An animation a character's art may have. */
 export type Animation = EveryAnimation | ExtraAnimation;
 
 /** One character's frames and how they play. */
@@ -17,9 +23,6 @@ export type CharacterArt = {
   timing: Record<EveryAnimation, Timing> &
     Partial<Record<ExtraAnimation, Timing>>;
 };
-
-/** The Projectiles drawn, each with its own art. */
-export type ProjectileKind = "arrow";
 
 /**
  * A Projectile's frames flying screen east, which the renderer rotates to its
@@ -54,8 +57,6 @@ type ProjectileMeta = {
   height: number;
 };
 
-const PROJECTILES: ProjectileKind[] = ["arrow"];
-
 /**
  * Loads the Flare art for Areas drawn with `tilesets` from `public/assets/`.
  * Atlases are sampled with `nearest` when the canvas resolution is a whole
@@ -77,7 +78,7 @@ export async function loadArt(
       ),
     ),
     Promise.all(
-      PROJECTILES.map((name) =>
+      PROJECTILE_KINDS.map((name) =>
         Assets.load<Spritesheet>(`/assets/projectiles/${name}.json`),
       ),
     ),
@@ -114,11 +115,12 @@ export async function loadArt(
       types.map((type, i) => [type, characterArt(monsters[i])]),
     ) as Record<MonsterType, CharacterArt>,
     projectiles: Object.fromEntries(
-      PROJECTILES.map((name, i) => [name, projectileArt(projectiles[i])]),
+      PROJECTILE_KINDS.map((name, i) => [name, projectileArt(projectiles[i])]),
     ) as Record<ProjectileKind, ProjectileArt>,
   };
 }
 
+/** A Projectile's art from its imported spritesheet's `fly` frames and meta. */
 function projectileArt(sheet: Spritesheet): ProjectileArt {
   const { timing, height } = sheet.data.meta as unknown as ProjectileMeta;
   const frames = (sheet.animations as Record<string, Texture[]>).fly;

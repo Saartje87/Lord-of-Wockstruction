@@ -7,7 +7,12 @@ import {
   type Progress,
   type World,
 } from "../sim/world";
-import { skillBarHitAt, skillBarLayout, skillBarSheet } from "./skillBar";
+import {
+  skillBarHitAt,
+  skillBarLayout,
+  skillBarSheet,
+  skillDropOrder,
+} from "./skillBar";
 
 const town = {
   orientation: "orthogonal",
@@ -96,5 +101,23 @@ describe("a click on the Skill Bar", () => {
 
   it("is for the World off the slots", () => {
     expect(skillBarHitAt(screen, { x: 640, y: 300 })).toBeNull();
+  });
+});
+
+describe("dropping a dragged Skill", () => {
+  it("onto a slot puts it there", () => {
+    const { slots } = skillBarLayout(screen);
+    const at = { x: slots.key4.x + 2, y: slots.key4.y + slots.key4.h - 2 };
+
+    expect(skillDropOrder(screen, at, "golem")).toEqual({
+      type: "PutSkillOnBar",
+      skill: "golem",
+      slot: "key4",
+    });
+  });
+
+  it("anywhere else, or off the canvas, does nothing", () => {
+    expect(skillDropOrder(screen, { x: 640, y: 300 }, "golem")).toBeNull();
+    expect(skillDropOrder(screen, null, "golem")).toBeNull();
   });
 });

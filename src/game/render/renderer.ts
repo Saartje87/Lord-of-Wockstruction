@@ -46,6 +46,7 @@ import { heroTuning } from "../tuning/hero";
 import { inputTuning } from "../tuning/input";
 import { type ItemKind, type ItemType, itemOf } from "../tuning/items";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
+import { type Skill, skillTuning } from "../tuning/skills";
 import { type Compass, compassOf, frameAt, swingFrame } from "./animation";
 import { arrivedInDisplayName, bannerOpacityAt } from "./areaBanner";
 import { type Animation, type Art, type CharacterArt, frameOf } from "./art";
@@ -87,6 +88,7 @@ import {
 import { type Orb, orbFill } from "./orbs";
 import { menuChoiceAt, PAUSE_MENU_LAYOUT, pauseMenuLayout } from "./pauseMenu";
 import {
+  SKILL_BAR,
   type SkillBarHit,
   skillBarHitAt,
   skillBarLayout,
@@ -547,6 +549,8 @@ export function createRenderer(
   app.stage.addChild(inventoryPanel.layer);
   const skillTreePanel = skillTreePanelView();
   app.stage.addChild(skillTreePanel.layer);
+  const draggedSkill = draggedSkillView();
+  app.stage.addChild(draggedSkill.layer);
   // Over the whole screen, stretched to it each frame.
   const banner = new Text({
     text: "",
@@ -862,7 +866,8 @@ export function createRenderer(
      * which outlines what it's over in the World, or off a panel, shows the
      * tooltip of the Item it's over on one. `menus` shows the Hero and
      * Inventory panels while they're open, and the pause menu over
-     * everything while paused.
+     * everything while paused. `dragged` is the Skill being dragged from
+     * the Skill Tree, if any, drawn at the pointer.
      */
     draw(
       world: World,
@@ -870,6 +875,7 @@ export function createRenderer(
       pointer: Vec | null,
       nowMs: number,
       menus: Menus,
+      dragged: Skill | null = null,
     ) {
       const active = world.areas[world.areaName];
       heroPanelOpenNow = menus.heroPanelOpen;
@@ -1120,6 +1126,7 @@ export function createRenderer(
       levelUp.draw(app.screen, world, nowMs);
       heroPanel.draw(app.screen, world, menus.heroPanelOpen);
       skillTreePanel.draw(app.screen, world, menus.skillTreeOpen);
+      draggedSkill.draw(dragged, pointer);
       const spot = onPanel && "inventory" in onPanel ? onPanel.inventory : null;
       inventoryPanel.draw(
         app.screen,
@@ -1532,6 +1539,39 @@ function skillBarView() {
         key.text = shown.key;
         key.position.set(rect.x + rect.w - 3, rect.y + 2);
       });
+    },
+  };
+}
+
+/**
+ * A Skill being dragged from the Skill Tree, drawn as it shows in a Skill
+ * Bar slot, centred on the pointer.
+ */
+function draggedSkillView() {
+  const style = SKILL_BAR_STYLE;
+  const layer = new Container();
+  const graphics = new Graphics();
+  const name = new Text({
+    text: "",
+    style: { fill: style.name, fontSize: style.nameSize, fontFamily: SERIF },
+  });
+  name.anchor.set(0.5);
+  layer.addChild(graphics, name);
+  layer.visible = false;
+
+  return {
+    layer,
+    draw(skill: Skill | null, pointer: Vec | null) {
+      layer.visible = skill !== null && pointer !== null;
+      if (!skill || !pointer) return;
+      const { slot } = SKILL_BAR;
+      graphics.clear();
+      graphics
+        .rect(-slot / 2, -slot / 2, slot, slot)
+        .fill({ color: style.skill, alpha: 0.85 })
+        .stroke({ color: style.skillEdge, width: 1 });
+      name.text = skillTuning[skill].name;
+      layer.position.set(pointer.x, pointer.y);
     },
   };
 }

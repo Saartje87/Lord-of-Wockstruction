@@ -1,8 +1,8 @@
 import { inside, type Rect } from "../sim/rect";
 import { SKILL_BAR_SLOTS, type SkillBarSlot } from "../sim/skillBar";
 import type { Vec } from "../sim/vec";
-import { skillManaCost, type World } from "../sim/world";
-import { skillTuning } from "../tuning/skills";
+import { type Order, skillManaCost, type World } from "../sim/world";
+import { type Skill, skillTuning } from "../tuning/skills";
 
 /**
  * The Skill Bar, centred along the bottom between the orbs (CSS px): square
@@ -90,4 +90,18 @@ export function skillBarHitAt(
   const { slots } = skillBarLayout(screen);
   const slot = SKILL_BAR_SLOTS.find((name) => inside(slots[name], point));
   return slot ? { button: { type: "skillBarSlot", slot } } : null;
+}
+
+/**
+ * The order for letting go of `skill`, dragged from the Skill Tree, at
+ * `point`: put it into the Skill Bar slot there, or null for nothing when
+ * it's off the slots or off the canvas.
+ */
+export function skillDropOrder(
+  screen: { width: number; height: number },
+  point: Vec | null,
+  skill: Skill,
+): Order | null {
+  const hit = point && skillBarHitAt(screen, point);
+  return hit ? { type: "PutSkillOnBar", skill, slot: hit.button.slot } : null;
 }

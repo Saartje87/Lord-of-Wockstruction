@@ -115,6 +115,10 @@ describe("whether a step's events change the Hero's progress", () => {
     ).toBe(true);
   });
 
+  it("is yes for SkillBarChanged, which rearranges the Skill Bar", () => {
+    expect(changesSave([{ type: "SkillBarChanged" }])).toBe(true);
+  });
+
   it("is yes for ItemPickedUp, which changes the Inventory", () => {
     const item = { id: 3, type: "axe" as const };
     expect(

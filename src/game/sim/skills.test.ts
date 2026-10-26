@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { skillTuning } from "../tuning/skills";
-import { emptySkillBar, placeLearnedSkill } from "./skillBar";
+import { emptySkillBar, placeLearnedSkill, putSkillOnBar } from "./skillBar";
 import {
   createWorld,
   FRESH_PROGRESS,
@@ -231,5 +231,76 @@ describe("placeLearnedSkill", () => {
     };
 
     expect(placeLearnedSkill(full, "golem")).toEqual(full);
+  });
+});
+
+describe("PutSkillOnBar", () => {
+  /** A Level 2 Hero with the Golem learned, so on the right-click slot. */
+  function learned(): World {
+    const w = world(withSkillPoints(2, 1));
+    spend(w, "golem");
+    return w;
+  }
+
+  it("puts a learned Skill into a slot, emptying the one it was in, and reports it", () => {
+    const w = learned();
+
+    const events = step(w, [
+      { type: "PutSkillOnBar", skill: "golem", slot: "key3" },
+    ]);
+
+    expect(events).toEqual([{ type: "SkillBarChanged" }]);
+    expect(progressOf(w).skillBar).toEqual({
+      ...emptySkillBar(),
+      key3: "golem",
+    });
+  });
+
+  it("is ignored for a Skill not yet learned", () => {
+    const w = world(withSkillPoints(2, 1));
+
+    const events = step(w, [
+      { type: "PutSkillOnBar", skill: "golem", slot: "key1" },
+    ]);
+
+    expect(events).toEqual([]);
+    expect(progressOf(w).skillBar).toEqual(emptySkillBar());
+  });
+
+  it("reports nothing when the Skill is already in that slot", () => {
+    const w = learned();
+
+    const events = step(w, [
+      { type: "PutSkillOnBar", skill: "golem", slot: "right" },
+    ]);
+
+    expect(events).toEqual([]);
+    expect(progressOf(w).skillBar.right).toBe("golem");
+  });
+
+  it("happens at once, without interrupting a swing", () => {
+    const w = learned();
+    step(w, [{ type: "SwingAt", target: { x: 2.5, y: 0.5 } }]);
+    const swing = w.hero.swing;
+
+    step(w, [{ type: "PutSkillOnBar", skill: "golem", slot: "key1" }]);
+
+    expect(w.hero.swing).toBe(swing);
+    expect(w.hero.buffered).toBeNull();
+    expect(progressOf(w).skillBar.key1).toBe("golem");
+  });
+});
+
+describe("putSkillOnBar", () => {
+  // A second Skill, which the tuning doesn't have yet.
+  const other = "boneWall" as Skill;
+
+  it("replaces whatever Skill was in the slot", () => {
+    const bar = { ...emptySkillBar(), right: other, key2: "golem" as Skill };
+
+    expect(putSkillOnBar(bar, "golem", "right")).toEqual({
+      ...emptySkillBar(),
+      right: "golem",
+    });
   });
 });

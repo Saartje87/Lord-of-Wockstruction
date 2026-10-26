@@ -1,9 +1,14 @@
+import {
+  hasPendingPoints,
+  noPendingPoints,
+  type PendingPoints,
+  pendingTotal,
+} from "../menus";
 import { inside, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
 import {
   ATTRIBUTES,
   type Attribute,
-  type AttributeCounts,
   attackRating,
   attributesOf,
   damageRange,
@@ -97,8 +102,7 @@ export type HeroSheet = {
   derived: { name: string; value: string; changed: boolean }[];
 };
 
-/** None pending. */
-const NO_PENDING: AttributeCounts = {};
+const NO_PENDING: Readonly<PendingPoints> = noPendingPoints();
 
 /**
  * The Hero panel's sheet for `world` with `pending` Pending Attribute Points
@@ -107,7 +111,7 @@ const NO_PENDING: AttributeCounts = {};
  */
 export function heroSheet(
   world: World,
-  pending: AttributeCounts = NO_PENDING,
+  pending: Readonly<PendingPoints> = NO_PENDING,
 ): HeroSheet {
   const { progress } = world.hero;
   const preview = withAttributePointsSpent(world, pending);
@@ -121,14 +125,14 @@ export function heroSheet(
       name: ATTRIBUTE_NAMES[attribute],
       value: after.attributes[i],
       changed: after.attributes[i] !== before.attributes[i],
-      canLower: (pending[attribute] ?? 0) > 0,
+      canLower: pending[attribute] > 0,
     })),
     attributePoints: {
       value: after.attributePoints,
       changed: after.attributePoints !== before.attributePoints,
     },
     canRaise: canRaise(world, pending),
-    canAccept: hasPending(pending),
+    canAccept: hasPendingPoints(pending),
     derived: after.derived.map(({ name, value }, i) => ({
       name,
       value,
@@ -172,14 +176,9 @@ function sheetValues(world: World) {
  * Whether the + buttons are there: some unspent points aren't `pending`
  * and the Hero lives.
  */
-function canRaise(world: World, pending: AttributeCounts): boolean {
-  const preview = withAttributePointsSpent(world, pending);
-  return preview.hero.progress.attributePoints > 0 && !world.death;
-}
-
-/** Whether any Attribute has Pending Attribute Points. */
-function hasPending(pending: AttributeCounts): boolean {
-  return ATTRIBUTES.some((attribute) => (pending[attribute] ?? 0) > 0);
+function canRaise(world: World, pending: Readonly<PendingPoints>): boolean {
+  const unspent = world.hero.progress.attributePoints;
+  return unspent - pendingTotal(pending) > 0 && !world.death;
 }
 
 /**
@@ -268,18 +267,17 @@ export type PanelHit = { button: PanelButton | null };
 
 /**
  * What a click at `point` hits, or null when it's on neither the panel nor
- * the Level Up button are there
- * only while Attribute or Skill Points are unspent, pending or not, the
- * panel only while `open`, its × with it, its + buttons only while a point
- * is left to place, each − only on an Attribute with `pending` points, and
- * Accept only while any are.
+ * the Level Up button. The Level Up button is there only while Attribute or
+ * Skill Points are unspent, pending or not; the panel only while `open`, its
+ * × with it; its + buttons only while a point is left to place, each − only
+ * on an Attribute with `pending` points, and Accept only while any are.
  */
 export function panelHitAt(
   screen: { width: number; height: number },
   point: Vec,
   world: World,
   open: boolean,
-  pending: AttributeCounts = NO_PENDING,
+  pending: Readonly<PendingPoints> = NO_PENDING,
 ): PanelHit | null {
   const layout = heroPanelLayout(screen);
   if (hasUnspentPoints(world) && inside(layout.levelUp, point)) {
@@ -293,12 +291,12 @@ export function panelHitAt(
     if (raisable && inside(layout.raise[attribute], point)) {
       return { button: { type: "raise", attribute } };
     }
-    const lowerable = (pending[attribute] ?? 0) > 0;
+    const lowerable = pending[attribute] > 0;
     if (lowerable && inside(layout.lower[attribute], point)) {
       return { button: { type: "lower", attribute } };
     }
   }
-  if (hasPending(pending) && inside(layout.accept, point)) {
+  if (hasPendingPoints(pending) && inside(layout.accept, point)) {
     return { button: { type: "accept" } };
   }
   return { button: null };

@@ -8,7 +8,7 @@ import {
 } from "pixi.js";
 import type { CursorHit } from "../cursor";
 import { toScreen, toTile } from "../iso";
-import type { MenuChoice, Menus } from "../menus";
+import type { MenuChoice, Menus, PendingPoints } from "../menus";
 import type { Pause } from "../pause";
 import { type Area, isFloor } from "../sim/area";
 import { beltOf, beltRows, isBeltCell } from "../sim/belt";
@@ -363,7 +363,7 @@ const HUD_BUTTON = {
  * `HERO_PANEL`. Each rule sits `ruleGap` over the rows it heads, and
  * Attribute values keep `plusGap` from their − buttons (CSS px). Values the
  * Pending Attribute Points change show in `changed`, Diablo 2's blue for a
- * raised stat.
+ * raised Attribute.
  */
 const HERO_PANEL_STYLE = {
   fill: 0x17130e,
@@ -633,7 +633,7 @@ export function createRenderer(
   /** Whether the Hero panel was open when last drawn. */
   let heroPanelOpenNow = false;
   /** The Pending Attribute Points when last drawn. */
-  let pendingPointsNow: Menus["pendingPoints"] | undefined;
+  let pendingPointsNow: PendingPoints | undefined;
   /** Whether the Inventory panel was open when last drawn. */
   let inventoryOpenNow = false;
   /** Whether the Skill Tree panel was open when last drawn. */
@@ -1898,7 +1898,7 @@ function heroPanelView() {
       screen: { width: number; height: number },
       world: World,
       open: boolean,
-      pending: Menus["pendingPoints"],
+      pending: PendingPoints,
     ) {
       layer.visible = open;
       if (!open) return;

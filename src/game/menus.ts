@@ -21,8 +21,11 @@ export type Menus = {
    * spent until Accept, and cancelled as the panel shuts. Never in the World
    * or the Save.
    */
-  pendingPoints: Record<Attribute, number>;
+  pendingPoints: PendingPoints;
 };
+
+/** A count of Pending Attribute Points on each Attribute. */
+export type PendingPoints = Record<Attribute, number>;
 
 export function createMenus(): Menus {
   return {
@@ -34,8 +37,11 @@ export function createMenus(): Menus {
   };
 }
 
-function noPendingPoints(): Record<Attribute, number> {
-  return { strength: 0, dexterity: 0, vitality: 0, energy: 0 };
+/** No Pending Attribute Points, on any Attribute. */
+export function noPendingPoints(): PendingPoints {
+  return Object.fromEntries(
+    ATTRIBUTES.map((attribute) => [attribute, 0]),
+  ) as PendingPoints;
 }
 
 /**
@@ -144,16 +150,17 @@ function shutHeroPanel(menus: Menus) {
  * unspent, those not pending.
  */
 export function unplacedPoints(menus: Menus, attributePoints: number): number {
-  const pending = ATTRIBUTES.reduce(
-    (sum, attribute) => sum + menus.pendingPoints[attribute],
-    0,
-  );
-  return attributePoints - pending;
+  return attributePoints - pendingTotal(menus.pendingPoints);
+}
+
+/** How many Pending Attribute Points there are on all Attributes together. */
+export function pendingTotal(pending: Readonly<PendingPoints>): number {
+  return ATTRIBUTES.reduce((sum, attribute) => sum + pending[attribute], 0);
 }
 
 /** Whether any Pending Attribute Point waits for Accept. */
-export function hasPendingPoints(menus: Menus): boolean {
-  return ATTRIBUTES.some((attribute) => menus.pendingPoints[attribute] > 0);
+export function hasPendingPoints(pending: Readonly<PendingPoints>): boolean {
+  return pendingTotal(pending) > 0;
 }
 
 /**
@@ -183,7 +190,7 @@ export function removePendingPoint(menus: Menus, attribute: Attribute) {
  * once, which clears them, or null while none are pending.
  */
 export function acceptPendingPoints(menus: Menus): Order | null {
-  if (!hasPendingPoints(menus)) return null;
+  if (!hasPendingPoints(menus.pendingPoints)) return null;
   const points = menus.pendingPoints;
   menus.pendingPoints = noPendingPoints();
   return { type: "SpendAttributePoints", points };

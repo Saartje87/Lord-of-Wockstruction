@@ -3,6 +3,7 @@ import {
   acceptPendingPoints,
   addPendingPoint,
   createMenus,
+  noPendingPoints,
   pressKey,
 } from "../menus";
 import { changesSave, saveOf } from "../save";
@@ -246,7 +247,7 @@ describe("heroSheet", () => {
 
 /** No Pending Attribute Points, but `points` on each Attribute named. */
 function pending(points: Partial<Record<Attribute, number>>) {
-  return { strength: 0, dexterity: 0, vitality: 0, energy: 0, ...points };
+  return { ...noPendingPoints(), ...points };
 }
 
 describe("heroSheet with Pending Attribute Points", () => {

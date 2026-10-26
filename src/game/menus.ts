@@ -103,6 +103,19 @@ export function clickLevelUp(
   if (hero.skillPoints > 0) openSkillTree(menus);
 }
 
+/** A panel with an × close button in its top-right corner. */
+export type Panel = "hero" | "inventory" | "skillTree";
+
+/**
+ * A click on a panel's × button, which shuts it as its key (C, I or T)
+ * would, but never opens it.
+ */
+export function clickClose(menus: Menus, panel: Panel) {
+  if (panel === "hero") menus.heroPanelOpen = false;
+  if (panel === "inventory") menus.inventoryOpen = false;
+  if (panel === "skillTree") menus.skillTreeOpen = false;
+}
+
 /**
  * Follows what happened in a step of the World: the Hero's Death closes the
  * panels.

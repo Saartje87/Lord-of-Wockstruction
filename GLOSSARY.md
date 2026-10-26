@@ -97,8 +97,12 @@ What the Hero spends to cast Skills; unlike Life it regenerates all the time, In
 _Avoid_: MP, energy (that's the Attribute)
 
 **Attribute Point**:
-What the Hero gains five of on each new Level, kept until the player spends it to raise an Attribute by one; a spent point can't be taken back.
+What the Hero gains five of on each new Level, kept until the player spends it to raise an Attribute by one; it is spent only when the player accepts it, and a spent point can't be taken back.
 _Avoid_: Stat point
+
+**Pending Attribute Point**:
+An Attribute Point the player has put on an Attribute in the Hero panel but not yet accepted; it can still be taken off, and is lost back to the unspent points if the panel closes first. The Save never keeps one.
+_Avoid_: Planned point, draft point
 
 **Skill**:
 Something the Hero casts, spending Mana; it can't be cast in Town. Every Hero can learn the same Skills, from the one Skill Tree.
@@ -119,6 +123,10 @@ _Avoid_: Rank (and never the Hero's Level)
 **Skill Bar**:
 The row of slots, one for the right mouse button and four for keys, holding the Skills the player casts at the cursor.
 _Avoid_: Hotbar, action bar
+
+**Held Skill**:
+The one Skill the player has picked up from the Skill Tree or the Skill Bar, on the cursor, to put in a Skill Bar slot; the Skill Bar doesn't change until it lands, and letting it go anywhere else changes nothing. The cursor holds a Held Skill or a Held Item, never both.
+_Avoid_: Dragged Skill, cursor Skill
 
 **Minion**:
 A creature on the Hero's side, brought by a Skill, that fights Monsters for the Hero.
@@ -201,5 +209,9 @@ One of the four stacks of Potions the Hero carries ready to drink, filled from t
 _Avoid_: Belt slot (a slot is Equipment), potion slot
 
 **Belt strip**:
-The row of squares on the HUD beside the Skill Bar, one per Belt Column, each showing that column's bottom Potion, its key and how many Potions it holds.
+The row of squares on the HUD beside the Skill Bar, one per Belt Column, each showing that column's bottom Potion, its key and how many Potions it holds; a Potion can be lifted from it or put down on it as a Held Item, Inventory panel open or not.
 _Avoid_: Potion bar, quickbar
+
+**Close button**:
+The × in the top-right corner of the Hero, Inventory and Skill Tree panels; clicking it shuts that panel just as its key does, so shutting the Inventory panel puts a Held Item back where it was lifted from.
+_Avoid_: X button, exit button

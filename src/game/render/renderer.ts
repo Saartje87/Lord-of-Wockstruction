@@ -45,6 +45,7 @@ import {
 import { heroTuning } from "../tuning/hero";
 import { inputTuning } from "../tuning/input";
 import { type ItemKind, type ItemType, itemOf } from "../tuning/items";
+import { minionTuning } from "../tuning/minions";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import { type Compass, compassOf, frameAt, swingFrame } from "./animation";
 import { arrivedInDisplayName, bannerOpacityAt } from "./areaBanner";
@@ -592,7 +593,7 @@ export function createRenderer(
     [];
   /** A Golem's view: the Skeleton's art, tinted clay and bigger. */
   const golemView = (): CharacterView => {
-    const view = characterView(art.monsters.skeleton, 0);
+    const view = characterView(art.monsters.skeleton, minionTuning.golem.speed);
     view.sprite.tint = GOLEM.tint;
     view.sprite.scale.set(GOLEM.scale);
     scene.addChild(view.sprite);

@@ -202,13 +202,15 @@ describe("casting the Golem", () => {
     old.life = 1;
     const mana = w.hero.mana;
     for (let i = 0; i < 60; i++) step(w, []);
+    // It walked after the Hero meanwhile.
+    const oldPos = { ...old.pos };
 
     const events = cast(w, { x: 1.5, y: 5.5 });
 
     expect(events).toContainEqual({
       type: "MinionCrumbled",
       minion: old.id,
-      pos: { x: 5.5, y: 1.5 },
+      pos: oldPos,
     });
     expect(w.minion?.id).not.toBe(old.id);
     expect(w.minion).toMatchObject({ pos: { x: 1.5, y: 5.5 } });

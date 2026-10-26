@@ -5,11 +5,12 @@ import {
   type MonsterType,
   monsterTuning,
 } from "../tuning/monsters";
-import { type Area, isWalkable } from "./area";
-import { canSee, findPath, isClear } from "./path";
+import { isWalkable } from "./area";
+import { canSee, isClear } from "./path";
 import { random, randomInt } from "./random";
 import { msToSteps, perStep } from "./units";
 import { angleBetween, distance, type Vec } from "./vec";
+import { type Gait, goToward, walkAlong } from "./walking";
 import type { Monster, World } from "./world";
 
 /** Each Monster type's tuning converted to steps. */
@@ -267,7 +268,14 @@ function chase(world: World, monster: Monster) {
     return;
   }
   const area = world.areas[world.areaName];
-  goToward(area, monster, hero, STEPPED[monster.type].speed, gap - reach);
+  goToward(
+    area,
+    monster,
+    gaitOf(monster),
+    hero,
+    STEPPED[monster.type].speed,
+    gap - reach,
+  );
 }
 
 /** Gives up on the Hero and walks home. */
@@ -334,66 +342,19 @@ function windUp(world: World, monster: Monster): boolean {
 function goHome(world: World, monster: Monster) {
   const area = world.areas[world.areaName];
   const stepped = STEPPED[monster.type];
-  goToward(area, monster, monster.home, stepped.returnSpeed);
+  goToward(area, monster, gaitOf(monster), monster.home, stepped.returnSpeed);
   if (distance(monster.pos, monster.home) > 0) return;
   monster.state = "idle";
   monster.life = monsterMaxLife(monster);
   monster.grace = stepped.graceSteps;
 }
 
-/**
- * Walks up to `budget` towards `to`: straight along a clear line, otherwise
- * along an A* path around walls, re-planned every so often as `to` moves.
- * `limit` caps a straight walk, so it can stop exactly short of `to`.
- */
-function goToward(
-  area: Area,
-  monster: Monster,
-  to: Vec,
-  budget: number,
-  limit = Number.POSITIVE_INFINITY,
-) {
-  const { radius } = monsterTuning[monster.type];
-  if (isClear(area, monster.pos, to, radius)) {
-    monster.path = [];
-    monster.replan = 0;
-    walkAlong(monster, [to], Math.min(budget, limit));
-    return;
-  }
-  // Only on the timer, even with the path walked: where `to` can't be
-  // reached, the path ends short of it, and re-planning there every step
-  // would find the same path.
-  monster.replan -= 1;
-  if (monster.replan <= 0) {
-    monster.path = findPath(area, monster.pos, to, radius);
-    monster.replan = STEPPED[monster.type].replanSteps;
-  }
-  walkAlong(monster, monster.path, budget);
-}
-
-/**
- * Moves the Monster up to `budget` through `points` in order, dropping each
- * one it reaches, and faces the way it walks.
- */
-function walkAlong(monster: Monster, points: Vec[], budget: number) {
-  while (budget > 0 && points.length > 0) {
-    const next = points[0];
-    const dx = next.x - monster.pos.x;
-    const dy = next.y - monster.pos.y;
-    const gap = Math.hypot(dx, dy);
-    if (gap > 0) monster.facing = Math.atan2(dy, dx);
-    if (gap <= budget) {
-      monster.pos = { ...next };
-      points.shift();
-      budget -= gap;
-    } else {
-      monster.pos = {
-        x: monster.pos.x + (dx / gap) * budget,
-        y: monster.pos.y + (dy / gap) * budget,
-      };
-      budget = 0;
-    }
-  }
+/** A Monster walks with its type's radius and re-plan timer. */
+function gaitOf(monster: Monster): Gait {
+  return {
+    radius: monsterTuning[monster.type].radius,
+    replanSteps: STEPPED[monster.type].replanSteps,
+  };
 }
 
 /**

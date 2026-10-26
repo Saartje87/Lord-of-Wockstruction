@@ -36,6 +36,9 @@ import {
   type MinionId,
   type MinionType,
   minionMaxLife,
+  newMinion,
+  placeBesideHero,
+  stepMinion,
   summonPoint,
 } from "./minions";
 import {
@@ -381,7 +384,10 @@ export type SimEvent =
   | { type: "CastFailed"; reason: CastFailure }
   /** Minion `minion` appeared at `pos`. */
   | { type: "MinionSummoned"; minion: MinionId; pos: Vec }
-  /** Minion `minion` crumbled away at `pos`, replaced by a fresh one. */
+  /**
+   * Minion `minion` crumbled away at `pos`: replaced by a fresh one, or its
+   * Hero died.
+   */
   | { type: "MinionCrumbled"; minion: MinionId; pos: Vec }
   | { type: "HeroDied" }
   /** The Hero arrived at Entry `entry` in Area `area`. */
@@ -767,6 +773,7 @@ function stepAreaChange(world: World, change: AreaChange, events: SimEvent[]) {
  * Monsters back at their spawns and no Corpses. The Hero carries over to the
  * target Entry, facing away from the Area's nearest edge, with their Life
  * restored to full on arriving in Town, and back on their feet if they died.
+ * Their Minion, if any, comes along, next to them.
  */
 function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   const area = world.areas[change.area];
@@ -784,8 +791,7 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   world.monsters = [];
   world.corpses = [];
   world.groundItems = [];
-  // Until it can follow the Hero, a Golem stays behind and is gone.
-  world.minion = null;
+  if (world.minion) placeBesideHero(world, world.minion);
   world.heldOrders = [];
   for (const spawn of area.spawns) placePack(world, area, spawn);
   events.push({ type: "AreaChanged", area: area.name, entry: change.entry });
@@ -891,6 +897,8 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   }
 
   if (hero.flinch > 0) stepFlinch(world, events);
+  // Before the orders, so a Minion summoned this step stands where it appears.
+  stepMinion(world);
   for (const order of [...world.heldOrders, ...orders]) {
     give(world, order, events);
   }
@@ -1114,15 +1122,13 @@ function summon(
       pos: { ...old.pos },
     });
   }
-  const minion: Minion = {
-    id: world.nextMinionId++,
+  const minion = newMinion(
+    world.nextMinionId++,
     type,
     skillLevel,
     pos,
-    prevPos: { ...pos },
-    life: minionMaxLife({ type }),
-    facing: world.hero.facing,
-  };
+    world.hero.facing,
+  );
   world.minion = minion;
   events.push({ type: "MinionSummoned", minion: minion.id, pos: { ...pos } });
 }
@@ -1349,11 +1355,20 @@ function hitHero(world: World, monster: Monster, events: SimEvent[]) {
 }
 
 /**
- * Lays the Hero down, stopping whatever they were doing, and sends every
- * Monster home.
+ * Lays the Hero down, stopping whatever they were doing, crumbles their
+ * Minion away and sends every Monster home.
  */
 function die(world: World, events: SimEvent[]) {
   world.death = { elapsed: 0 };
+  const { minion } = world;
+  if (minion) {
+    events.push({
+      type: "MinionCrumbled",
+      minion: minion.id,
+      pos: { ...minion.pos },
+    });
+    world.minion = null;
+  }
   for (const monster of world.monsters) sendHome(monster);
   stopHero(world.hero);
   returnCursorItem(world, events);

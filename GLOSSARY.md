@@ -154,14 +154,14 @@ _Avoid_: Drop, loot
 
 **Inventory**:
 The Hero's grid of cells holding the Items they carry but have not Equipped; Items take up rectangles of cells and can't overlap.
-_Avoid_: Bag, backpack, stash (and never the Equipment slots)
+_Avoid_: Bag, backpack, stash (and never the Equipment slots or Belt Columns)
 
 **Equipment**:
-The Hero's slots for worn Items: Weapon, Armour, two Rings and an Amulet; an Item in one of them is Equipped and its bonuses count.
+The Hero's slots for worn Items: Weapon, Armour, Belt, two Rings and an Amulet; an Item in one of them is Equipped and its bonuses count.
 _Avoid_: Gear, paper doll, loadout
 
 **Belongings**:
-Everything the Hero owns: the Items in their Inventory and Equipment together, a Held Item counting as back where it was lifted from; what the Save keeps besides progress.
+Everything the Hero owns: the Items in their Inventory, Equipment and Belt Columns together, a Held Item counting as back where it was lifted from; what the Save keeps besides progress.
 _Avoid_: Gear, loot, possessions
 
 **Held Item**:
@@ -175,3 +175,27 @@ _Avoid_: Sword (that's one Weapon)
 **Armour**:
 The Item kind Equipped in the Armour slot, giving the Hero Defense.
 _Avoid_: Armor, body armour, chest
+
+**Potion**:
+An Item the Hero drinks, used up in the drinking; the Hero can drink one anywhere, Town included, but never during Death, and never gives one to a Minion.
+_Avoid_: Flask, consumable
+
+**Life Potion**:
+The Potion that gives back a fixed amount of Life over a few seconds.
+_Avoid_: Health potion, healing potion
+
+**Mana Potion**:
+The Potion that gives back a fixed amount of Mana over a few seconds.
+_Avoid_: Energy potion
+
+**Rejuvenation Potion**:
+The Potion that at once gives back a share of both the Hero's maximum Life and maximum Mana.
+_Avoid_: Rejuv, full potion
+
+**Belt**:
+The Item kind Equipped in the Belt slot; how many rows it has sets how many Potions each Belt Column holds, one row with no Belt Equipped.
+_Avoid_: Sash (that's one Belt), potion bar, quickbar
+
+**Belt Column**:
+One of the four stacks of Potions the Hero carries ready to drink, filled from the bottom; each has its own key, which drinks the bottom Potion and lets the rest drop down a row. Only Potions go in one, of any type, mixed.
+_Avoid_: Belt slot (a slot is Equipment), potion slot

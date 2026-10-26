@@ -1,5 +1,10 @@
 import { heroTuning } from "../tuning/hero";
-import { type MonsterType, monsterTuning } from "../tuning/monsters";
+import {
+  experienceDropOff,
+  type MonsterGrowth,
+  type MonsterType,
+  monsterTuning,
+} from "../tuning/monsters";
 import { type Area, isWalkable } from "./area";
 import { canSee, findPath, isClear } from "./path";
 import { random, randomInt } from "./random";
@@ -41,6 +46,76 @@ const STEPPED = Object.fromEntries(
     arc: number;
   }
 >;
+
+/** A Monster type at a Monster Level: all its scaled numbers depend on. */
+export type MonsterOfLevel = Pick<Monster, "type" | "monsterLevel">;
+
+/**
+ * A Monster Level 1 number grown by `rate` of itself for each Monster Level
+ * above 1, rounded to a whole number.
+ */
+function grown(value: number, rate: number, monsterLevel: number): number {
+  return Math.round(value * (1 + rate * (monsterLevel - 1)));
+}
+
+/** A one-number tuning value that grows with Monster Level. */
+type GrowingStat = Exclude<keyof MonsterGrowth, "damage">;
+
+/** A Monster type's `stat` grown to its Monster Level. */
+function grownStat(
+  { type, monsterLevel }: MonsterOfLevel,
+  stat: GrowingStat,
+): number {
+  const tuning = monsterTuning[type];
+  return grown(tuning[stat], tuning.growth[stat], monsterLevel);
+}
+
+/** A Monster's max Life at its Monster Level. */
+export function monsterMaxLife(monster: MonsterOfLevel): number {
+  return grownStat(monster, "life");
+}
+
+/** The least and most damage a Monster's hit deals at its Monster Level. */
+export function monsterDamageRange({
+  type,
+  monsterLevel,
+}: MonsterOfLevel): [number, number] {
+  const { damage, growth } = monsterTuning[type];
+  return [
+    grown(damage[0], growth.damage, monsterLevel),
+    grown(damage[1], growth.damage, monsterLevel),
+  ];
+}
+
+/** A Monster's Attack Rating at its Monster Level. */
+export function monsterAttackRating(monster: MonsterOfLevel): number {
+  return grownStat(monster, "attackRating");
+}
+
+/** A Monster's Defense at its Monster Level. */
+export function monsterDefense(monster: MonsterOfLevel): number {
+  return grownStat(monster, "defense");
+}
+
+/** The Experience killing a Monster is worth at its Monster Level. */
+export function monsterExperience(monster: MonsterOfLevel): number {
+  return grownStat(monster, "experience");
+}
+
+/**
+ * The Experience a Hero of Level `heroLevel` gains for killing a Monster: its
+ * Experience times the drop-off for how far its Monster Level is below the
+ * Hero's Level, rounded to a whole number.
+ */
+export function killExperience(
+  monster: MonsterOfLevel,
+  heroLevel: number,
+): number {
+  const below = Math.max(0, heroLevel - monster.monsterLevel);
+  const factor =
+    experienceDropOff[Math.min(below, experienceDropOff.length - 1)];
+  return Math.round(monsterExperience(monster) * factor);
+}
 
 /**
  * Moves every Monster one step: noticing, chasing, attacking and walking
@@ -262,7 +337,7 @@ function goHome(world: World, monster: Monster) {
   goToward(area, monster, monster.home, stepped.returnSpeed);
   if (distance(monster.pos, monster.home) > 0) return;
   monster.state = "idle";
-  monster.life = monsterTuning[monster.type].life;
+  monster.life = monsterMaxLife(monster);
   monster.grace = stepped.graceSteps;
 }
 

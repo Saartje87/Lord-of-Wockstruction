@@ -9,6 +9,7 @@ import {
   heroChanceToHit,
   heroDefense,
   maxLife,
+  monsterLevelIn,
   type World,
 } from "../sim/world";
 import { experienceBar } from "./experienceBar";
@@ -69,7 +70,8 @@ export type HeroSheet = {
   canRaise: boolean;
   /**
    * What the Attributes and Equipped Items add up to: max Life, the damage
-   * range, Defense, Attack Rating and the chance to hit a Skeleton.
+   * range, Defense, Attack Rating and the chance to hit a Skeleton of the
+   * Area the Hero is in.
    */
   derived: { name: string; value: string }[];
 };
@@ -79,6 +81,11 @@ export function heroSheet(world: World): HeroSheet {
   const [min, max] = damageRange(world);
   // As they count, with the Equipped Items' bonuses.
   const attributes = attributesOf(world);
+  // A Skeleton as strong as one spawned in the Area the Hero is in.
+  const skeletonHere = {
+    type: "skeleton" as const,
+    monsterLevel: monsterLevelIn(world.areas[world.areaName]),
+  };
   return {
     level: `Level ${progress.level}`,
     experience: experienceBar(progress.level, progress.experience).experience,
@@ -97,7 +104,7 @@ export function heroSheet(world: World): HeroSheet {
       { name: "Attack Rating", value: String(attackRating(world)) },
       {
         name: "Chance to hit a Skeleton",
-        value: `${Math.round(heroChanceToHit(world, "skeleton") * 100)}%`,
+        value: `${Math.round(heroChanceToHit(world, skeletonHere) * 100)}%`,
       },
     ],
   };

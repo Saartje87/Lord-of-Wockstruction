@@ -63,6 +63,22 @@ export type MonsterTuning = {
   flinchMs: number;
   /** Whether a flinch cancels a wind-up. */
   flinchInterrupts: boolean;
+  /**
+   * How much each number above, as at Monster Level 1, grows by for every
+   * Monster Level above 1, as a fraction of its Monster Level 1 value: 0.25
+   * adds a quarter of it per Monster Level. Each end of `damage` grows alike.
+   * The rest of the type's numbers stay the same at every Monster Level.
+   */
+  growth: MonsterGrowth;
+};
+
+/** A growth rate per Monster Level for each number that scales with it. */
+export type MonsterGrowth = {
+  life: number;
+  damage: number;
+  attackRating: number;
+  defense: number;
+  experience: number;
 };
 
 export type MonsterType = "skeleton";
@@ -101,8 +117,34 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
     flinchChance: 0.35,
     flinchMs: 200,
     flinchInterrupts: false,
+    // Defaults to check in a playtest: in the Crypt (Area Level 4) a Skeleton
+    // has 105 Life and hits for 6–13; in the Ossuary (8), 165 and 10–19.
+    growth: {
+      life: 0.25,
+      damage: 0.2,
+      attackRating: 0.3,
+      defense: 0.15,
+      // Against Skeletons of the Hero's own Level, 2.5–8 kills per Level up
+      // to Level 14, as 5 take a fresh Hero to Level 2. The Experience table
+      // grows too fast after that for one rate to keep up.
+      experience: 3,
+    },
   },
 };
+
+/**
+ * The share of a kill's Experience the Hero gains, by how many Levels the
+ * Monster Level is below the Hero's Level: index 0 is a Monster at the Hero's
+ * Level, 1 is one Level below, and so on. Further below than the last entry
+ * gives the last entry. A Monster above the Hero's Level gives it all, with
+ * no bonus.
+ */
+export const experienceDropOff: readonly number[] = [
+  // Full Experience up to 5 Levels below...
+  1, 1, 1, 1, 1, 1,
+  // ...then a steep fall to 5% at 10 or more below.
+  0.81, 0.62, 0.43, 0.24, 0.05,
+];
 
 export function isMonsterType(value: unknown): value is MonsterType {
   return typeof value === "string" && Object.hasOwn(monsterTuning, value);

@@ -2,7 +2,14 @@ import { areaTuning } from "../tuning/areas";
 import { heroTuning } from "../tuning/hero";
 import { type Bonus, dropTuning, itemOf } from "../tuning/items";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
-import { type Area, exitAt, isWalkable, loadArea, type Spawn } from "./area";
+import {
+  type Area,
+  exitAt,
+  isWalkable,
+  loadArea,
+  type Spawn,
+  TOWN,
+} from "./area";
 import {
   type Belongings,
   type Cell,
@@ -22,7 +29,18 @@ import {
   returnCursorItem,
   taken,
 } from "./inventory";
-import { noticeHit, sendHome, stepMonsters, wanderPause } from "./monsters";
+import {
+  killExperience,
+  type MonsterOfLevel,
+  monsterAttackRating,
+  monsterDamageRange,
+  monsterDefense,
+  monsterMaxLife,
+  noticeHit,
+  sendHome,
+  stepMonsters,
+  wanderPause,
+} from "./monsters";
 import { findPath } from "./path";
 import { createRng, type Rng, random, randomInt } from "./random";
 import { msToSteps, perStep } from "./units";
@@ -116,6 +134,11 @@ export type Monster = {
   /** Unique within the World and never reused. */
   id: MonsterId;
   type: MonsterType;
+  /**
+   * Its Monster Level, which scales its Life, damage, Attack Rating, Defense
+   * and Experience: its Area's Area Level when it spawned.
+   */
+  monsterLevel: number;
   pos: Vec;
   prevPos: Vec;
   life: number;
@@ -297,8 +320,6 @@ export type SimEvent =
   | { type: "HeroDied" }
   /** The Hero arrived at Entry `entry` in Area `area`. */
   | { type: "AreaChanged"; area: string; entry: string };
-
-const TOWN = "town";
 
 /** The Hero's Attributes, in the order they're shown. */
 export const ATTRIBUTES = ["strength", "dexterity", "vitality"] as const;
@@ -529,9 +550,22 @@ export function attackRating(world: World): number {
   );
 }
 
-/** The chance each of the Hero's swings hits a Monster of type `type`. */
-export function heroChanceToHit(world: World, type: MonsterType): number {
-  return chanceToHit(attackRating(world), monsterTuning[type].defense);
+/** The chance each of the Hero's swings hits a Monster, by its Defense. */
+export function heroChanceToHit(world: World, monster: MonsterOfLevel): number {
+  return chanceToHit(attackRating(world), monsterDefense(monster));
+}
+
+/**
+ * The chance a Monster's attack hits the Hero, by its Attack Rating: certain
+ * while the Hero has 0 Defense.
+ */
+export function monsterChanceToHit(
+  world: World,
+  monster: MonsterOfLevel,
+): number {
+  const defense = heroDefense(world);
+  if (defense === 0) return 1;
+  return chanceToHit(monsterAttackRating(monster), defense);
 }
 
 /**
@@ -625,6 +659,14 @@ function awayFromEdge(area: Area, point: Vec): number {
   return edges.reduce((a, b) => (b.gap < a.gap ? b : a)).facing;
 }
 
+/**
+ * The Monster Level Monsters spawn at in an Area: its Area Level, or 1 in
+ * Town, which has none.
+ */
+export function monsterLevelIn(area: Area): number {
+  return area.areaLevel ?? 1;
+}
+
 /** How far apart a pack's Monsters stand, centre to centre (tiles). */
 const PACK_GAP = 0.8;
 
@@ -642,12 +684,16 @@ function placePack(world: World, area: Area, spawn: Spawn) {
       y: spawn.pos.y + radius * Math.sin(angle),
     };
     const pos = i > 0 && isWalkable(area, around) ? around : { ...spawn.pos };
+    const typeAtLevel: MonsterOfLevel = {
+      type: spawn.monster,
+      monsterLevel: monsterLevelIn(area),
+    };
     world.monsters.push({
       id: world.nextMonsterId++,
-      type: spawn.monster,
+      ...typeAtLevel,
       pos,
       prevPos: { ...pos },
-      life: monsterTuning[spawn.monster].life,
+      life: monsterMaxLife(typeAtLevel),
       flinch: 0,
       state: "idle",
       // Down the screen, as the Hero starts.
@@ -941,7 +987,7 @@ function land(world: World, swing: Swing, events: SimEvent[]) {
   });
 
   for (const monster of victims) {
-    if (random(world.rng) < heroChanceToHit(world, monster.type)) {
+    if (random(world.rng) < heroChanceToHit(world, monster)) {
       world.hitstop = HITSTOP_STEPS;
       hit(world, monster, events);
     } else {
@@ -978,7 +1024,11 @@ function hit(world: World, monster: Monster, events: SimEvent[]) {
       pos: monster.pos,
     });
     events.push({ type: "MonsterDied", id: monster.id });
-    gainExperience(world, monsterTuning[monster.type].experience, events);
+    gainExperience(
+      world,
+      killExperience(monster, world.hero.progress.level),
+      events,
+    );
     rollDrop(world, monster.pos, events);
     return;
   }
@@ -1008,15 +1058,14 @@ function rollDrop(world: World, pos: Vec, events: SimEvent[]) {
  */
 function hitHero(world: World, monster: Monster, events: SimEvent[]) {
   const { hero } = world;
-  const defense = heroDefense(world);
-  if (defense > 0) {
-    const { attackRating } = monsterTuning[monster.type];
-    if (random(world.rng) >= chanceToHit(attackRating, defense)) {
+  // No roll at 0 Defense, so the rolls after it stay as they were.
+  if (heroDefense(world) > 0) {
+    if (random(world.rng) >= monsterChanceToHit(world, monster)) {
       events.push({ type: "Missed", target: "hero" });
       return;
     }
   }
-  const damage = randomInt(world.rng, monsterTuning[monster.type].damage);
+  const damage = randomInt(world.rng, monsterDamageRange(monster));
   hero.life = Math.max(0, hero.life - damage);
   hero.combat = COMBAT_STEPS;
   events.push({ type: "HeroHit", damage });

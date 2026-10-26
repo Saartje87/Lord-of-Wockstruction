@@ -7,6 +7,11 @@ import { tileOf, type Vec } from "./vec";
  */
 export type Area = {
   name: string;
+  /**
+   * How hard a Combat Area is: the Monster Level of every Monster in it.
+   * Null for Town, which has none.
+   */
+  areaLevel: number | null;
   width: number;
   height: number;
   /**
@@ -96,7 +101,12 @@ type Tmj = {
   tileheight: number;
   tilesets?: TmjTileset[];
   layers: TmjLayer[];
+  /** The map's own custom properties, such as `areaLevel`. */
+  properties?: { name: string; value: unknown }[];
 };
+
+/** The one Area that is Town, by name; every other Area is a Combat Area. */
+export const TOWN = "town";
 
 // The top bits of a gid flag flips and rotations, not the tile.
 const GID_MASK = 0x0fffffff;
@@ -206,6 +216,7 @@ export function loadArea(
 
   return {
     name,
+    areaLevel: readAreaLevel(name, tmj),
     width: tmj.width,
     height: tmj.height,
     tileset: tileset?.name ?? null,
@@ -223,6 +234,19 @@ export function loadArea(
 /** A Tiled object's custom property's value, if it has it. */
 function propertyOf(object: TmjObject, key: string): unknown {
   return object.properties?.find((p) => p.name === key)?.value;
+}
+
+/**
+ * The map's `areaLevel` property: a whole number from 1, or null when it has
+ * none. Whether the Area should have one is `validateAreas`'s to check.
+ */
+function readAreaLevel(name: string, tmj: Tmj): number | null {
+  const level = tmj.properties?.find((p) => p.name === "areaLevel")?.value;
+  if (level === undefined) return null;
+  if (typeof level !== "number" || !Number.isInteger(level) || level < 1) {
+    throw new Error(`Area "${name}" has a bad Area Level: ${level}`);
+  }
+  return level;
 }
 
 /** An `exit` object's zone and its `area` and `entry` properties. */

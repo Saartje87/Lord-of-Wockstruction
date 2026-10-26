@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { combatArea } from "./testAreas";
 import {
   areaFade,
   createWorld,
@@ -109,15 +110,17 @@ const town = map(
   ],
   [exit(3, 1, "cave", "from-town"), entry("from-cave", 2, 1)],
 );
-const cave = map(
-  [
-    "......", //
-    ".H....",
-    ".....S",
-    "......",
-    "......",
-  ],
-  [exit(0, 2, "town", "from-cave"), entry("from-town", 1, 2)],
+const cave = combatArea(
+  map(
+    [
+      "......", //
+      ".H....",
+      ".....S",
+      "......",
+      "......",
+    ],
+    [exit(0, 2, "town", "from-cave"), entry("from-town", 1, 2)],
+  ),
 );
 
 function world(): World {

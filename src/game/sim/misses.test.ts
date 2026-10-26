@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { itemOf } from "../tuning/items";
 import { monsterTuning } from "../tuning/monsters";
 import type { Belongings } from "./inventory";
+import { combatArea } from "./testAreas";
 import {
   attackRating,
   chanceToHit,
@@ -118,7 +119,9 @@ describe("chance to hit", () => {
     const w = world(["H.S"]);
 
     expect(attackRating(w)).toBe(100);
-    expect(heroChanceToHit(w, "skeleton")).toBeCloseTo(0.85, 2);
+    expect(
+      heroChanceToHit(w, { type: "skeleton", monsterLevel: 1 }),
+    ).toBeCloseTo(0.85, 2);
   });
 
   it("follows 2 × AR / (AR + Defense)", () => {
@@ -186,7 +189,7 @@ describe("a Miss", () => {
       ],
       [exit(3, 1, "cave", "from-town")],
     );
-    const cave = map(["H..."], [entry("from-town", 1, 0)]);
+    const cave = combatArea(map(["H..."], [entry("from-town", 1, 0)]));
     const w = createWorld({ areas: { town, cave }, seed });
     const events = swingOnce(w);
     step(w, [{ type: "MoveTo", target: { x: 3.5, y: 1.5 } }]);
@@ -326,7 +329,7 @@ describe("a Monster Miss", () => {
       ],
       [exit(3, 1, "cave", "from-town")],
     );
-    const cave = map(["H..."], [entry("from-town", 1, 0)]);
+    const cave = combatArea(map(["H..."], [entry("from-town", 1, 0)]));
     const w = createWorld({
       areas: { town, cave },
       seed,

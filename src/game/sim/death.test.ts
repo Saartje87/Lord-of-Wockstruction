@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { combatArea } from "./testAreas";
 import {
   createWorld,
   isRegenerating,
@@ -91,17 +92,19 @@ const town = map(
   ],
   [exit(3, 1, "cave", "from-town"), entry("from-cave", 2, 1)],
 );
-const cave = map(
-  [
-    "..........", //
-    ".H........",
-    "..........",
-    "....S.....",
-    "..........",
-    "..........",
-  ],
-  [exit(0, 3, "town", "from-cave"), entry("from-town", 2, 3)],
-  7,
+const cave = combatArea(
+  map(
+    [
+      "..........", //
+      ".H........",
+      "..........",
+      "....S.....",
+      "..........",
+      "..........",
+    ],
+    [exit(0, 3, "town", "from-cave"), entry("from-town", 2, 3)],
+    7,
+  ),
 );
 
 /** A World with the Hero just arrived in the cave. */

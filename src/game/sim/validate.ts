@@ -1,10 +1,11 @@
-import { type Area, type Exit, isWalkable } from "./area";
+import { type Area, type Exit, isWalkable, TOWN } from "./area";
 import { canReach } from "./path";
 import { tileOf } from "./vec";
 
 /**
  * Checks that Areas fit together, throwing with a message naming the Area
- * and the problem: each needs a `start` Entry, Exits must lead to an Entry
+ * and the problem: each needs a `start` Entry, each Combat Area an Area
+ * Level and Town none, Exits must lead to an Entry
  * that exists and be reachable from `start`, and spawns must be on tiles the
  * Monsters can stand on.
  */
@@ -12,6 +13,15 @@ export function validateAreas(areas: Record<string, Area>) {
   for (const area of Object.values(areas)) {
     const start = area.entries.start;
     if (!start) throw new Error(`Area "${area.name}" has no "start" Entry`);
+
+    if (area.name === TOWN && area.areaLevel !== null) {
+      throw new Error(`Area "${area.name}" has an Area Level; Town has none`);
+    }
+    if (area.name !== TOWN && area.areaLevel === null) {
+      throw new Error(
+        `Area "${area.name}" is a Combat Area without an Area Level`,
+      );
+    }
 
     for (const spawn of area.spawns) {
       if (isWalkable(area, spawn.pos)) continue;

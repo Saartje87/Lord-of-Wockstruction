@@ -231,12 +231,14 @@ describe("Vitality", () => {
 describe("Dexterity", () => {
   it("raises Attack Rating and so the chance to hit", () => {
     const w = world(1, UNSPENT);
-    const before = heroChanceToHit(w, "skeleton");
+    const before = heroChanceToHit(w, { type: "skeleton", monsterLevel: 1 });
 
     spend(w, "dexterity", 10);
 
     expect(attackRating(w)).toBe(150);
-    expect(heroChanceToHit(w, "skeleton")).toBeGreaterThan(before);
+    expect(
+      heroChanceToHit(w, { type: "skeleton", monsterLevel: 1 }),
+    ).toBeGreaterThan(before);
   });
 });
 

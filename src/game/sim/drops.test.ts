@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { dropTuning, ITEM_TYPES, type ItemType } from "../tuning/items";
 import { type Belongings, inventoryOf } from "./inventory";
+import { combatArea } from "./testAreas";
 import {
   createWorld,
   FRESH_PROGRESS,
@@ -281,7 +282,7 @@ describe("Leaving the Area", () => {
     const world = createWorld({
       areas: {
         town: map(["H.S.E"], { exitTo: "cave" }),
-        cave: map(["H..E"], { exitTo: "town" }),
+        cave: combatArea(map(["H..E"], { exitTo: "town" })),
       },
       seed: 1,
     });

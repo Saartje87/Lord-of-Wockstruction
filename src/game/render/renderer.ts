@@ -21,7 +21,7 @@ import {
   isSlot,
   placement,
 } from "../sim/inventory";
-import { windUpProgress } from "../sim/monsters";
+import { monsterMaxLife, windUpProgress } from "../sim/monsters";
 import type { Rect } from "../sim/rect";
 import { STEP_MS } from "../sim/units";
 import { tileOf, type Vec } from "../sim/vec";
@@ -46,6 +46,7 @@ import { inputTuning } from "../tuning/input";
 import { type ItemKind, type ItemType, itemOf } from "../tuning/items";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import { type Compass, compassOf, frameAt, swingFrame } from "./animation";
+import { arrivedInDisplayName, bannerOpacityAt } from "./areaBanner";
 import { type Animation, type Art, type CharacterArt, frameOf } from "./art";
 import {
   type DamageNumber,
@@ -214,6 +215,12 @@ const NUMBER_COLOUR: Record<DamageNumber["kind"], number> = {
   miss: 0x9a9a9a,
   noRoom: 0xe8e0c8,
 };
+
+/**
+ * The Area Banner (CSS px): pale gold with a black outline,
+ * centred `top` of the way down the screen.
+ */
+const BANNER = { size: 34, stroke: 4, colour: 0xe8d27a, top: 0.22 };
 
 /** The stone strip along the bottom of the screen (CSS px). */
 const STRIP = {
@@ -400,9 +407,14 @@ type MonsterView = CharacterView & {
 
 /**
  * Draws the World's active Area and everything in it into a Pixi stage,
- * following the Hero.
+ * following the Hero. `areaDisplayNames` are what the Area Banner on arriving in
+ * an Area shows, by Area name.
  */
-export function createRenderer(app: Application, art: Art) {
+export function createRenderer(
+  app: Application,
+  art: Art,
+  areaDisplayNames: Readonly<Record<string, string>>,
+) {
   const camera = new Container();
   app.stage.addChild(camera);
 
@@ -473,6 +485,18 @@ export function createRenderer(app: Application, art: Art) {
   const inventoryPanel = inventoryPanelView();
   app.stage.addChild(inventoryPanel.layer);
   // Over the whole screen, stretched to it each frame.
+  const banner = new Text({
+    text: "",
+    style: {
+      fill: BANNER.colour,
+      fontSize: BANNER.size,
+      fontFamily: SERIF,
+      stroke: { color: 0x000000, width: BANNER.stroke },
+    },
+  });
+  banner.anchor.set(0.5);
+  banner.visible = false;
+  app.stage.addChild(banner);
   const hurt = new Graphics().rect(0, 0, 1, 1).fill(HURT_COLOUR);
   hurt.visible = false;
   app.stage.addChild(hurt);
@@ -501,6 +525,13 @@ export function createRenderer(app: Application, art: Art) {
   let markedAtMs: number | null = null;
   let hurtAtMs: number | null = null;
   let levelAtMs: number | null = null;
+  /** When the Hero last arrived in an Area, for the Area Banner. */
+  let arrivedAtMs: number | null = null;
+  /** Starts the Area Banner showing `displayName`, as of `nowMs`. */
+  const showBanner = (displayName: string, nowMs: number) => {
+    banner.text = displayName;
+    arrivedAtMs = nowMs;
+  };
   /** The World last drawn; a New Hero brings another. */
   let drawnWorld: World | null = null;
   /** Whether the Hero panel was open when last drawn. */
@@ -688,6 +719,8 @@ export function createRenderer(app: Application, art: Art) {
 
     /** Turns a step's events into effects. */
     react(events: readonly SimEvent[], nowMs: number) {
+      const arrivedIn = arrivedInDisplayName(events, areaDisplayNames);
+      if (arrivedIn !== null) showBanner(arrivedIn, nowMs);
       for (const number of damageNumbers(events)) {
         const sprite =
           number.on === "hero" ? hero.sprite : monsters.get(number.on)?.sprite;
@@ -746,8 +779,11 @@ export function createRenderer(app: Application, art: Art) {
       const active = world.areas[world.areaName];
       heroPanelOpenNow = menus.heroPanelOpen;
       inventoryOpenNow = menus.inventoryOpen;
-      if (world !== drawnWorld) showWorld(world);
-      else if (active !== area) showArea(active);
+      if (world !== drawnWorld) {
+        showWorld(world);
+        // A new World starts the Hero in an Area: they've arrived there.
+        showBanner(areaDisplayNames[world.areaName], nowMs);
+      } else if (active !== area) showArea(active);
       const heroAt = lerp(world.hero.prevPos, world.hero.pos, alpha);
       const at = toScreen(heroAt);
 
@@ -867,7 +903,7 @@ export function createRenderer(app: Application, art: Art) {
 
       overheads.clear();
       for (const monster of world.monsters) {
-        const { life } = monsterTuning[monster.type];
+        const life = monsterMaxLife(monster);
         if (monster.life >= life) continue;
         const { sprite } = viewOf(monster.id, monster.type);
         lifeBar(overheads, {
@@ -910,7 +946,7 @@ export function createRenderer(app: Application, art: Art) {
       nameplate.clear();
       nameplateText.visible = hovered !== null;
       if (hovered) {
-        const tuning = monsterTuning[hovered.type];
+        const { name } = monsterTuning[hovered.type];
         const centre = app.screen.width / 2;
         nameplate
           .rect(
@@ -929,9 +965,9 @@ export function createRenderer(app: Application, art: Art) {
             NAMEPLATE.barBottom,
           width: NAMEPLATE.bar,
           height: NAMEPLATE.barHeight,
-          fraction: hovered.life / tuning.life,
+          fraction: hovered.life / monsterMaxLife(hovered),
         });
-        nameplateText.text = tuning.name;
+        nameplateText.text = name;
         nameplateText.position.set(centre, NAMEPLATE.top + NAMEPLATE.nameTop);
       }
 
@@ -968,6 +1004,17 @@ export function createRenderer(app: Application, art: Art) {
         hurt.alpha = HURT_STRENGTH * hurtLeft;
         hurt.scale.set(app.screen.width, app.screen.height);
       }
+
+      const bannerAlpha =
+        arrivedAtMs === null ? null : bannerOpacityAt(nowMs - arrivedAtMs);
+      banner.visible = bannerAlpha !== null;
+      if (bannerAlpha !== null) {
+        banner.alpha = bannerAlpha;
+        banner.position.set(
+          app.screen.width / 2,
+          Math.round(app.screen.height * BANNER.top),
+        );
+      } else arrivedAtMs = null;
 
       death.draw(app.screen, world, nowMs);
 

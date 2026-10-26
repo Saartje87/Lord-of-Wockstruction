@@ -36,6 +36,10 @@ _Avoid_: Portal, door, transition, warp
 A named place in an Area where the Hero appears on arriving; the Entry named `start` is where the Hero begins.
 _Avoid_: Spawn point (that's for Monsters), arrival
 
+**Area Banner**:
+An Area's display name, shown across the screen for a few seconds whenever the Hero arrives in an Area, Town included; it never shows an Area Level.
+_Avoid_: Title card, zone text, toast
+
 **Monster**:
 A hostile creature that attacks the Hero and their Minions and can be killed.
 _Avoid_: Enemy, mob, NPC

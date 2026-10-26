@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { type ItemType, itemOf } from "../tuning/items";
+import { emptyBelt } from "./belt";
 import {
   type Belongings,
   belongingsOf,
@@ -51,7 +52,7 @@ function wearing(
   return createWorld({
     areas: { town },
     seed: 1,
-    belongings: { inventory, equipment },
+    belongings: { inventory, equipment, belt: emptyBelt() },
   });
 }
 

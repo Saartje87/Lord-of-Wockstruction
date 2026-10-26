@@ -3,10 +3,33 @@
 import type { Attribute } from "../sim/world";
 
 /** What an Item is for, which decides the Equipment slot it fits. */
-export type ItemKind = "weapon" | "armour" | "ring" | "amulet";
+export type ItemKind =
+  | "weapon"
+  | "armour"
+  | "ring"
+  | "amulet"
+  | "belt"
+  | "potion";
 
 /** What an Equipped Item can add to the Hero: an Attribute, or one of these. */
 export type Bonus = Attribute | "life" | "defense" | "attackRating";
+
+/** What a Potion gives back. */
+export type PotionResource = "life" | "mana";
+
+/**
+ * What drinking a Potion does: either give back `amount` of `resource`
+ * evenly over `durationMs`, running its own course alongside any others, or
+ * at once give back `share` of the maximum of each of `resources`.
+ */
+export type PotionEffectTuning =
+  | {
+      type: "overTime";
+      resource: PotionResource;
+      amount: number;
+      durationMs: number;
+    }
+  | { type: "atOnce"; resources: PotionResource[]; share: number };
 
 /** One Item type's tuning. */
 export type ItemTuning = {
@@ -24,6 +47,10 @@ export type ItemTuning = {
   defense?: number;
   /** What it adds to the Hero while Equipped. */
   bonuses: Partial<Record<Bonus, number>>;
+  /** A Potion's effect when drunk. */
+  potion?: PotionEffectTuning;
+  /** How many rows a Belt gives each Belt Column while Equipped. */
+  beltRows?: number;
 };
 
 /** Every Item type, by the key it's known as in code and in the Save. */
@@ -84,6 +111,58 @@ export const itemTuning = {
     size: { columns: 1, rows: 1 },
     bonuses: { vitality: 5 },
   },
+  sash: {
+    name: "Sash",
+    kind: "belt",
+    size: { columns: 2, rows: 1 },
+    bonuses: {},
+    beltRows: 2,
+  },
+  heavyBelt: {
+    name: "Heavy Belt",
+    kind: "belt",
+    size: { columns: 2, rows: 1 },
+    bonuses: {},
+    beltRows: 3,
+  },
+  platedBelt: {
+    name: "Plated Belt",
+    kind: "belt",
+    size: { columns: 2, rows: 1 },
+    bonuses: {},
+    beltRows: 4,
+  },
+  lifePotion: {
+    name: "Life Potion",
+    kind: "potion",
+    size: { columns: 1, rows: 1 },
+    bonuses: {},
+    potion: {
+      type: "overTime",
+      resource: "life",
+      amount: 30,
+      durationMs: 4000,
+    },
+  },
+  manaPotion: {
+    name: "Mana Potion",
+    kind: "potion",
+    size: { columns: 1, rows: 1 },
+    bonuses: {},
+    potion: {
+      type: "overTime",
+      resource: "mana",
+      amount: 20,
+      durationMs: 4000,
+    },
+  },
+  rejuvenationPotion: {
+    name: "Rejuvenation Potion",
+    kind: "potion",
+    size: { columns: 1, rows: 1 },
+    bonuses: {},
+    potion: { type: "atOnce", resources: ["life", "mana"], share: 0.35 },
+  },
 } satisfies Record<string, ItemTuning>;
 
 /** One of the Item types, by its key in `itemTuning`. */
@@ -97,14 +176,45 @@ export function itemOf(type: ItemType): ItemTuning {
   return itemTuning[type];
 }
 
+/** Whether an Item type is a Potion. */
+export function isPotion(type: ItemType): boolean {
+  return itemTuning[type].kind === "potion";
+}
+
 /** The Inventory grid's size in cells. */
 export const inventoryTuning = { columns: 10, rows: 4 };
 
 /**
+ * The Belt Columns: how many there are, how many rows each has with no Belt
+ * Equipped, and the Potions a New Hero starts with in them, filled column by
+ * column from the left, each from the bottom up.
+ */
+export const beltTuning: {
+  columns: number;
+  rowsWithoutBelt: number;
+  newHeroPotions: { type: ItemType; count: number };
+} = {
+  columns: 4,
+  rowsWithoutBelt: 1,
+  newHeroPotions: { type: "lifePotion", count: 4 },
+};
+
+/**
  * Monster drops: each kill has `chance` of dropping one Item, of a type
- * picked from `items` with equal odds.
+ * picked from `items` with equal odds. Potions have no part in it.
  */
 export const dropTuning: { chance: number; items: readonly ItemType[] } = {
   chance: 0.25,
-  items: ITEM_TYPES,
+  items: ITEM_TYPES.filter((type) => !isPotion(type)),
 };
+
+/**
+ * Potion drops, rolled on each kill apart from `dropTuning` and more often:
+ * `chance` of dropping one Potion, of a type picked from `items` with equal
+ * odds.
+ */
+export const potionDropTuning: { chance: number; items: readonly ItemType[] } =
+  {
+    chance: 0.4,
+    items: ITEM_TYPES.filter(isPotion),
+  };

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { emptyBelt } from "./belt";
 import {
   type Belongings,
   belongingsOf,
@@ -84,6 +85,7 @@ describe("Belongings given to a new World", () => {
       { type: "ringOfLife", cell: { column: 9, row: 3 } },
     ],
     equipment: { weapon: "shortSword", armour: "leatherArmour" },
+    belt: [["lifePotion"], [], ["lifePotion"], []],
   };
 
   it("comes back as it was given", () => {
@@ -127,7 +129,11 @@ describe("damage", () => {
     const sword = world({ progress: strongerBy(10) });
     const axe = world({
       progress: strongerBy(10),
-      belongings: { inventory: [], equipment: { weapon: "axe" } },
+      belongings: {
+        inventory: [],
+        equipment: { weapon: "axe" },
+        belt: emptyBelt(),
+      },
     });
 
     // 130% of the Short Sword's 16.67–25 and the Axe's 25–40.
@@ -140,7 +146,9 @@ describe("damage", () => {
   });
 
   it("is a punch's 1–4 with no Weapon", () => {
-    const w = world({ belongings: { inventory: [], equipment: {} } });
+    const w = world({
+      belongings: { inventory: [], equipment: {}, belt: emptyBelt() },
+    });
 
     const [min, max] = damageRange(w);
     expect(min).toBeCloseTo(1, 5);

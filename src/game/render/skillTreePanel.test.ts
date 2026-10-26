@@ -76,6 +76,9 @@ afterEach(() => {
   skillTuning.golem.requiredLevel = golemRequiredLevel;
 });
 
+/** The rows of a Belt Column with no Belt Equipped. */
+const ONE_ROW = 1;
+
 describe("skillTreeSheet", () => {
   it("shows a New Hero's Golem unlearned, with what Skill Level 1 costs", () => {
     expect(skillTreeSheet(world())).toEqual({
@@ -139,7 +142,7 @@ describe("skillTreeHitAt", () => {
   });
 
   it("sits where the Inventory panel does, at the right", () => {
-    const inventory = inventoryPanelLayout(screen).panel;
+    const inventory = inventoryPanelLayout(screen, ONE_ROW).panel;
 
     expect(layout.panel.x + layout.panel.w).toBe(inventory.x + inventory.w);
     expect(layout.panel.y).toBe(inventory.y);

@@ -1,6 +1,11 @@
 import { areaTuning } from "../tuning/areas";
 import { heroTuning } from "../tuning/hero";
-import { type Bonus, dropTuning, itemOf } from "../tuning/items";
+import {
+  type Bonus,
+  dropTuning,
+  itemOf,
+  potionDropTuning,
+} from "../tuning/items";
 import { minionTuning } from "../tuning/minions";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import { type Skill, skillTuning } from "../tuning/skills";
@@ -12,6 +17,7 @@ import {
   type Spawn,
   TOWN,
 } from "./area";
+import { type BeltColumns, emptyBelt, putInBelt } from "./belt";
 import {
   type Belongings,
   type Cell,
@@ -58,6 +64,14 @@ import {
   wanderPause,
 } from "./monsters";
 import { findPath } from "./path";
+import {
+  drinkFromBelt,
+  drinkItem,
+  type PotionEffect,
+  type PotionMaxima,
+  potionEffectsOf,
+  stepPotionEffects,
+} from "./potions";
 import { createRng, type Rng, random, randomInt } from "./random";
 import {
   emptySkillBar,
@@ -110,7 +124,7 @@ export const CAST_STEPS = Object.fromEntries(
 ) as Record<Skill, number>;
 
 export type { Minion, MinionId, MinionType, SkillBar, SkillBarSlot };
-export { minionMaxLife };
+export { minionMaxLife, potionEffectsOf };
 
 export type Hero = {
   life: number;
@@ -122,6 +136,10 @@ export type Hero = {
   inventory: PlacedItem[];
   /** The Items worn, kept by the Save. */
   equipment: Equipment;
+  /** The Potions in the Belt Columns, kept by the Save (see `beltOf`). */
+  belt: BeltColumns;
+  /** The drunk Potions still running their course; all end on Death. */
+  potionEffects: PotionEffect[];
   /**
    * The Item held on the cursor, if any. The Save keeps it at the cell it
    * was lifted from.
@@ -308,17 +326,20 @@ export type Order =
   /** Swing in place towards a point, hitting every Monster in the arc. */
   | { type: "SwingAt"; target: Vec }
   /**
-   * Lift the Inventory Item covering cell `from`, or the Item Equipped in
-   * slot `from`, onto the cursor, if it's empty. This and the other orders
+   * Lift the Inventory Item covering cell `from`, the Item Equipped in slot
+   * `from` or the Potion in Belt Column cell `from` (the ones above dropping
+   * down a row), onto the cursor, if it's empty. This and the other orders
    * moving Items happen at once, whatever the Hero is doing.
    */
   | { type: "LiftItem"; from: ItemSpot }
   /**
-   * Put the cursor Item down with its top-left at cell `to`, or into slot
-   * `to`: into free cells or an empty slot, or over exactly one Item, which
-   * is swapped onto the cursor. Refused off the grid, over two or more
-   * Items, into a slot of another kind, or when a swapped-out Item couldn't
-   * go back anywhere (see `placement`).
+   * Put the cursor Item down with its top-left at cell `to`, into slot
+   * `to`, or into the Belt Column of Belt Column cell `to` at its lowest
+   * free row: into free cells or an empty slot, or over exactly one Item,
+   * which is swapped onto the cursor. Refused off the grid, over two or
+   * more Items, into a slot of another kind, into the Belt for anything but
+   * a Potion or into a full Belt Column, or when a swapped-out Item
+   * couldn't go back anywhere (see `placement`).
    */
   | { type: "PlaceItem"; to: ItemSpot }
   /** Lay the cursor Item on the ground at the Hero's feet. */
@@ -365,7 +386,19 @@ export type Order =
    * Cast the Skill in Skill Bar slot `slot` at `target`. Fails in Town or
    * without the Mana for it, and does nothing from an empty slot.
    */
-  | { type: "Cast"; slot: SkillBarSlot; target: Vec };
+  | { type: "Cast"; slot: SkillBarSlot; target: Vec }
+  /**
+   * Drink the bottom Potion of Belt Column `column` (0 the leftmost), the
+   * ones above dropping down a row: at once, whatever the Hero is doing,
+   * Town included. Refused during Death; an empty column does nothing.
+   */
+  | { type: "DrinkFromBelt"; column: number }
+  /**
+   * Drink the Potion `item` in the Inventory: at once, whatever the Hero is
+   * doing, Town included. Refused during Death; an Item that isn't a Potion
+   * does nothing.
+   */
+  | { type: "DrinkItem"; item: ItemId };
 
 /** Why a cast failed: the Hero is in Town, or lacks the Mana for it. */
 export type CastFailure = "town" | "mana";
@@ -390,6 +423,8 @@ export type SimEvent =
   | { type: "ItemDropped"; item: Item; pos: Vec }
   /** The Hero picked up `item`, which now has its top-left at `cell`. */
   | { type: "ItemPickedUp"; item: Item; cell: Cell }
+  /** The Hero picked up the Potion `item` into the top of Belt Column `column`. */
+  | { type: "PotionPickedUp"; item: Item; column: number }
   /** The Hero got to a Ground Item with no room for it in the Inventory. */
   | { type: "NoRoom" }
   /** An Item moved in the Inventory or Equipment, onto the cursor or off it. */
@@ -398,6 +433,10 @@ export type SimEvent =
   | { type: "ItemEquipped"; item: Item; slot: EquipmentSlot }
   /** `item` came out of Equipment slot `slot`. */
   | { type: "ItemUnequipped"; item: Item; slot: EquipmentSlot }
+  /** The Hero drank the Potion `item`, used up, its effect starting. */
+  | { type: "PotionDrunk"; item: Item }
+  /** A Potion went into or came out of the Belt Columns. */
+  | { type: "BeltChanged" }
   | { type: "ExperienceGained"; amount: number }
   /** The Hero reached Level `level`, with their Life and Mana already filled. */
   | { type: "LevelReached"; level: number }
@@ -542,6 +581,8 @@ export function createWorld(options: {
       // Filled from `belongings` below, handing out Item ids.
       inventory: [],
       equipment: emptyEquipment(),
+      belt: emptyBelt(),
+      potionEffects: [],
       cursor: null,
       pos: { ...start },
       prevPos: { ...start },
@@ -676,6 +717,11 @@ export function maxMana(world: World): number {
     heroTuning.manaPerLevel * (level - 1) +
     heroTuning.manaPerEnergy * attributesOf(world).energy
   );
+}
+
+/** The Hero's maximum Life and Mana, as Potions are capped at. */
+function maxima(world: World): PotionMaxima {
+  return { life: maxLife(world), mana: maxMana(world) };
 }
 
 /**
@@ -959,6 +1005,7 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   if (!world.death) {
     hero.mana = Math.min(maxMana(world), hero.mana + MANA_REGEN_PER_STEP);
   }
+  stepPotionEffects(hero, maxima(world));
 
   world.tick += 1;
   return events;
@@ -1061,6 +1108,14 @@ function give(world: World, order: Order, events: SimEvent[]) {
   }
   if (order.type === "PutSkillOnBar") {
     putOnBar(world, order.skill, order.slot, events);
+    return;
+  }
+  if (order.type === "DrinkFromBelt") {
+    drinkFromBelt(world, order.column, maxima(world), events);
+    return;
+  }
+  if (order.type === "DrinkItem") {
+    drinkItem(world, order.item, maxima(world), events);
     return;
   }
   if (moveItem(world, order, events)) {
@@ -1211,8 +1266,9 @@ function approach(world: World) {
 }
 
 /**
- * Picks up the Ground Item the Hero walks to once it is in reach: into the
- * first free spot of the Inventory, or left lying with `NoRoom`.
+ * Picks up the Ground Item the Hero walks to once it is in reach: a Potion
+ * into a Belt Column with room, else into the first free spot of the
+ * Inventory, or left lying with `NoRoom`.
  */
 function reachGroundItem(world: World, events: SimEvent[]) {
   const { hero } = world;
@@ -1230,6 +1286,13 @@ function reachGroundItem(world: World, events: SimEvent[]) {
   }
   hero.pickingUp = null;
   hero.path = [];
+  const column = putInBelt(world, lying.item);
+  if (column !== null) {
+    world.groundItems = world.groundItems.filter((other) => other !== lying);
+    events.push({ type: "PotionPickedUp", item: { ...lying.item }, column });
+    events.push({ type: "BeltChanged" });
+    return;
+  }
   const cell = firstFreeCell(taken(hero), lying.item.type);
   if (!cell) {
     events.push({ type: "NoRoom" });
@@ -1400,16 +1463,18 @@ function minionStrike(
 }
 
 /**
- * Rolls a dying Monster's drop: by `dropTuning.chance`, one Item of a type
- * picked with equal odds, lying where it died.
+ * Rolls a dying Monster's drops, each lying where it died: by
+ * `dropTuning.chance` one Item, then by `potionDropTuning.chance` one Potion,
+ * each of a type picked with equal odds.
  */
 function rollDrop(world: World, pos: Vec, events: SimEvent[]) {
-  if (random(world.rng) >= dropTuning.chance) return;
-  const { items } = dropTuning;
-  const type = items[randomInt(world.rng, [0, items.length - 1])];
-  const item = { id: world.nextItemId++, type };
-  world.groundItems.push({ item, pos: { ...pos } });
-  events.push({ type: "ItemDropped", item: { ...item }, pos: { ...pos } });
+  for (const { chance, items } of [dropTuning, potionDropTuning]) {
+    if (random(world.rng) >= chance) continue;
+    const type = items[randomInt(world.rng, [0, items.length - 1])];
+    const item = { id: world.nextItemId++, type };
+    world.groundItems.push({ item, pos: { ...pos } });
+    events.push({ type: "ItemDropped", item: { ...item }, pos: { ...pos } });
+  }
 }
 
 /**
@@ -1489,11 +1554,13 @@ function crumbleMinion(world: World, events: SimEvent[]) {
 }
 
 /**
- * Lays the Hero down, stopping whatever they were doing, crumbles their
- * Minion away and sends every Monster home.
+ * Lays the Hero down, stopping whatever they were doing, ending every
+ * running Potion effect, crumbles their Minion away and sends every Monster
+ * home.
  */
 function die(world: World, events: SimEvent[]) {
   world.death = { elapsed: 0 };
+  world.hero.potionEffects = [];
   crumbleMinion(world, events);
   for (const monster of world.monsters) sendHome(monster);
   stopHero(world.hero);

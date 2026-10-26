@@ -3,9 +3,23 @@ import {
   type ItemKind,
   type ItemType,
   inventoryTuning,
+  isPotion,
   itemOf,
   itemTuning,
 } from "../tuning/items";
+import {
+  type BeltCell,
+  type BeltTypes,
+  beltRows,
+  beltTypesOf,
+  isBeltCell,
+  isValidBelt,
+  moveOverflow,
+  newHeroBelt,
+  type Overflow,
+  overflowFor,
+  rowsOf,
+} from "./belt";
 import { overlaps, type Rect } from "./rect";
 import type { Hero, Order, SimEvent, World } from "./world";
 
@@ -27,12 +41,20 @@ export type PlacedItem = { item: Item; cell: Cell };
  */
 export type PlacedType = { type: ItemType; cell: Cell };
 
-/** Where an Item can be: an Inventory cell (its top-left) or an Equipment slot. */
-export type ItemSpot = Cell | EquipmentSlot;
+/**
+ * Where an Item can be: an Inventory cell (its top-left), an Equipment slot
+ * or a Belt Column cell.
+ */
+export type ItemSpot = Cell | EquipmentSlot | BeltCell;
 
 /** Whether a spot is an Equipment slot rather than a cell. */
 export function isSlot(spot: ItemSpot): spot is EquipmentSlot {
   return typeof spot === "string";
+}
+
+/** Whether a spot is an Inventory cell, not a slot or a Belt Column cell. */
+export function isCell(spot: ItemSpot): spot is Cell {
+  return !isSlot(spot) && !isBeltCell(spot);
 }
 
 /**
@@ -49,6 +71,7 @@ export const EQUIPMENT_SLOTS = [
   "amulet",
   "ring1",
   "ring2",
+  "belt",
 ] as const;
 
 /** One of the Hero's Equipment slots. */
@@ -64,6 +87,7 @@ export const SLOT_KINDS: Record<EquipmentSlot, ItemKind> = {
   amulet: "amulet",
   ring1: "ring",
   ring2: "ring",
+  belt: "belt",
 };
 
 /**
@@ -73,12 +97,18 @@ export const SLOT_KINDS: Record<EquipmentSlot, ItemKind> = {
 export type Belongings = {
   inventory: PlacedType[];
   equipment: Partial<Record<EquipmentSlot, ItemType>>;
+  /** The Potions in each Belt Column, from the left and each from the bottom up. */
+  belt: BeltTypes;
 };
 
-/** A New Hero's Belongings: a Short Sword Equipped and an empty Inventory. */
+/**
+ * A New Hero's Belongings: a Short Sword Equipped, an empty Inventory and
+ * the starting Potions in the Belt Columns.
+ */
 export const FRESH_BELONGINGS: Belongings = {
   inventory: [],
   equipment: { weapon: "shortSword" },
+  belt: newHeroBelt(),
 };
 
 /** Whether an Item of `type` with its top-left at `at` covers `cell`. */
@@ -164,13 +194,13 @@ function backOrFirstFree(
 
 /**
  * Whether Belongings could be the Hero's: known Item types, every Inventory
- * Item on the grid with none overlapping, and every Equipped Item in a slot
- * of its kind.
+ * Item on the grid with none overlapping, every Equipped Item in a slot of
+ * its kind, and only Potions in the Belt Columns, as many as they hold.
  */
 export function isValidBelongings(belongings: Belongings): boolean {
   const known = (type: unknown): type is ItemType =>
     ITEM_TYPES.includes(type as ItemType);
-  const { inventory, equipment } = belongings;
+  const { inventory, equipment, belt } = belongings;
   const placedFine = inventory.every(
     (placed, i) =>
       known(placed.type) &&
@@ -183,7 +213,8 @@ export function isValidBelongings(belongings: Belongings): boolean {
       known(type) &&
       itemTuning[type].kind === SLOT_KINDS[slot as EquipmentSlot],
   );
-  return placedFine && equippedFine;
+  if (!placedFine || !equippedFine) return false;
+  return isValidBelt(belt, rowsOf(equipment.belt));
 }
 
 /** Every Equipment slot, empty. */
@@ -209,6 +240,11 @@ export function giveBelongings(world: World, belongings: Belongings) {
     const type = belongings.equipment[slot];
     if (type) hero.equipment[slot] = { id: world.nextItemId++, type };
   }
+  belongings.belt.forEach((column, index) => {
+    for (const type of column) {
+      hero.belt[index].push({ id: world.nextItemId++, type });
+    }
+  });
 }
 
 /**
@@ -229,6 +265,7 @@ export function belongingsOf(world: World): Belongings {
       cell: { ...cell },
     })),
     equipment: worn,
+    belt: beltTypesOf(world),
   };
 }
 
@@ -258,7 +295,7 @@ export function cursorItemOf(world: World): CursorItem | null {
 
 /** A copy of a spot, so a query's answer can't change the World. */
 function copySpot(spot: ItemSpot): ItemSpot {
-  return isSlot(spot) ? spot : { ...spot };
+  return isSlot(spot) ? spot : ({ ...spot } as ItemSpot);
 }
 
 /** What's in each Equipment slot. */
@@ -306,7 +343,9 @@ export function moveItem(
 
 /**
  * Lifts the Inventory Item covering cell `from`, or the Item Equipped in
- * slot `from`, onto an empty cursor.
+ * slot `from`, onto an empty cursor. Lifting the Belt takes it off, so it's
+ * refused with No room when the Potions in rows that no longer exist can't
+ * all move into the Inventory.
  */
 function liftItem(world: World, from: ItemSpot, events: SimEvent[]) {
   const { hero } = world;
@@ -314,9 +353,26 @@ function liftItem(world: World, from: ItemSpot, events: SimEvent[]) {
   if (isSlot(from)) {
     const item = hero.equipment[from];
     if (!item) return;
+    const overflow = overflowFor(hero, from, null, taken(hero));
+    if (!overflow) {
+      events.push({ type: "NoRoom" });
+      return;
+    }
     hero.equipment[from] = null;
     hero.cursor = { item, from };
+    moveOverflow(hero, overflow, events);
     events.push({ type: "ItemUnequipped", item: { ...item }, slot: from });
+    events.push({ type: "InventoryChanged" });
+    return;
+  }
+  if (isBeltCell(from)) {
+    const potions = hero.belt[from.beltColumn];
+    const item = potions?.[from.row];
+    if (!item) return;
+    // The ones above drop down a row.
+    potions.splice(from.row, 1);
+    hero.cursor = { item, from: { ...from } };
+    events.push({ type: "BeltChanged" });
     events.push({ type: "InventoryChanged" });
     return;
   }
@@ -331,26 +387,44 @@ function liftItem(world: World, from: ItemSpot, events: SimEvent[]) {
 
 /**
  * What putting the cursor Item down would do: the Item it would swap onto
- * the cursor, if any, and the spot that Item would go back to.
+ * the cursor, if any, and the spot that Item would go back to, and the
+ * Potions it would move out of the Belt.
  */
-type Placing = { out: Item; home: ItemSpot } | { out: null };
+type Placing = ({ out: Item; home: ItemSpot } | { out: null }) & {
+  overflow?: Overflow;
+};
 
 /**
  * How the cursor Item would go down at `to`, or null when it can't: on the
  * grid with its top-left at a cell, or into a slot of its kind. A
  * swapped-out Item goes back to where the cursor Item was lifted from if it
  * fits there, or else to the first free spot; with neither, the swap is
- * refused, so a held Item always has somewhere to go back to.
+ * refused, so a held Item always has somewhere to go back to. A Belt with
+ * fewer rows put into the Belt slot moves the Potions in rows that no longer
+ * exist into the Inventory, or is refused with `"noRoom"` when they can't
+ * all fit.
  */
-function planPlacing(world: World, to: ItemSpot): Placing | null {
-  const { cursor, inventory, equipment } = world.hero;
+function planPlacing(world: World, to: ItemSpot): Placing | "noRoom" | null {
+  const { hero } = world;
+  const { cursor, inventory, equipment, belt } = hero;
   if (!cursor) return null;
+  if (isBeltCell(to)) {
+    // Only Potions, into a column with room: they never swap.
+    const potions = belt[to.beltColumn];
+    const fits = potions && potions.length < beltRows(world);
+    return isPotion(cursor.item.type) && fits ? { out: null } : null;
+  }
   if (isSlot(to)) {
     if (itemOf(cursor.item.type).kind !== SLOT_KINDS[to]) return null;
     const out = equipment[to];
-    if (!out) return { out: null };
-    const home = homeFor(out.type, cursor.from, typesOf(inventory));
-    return home && { out, home };
+    const home = out && homeFor(out.type, cursor.from, typesOf(inventory));
+    if (out && !home) return null;
+    const placed = taken(hero);
+    if (out && home && isCell(home))
+      placed.push({ type: out.type, cell: home });
+    const overflow = overflowFor(hero, to, cursor.item.type, placed);
+    if (!overflow) return "noRoom";
+    return out && home ? { out, home, overflow } : { out: null, overflow };
   }
   if (!onGrid(cursor.item.type, to)) return null;
   const blocking = inTheWay(withTypes(inventory), cursor.item.type, to);
@@ -374,6 +448,10 @@ function homeFor(
   from: ItemSpot,
   placed: readonly PlacedType[],
 ): ItemSpot | null {
+  if (isBeltCell(from)) {
+    // The cursor Item's row is kept for it, so another Potion fits there.
+    return isPotion(type) ? from : firstFreeCell(placed, type);
+  }
   if (!isSlot(from)) return backOrFirstFree(placed, type, from);
   return itemOf(type).kind === SLOT_KINDS[from]
     ? from
@@ -404,7 +482,7 @@ function withTypes(inventory: readonly PlacedItem[]) {
  */
 export function placement(world: World, to: ItemSpot): "fits" | "swap" | null {
   const placing = planPlacing(world, to);
-  if (!placing) return null;
+  if (!placing || placing === "noRoom") return null;
   return placing.out ? "swap" : "fits";
 }
 
@@ -412,10 +490,13 @@ export function placement(world: World, to: ItemSpot): "fits" | "swap" | null {
 function placeItem(world: World, to: ItemSpot, events: SimEvent[]) {
   const { hero } = world;
   const placing = planPlacing(world, to);
-  if (!hero.cursor || !placing) return;
+  if (placing === "noRoom") events.push({ type: "NoRoom" });
+  if (!hero.cursor || !placing || placing === "noRoom") return;
   const { item } = hero.cursor;
   const { out } = placing;
-  if (isSlot(to)) {
+  if (isBeltCell(to)) {
+    hero.belt[to.beltColumn].push(item);
+  } else if (isSlot(to)) {
     hero.equipment[to] = item;
     if (out)
       events.push({ type: "ItemUnequipped", item: { ...out }, slot: to });
@@ -426,7 +507,13 @@ function placeItem(world: World, to: ItemSpot, events: SimEvent[]) {
       { item, cell: { ...to } },
     ];
   }
+  const { from } = hero.cursor;
   hero.cursor = out && { item: out, from: placing.home };
+  if (placing.overflow) moveOverflow(hero, placing.overflow, events);
+  // Out of the Belt for good, or into it.
+  if (isBeltCell(to) || (isBeltCell(from) && !hero.cursor)) {
+    events.push({ type: "BeltChanged" });
+  }
   events.push({ type: "InventoryChanged" });
 }
 
@@ -436,6 +523,7 @@ function dropItem(world: World, events: SimEvent[]) {
   if (!hero.cursor) return;
   const { item } = hero.cursor;
   const pos = { ...hero.pos };
+  if (isBeltCell(hero.cursor.from)) events.push({ type: "BeltChanged" });
   hero.cursor = null;
   world.groundItems.push({ item, pos });
   events.push({ type: "ItemDropped", item: { ...item }, pos: { ...pos } });
@@ -453,16 +541,24 @@ function equipItem(world: World, id: ItemId, events: SimEvent[]) {
   const placed = hero.inventory.find(({ item }) => item.id === id);
   if (!placed) return;
   const slot = slotFor(hero.equipment, placed.item.type);
+  // A Potion has no slot to go into.
+  if (!slot) return;
   const rest = hero.inventory.filter((other) => other !== placed);
   const out = hero.equipment[slot];
   if (out) {
     const home = backOrFirstFree(typesOf(rest), out.type, placed.cell);
     if (!home) return;
     rest.push({ item: out, cell: { ...home } });
-    events.push({ type: "ItemUnequipped", item: { ...out }, slot });
   }
+  const overflow = overflowFor(hero, slot, placed.item.type, typesOf(rest));
+  if (!overflow) {
+    events.push({ type: "NoRoom" });
+    return;
+  }
+  if (out) events.push({ type: "ItemUnequipped", item: { ...out }, slot });
   hero.inventory = rest;
   hero.equipment[slot] = placed.item;
+  moveOverflow(hero, overflow, events);
   events.push({ type: "ItemEquipped", item: { ...placed.item }, slot });
   events.push({ type: "InventoryChanged" });
 }
@@ -475,13 +571,18 @@ function unequipItem(world: World, slot: EquipmentSlot, events: SimEvent[]) {
   const { hero } = world;
   const item = hero.equipment[slot];
   if (!item) return;
-  const cell = firstFreeCell(taken(hero), item.type);
-  if (!cell) {
+  const placed = taken(hero);
+  const cell = firstFreeCell(placed, item.type);
+  const overflow =
+    cell &&
+    overflowFor(hero, slot, null, [...placed, { type: item.type, cell }]);
+  if (!cell || !overflow) {
     events.push({ type: "NoRoom" });
     return;
   }
   hero.equipment[slot] = null;
   hero.inventory.push({ item, cell });
+  moveOverflow(hero, overflow, events);
   events.push({ type: "ItemUnequipped", item: { ...item }, slot });
   events.push({ type: "InventoryChanged" });
 }
@@ -489,12 +590,12 @@ function unequipItem(world: World, slot: EquipmentSlot, events: SimEvent[]) {
 /**
  * The slot an Item of `type` is Equipped into: the first empty one of its
  * kind, or else the first of its kind, so a Ring goes into the empty Ring
- * slot or else the left one.
+ * slot or else the left one; null for a kind no slot takes.
  */
-function slotFor(equipment: Equipment, type: ItemType): EquipmentSlot {
+function slotFor(equipment: Equipment, type: ItemType): EquipmentSlot | null {
   const { kind } = itemOf(type);
   const fitting = EQUIPMENT_SLOTS.filter((slot) => SLOT_KINDS[slot] === kind);
-  return fitting.find((slot) => !equipment[slot]) ?? fitting[0];
+  return fitting.find((slot) => !equipment[slot]) ?? fitting[0] ?? null;
 }
 
 /** Puts the cursor Item back at the cell or slot it was lifted from, kept free. */
@@ -502,7 +603,10 @@ export function returnCursorItem(world: World, events: SimEvent[]) {
   const { hero } = world;
   if (!hero.cursor) return;
   const { item, from } = hero.cursor;
-  if (isSlot(from)) {
+  if (isBeltCell(from)) {
+    hero.belt[from.beltColumn].splice(from.row, 0, item);
+    events.push({ type: "BeltChanged" });
+  } else if (isSlot(from)) {
     hero.equipment[from] = item;
     events.push({ type: "ItemEquipped", item: { ...item }, slot: from });
   } else {
@@ -519,7 +623,7 @@ export function returnCursorItem(world: World, events: SimEvent[]) {
 export function taken(hero: Hero): PlacedType[] {
   const { inventory, cursor } = hero;
   const placed = typesOf(inventory);
-  if (cursor && !isSlot(cursor.from)) {
+  if (cursor && isCell(cursor.from)) {
     placed.push({ type: cursor.item.type, cell: cursor.from });
   }
   return placed;

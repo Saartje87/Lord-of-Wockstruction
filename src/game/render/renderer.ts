@@ -10,6 +10,7 @@ import { toScreen, toTile } from "../iso";
 import type { MenuChoice, Menus } from "../menus";
 import type { Pause } from "../pause";
 import { type Area, isFloor } from "../sim/area";
+import { beltOf, beltRows, isBeltCell } from "../sim/belt";
 import {
   cursorItemOf,
   EQUIPMENT_SLOTS,
@@ -18,6 +19,7 @@ import {
   type ItemId,
   type ItemSpot,
   inventoryOf,
+  isCell,
   isSlot,
   placement,
 } from "../sim/inventory";
@@ -45,13 +47,19 @@ import {
 } from "../sim/world";
 import { heroTuning } from "../tuning/hero";
 import { inputTuning } from "../tuning/input";
-import { type ItemKind, type ItemType, itemOf } from "../tuning/items";
+import { type ItemType, itemOf } from "../tuning/items";
 import { minionTuning } from "../tuning/minions";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import { type Skill, skillTuning } from "../tuning/skills";
 import { type Compass, compassOf, frameAt, swingFrame } from "./animation";
 import { arrivedInDisplayName, bannerOpacityAt } from "./areaBanner";
 import { type Animation, type Art, type CharacterArt, frameOf } from "./art";
+import {
+  type BeltStripHit,
+  beltStripHitAt,
+  beltStripLayout,
+  beltStripSheet,
+} from "./beltStrip";
 import {
   type DamageNumber,
   damageNumbers,
@@ -93,6 +101,7 @@ import {
   itemUnder,
   landingCell,
 } from "./inventoryPanel";
+import { itemColour } from "./itemArt";
 import { type Orb, orbFill } from "./orbs";
 import { menuChoiceAt, PAUSE_MENU_LAYOUT, pauseMenuLayout } from "./pauseMenu";
 import {
@@ -378,7 +387,7 @@ const HERO_PANEL_STYLE = {
 };
 /**
  * The Inventory panel's look, in the Hero panel's colours; where things go
- * is `inventoryPanelLayout`. Each Item is a box tinted by its kind with its
+ * is `inventoryPanelLayout`. Each Item is a box tinted as its type with its
  * name inside, and the tooltip sits `tooltipGap` over the hovered Item,
  * `tooltipPadding` around its lines (CSS px). A held Item follows the
  * cursor, over a highlight of where it would land: `fits` where it can go
@@ -407,15 +416,8 @@ const INVENTORY_STYLE = {
   tooltipPadding: 8,
   tooltipGap: 6,
 };
-/** The tint of each kind of Item on the Inventory panel. */
-const ITEM_COLOUR: Record<ItemKind, number> = {
-  weapon: 0x4a4a52,
-  armour: 0x5a4028,
-  ring: 0x3a3a68,
-  amulet: 0x5a3a5a,
-};
 /**
- * A Ground Item: a small diamond on the floor tinted by its kind, `size`
+ * A Ground Item: a small diamond on the floor tinted as its type, `size`
  * across (CSS px), under a dark label with its name, gold while hovered.
  * A click within `grab` of the diamond's box picks it up too.
  */
@@ -437,6 +439,7 @@ const SLOT_NAMES: Record<EquipmentSlot, string> = {
   amulet: "Amulet",
   ring1: "Ring",
   ring2: "Ring",
+  belt: "Belt",
 };
 
 /** The badge over the orb: its size, gap over the rim (CSS px) and colours. */
@@ -547,6 +550,8 @@ export function createRenderer(
   app.stage.addChild(orb.layer);
   const skillBar = skillBarView();
   app.stage.addChild(skillBar.layer);
+  const beltStrip = beltStripView();
+  app.stage.addChild(beltStrip.layer);
   const experience = experienceBarView();
   app.stage.addChild(experience.layer);
   const levelUp = levelUpButtonView();
@@ -642,14 +647,28 @@ export function createRenderer(
    */
   const panelAt = (
     screen: Vec,
-  ): PanelHit | SkillTreeHit | SkillBarHit | InventoryHit | DropHit | null => {
+  ):
+    | PanelHit
+    | SkillTreeHit
+    | SkillBarHit
+    | BeltStripHit
+    | InventoryHit
+    | DropHit
+    | null => {
     if (!drawnWorld) return null;
     const holding = cursorItemOf(drawnWorld) !== null;
     return (
       panelHitAt(app.screen, screen, drawnWorld, heroPanelOpenNow) ??
       skillTreeHitAt(app.screen, screen, drawnWorld, skillTreeOpenNow) ??
       skillBarHitAt(app.screen, screen) ??
-      inventoryHitAt(app.screen, screen, inventoryOpenNow, holding)
+      beltStripHitAt(app.screen, screen) ??
+      inventoryHitAt(
+        app.screen,
+        screen,
+        inventoryOpenNow,
+        holding,
+        beltRows(drawnWorld),
+      )
     );
   };
 
@@ -776,7 +795,7 @@ export function createRenderer(
           at.x - half,
           at.y,
         ])
-        .fill(ITEM_COLOUR[itemOf(item.type).kind])
+        .fill(itemColour(item.type))
         .stroke({ color: GROUND_ITEM.edge, width: 1 });
       let text = labelTexts.get(item.id);
       if (!text) {
@@ -1167,6 +1186,7 @@ export function createRenderer(
 
       orb.draw(app.screen, world, nowMs);
       skillBar.draw(app.screen, world);
+      beltStrip.draw(app.screen, world);
       experience.draw(app.screen, world);
       levelUp.draw(app.screen, world, nowMs);
       heroPanel.draw(app.screen, world, menus.heroPanelOpen);
@@ -1585,6 +1605,70 @@ function skillBarView() {
         name.text = shown.name ?? "";
         name.alpha = alpha;
         name.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2 + 4);
+        key.text = shown.key;
+        key.position.set(rect.x + rect.w - 3, rect.y + 2);
+      });
+    },
+  };
+}
+
+/**
+ * The Belt strip beside the Skill Bar, in its look: each Belt Column's key
+ * in its corner, its bottom Potion drawn tinted as its type, and how many
+ * Potions the column holds.
+ */
+function beltStripView() {
+  const style = SKILL_BAR_STYLE;
+  const layer = new Container();
+  const graphics = new Graphics();
+  layer.addChild(graphics);
+  const text = (fill: number, size: number) => {
+    const label = new Text({
+      text: "",
+      style: { fill, fontSize: size, fontFamily: SERIF },
+    });
+    layer.addChild(label);
+    return label;
+  };
+  /** Made as the sheet first lists them. */
+  const labels: { key: Text; count: Text }[] = [];
+
+  return {
+    layer,
+    draw(screen: { width: number; height: number }, world: World) {
+      const { columns } = beltStripLayout(screen);
+      graphics.clear();
+      beltStripSheet(world).forEach((shown, index) => {
+        if (!labels[index]) {
+          const key = text(style.key, style.keySize);
+          key.anchor.set(1, 0);
+          const count = text(style.name, style.nameSize);
+          count.anchor.set(0, 1);
+          labels[index] = { key, count };
+        }
+        const { key, count } = labels[index];
+        const rect = columns[shown.column];
+        graphics
+          .rect(rect.x, rect.y, rect.w, rect.h)
+          .fill(style.fill)
+          .stroke({ color: style.edge, width: 1.5 });
+        if (shown.type !== null) {
+          // A placeholder Potion: a round body under a narrow neck.
+          const colour = itemColour(shown.type);
+          const centreX = rect.x + rect.w / 2;
+          const centreY = rect.y + rect.h / 2 + 3;
+          graphics
+            .rect(centreX - 3, centreY - 15, 6, 7)
+            .fill(colour)
+            .stroke({ color: style.skillEdge, width: 1 });
+          graphics
+            .circle(centreX, centreY, 10)
+            .fill(colour)
+            .stroke({ color: style.skillEdge, width: 1 });
+        }
+        count.visible = shown.count > 0;
+        count.text = String(shown.count);
+        count.position.set(rect.x + 3, rect.y + rect.h - 2);
         key.text = shown.key;
         key.position.set(rect.x + rect.w - 3, rect.y + 2);
       });
@@ -2025,7 +2109,7 @@ function inventoryPanelView() {
   layer.addChild(heldBox);
   const heldName = text(look.itemText, look.itemTextSize);
 
-  /** Draws an Item's box, tinted by its kind, with its name in `name`. */
+  /** Draws an Item's box, tinted as its type, with its name in `name`. */
   const drawItem = (
     to: Graphics,
     name: Text,
@@ -2035,7 +2119,7 @@ function inventoryPanelView() {
   ) => {
     const tuning = itemOf(type);
     to.rect(rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2)
-      .fill({ color: ITEM_COLOUR[tuning.kind], alpha })
+      .fill({ color: itemColour(type), alpha })
       .stroke({ color: look.itemEdge, width: 1 });
     name.visible = true;
     name.text = tuning.name;
@@ -2061,7 +2145,7 @@ function inventoryPanelView() {
     ) {
       layer.visible = open;
       if (!open) return;
-      const layout = inventoryPanelLayout(screen);
+      const layout = inventoryPanelLayout(screen, beltRows(world));
       const { panel, grid, cell, slots } = layout;
 
       graphics.clear();
@@ -2107,6 +2191,14 @@ function inventoryPanelView() {
       for (const { item, cell: at } of inventoryOf(world)) {
         items.push({ rect: itemRect(layout, at, item.type), type: item.type });
       }
+      const potions = beltOf(world);
+      layout.belt.forEach((cells, column) => {
+        cells.forEach((rect, row) => {
+          box(rect);
+          const potion = potions[column]?.[row];
+          if (potion) items.push({ rect, type: potion.type });
+        });
+      });
       items.forEach(({ rect, type }, i) => {
         names[i] ??= text(look.itemText, look.itemTextSize);
         drawItem(graphics, names[i], rect, type);
@@ -2120,7 +2212,22 @@ function inventoryPanelView() {
       const held = cursorItemOf(world);
       if (held && pointer) {
         const { type } = held.item;
-        if (hovered && !isSlot(hovered)) {
+        if (hovered && isBeltCell(hovered)) {
+          // The column's lowest free row where it takes it, else the whole
+          // column, refusing it.
+          const cells = layout.belt[hovered.beltColumn];
+          const lands = beltOf(world)[hovered.beltColumn].length;
+          const fits = placement(world, hovered) !== null;
+          const top = cells[cells.length - 1];
+          const rect = fits
+            ? cells[lands]
+            : { ...top, h: cells[0].y + cells[0].h - top.y };
+          graphics.rect(rect.x, rect.y, rect.w, rect.h).fill({
+            color: fits ? look.fits : look.refused,
+            alpha: look.landingAlpha,
+          });
+        }
+        if (hovered && isCell(hovered)) {
           // Where it would land, kept to the grid where it hangs off.
           const to = landingCell(layout, pointer, type);
           const rect = itemRect(layout, to, type);
@@ -2158,12 +2265,14 @@ function inventoryPanelView() {
       if (!hovered || !item) return;
       const under = isSlot(hovered)
         ? slots[hovered]
-        : itemRect(
-            layout,
-            inventoryOf(world).find((placed) => placed.item.id === item.id)
-              ?.cell ?? hovered,
-            item.type,
-          );
+        : isBeltCell(hovered)
+          ? layout.belt[hovered.beltColumn][hovered.row]
+          : itemRect(
+              layout,
+              inventoryOf(world).find((placed) => placed.item.id === item.id)
+                ?.cell ?? hovered,
+              item.type,
+            );
       const lines = itemTooltip(item.type);
       lines.forEach((line, i) => {
         tooltipLines[i] ??= text(look.tooltipLine, look.tooltipSize);

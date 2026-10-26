@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { monsterTuning } from "../tuning/monsters";
+import { emptyBelt } from "./belt";
 import {
   type MonsterOfLevel,
   monsterAttackRating,
@@ -297,7 +298,11 @@ describe("a Monster's scaled numbers in play", () => {
     const w = createWorld({
       areas: { town: map(["H"]) },
       seed: 1,
-      belongings: { inventory: [], equipment: { armour: "leatherArmour" } },
+      belongings: {
+        inventory: [],
+        equipment: { armour: "leatherArmour" },
+        belt: emptyBelt(),
+      },
     });
 
     // 20 Attack Rating against Leather Armour's 27 Defense, then 24.

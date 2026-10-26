@@ -1,3 +1,4 @@
+import { beltOf, beltRows, isBeltCell } from "../sim/belt";
 import {
   type Cell,
   cursorItemOf,
@@ -6,6 +7,7 @@ import {
   type Item,
   type ItemSpot,
   inventoryItemAt,
+  isCell,
   isSlot,
 } from "../sim/inventory";
 import { inside, type Rect } from "../sim/rect";
@@ -13,9 +15,13 @@ import type { Vec } from "../sim/vec";
 import type { Order, World } from "../sim/world";
 import {
   type Bonus,
+  beltTuning,
   type ItemType,
   inventoryTuning,
+  isPotion,
   itemOf,
+  type PotionEffectTuning,
+  type PotionResource,
 } from "../tuning/items";
 
 /**
@@ -41,8 +47,8 @@ const EQUIPMENT_ROWS = 5;
 /**
  * Where each Equipment slot sits in its area and how big it is, in cells
  * from the area's top-left: as in Diablo 2, the Weapon on the left, the
- * Armour in the middle, the Amulet top right and a Ring either side below
- * the Armour.
+ * Armour in the middle, the Amulet top right, and the Belt below the Armour
+ * with a Ring either side.
  */
 const SLOT_CELLS: Record<EquipmentSlot, Rect> = {
   weapon: { x: 0.5, y: 0.5, w: 2, h: 4 },
@@ -50,22 +56,36 @@ const SLOT_CELLS: Record<EquipmentSlot, Rect> = {
   amulet: { x: 7, y: 0.5, w: 1, h: 1 },
   ring1: { x: 3, y: 4, w: 1, h: 1 },
   ring2: { x: 6, y: 4, w: 1, h: 1 },
+  belt: { x: 4.25, y: 4, w: 1.5, h: 1 },
 };
 
-/** Where the Inventory panel, its Equipment slots and its grid are drawn. */
+/**
+ * Where the Inventory panel, its Equipment slots, its Belt Columns and its
+ * grid are drawn.
+ */
 export type InventoryPanelLayout = {
   panel: Rect;
   slots: Record<EquipmentSlot, Rect>;
+  /**
+   * Each Belt Column's cells, from the left, each from the bottom row up:
+   * `belt[column][row]`.
+   */
+  belt: Rect[][];
   grid: Rect;
   /** One grid cell's side (CSS px). */
   cell: number;
 };
 
-/** Where the Inventory panel and its slots and grid go on a `screen` this big. */
-export function inventoryPanelLayout(screen: {
-  width: number;
-  height: number;
-}): InventoryPanelLayout {
+/**
+ * Where the Inventory panel and its slots, Belt Columns and grid go on a
+ * `screen` this big, with `beltRows` rows of Belt Columns: they sit
+ * centred between the Equipment slots and the grid, `gridGap` from each,
+ * and the panel grows to fit their rows.
+ */
+export function inventoryPanelLayout(
+  screen: { width: number; height: number },
+  beltRows: number,
+): InventoryPanelLayout {
   const { right, top, padding, titleHeight, gridGap, hintHeight } =
     INVENTORY_PANEL;
   const { columns, rows } = inventoryTuning;
@@ -78,9 +98,19 @@ export function inventoryPanelLayout(screen: {
   const x = screen.width - right - width;
   const inner = x + padding;
   const slotsTop = top + padding + titleHeight;
+  const beltTop = slotsTop + EQUIPMENT_ROWS * cell + gridGap;
+  const beltLeft = inner + ((columns - beltTuning.columns) / 2) * cell;
+  const belt = Array.from({ length: beltTuning.columns }, (_, column) =>
+    Array.from({ length: beltRows }, (_, row) => ({
+      x: beltLeft + column * cell,
+      y: beltTop + (beltRows - 1 - row) * cell,
+      w: cell,
+      h: cell,
+    })),
+  );
   const grid = {
     x: inner,
-    y: slotsTop + EQUIPMENT_ROWS * cell + gridGap,
+    y: beltTop + beltRows * cell + gridGap,
     w: columns * cell,
     h: rows * cell,
   };
@@ -103,6 +133,7 @@ export function inventoryPanelLayout(screen: {
       h: grid.y + grid.h + hintHeight + padding - top,
     },
     slots,
+    belt,
     grid,
     cell,
   };
@@ -141,15 +172,17 @@ export type DropHit = { drop: true };
  * panel or the panel isn't `open`, so it's for the World; but off the panel
  * while `holding` an Item, a drop. A point on the line between two cells is
  * in the right or lower one, and the grid's far edges are in its last cells.
+ * The Belt Columns have `beltRows` rows.
  */
 export function inventoryHitAt(
   screen: { width: number; height: number },
   point: Vec,
   open: boolean,
-  holding = false,
+  holding: boolean,
+  beltRows: number,
 ): InventoryHit | DropHit | null {
   if (!open) return null;
-  const layout = inventoryPanelLayout(screen);
+  const layout = inventoryPanelLayout(screen, beltRows);
   if (!inside(layout.panel, point)) return holding ? { drop: true } : null;
   const { grid, cell } = layout;
   if (inside(grid, point)) {
@@ -162,6 +195,10 @@ export function inventoryHitAt(
     if (inside(rect, point)) {
       return { inventory: slot as EquipmentSlot };
     }
+  }
+  for (const [beltColumn, cells] of layout.belt.entries()) {
+    const row = cells.findIndex((rect) => inside(rect, point));
+    if (row !== -1) return { inventory: { beltColumn, row } };
   }
   return { inventory: null };
 }
@@ -188,9 +225,11 @@ export function landingCell(
 
 /**
  * The order a click at `point` gives, for what it hit of the Inventory
- * panel: with nothing held, lifting the Item on the cell or in the slot;
- * with an Item held, putting it down where it lands on the grid or into the
- * slot, or dropping it off the panel. Null when it gives none.
+ * panel: with nothing held, lifting the Item on the cell, in the slot or in
+ * the Belt Column cell;
+ * with an Item held, putting it down where it lands on the grid, into the
+ * slot or into the Belt Column, or dropping it off the panel. Null when it
+ * gives none.
  */
 export function inventoryOrder(
   world: World,
@@ -205,15 +244,16 @@ export function inventoryOrder(
   if (!held) {
     return itemUnder(world, spot) ? { type: "LiftItem", from: spot } : null;
   }
-  if (isSlot(spot)) return { type: "PlaceItem", to: spot };
-  const layout = inventoryPanelLayout(screen);
+  if (!isCell(spot)) return { type: "PlaceItem", to: spot };
+  const layout = inventoryPanelLayout(screen, beltRows(world));
   return { type: "PlaceItem", to: landingCell(layout, point, held.item.type) };
 }
 
 /**
  * The order a right-click gives, for what it hit of the Inventory panel:
- * equipping the Inventory Item under it, or unequipping the Item in the
- * slot. Null when it gives none, as with an Item held.
+ * equipping the Inventory Item under it or drinking it if it's a Potion, or
+ * unequipping the Item in the slot. Null when it gives none, as with an Item
+ * held or on a Belt Column cell.
  */
 export function inventoryRightClickOrder(
   world: World,
@@ -222,18 +262,23 @@ export function inventoryRightClickOrder(
   if ("drop" in hit || !hit.inventory || cursorItemOf(world)) return null;
   const spot = hit.inventory;
   const item = itemUnder(world, spot);
-  if (!item) return null;
-  return isSlot(spot)
-    ? { type: "UnequipItem", slot: spot }
+  if (!item || isBeltCell(spot)) return null;
+  if (isSlot(spot)) return { type: "UnequipItem", slot: spot };
+  return isPotion(item.type)
+    ? { type: "DrinkItem", item: item.id }
     : { type: "EquipItem", item: item.id };
 }
 
 /** The Item at a spot on the panel, or null when there's none. */
 export function itemUnder(world: World, spot: ItemSpot): Item | null {
   if (isSlot(spot)) return equipmentOf(world)[spot];
+  if (isBeltCell(spot)) {
+    return beltOf(world)[spot.beltColumn]?.[spot.row] ?? null;
+  }
   return inventoryItemAt(world, spot)?.item ?? null;
 }
 
+/** Each Bonus as a tooltip names it. */
 const BONUS_NAMES: Record<Bonus, string> = {
   strength: "Strength",
   dexterity: "Dexterity",
@@ -244,10 +289,28 @@ const BONUS_NAMES: Record<Bonus, string> = {
   attackRating: "Attack Rating",
 };
 
+/** Each resource a Potion gives back, as a tooltip names it. */
+const RESOURCE_NAMES: Record<PotionResource, string> = {
+  life: "Life",
+  mana: "Mana",
+};
+
+/** The tooltip line saying what drinking a Potion gives back. */
+function potionLine(effect: PotionEffectTuning): string {
+  if (effect.type === "atOnce") {
+    const names = effect.resources.map((resource) => RESOURCE_NAMES[resource]);
+    const share = Math.round(effect.share * 100);
+    return `Gives back ${share}% of ${names.join(" and ")} at once`;
+  }
+  const seconds = effect.durationMs / 1000;
+  return `Gives back ${effect.amount} ${RESOURCE_NAMES[effect.resource]} over ${seconds} seconds`;
+}
+
 /**
  * The lines of an Item's tooltip, all of them the Item's own fixed values,
  * as in Diablo 2: its name, then a Weapon's damage before the Hero's
- * Strength, an Armour's Defense, and its bonuses.
+ * Strength, an Armour's Defense, its bonuses, what a Potion gives back and
+ * a Belt's rows.
  */
 export function itemTooltip(type: ItemType): string[] {
   const item = itemOf(type);
@@ -261,5 +324,7 @@ export function itemTooltip(type: ItemType): string[] {
   for (const [bonus, amount] of Object.entries(item.bonuses)) {
     lines.push(`+${amount} to ${BONUS_NAMES[bonus as Bonus]}`);
   }
+  if (item.potion) lines.push(potionLine(item.potion));
+  if (item.beltRows !== undefined) lines.push(`Rows: ${item.beltRows}`);
   return lines;
 }

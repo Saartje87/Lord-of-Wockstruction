@@ -260,6 +260,33 @@ describe("what a point on the Inventory panel hits", () => {
     ).toEqual({ inventory: null });
   });
 
+  it.each([
+    ["wide", WIDE],
+    ["narrow", NARROW],
+  ])("finds the × in the top-right corner, above the Equipment slots, on a %s screen", (_, screen) => {
+    const { close, panel, slots } = inventoryPanelLayout(screen, ONE_ROW);
+    const at = { x: close.x + close.w / 2, y: close.y + close.h / 2 };
+    const topOfSlots = Math.min(...Object.values(slots).map((slot) => slot.y));
+
+    expect(close.x + close.w).toBeLessThanOrEqual(panel.x + panel.w);
+    expect(close.x).toBeGreaterThan(panel.x + panel.w / 2);
+    expect(close.y).toBeGreaterThanOrEqual(panel.y);
+    expect(close.y + close.h).toBeLessThanOrEqual(topOfSlots);
+    expect(inventoryHitAt(screen, at, true, false, ONE_ROW)).toEqual({
+      button: { type: "close", panel: "inventory" },
+    });
+    expect(inventoryHitAt(screen, at, false, false, ONE_ROW)).toBeNull();
+  });
+
+  it("finds the × while an Item is held, not dropping it", () => {
+    const { close } = inventoryPanelLayout(WIDE, ONE_ROW);
+    const at = { x: close.x + 1, y: close.y + 1 };
+
+    expect(inventoryHitAt(WIDE, at, true, true, ONE_ROW)).toEqual({
+      button: { type: "close", panel: "inventory" },
+    });
+  });
+
   it("is nothing outside the panel", () => {
     const { panel } = inventoryPanelLayout(WIDE, ONE_ROW);
 

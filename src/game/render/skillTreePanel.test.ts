@@ -200,6 +200,20 @@ describe("skillTreeHitAt", () => {
     expect(skill.y + skill.h).toBeLessThan(layout.panel.y + layout.panel.h);
   });
 
+  it("finds the × in the open panel's top-right corner, above the Skills", () => {
+    const { close, panel } = layout;
+    const at = centre(close);
+
+    expect(close.x + close.w).toBeLessThanOrEqual(panel.x + panel.w);
+    expect(close.x).toBeGreaterThan(panel.x + panel.w / 2);
+    expect(close.y).toBeGreaterThanOrEqual(panel.y);
+    expect(close.y + close.h).toBeLessThanOrEqual(layout.skills.golem.y);
+    expect(skillTreeHitAt(screen, at, withGolem(1), true)).toEqual({
+      button: { type: "close", panel: "skillTree" },
+    });
+    expect(skillTreeHitAt(screen, at, withGolem(1), false)).toBeNull();
+  });
+
   it("catches anywhere else on the open panel, and nothing off it", () => {
     const { panel } = layout;
     const inside = { x: panel.x + 2, y: panel.y + panel.h - 2 };

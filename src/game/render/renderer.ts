@@ -60,6 +60,7 @@ import {
   beltStripLayout,
   beltStripSheet,
 } from "./beltStrip";
+import { CLOSE_BUTTON } from "./closeButton";
 import {
   type DamageNumber,
   damageNumbers,
@@ -93,6 +94,7 @@ import {
 import {
   type DropHit,
   INVENTORY_PANEL,
+  type InventoryCloseHit,
   type InventoryHit,
   inventoryHitAt,
   inventoryPanelLayout,
@@ -653,6 +655,7 @@ export function createRenderer(
     | SkillBarHit
     | BeltStripHit
     | InventoryHit
+    | InventoryCloseHit
     | DropHit
     | null => {
     if (!drawnWorld) return null;
@@ -1811,6 +1814,25 @@ function button(graphics: Graphics, rect: Rect, edgeAlpha = 1) {
 }
 
 /**
+ * Draws a panel's × close button at `rect`, a HUD button with an × across
+ * it, `CLOSE_BUTTON.cross` in from its edges.
+ */
+function closeButton(graphics: Graphics, rect: Rect) {
+  button(graphics, rect);
+  const inset = CLOSE_BUTTON.cross;
+  const left = rect.x + inset;
+  const right = rect.x + rect.w - inset;
+  const top = rect.y + inset;
+  const bottom = rect.y + rect.h - inset;
+  graphics
+    .moveTo(left, top)
+    .lineTo(right, bottom)
+    .moveTo(right, top)
+    .lineTo(left, bottom)
+    .stroke({ color: HUD_BUTTON.text, width: 2 });
+}
+
+/**
  * The Hero panel: Level and Experience, each Attribute with a + button while
  * a point can be spent, the unspent points, and what the Attributes add up
  * to.
@@ -1879,6 +1901,7 @@ function heroPanelView() {
         .rect(panel.x, panel.y, panel.w, panel.h)
         .fill({ color: style.fill, alpha: style.alpha })
         .stroke({ color: style.edge, width: 2 });
+      closeButton(graphics, layout.close);
       title.position.set(panel.x + panel.w / 2, panel.y + HERO_PANEL.padding);
       hint.position.set(
         panel.x + panel.w / 2,
@@ -1998,6 +2021,7 @@ function skillTreePanelView() {
         .rect(panel.x, panel.y, panel.w, panel.h)
         .fill({ color: style.fill, alpha: style.alpha })
         .stroke({ color: style.edge, width: 2 });
+      closeButton(graphics, layout.close);
       title.position.set(panel.x + panel.w / 2, panel.y + padding);
       hint.position.set(panel.x + panel.w / 2, panel.y + panel.h - padding);
 
@@ -2153,6 +2177,7 @@ function inventoryPanelView() {
         .rect(panel.x, panel.y, panel.w, panel.h)
         .fill({ color: style.fill, alpha: style.alpha })
         .stroke({ color: style.edge, width: 2 });
+      closeButton(graphics, layout.close);
       title.position.set(
         panel.x + panel.w / 2,
         panel.y + INVENTORY_PANEL.padding,

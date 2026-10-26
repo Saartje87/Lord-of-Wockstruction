@@ -3,7 +3,16 @@ import { emptyBelt } from "../sim/belt";
 import { inventoryOf } from "../sim/inventory";
 import { emptySkillBar } from "../sim/skillBar";
 import { createWorld, type Progress, step, type World } from "../sim/world";
-import { heroPanelLayout, heroSheet, panelHitAt } from "./heroPanel";
+import {
+  heroPanelLayout,
+  heroSheet,
+  PANEL_ROWS,
+  panelHitAt,
+  rowTop,
+} from "./heroPanel";
+
+/** The top of the panel's first row, Level, under the title. */
+const firstRowTop = () => rowTop(PANEL_ROWS.level);
 
 /**
  * A Town of three tiles in a row, the Hero's `start` on the first and a
@@ -246,6 +255,32 @@ describe("panelHitAt", () => {
 
     expect(panelHitAt(screen, centre(layout.raise.vitality), w, true)).toEqual({
       button: null,
+    });
+  });
+
+  it("finds the × in the open panel's top-right corner, points or not", () => {
+    const { close, panel } = layout;
+    const at = centre(close);
+
+    expect(close.x + close.w).toBeLessThanOrEqual(panel.x + panel.w);
+    expect(close.x).toBeGreaterThan(panel.x + panel.w / 2);
+    expect(close.y).toBeGreaterThanOrEqual(panel.y);
+    expect(close.y + close.h).toBeLessThanOrEqual(firstRowTop());
+    expect(panelHitAt(screen, at, withPoints(0), true)).toEqual({
+      button: { type: "close", panel: "hero" },
+    });
+    expect(panelHitAt(screen, at, withPoints(3), true)).toEqual({
+      button: { type: "close", panel: "hero" },
+    });
+    expect(panelHitAt(screen, at, withPoints(0), false)).toBeNull();
+  });
+
+  it("finds the × while the Hero is dead", () => {
+    const w = withPoints(0);
+    kill(w);
+
+    expect(panelHitAt(screen, centre(layout.close), w, true)).toEqual({
+      button: { type: "close", panel: "hero" },
     });
   });
 

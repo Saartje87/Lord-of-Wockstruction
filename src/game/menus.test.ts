@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  clickClose,
   clickLevelUp,
   clickPaused,
   createMenus,
@@ -272,6 +273,54 @@ describe("a click on the Level Up button", () => {
     clickLevelUp(menus, { ...dead, attributePoints: 5, skillPoints: 1 });
 
     expect(menus.heroPanelOpen).toBe(false);
+    expect(menus.skillTreeOpen).toBe(false);
+  });
+});
+
+describe("a click on a panel's ×", () => {
+  it("shuts the Hero panel, as C does", () => {
+    const menus = createMenus();
+    pressKey(menus, "c", 1000, alive);
+    pressKey(menus, "i", 1000, alive);
+
+    clickClose(menus, "hero");
+
+    expect(menus.heroPanelOpen).toBe(false);
+    expect(menus.inventoryOpen).toBe(true);
+  });
+
+  it("shuts the Inventory panel, as I does", () => {
+    const menus = createMenus();
+    pressKey(menus, "c", 1000, alive);
+    pressKey(menus, "i", 1000, alive);
+
+    clickClose(menus, "inventory");
+
+    expect(menus.inventoryOpen).toBe(false);
+    expect(menus.heroPanelOpen).toBe(true);
+  });
+
+  it("shuts the Skill Tree panel, as T does, leaving the Inventory shut", () => {
+    const menus = createMenus();
+    pressKey(menus, "c", 1000, alive);
+    pressKey(menus, "t", 1000, alive);
+
+    clickClose(menus, "skillTree");
+
+    expect(menus.skillTreeOpen).toBe(false);
+    expect(menus.inventoryOpen).toBe(false);
+    expect(menus.heroPanelOpen).toBe(true);
+  });
+
+  it("leaves a shut panel shut, never opening it as its key would", () => {
+    const menus = createMenus();
+
+    clickClose(menus, "hero");
+    clickClose(menus, "inventory");
+    clickClose(menus, "skillTree");
+
+    expect(menus.heroPanelOpen).toBe(false);
+    expect(menus.inventoryOpen).toBe(false);
     expect(menus.skillTreeOpen).toBe(false);
   });
 });

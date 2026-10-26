@@ -14,6 +14,7 @@ import {
   takeRightClick,
 } from "./input/pointer";
 import {
+  clickClose,
   clickLevelUp,
   clickPaused,
   createMenus,
@@ -175,8 +176,8 @@ export default function GameCanvas() {
         orders.push(...newOrders);
         // A click on a panel never orders the Hero about, nor goes on from
         // their Death: Level Up opens the Hero or Skill Tree panel (but for
-        // a dead Hero), and a + on either spends a point, while the game
-        // runs on. On the Inventory it lifts or puts down an Item, and with
+        // a dead Hero), a + on either spends a point, and a panel's × shuts
+        // it as its key does, while the game runs on. On the Inventory it lifts or puts down an Item, and with
         // one held a click off the panels drops it.
         if (panel) {
           pressed = false;
@@ -190,6 +191,7 @@ export default function GameCanvas() {
             const { attribute } = button;
             orders.push({ type: "SpendAttributePoint", attribute });
           }
+          if (button?.type === "close") clickClose(menus, button.panel);
           if (button?.type === "learn") {
             orders.push({ type: "SpendSkillPoint", skill: button.skill });
           }
@@ -217,8 +219,8 @@ export default function GameCanvas() {
           const order = inventoryRightClickOrder(world, rightHit);
           if (order) orders.push(order);
         }
-        // After the keys and clicks, any of which may have shut it: I, T or
-        // Level Up opening the Skill Tree in its place.
+        // After the keys and clicks, any of which may have shut it: I, its
+        // ×, or T or Level Up opening the Skill Tree in its place.
         returnOnShut(orders, inventoryWasOpen, menus);
         if (pressed && world.death && !pause.paused) {
           orders.push({ type: "Continue" });

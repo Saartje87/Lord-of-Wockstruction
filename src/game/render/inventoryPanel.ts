@@ -23,6 +23,8 @@ import {
   type PotionEffectTuning,
   type PotionResource,
 } from "../tuning/items";
+import { closeButtonRect } from "./closeButton";
+import type { CloseButton } from "./heroPanel";
 
 /**
  * The Inventory panel at the top right (CSS px): `right` and `top` from the
@@ -60,11 +62,12 @@ const SLOT_CELLS: Record<EquipmentSlot, Rect> = {
 };
 
 /**
- * Where the Inventory panel, its Equipment slots, its Belt Columns and its
- * grid are drawn.
+ * Where the Inventory panel, its × close button, its Equipment slots, its
+ * Belt Columns and its grid are drawn.
  */
 export type InventoryPanelLayout = {
   panel: Rect;
+  close: Rect;
   slots: Record<EquipmentSlot, Rect>;
   /**
    * Each Belt Column's cells, from the left, each from the bottom row up:
@@ -125,13 +128,15 @@ export function inventoryPanelLayout(
       },
     ]),
   ) as Record<EquipmentSlot, Rect>;
+  const panel = {
+    x,
+    y: top,
+    w: width,
+    h: grid.y + grid.h + hintHeight + padding - top,
+  };
   return {
-    panel: {
-      x,
-      y: top,
-      w: width,
-      h: grid.y + grid.h + hintHeight + padding - top,
-    },
+    panel,
+    close: closeButtonRect(panel),
     slots,
     belt,
     grid,
@@ -162,6 +167,12 @@ export function itemRect(
 export type InventoryHit = { inventory: ItemSpot | null };
 
 /**
+ * A point on the open Inventory panel's ×, so not for the World: a click
+ * there shuts the panel, as I does.
+ */
+export type InventoryCloseHit = { button: CloseButton };
+
+/**
  * A point off the open Inventory panel while an Item is held, so not for the
  * World either: a click there drops the Item.
  */
@@ -170,7 +181,8 @@ export type DropHit = { drop: true };
 /**
  * What a point hits of the Inventory panel, or null when it's off the
  * panel or the panel isn't `open`, so it's for the World; but off the panel
- * while `holding` an Item, a drop. A point on the line between two cells is
+ * while `holding` an Item, a drop. Its × is there whether or not an Item is
+ * held. A point on the line between two cells is
  * in the right or lower one, and the grid's far edges are in its last cells.
  * The Belt Columns have `beltRows` rows.
  */
@@ -180,10 +192,13 @@ export function inventoryHitAt(
   open: boolean,
   holding: boolean,
   beltRows: number,
-): InventoryHit | DropHit | null {
+): InventoryHit | InventoryCloseHit | DropHit | null {
   if (!open) return null;
   const layout = inventoryPanelLayout(screen, beltRows);
   if (!inside(layout.panel, point)) return holding ? { drop: true } : null;
+  if (inside(layout.close, point)) {
+    return { button: { type: "close", panel: "inventory" } };
+  }
   const { grid, cell } = layout;
   if (inside(grid, point)) {
     const { columns, rows } = inventoryTuning;

@@ -1,3 +1,4 @@
+import type { Panel } from "../menus";
 import { inside, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
 import {
@@ -13,6 +14,7 @@ import {
   monsterLevelIn,
   type World,
 } from "../sim/world";
+import { closeButtonRect } from "./closeButton";
 import { experienceBar } from "./experienceBar";
 
 /**
@@ -130,9 +132,13 @@ export function hasUnspentPoints(world: World): boolean {
   return attributePoints > 0 || skillPoints > 0;
 }
 
-/** Where the panel, its + buttons and the Level Up button are drawn. */
+/**
+ * Where the panel, its × close button, its + buttons and the Level Up button
+ * are drawn.
+ */
 export function heroPanelLayout(screen: { width: number; height: number }): {
   panel: Rect;
+  close: Rect;
   raise: Record<Attribute, Rect>;
   levelUp: Rect;
 } {
@@ -152,6 +158,7 @@ export function heroPanelLayout(screen: { width: number; height: number }): {
   });
   return {
     panel,
+    close: closeButtonRect(panel),
     raise: Object.fromEntries(
       ATTRIBUTES.map((attribute, i) => [attribute, plusAt(i)]),
     ) as Record<Attribute, Rect>,
@@ -169,10 +176,14 @@ export function rowTop(row: number): number {
   return HERO_PANEL.top + HERO_PANEL.firstRow + row * HERO_PANEL.rowHeight;
 }
 
-/** A button a click can press: Level Up or an Attribute's +. */
+/** A panel's × close button, which shuts it as its key does. */
+export type CloseButton = { type: "close"; panel: Panel };
+
+/** A button a click can press: Level Up, an Attribute's + or the ×. */
 export type PanelButton =
   | { type: "levelUp" }
-  | { type: "raise"; attribute: Attribute };
+  | { type: "raise"; attribute: Attribute }
+  | CloseButton;
 
 /**
  * A click on the open Hero panel or the Level Up button, so not for the
@@ -184,8 +195,7 @@ export type PanelHit = { button: PanelButton | null };
  * What a click at `point` hits, or null when it's on neither the panel nor
  * the Level Up button, so it's for the World. The Level Up button is there
  * only while Attribute or Skill Points are unspent, the panel only while
- * `open`, and its +
- * buttons only while a point can be spent.
+ * `open`, its × with it, and its + buttons only while a point can be spent.
  */
 export function panelHitAt(
   screen: { width: number; height: number },
@@ -198,6 +208,9 @@ export function panelHitAt(
     return { button: { type: "levelUp" } };
   }
   if (!open || !inside(layout.panel, point)) return null;
+  if (inside(layout.close, point)) {
+    return { button: { type: "close", panel: "hero" } };
+  }
   if (canRaise(world)) {
     for (const attribute of ATTRIBUTES) {
       if (inside(layout.raise[attribute], point)) {

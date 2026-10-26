@@ -1,7 +1,8 @@
 import { heroTuning } from "../tuning/hero";
+import { minionTuning } from "../tuning/minions";
 import { canSee } from "./path";
 import type { Vec } from "./vec";
-import type { MonsterId, World } from "./world";
+import type { MonsterId, MonsterTarget, World } from "./world";
 
 /**
  * The numbers an attack rolls with, fixed when it is made: a Projectile
@@ -30,14 +31,18 @@ export type Projectile = AttackNumbers & {
   from: MonsterId;
 };
 
+/** A Projectile landing on the Hero or their Minion this step. */
+export type Landing = { projectile: Projectile; target: MonsterTarget };
+
 /**
- * Moves every Projectile one step along its line. One that touches the Hero
- * lands on them and is removed, as is one that meets a blocking tile or has
- * flown its range. It flies through Monsters. Returns those that landed.
+ * Moves every Projectile one step along its line. One that touches the Hero,
+ * unless they are in Death, or their Minion lands on the first of them it
+ * touches and is removed, as is one that meets a blocking tile or has flown
+ * its range. It flies through Monsters. Returns those that landed.
  */
-export function stepProjectiles(world: World): Projectile[] {
+export function stepProjectiles(world: World): Landing[] {
   const area = world.areas[world.areaName];
-  const landed: Projectile[] = [];
+  const landings: Landing[] = [];
   world.projectiles = world.projectiles.filter((projectile) => {
     const from = projectile.pos;
     const move = Math.min(projectile.speed, projectile.left);
@@ -48,27 +53,62 @@ export function stepProjectiles(world: World): Projectile[] {
     projectile.prevPos = { ...from };
     projectile.pos = to;
     projectile.left -= move;
-    if (gapToSegment(world.hero.pos, from, to) <= heroTuning.radius) {
-      landed.push(projectile);
+    const target = firstTouched(world, from, to);
+    if (target) {
+      landings.push({ projectile, target });
       return false;
     }
     if (!canSee(area, from, to)) return false;
     return projectile.left > 0;
   });
-  return landed;
+  return landings;
 }
 
-/** How near `point` comes to the segment from `a` to `b`. */
-function gapToSegment(point: Vec, a: Vec, b: Vec): number {
+/**
+ * Which of the living Hero and their Minion a Projectile flying from `a` to
+ * `b` touches first, if either.
+ */
+function firstTouched(world: World, a: Vec, b: Vec): MonsterTarget | null {
+  const bodies: { target: MonsterTarget; pos: Vec; radius: number }[] = [];
+  if (!world.death) {
+    bodies.push({
+      target: "hero",
+      pos: world.hero.pos,
+      radius: heroTuning.radius,
+    });
+  }
+  const { minion } = world;
+  if (minion) {
+    bodies.push({
+      target: "minion",
+      pos: minion.pos,
+      radius: minionTuning[minion.type].radius,
+    });
+  }
+  let first: { target: MonsterTarget; along: number } | null = null;
+  for (const { target, pos, radius } of bodies) {
+    const along = alongSegment(pos, a, b);
+    const nearest = {
+      x: a.x + along * (b.x - a.x),
+      y: a.y + along * (b.y - a.y),
+    };
+    if (Math.hypot(pos.x - nearest.x, pos.y - nearest.y) > radius) continue;
+    if (!first || along < first.along) first = { target, along };
+  }
+  return first?.target ?? null;
+}
+
+/**
+ * How far along the segment from `a` to `b`, from 0 to 1, its point nearest
+ * `point` lies.
+ */
+function alongSegment(point: Vec, a: Vec, b: Vec): number {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const length = dx * dx + dy * dy;
-  const t =
-    length === 0
-      ? 0
-      : Math.max(
-          0,
-          Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / length),
-        );
-  return Math.hypot(point.x - (a.x + t * dx), point.y - (a.y + t * dy));
+  if (length === 0) return 0;
+  return Math.max(
+    0,
+    Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / length),
+  );
 }

@@ -169,6 +169,9 @@ export default function GameCanvas() {
         // the World and every effect hold still.
         const now = gameTime(pause, realNow);
         const scene = { world, screen: app.screen };
+        // Whether the Hero lies in Death, for the clicks and the cursor; the
+        // World doesn't step again until after them.
+        const heroDead = world.death !== null;
         // The cursor sees a press first: one on the panels and HUD, or one
         // that puts down or drops what it holds, is not for the World.
         const pressedAt = input.pressedAt;
@@ -207,13 +210,11 @@ export default function GameCanvas() {
           const { button } = panel;
           if (button?.type === "levelUp") {
             const { attributePoints, skillPoints } = world.hero.progress;
-            const heroDead = world.death !== null;
             clickLevelUp(menus, { heroDead, attributePoints, skillPoints });
           }
           // + and − only plan Pending Attribute Points; Accept spends them.
           if (button?.type === "raise") {
             const { attributePoints } = world.hero.progress;
-            const heroDead = world.death !== null;
             addPendingPoint(menus, button.attribute, {
               heroDead,
               attributePoints,
@@ -229,7 +230,6 @@ export default function GameCanvas() {
           if (button?.type === "close") clickClose(menus, button.panel);
           // A Panel button opens or shuts its panel as its key does.
           if (button?.type === "panelButton") {
-            const heroDead = world.death !== null;
             clickPanelButton(menus, button.panel, { heroDead });
           }
           if (button?.type === "learn") {
@@ -238,7 +238,6 @@ export default function GameCanvas() {
         }
         // A pause or the Hero's Death lets go of a Held Skill, before its
         // release could land it.
-        const heroDead = world.death !== null;
         cursor = settleCursor(cursor, { paused: pause.paused, heroDead });
         // Where the left button went up, even off the canvas.
         const released = takeRelease(input);

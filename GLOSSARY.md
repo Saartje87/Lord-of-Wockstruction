@@ -215,3 +215,7 @@ _Avoid_: Potion bar, quickbar
 **Close button**:
 The × in the top-right corner of the Hero, Inventory and Skill Tree panels; clicking it shuts that panel just as its key does, so shutting the Inventory panel puts a Held Item back where it was lifted from.
 _Avoid_: X button, exit button
+
+**Panel button**:
+One of the three buttons on the HUD right of the Skill Bar, one each for the Hero, Inventory and Skill Tree panels; clicking it opens or shuts that panel just as its key does, it shows lit while its panel is open, and it does nothing during Death.
+_Avoid_: Menu button, mini-panel, HUD button

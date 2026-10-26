@@ -156,7 +156,7 @@ describe("skillTreeHitAt", () => {
     });
     // No + without a Skill Point: there it's just the learned Skill's rows.
     expect(skillTreeHitAt(screen, at, withGolem(2), true)).toEqual({
-      button: { type: "dragSkill", skill: "golem" },
+      button: { type: "pickUpSkill", skill: "golem" },
     });
     expect(skillTreeHitAt(screen, at, withGolem(1), false)).toBeNull();
   });
@@ -174,7 +174,7 @@ describe("skillTreeHitAt", () => {
     const skill = layout.skills.golem;
     const nameRow = { x: skill.x + 4, y: skill.y + 4 };
     const lastRow = { x: skill.x + skill.w - 4, y: skill.y + skill.h - 4 };
-    const drag = { button: { type: "dragSkill", skill: "golem" } };
+    const drag = { button: { type: "pickUpSkill", skill: "golem" } };
 
     expect(skillTreeHitAt(screen, nameRow, withGolem(1), true)).toEqual(drag);
     expect(skillTreeHitAt(screen, lastRow, withGolem(2), true)).toEqual(drag);

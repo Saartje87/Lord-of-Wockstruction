@@ -67,7 +67,7 @@ const pressOnCell = (column: number, row: number) => ({
 });
 const OVER_THE_WORLD = { at: { x: 640, y: 300 }, hit: null };
 const ON_KEY4: CursorHit = { button: { type: "skillBarSlot", slot: "key4" } };
-const ON_GOLEM: CursorHit = { button: { type: "dragSkill", skill: "golem" } };
+const ON_GOLEM: CursorHit = { button: { type: "pickUpSkill", skill: "golem" } };
 
 describe("the cursor with Items", () => {
   it("lifts the Item pressed on with nothing held", () => {

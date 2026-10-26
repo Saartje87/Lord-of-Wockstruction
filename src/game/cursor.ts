@@ -10,8 +10,9 @@ import {
 } from "./render/inventoryPanel";
 import type { SkillBarHit } from "./render/skillBar";
 import type { SkillTreeHit } from "./render/skillTreePanel";
-import { cursorItemOf, type ItemSpot } from "./sim/inventory";
-import type { SkillBarSlot } from "./sim/skillBar";
+import { isBeltCell } from "./sim/belt";
+import { cursorItemOf, type ItemSpot, isSlot } from "./sim/inventory";
+import { type SkillBarSlot, skillInSlot } from "./sim/skillBar";
 import type { Vec } from "./sim/vec";
 import type { Order, World } from "./sim/world";
 import type { ItemType } from "./tuning/items";
@@ -72,6 +73,7 @@ export type CursorOutcome = {
   taken: boolean;
 };
 
+/** A cursor holding no Skill, as the game starts. */
 export function createCursor(): Cursor {
   return { heldSkill: null, heldSkillSlot: null, liftedFrom: null };
 }
@@ -123,7 +125,7 @@ export function pressCursor(
   // The cursor holds a Held Item or a Held Skill, never both.
   if (cursorItemOf(world) === null) {
     const { button } = hit;
-    if (button?.type === "dragSkill") {
+    if (button?.type === "pickUpSkill") {
       const heldSkill = button.skill;
       return {
         cursor: { ...cursor, heldSkill, heldSkillSlot: null },
@@ -132,9 +134,7 @@ export function pressCursor(
       };
     }
     const onBar =
-      button?.type === "skillBarSlot"
-        ? world.hero.progress.skillBar[button.slot]
-        : null;
+      button?.type === "skillBarSlot" ? skillInSlot(world, button.slot) : null;
     if (button?.type === "skillBarSlot" && onBar) {
       const held = { heldSkill: onBar, heldSkillSlot: button.slot };
       return { cursor: { ...cursor, ...held }, orders: [], taken: true };
@@ -171,7 +171,7 @@ export function releaseCursor(
   // Released where it was picked up: a click, so it stays for the next one.
   const pickedUpHere =
     cursor.heldSkillSlot === null
-      ? button?.type === "dragSkill" && button.skill === heldSkill
+      ? button?.type === "pickUpSkill" && button.skill === heldSkill
       : button?.type === "skillBarSlot" && button.slot === cursor.heldSkillSlot;
   if (pickedUpHere) return { cursor, orders: [], taken: true };
   return landHeldSkill(cursor, heldSkill, release.hit);
@@ -227,8 +227,18 @@ function asItemSpot(hit: CursorHit | null): CursorHit | null {
   return { inventory: { beltColumn: hit.beltColumn, row: 0 } };
 }
 
+/** Whether two spots are the same slot, cell or Belt Column cell. */
 function sameSpot(a: ItemSpot, b: ItemSpot): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
+  if (isSlot(a) || isSlot(b)) return a === b;
+  if (isBeltCell(a) || isBeltCell(b)) {
+    return (
+      isBeltCell(a) &&
+      isBeltCell(b) &&
+      a.beltColumn === b.beltColumn &&
+      a.row === b.row
+    );
+  }
+  return a.column === b.column && a.row === b.row;
 }
 
 /** The panel or HUD button `hit`, if it is one. */

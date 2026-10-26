@@ -1,4 +1,5 @@
 import type { Skill } from "../tuning/skills";
+import type { World } from "./world";
 
 /** The Skill Bar's keyed slots, cast by keys Q, W, E and R in turn. */
 export const KEYED_SLOTS = ["key1", "key2", "key3", "key4"] as const;
@@ -22,6 +23,11 @@ export function slotKey(slot: KeyedSlot): string {
 
 /** The Skill in each slot of the Skill Bar, or null for an empty one. */
 export type SkillBar = Record<SkillBarSlot, Skill | null>;
+
+/** The Skill in the Hero's Skill Bar slot `slot`, or null for an empty one. */
+export function skillInSlot(world: World, slot: SkillBarSlot): Skill | null {
+  return world.hero.progress.skillBar[slot];
+}
 
 /** A Skill Bar with every slot empty, as a New Hero has. */
 export function emptySkillBar(): SkillBar {

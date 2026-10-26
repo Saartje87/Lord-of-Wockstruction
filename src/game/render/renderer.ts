@@ -439,6 +439,7 @@ const SLOT_NAMES: Record<EquipmentSlot, string> = {
   amulet: "Amulet",
   ring1: "Ring",
   ring2: "Ring",
+  belt: "Belt",
 };
 
 /** The badge over the orb: its size, gap over the rim (CSS px) and colours. */
@@ -661,7 +662,13 @@ export function createRenderer(
       skillTreeHitAt(app.screen, screen, drawnWorld, skillTreeOpenNow) ??
       skillBarHitAt(app.screen, screen) ??
       beltStripHitAt(app.screen, screen) ??
-      inventoryHitAt(app.screen, screen, inventoryOpenNow, holding, beltRows())
+      inventoryHitAt(
+        app.screen,
+        screen,
+        inventoryOpenNow,
+        holding,
+        beltRows(drawnWorld),
+      )
     );
   };
 
@@ -2138,7 +2145,7 @@ function inventoryPanelView() {
     ) {
       layer.visible = open;
       if (!open) return;
-      const layout = inventoryPanelLayout(screen, beltRows());
+      const layout = inventoryPanelLayout(screen, beltRows(world));
       const { panel, grid, cell, slots } = layout;
 
       graphics.clear();

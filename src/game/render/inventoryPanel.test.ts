@@ -342,6 +342,18 @@ describe("the order a click on the Inventory gives", () => {
     });
   });
 
+  it("puts the held Item down on the grid below every row of the Equipped Belt", () => {
+    const w = world({ ...belongings, equipment: { belt: "platedBelt" } });
+    step(w, [{ type: "LiftItem", from: { column: 4, row: 1 } }]);
+    const four = inventoryPanelLayout(WIDE, 4);
+    const centre = { x: four.grid.x + 2 * cell, y: four.grid.y + 1.5 * cell };
+
+    expect(inventoryOrder(w, WIDE, centre, onCell(2, 1))).toEqual({
+      type: "PlaceItem",
+      to: { column: 1, row: 0 },
+    });
+  });
+
   it("drops the held Item for a click outside the panel", () => {
     const w = world(belongings);
     step(w, [{ type: "LiftItem", from: { column: 4, row: 1 } }]);
@@ -556,5 +568,11 @@ describe("an Item's tooltip", () => {
       "Rejuvenation Potion",
       "Gives back 35% of Life and Mana at once",
     ]);
+  });
+
+  it("gives a Belt's rows", () => {
+    expect(itemTooltip("sash")).toEqual(["Sash", "Rows: 2"]);
+    expect(itemTooltip("heavyBelt")).toEqual(["Heavy Belt", "Rows: 3"]);
+    expect(itemTooltip("platedBelt")).toEqual(["Plated Belt", "Rows: 4"]);
   });
 });

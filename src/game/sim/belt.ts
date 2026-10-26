@@ -3,6 +3,7 @@ import {
   ITEM_TYPES,
   type ItemType,
   isPotion,
+  itemOf,
 } from "../tuning/items";
 import type { Item } from "./inventory";
 import type { World } from "./world";
@@ -38,9 +39,17 @@ export function emptyBelt<T>(): T[][] {
   return Array.from({ length: beltTuning.columns }, () => []);
 }
 
-/** How many Potions each Belt Column holds: one row with no Belt Equipped. */
-export function beltRows(): number {
-  return beltTuning.rowsWithoutBelt;
+/**
+ * How many Potions each Belt Column holds: the Equipped Belt's rows, or
+ * `beltTuning.rowsWithoutBelt` with none.
+ */
+export function beltRows(world: World): number {
+  return rowsOf(world.hero.equipment.belt?.type);
+}
+
+/** The rows a Belt of `type` gives, or those with no Belt for none. */
+export function rowsOf(type: ItemType | undefined): number {
+  return (type && itemOf(type).beltRows) || beltTuning.rowsWithoutBelt;
 }
 
 /**
@@ -56,14 +65,14 @@ export function newHeroBelt(): BeltTypes {
 
 /**
  * Whether stored Belt Columns could be the Hero's: one list per column, none
- * longer than the rows a column holds, holding only Potion types.
+ * longer than `rows`, holding only Potion types.
  */
-export function isValidBelt(belt: unknown): belt is BeltTypes {
+export function isValidBelt(belt: unknown, rows: number): belt is BeltTypes {
   if (!Array.isArray(belt) || belt.length !== beltTuning.columns) return false;
   return belt.every(
     (column) =>
       Array.isArray(column) &&
-      column.length <= beltRows() &&
+      column.length <= rows &&
       column.every(
         (type) => ITEM_TYPES.includes(type as ItemType) && isPotion(type),
       ),
@@ -108,8 +117,9 @@ export function takeFromBelt(world: World, column: number): Item | null {
  */
 export function beltColumnFor(world: World, type: ItemType): number | null {
   const belt = beltTypesOf(world);
+  const rows = beltRows(world);
   const sameType = belt.findIndex(
-    (column) => column.length < beltRows() && column[0] === type,
+    (column) => column.length < rows && column[0] === type,
   );
   if (sameType !== -1) return sameType;
   const empty = belt.findIndex((column) => column.length === 0);

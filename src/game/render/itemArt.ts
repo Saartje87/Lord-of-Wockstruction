@@ -6,6 +6,7 @@ const KIND_COLOUR: Record<ItemKind, number> = {
   armour: 0x5a4028,
   ring: 0x3a3a68,
   amulet: 0x5a3a5a,
+  belt: 0x6a5030,
   potion: 0x7a2424,
 };
 

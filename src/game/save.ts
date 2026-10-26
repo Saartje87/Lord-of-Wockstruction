@@ -189,7 +189,8 @@ function parseBelongings(
   equipment: unknown,
   belt: unknown,
 ): Belongings | null {
-  if (!isValidBelt(belt)) return null;
+  // How many rows the Belt Columns have is checked with the Equipment.
+  if (!isValidBelt(belt, Number.POSITIVE_INFINITY)) return null;
   if (!Array.isArray(inventory)) return null;
   if (typeof equipment !== "object" || equipment === null) return null;
   if (Array.isArray(equipment)) return null;

@@ -104,6 +104,28 @@ describe("the Belt strip's sheet", () => {
     ]);
   });
 
+  it("counts every row of the Equipped Belt", () => {
+    const w = createWorld({
+      areas: { town },
+      seed: 1,
+      belongings: {
+        inventory: [],
+        equipment: { belt: "platedBelt" },
+        belt: [
+          ["manaPotion", "lifePotion", "lifePotion", "lifePotion"],
+          [],
+          [],
+          [],
+        ],
+      },
+    });
+
+    expect(beltStripSheet(w)[0]).toMatchObject({
+      type: "manaPotion",
+      count: 4,
+    });
+  });
+
   it("follows drinking", () => {
     const w = world();
 

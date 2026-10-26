@@ -3,7 +3,13 @@
 import type { Attribute } from "../sim/world";
 
 /** What an Item is for, which decides the Equipment slot it fits. */
-export type ItemKind = "weapon" | "armour" | "ring" | "amulet" | "potion";
+export type ItemKind =
+  | "weapon"
+  | "armour"
+  | "ring"
+  | "amulet"
+  | "belt"
+  | "potion";
 
 /** What an Equipped Item can add to the Hero: an Attribute, or one of these. */
 export type Bonus = Attribute | "life" | "defense" | "attackRating";
@@ -43,6 +49,8 @@ export type ItemTuning = {
   bonuses: Partial<Record<Bonus, number>>;
   /** A Potion's effect when drunk. */
   potion?: PotionEffectTuning;
+  /** How many rows a Belt gives each Belt Column while Equipped. */
+  beltRows?: number;
 };
 
 /** Every Item type, by the key it's known as in code and in the Save. */
@@ -102,6 +110,27 @@ export const itemTuning = {
     kind: "amulet",
     size: { columns: 1, rows: 1 },
     bonuses: { vitality: 5 },
+  },
+  sash: {
+    name: "Sash",
+    kind: "belt",
+    size: { columns: 2, rows: 1 },
+    bonuses: {},
+    beltRows: 2,
+  },
+  heavyBelt: {
+    name: "Heavy Belt",
+    kind: "belt",
+    size: { columns: 2, rows: 1 },
+    bonuses: {},
+    beltRows: 3,
+  },
+  platedBelt: {
+    name: "Plated Belt",
+    kind: "belt",
+    size: { columns: 2, rows: 1 },
+    bonuses: {},
+    beltRows: 4,
   },
   lifePotion: {
     name: "Life Potion",

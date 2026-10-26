@@ -47,8 +47,9 @@ const WELL_EQUIPPED: Belongings = {
     amulet: "amuletOfVitality",
     ring1: "ringOfStrength",
     ring2: "ringOfDexterity",
+    belt: "heavyBelt",
   },
-  belt: [["lifePotion"], [], ["lifePotion"], []],
+  belt: [["lifePotion", "manaPotion", "lifePotion"], [], ["lifePotion"], []],
 };
 
 /** A Save of `progress`, with only the Short Sword unless `belongings` is given. */
@@ -254,11 +255,19 @@ describe("stored text", () => {
     const kept = save(progress(2, 600), WELL_EQUIPPED);
 
     expect(parseSave(encodeSave(kept))?.belongings.belt).toEqual([
-      ["lifePotion"],
+      ["lifePotion", "manaPotion", "lifePotion"],
       [],
       ["lifePotion"],
       [],
     ]);
+  });
+
+  it("keeps the Equipped Belt", () => {
+    const kept = save(progress(2, 600), WELL_EQUIPPED);
+
+    expect(parseSave(encodeSave(kept))?.belongings.equipment.belt).toBe(
+      "heavyBelt",
+    );
   });
 
   it("round-trips Mana and Rejuvenation Potions, in the Belt and Inventory", () => {
@@ -416,6 +425,17 @@ describe("stored text", () => {
     [
       "with more Potions in a Belt Column than it holds",
       v7({ belt: [["lifePotion", "lifePotion"], [], [], []] }),
+    ],
+    [
+      "with more Potions in a Belt Column than the Equipped Belt's rows",
+      v7({
+        equipment: { weapon: "shortSword", belt: "sash" },
+        belt: [["lifePotion", "lifePotion", "lifePotion"], [], [], []],
+      }),
+    ],
+    [
+      "with a Belt that isn't one in the Belt slot",
+      v7({ equipment: { weapon: "shortSword", belt: "chainMail" } }),
     ],
     [
       "with an Item that isn't a Potion in the Belt",

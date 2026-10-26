@@ -47,8 +47,8 @@ const EQUIPMENT_ROWS = 5;
 /**
  * Where each Equipment slot sits in its area and how big it is, in cells
  * from the area's top-left: as in Diablo 2, the Weapon on the left, the
- * Armour in the middle, the Amulet top right and a Ring either side below
- * the Armour.
+ * Armour in the middle, the Amulet top right, and the Belt below the Armour
+ * with a Ring either side.
  */
 const SLOT_CELLS: Record<EquipmentSlot, Rect> = {
   weapon: { x: 0.5, y: 0.5, w: 2, h: 4 },
@@ -56,6 +56,7 @@ const SLOT_CELLS: Record<EquipmentSlot, Rect> = {
   amulet: { x: 7, y: 0.5, w: 1, h: 1 },
   ring1: { x: 3, y: 4, w: 1, h: 1 },
   ring2: { x: 6, y: 4, w: 1, h: 1 },
+  belt: { x: 4.25, y: 4, w: 1.5, h: 1 },
 };
 
 /**
@@ -244,7 +245,7 @@ export function inventoryOrder(
     return itemUnder(world, spot) ? { type: "LiftItem", from: spot } : null;
   }
   if (!isCell(spot)) return { type: "PlaceItem", to: spot };
-  const layout = inventoryPanelLayout(screen, beltRows());
+  const layout = inventoryPanelLayout(screen, beltRows(world));
   return { type: "PlaceItem", to: landingCell(layout, point, held.item.type) };
 }
 
@@ -306,7 +307,8 @@ function potionLine(effect: PotionEffectTuning): string {
 /**
  * The lines of an Item's tooltip, all of them the Item's own fixed values,
  * as in Diablo 2: its name, then a Weapon's damage before the Hero's
- * Strength, an Armour's Defense, its bonuses, and what a Potion gives back.
+ * Strength, an Armour's Defense, its bonuses, what a Potion gives back and
+ * a Belt's rows.
  */
 export function itemTooltip(type: ItemType): string[] {
   const item = itemOf(type);
@@ -321,5 +323,6 @@ export function itemTooltip(type: ItemType): string[] {
     lines.push(`+${amount} to ${BONUS_NAMES[bonus as Bonus]}`);
   }
   if (item.potion) lines.push(potionLine(item.potion));
+  if (item.beltRows !== undefined) lines.push(`Rows: ${item.beltRows}`);
   return lines;
 }

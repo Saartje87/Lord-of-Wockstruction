@@ -153,3 +153,14 @@ export const dropTuning: { chance: number; items: readonly ItemType[] } = {
   chance: 0.25,
   items: ITEM_TYPES.filter((type) => !isPotion(type)),
 };
+
+/**
+ * Potion drops, rolled on each kill apart from `dropTuning` and more often:
+ * `chance` of dropping one Potion, of a type picked from `items` with equal
+ * odds.
+ */
+export const potionDropTuning: { chance: number; items: readonly ItemType[] } =
+  {
+    chance: 0.4,
+    items: ITEM_TYPES.filter(isPotion),
+  };

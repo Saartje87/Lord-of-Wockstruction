@@ -2,6 +2,7 @@
 
 import { Application } from "pixi.js";
 import { useEffect, useRef } from "react";
+import { pressButton } from "./buttonPress";
 import { advance, createClock } from "./clock";
 import { areaDisplayNames, areas, tilesets } from "./content";
 import {
@@ -22,17 +23,11 @@ import {
   takeRightClick,
 } from "./input/pointer";
 import {
-  acceptPendingPoints,
-  addPendingPoint,
-  clickClose,
-  clickLevelUp,
-  clickPanelButton,
   clickPaused,
   createMenus,
   type Menus,
   pressKey,
   reactMenus,
-  removePendingPoint,
 } from "./menus";
 import { gameTime } from "./pause";
 import { loadArt } from "./render/art";
@@ -169,8 +164,8 @@ export default function GameCanvas() {
         // the World and every effect hold still.
         const now = gameTime(pause, realNow);
         const scene = { world, screen: app.screen };
-        // Whether the Hero lies in Death, for the clicks and the cursor; the
-        // World doesn't step again until after them.
+        // Whether the Hero lies in Death, for the cursor; the World doesn't
+        // step again until after it.
         const heroDead = world.death !== null;
         // The cursor sees a press first: one on the panels and HUD, or one
         // that puts down or drops what it holds, is not for the World.
@@ -196,45 +191,13 @@ export default function GameCanvas() {
           panelAt: (at) => forTheWorld(renderer.panelAt(at)),
         });
         orders.push(...newOrders);
-        // A press on a panel's button never orders the Hero about, nor goes
-        // on from their Death: Level Up opens the Hero or Skill Tree panel
-        // (but for a dead Hero), a + on the Skill Tree spends a point while
-        // the Hero panel's +, − and Accept plan and spend Pending Attribute
-        // Points, and a panel's × or Panel button shuts it as its key does
-        // (a Panel button opening it too), while the game
-        // runs on. A press that put down or let go of a Held Skill does none
+        // A press on a button on a panel or the HUD changes the menus or
+        // orders a point spent. A press that put down or let go of a Held Skill does none
         // of that; one on a Panel button keeps it held, as the key would.
         const landedSkill =
           heldSkillAtPress !== null && cursor.heldSkill === null;
         if (panel && "button" in panel && !landedSkill) {
-          const { button } = panel;
-          if (button?.type === "levelUp") {
-            const { attributePoints, skillPoints } = world.hero.progress;
-            clickLevelUp(menus, { heroDead, attributePoints, skillPoints });
-          }
-          // + and − only plan Pending Attribute Points; Accept spends them.
-          if (button?.type === "raise") {
-            const { attributePoints } = world.hero.progress;
-            addPendingPoint(menus, button.attribute, {
-              heroDead,
-              attributePoints,
-            });
-          }
-          if (button?.type === "lower") {
-            removePendingPoint(menus, button.attribute);
-          }
-          if (button?.type === "accept") {
-            const accept = acceptPendingPoints(menus);
-            if (accept) orders.push(accept);
-          }
-          if (button?.type === "close") clickClose(menus, button.panel);
-          // A Panel button opens or shuts its panel as its key does.
-          if (button?.type === "panelButton") {
-            clickPanelButton(menus, button.panel, { heroDead });
-          }
-          if (button?.type === "learn") {
-            orders.push({ type: "SpendSkillPoint", skill: button.skill });
-          }
+          orders.push(...pressButton(menus, world, panel.button));
         }
         // A pause or the Hero's Death lets go of a Held Skill, before its
         // release could land it.

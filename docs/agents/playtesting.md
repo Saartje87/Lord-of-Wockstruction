@@ -12,6 +12,14 @@ How to see the game running, for acceptance criteria that only show on screen (H
   npx next dev -p 3124
   ```
 
+## Alongside other agents
+
+Parallel agents share one Chrome and often one machine.
+
+- **Port**: `31NN`, from your ticket number (T174 → 3174). It also keeps your Save apart, since a Save belongs to its port.
+- **Tab**: open your own with `tabs_create_mcp`, and close only that tab when done.
+- **Main checkout**: someone else may have uncommitted work there. Merge and playtest in your own worktree, and stage files by name.
+
 ## Skip the grind
 
 The Save lives in `localStorage` under `wiablo.save` as JSON. Write one and reload to start at any Level; `parseSave` in `src/game/save.ts` lists the fields and the checks a Save must pass (points raised plus unspent equal 5 × (Level − 1); Skill Levels plus unspent Skill Points equal Level − 1; Items on the grid, not overlapping, and in slots of their kind). For example, a Level 3 Hero with 10 unspent points and 2 unspent Skill Points:

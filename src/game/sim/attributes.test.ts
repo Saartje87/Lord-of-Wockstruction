@@ -139,7 +139,9 @@ function spend(w: World, attribute: Attribute, times = 1): SimEvent[] {
   const events: SimEvent[] = [];
   for (let i = 0; i < times; i++) {
     events.push(
-      ...step(w, [{ type: "SpendAttributePoints", points: { [attribute]: 1 } }]),
+      ...step(w, [
+        { type: "SpendAttributePoints", points: { [attribute]: 1 } },
+      ]),
     );
   }
   return events;

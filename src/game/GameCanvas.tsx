@@ -15,6 +15,7 @@ import {
   settleCursor,
 } from "./cursor";
 import { devStartOf } from "./devStart";
+import { devStateOf } from "./devState";
 import { browserFullscreen, fullscreenPointerEvent } from "./fullscreen";
 import {
   createActiveInput,
@@ -80,7 +81,7 @@ import {
 import { isFloor } from "./sim/area";
 import { cursorItemOf } from "./sim/inventory";
 import type { Vec } from "./sim/vec";
-import { createWorld, type Order, step } from "./sim/world";
+import { createWorld, type MonsterId, type Order, step } from "./sim/world";
 import { viewportOf } from "./viewport";
 
 /** Mounts the Pixi Application and runs the fixed-step loop. */
@@ -157,6 +158,13 @@ export default function GameCanvas() {
       let cursor = createCursor();
       /** A touch on the panels and the HUD, acted on as it lifts. */
       const tap = createTapInput();
+      /** The Target as last drawn. */
+      let drawnTarget: MonsterId | null = null;
+      // Playtests read the game from here instead of by eye. Production
+      // builds don't have it.
+      if (process.env.NODE_ENV === "development") {
+        window.__wiablo = { state: () => devStateOf(world, drawnTarget) };
+      }
 
       // Each input event tells the Active Input the way it came by, first,
       // so the touch that makes it touch can already be the touch
@@ -525,6 +533,7 @@ export default function GameCanvas() {
         });
         const pointing = activeInput.way === "touch" ? touched : input.screen;
         const pointer = pause.paused ? null : (focus?.at ?? pointing);
+        drawnTarget = pause.paused ? null : polled.target;
         renderer.draw(
           world,
           alpha,
@@ -533,7 +542,7 @@ export default function GameCanvas() {
           menus,
           cursor.heldSkill,
           cursor.heldSkillSlot,
-          pause.paused ? null : polled.target,
+          drawnTarget,
           focus?.rect ?? null,
         );
         app.render();
@@ -546,6 +555,7 @@ export default function GameCanvas() {
       cancelled = true;
       cancelAnimationFrame(frame);
       listeners.abort();
+      delete window.__wiablo;
       // A failed `init()` already surfaces through the chain above.
       init.then(
         () => app.destroy(true, { children: true }),

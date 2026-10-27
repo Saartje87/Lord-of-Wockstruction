@@ -728,11 +728,18 @@ export function createRenderer(
 
   /**
    * What a point on the canvas (CSS px) hits of the panels and the HUD, as
-   * last drawn, or null when it's for the World.
+   * last drawn, or null when it's for the World. While touch is the Active
+   * Input, the point is a touch.
    */
   const panelAt = (screen: Vec): CursorHit | null =>
     drawnWorld &&
-    cursorHitAt(viewportOf(app.screen), screen, drawnWorld, shownPanels);
+    cursorHitAt(
+      viewportOf(app.screen),
+      screen,
+      drawnWorld,
+      shownPanels,
+      activeInput.way === "touch",
+    );
 
   /**
    * Starts afresh for another World, whose Monster ids start over: drops

@@ -65,7 +65,7 @@ function withGolem(golem: number): World {
     experience: 1_500,
     attributePoints: 10,
     skillPoints: 2 - golem,
-    skillLevels: { golem },
+    skillLevels: { ...FRESH_PROGRESS.skillLevels, golem },
   });
 }
 
@@ -89,7 +89,7 @@ const ONE_ROW = 1;
 const SIX_SKILLS = 6;
 
 describe("skillTreeSheet", () => {
-  it("shows a New Hero's Golem unlearned, with what Skill Level 1 costs", () => {
+  it("shows a New Hero's Skills unlearned, with what Skill Level 1 costs", () => {
     expect(skillTreeSheet(world())).toEqual({
       skillPoints: "0",
       skills: [
@@ -101,41 +101,58 @@ describe("skillTreeSheet", () => {
           requiredLevel: null,
           canRaise: false,
         },
+        {
+          skill: "raiseSkeleton",
+          name: "Raise Skeleton",
+          skillLevel: "0",
+          manaCost: "6",
+          requiredLevel: null,
+          canRaise: false,
+        },
       ],
     });
   });
 
   it("shows the Mana cost at the next Skill Level, and a + while a point is unspent", () => {
     const w = withGolem(0);
+    const golemRow = () => skillTreeSheet(w).skills[0];
 
-    expect(skillTreeSheet(w)).toMatchObject({
-      skillPoints: "2",
-      skills: [{ skillLevel: "0", manaCost: "15", canRaise: true }],
+    expect(skillTreeSheet(w).skillPoints).toBe("2");
+    expect(golemRow()).toMatchObject({
+      skillLevel: "0",
+      manaCost: "15",
+      canRaise: true,
     });
 
     step(w, [{ type: "SpendSkillPoint", skill: "golem" }]);
-    expect(skillTreeSheet(w)).toMatchObject({
-      skillPoints: "1",
-      skills: [{ skillLevel: "1", manaCost: "17", canRaise: true }],
+    expect(skillTreeSheet(w).skillPoints).toBe("1");
+    expect(golemRow()).toMatchObject({
+      skillLevel: "1",
+      manaCost: "17",
+      canRaise: true,
     });
 
     step(w, [{ type: "SpendSkillPoint", skill: "golem" }]);
-    expect(skillTreeSheet(w)).toMatchObject({
-      skillPoints: "0",
-      skills: [{ skillLevel: "2", manaCost: "19", canRaise: false }],
+    expect(skillTreeSheet(w).skillPoints).toBe("0");
+    expect(golemRow()).toMatchObject({
+      skillLevel: "2",
+      manaCost: "19",
+      canRaise: false,
     });
   });
 
   it("shows the required Level, and no +, until the Hero reaches it", () => {
     skillTuning.golem.requiredLevel = 6;
 
-    expect(skillTreeSheet(withGolem(0))).toMatchObject({
-      skills: [{ requiredLevel: "6", canRaise: false }],
+    expect(skillTreeSheet(withGolem(0)).skills[0]).toMatchObject({
+      requiredLevel: "6",
+      canRaise: false,
     });
 
     skillTuning.golem.requiredLevel = 3;
-    expect(skillTreeSheet(withGolem(0))).toMatchObject({
-      skills: [{ requiredLevel: null, canRaise: true }],
+    expect(skillTreeSheet(withGolem(0)).skills[0]).toMatchObject({
+      requiredLevel: null,
+      canRaise: true,
     });
   });
 

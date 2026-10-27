@@ -108,7 +108,7 @@ const GOLEM_HERO: Progress = {
   level: 2,
   experience: 500,
   attributePoints: 5,
-  skillLevels: { golem: 1 },
+  skillLevels: { ...FRESH_PROGRESS.skillLevels, golem: 1 },
   skillBar: { ...emptySkillBar(), right: "golem" },
 };
 
@@ -769,7 +769,10 @@ describe("the Golem fighting Monsters", () => {
 describe("the Golem's Skill Level", () => {
   it("gives it more Life, damage, Attack Rating and Defense", () => {
     const at = (skillLevel: number) => {
-      const w = inField({ ...GOLEM_HERO, skillLevels: { golem: skillLevel } });
+      const w = inField({
+        ...GOLEM_HERO,
+        skillLevels: { ...FRESH_PROGRESS.skillLevels, golem: skillLevel },
+      });
       summonAt(w, { x: 2.5, y: 1.5 });
       const golem = golemOf(w);
       return {

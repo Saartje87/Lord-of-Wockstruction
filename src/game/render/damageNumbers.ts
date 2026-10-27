@@ -34,6 +34,7 @@ export type DamageNumber =
 const CAST_FAILED_TEXT: Record<CastFailure, string> = {
   town: "Can't cast in Town",
   mana: "Not enough Mana",
+  corpse: "No Corpse",
 };
 
 /**

@@ -97,6 +97,9 @@ describe("floatText", () => {
     expect(floatText({ on: "hero", kind: "castFailed", reason: "mana" })).toBe(
       "Not enough Mana",
     );
+    expect(
+      floatText({ on: "hero", kind: "castFailed", reason: "corpse" }),
+    ).toBe("No Corpse");
   });
 });
 

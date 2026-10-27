@@ -10,7 +10,7 @@ import {
 } from "./save";
 import type { Belongings } from "./sim/inventory";
 import { emptySkillBar, type SkillBar } from "./sim/skillBar";
-import type { Progress } from "./sim/world";
+import { FRESH_PROGRESS, type Progress } from "./sim/world";
 
 /** Storage kept in a Map, standing in for the browser's. */
 function memoryStorage(): SaveStorage & { keys(): string[] } {
@@ -91,7 +91,7 @@ function progress(
     ...attributes,
     attributePoints: 5 * (level - 1) - spent,
     skillPoints: level - 1 - golem,
-    skillLevels: { golem },
+    skillLevels: { ...FRESH_PROGRESS.skillLevels, golem },
     skillBar,
   };
 }
@@ -235,6 +235,33 @@ describe("stored text", () => {
     });
   });
 
+  it("round-trips Raise Skeleton's Skill Level and Skill Bar slot", () => {
+    const kept = save({
+      ...progress(4, 3_750, {}, 1),
+      skillPoints: 0,
+      skillLevels: {
+        ...FRESH_PROGRESS.skillLevels,
+        golem: 1,
+        raiseSkeleton: 2,
+      },
+      skillBar: { ...emptySkillBar(), right: "raiseSkeleton", key1: "golem" },
+    });
+
+    expect(parseSave(encodeSave(kept))).toEqual(kept);
+  });
+
+  // What Saves before Raise Skeleton held: the same version, as only a
+  // Skill Level is missing.
+  it("loads a Save without a Skill's Skill Level with it at 0", () => {
+    const loaded = parseSave(v7({ skillPoints: 0, skillLevels: { golem: 1 } }));
+
+    expect(loaded?.progress.skillLevels).toEqual({
+      ...FRESH_PROGRESS.skillLevels,
+      golem: 1,
+      raiseSkeleton: 0,
+    });
+  });
+
   it("round-trips the Skill Bar", () => {
     const inKeyedSlot = { ...emptySkillBar(), key3: "golem" as const };
     const inRightSlot = { ...emptySkillBar(), right: "golem" as const };
@@ -327,7 +354,6 @@ describe("stored text", () => {
     ["without unspent Skill Points", v7({ skillPoints: undefined })],
     ["without Skill Levels", v7({ skillLevels: undefined })],
     ["with Skill Levels that aren't an object", v7({ skillLevels: [1] })],
-    ["without the Golem's Skill Level", v7({ skillLevels: {} })],
     [
       "with a Skill Level that isn't a whole number",
       v7({ skillPoints: 0.5, skillLevels: { golem: 0.5 } }),

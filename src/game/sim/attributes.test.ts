@@ -5,6 +5,7 @@ import {
   attackRating,
   createWorld,
   damageRange,
+  FRESH_PROGRESS,
   heroChanceToHit,
   heroDamage,
   maxLife,
@@ -130,7 +131,7 @@ const UNSPENT: Progress = {
   energy: 20,
   attributePoints: 10,
   skillPoints: 2,
-  skillLevels: { golem: 0 },
+  skillLevels: { ...FRESH_PROGRESS.skillLevels, golem: 0 },
   skillBar: emptySkillBar(),
 };
 

@@ -457,7 +457,7 @@ describe("going through a Town Portal", () => {
       start: { area: "cave", entry: "from-town" },
       progress: {
         ...FRESH_PROGRESS,
-        skillLevels: { golem: 1 },
+        skillLevels: { ...FRESH_PROGRESS.skillLevels, golem: 1 },
         skillBar: { ...emptySkillBar(), right: "golem" },
       },
     });

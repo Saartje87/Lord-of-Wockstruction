@@ -317,10 +317,12 @@ const NUMBER_COLOUR: Record<DamageNumber["kind"], number> = {
 
 /**
  * How each Minion looks: the Skeleton's art, `scale` times as big and tinted
- * `tint`, the placeholder Golem clay.
+ * `tint`: the placeholder Golem clay, a Raised Skeleton a pale, ghostly
+ * green, apart from the Monster Skeletons around it.
  */
 const MINION_LOOK: Record<MinionType, { tint: number; scale: number }> = {
   golem: { tint: 0xc0804a, scale: 1.3 },
+  raisedSkeleton: { tint: 0xa8f0b8, scale: 1 },
 };
 /**
  * How long a Minion takes to crumble away, replaced or killed: its `die`

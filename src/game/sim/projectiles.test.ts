@@ -99,7 +99,7 @@ const GOLEM_HERO: Progress = {
   level: 2,
   experience: 500,
   attributePoints: 5,
-  skillLevels: { golem: 1 },
+  skillLevels: { ...FRESH_PROGRESS.skillLevels, golem: 1 },
   skillBar: { ...emptySkillBar(), right: "golem" },
 };
 

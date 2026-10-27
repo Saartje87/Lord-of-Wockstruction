@@ -70,7 +70,7 @@ export type MinionGrowth = {
 };
 
 /** One of the Minions, by the name the sim knows it by. */
-export type MinionType = "golem";
+export type MinionType = "golem" | "raisedSkeleton";
 
 /** Every Minion's tuning. */
 export const minionTuning: Record<MinionType, MinionTuning> = {
@@ -105,5 +105,34 @@ export const minionTuning: Record<MinionType, MinionTuning> = {
     windUpMs: 600,
     rootMs: 300,
     recoveryMs: 1200,
+  },
+  // Starts from a Monster Level 1 Skeleton's numbers, and its swing.
+  raisedSkeleton: {
+    name: "Raised Skeleton",
+    life: 60,
+    damage: [4, 8],
+    // Hits a Monster Level 1 Skeleton (Defense 135) about a quarter of the
+    // time, as one hits another.
+    attackRating: 20,
+    // A Monster Level 1 Skeleton hits it about a quarter of the time.
+    defense: 135,
+    growth: { life: 0.2, damage: 0.2, attackRating: 0.1, defense: 0.1 },
+    radius: 0.32,
+    // The Golem's, so it keeps up with the Hero as well as the Golem does.
+    speed: 4,
+    followDistance: 3,
+    teleportDistance: 12,
+    besideDistance: 1,
+    stuckStride: 0.5,
+    stuckMs: 1000,
+    replanMs: 400,
+    guardRadius: 6,
+    leash: 8,
+    reach: 1.2,
+    reachGrace: 0.25,
+    arcDegrees: 60,
+    windUpMs: 400,
+    rootMs: 200,
+    recoveryMs: 1000,
   },
 };

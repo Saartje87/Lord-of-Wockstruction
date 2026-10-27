@@ -8,6 +8,7 @@ import {
   type Attribute,
   createWorld,
   FRESH_PROGRESS,
+  SKILLS,
   step,
 } from "../sim/world";
 import type { ItemType } from "../tuning/items";
@@ -506,7 +507,7 @@ function withGolem(golem: number, skillPoints: number) {
       level: 3,
       experience: 1_500,
       skillPoints,
-      skillLevels: { golem },
+      skillLevels: { ...FRESH_PROGRESS.skillLevels, golem },
     },
   });
 }
@@ -535,14 +536,20 @@ describe.each([
   const close = { button: { type: "close", panel: "skillTree" } };
   const isEqual = (a: unknown, b: unknown) =>
     JSON.stringify(a) === JSON.stringify(b);
-  /** Points just off each side of the +, 3 px out, by its middle. */
+  /**
+   * Points just off each side of the +, by its middle: 3 px out along its
+   * row, and above and below it halfway to the rows beside.
+   */
   const nearMisses = () => {
     const { x, y } = middleOf(plus);
+    const row = skills.golem;
+    const above = (plus.y - row.y) / 2;
+    const below = (row.y + row.h - (plus.y + plus.h)) / 2;
     return [
       { x: plus.x - 3, y },
       { x: plus.x + plus.w + 3, y },
-      { x, y: plus.y - 3 },
-      { x, y: plus.y + plus.h + 3 },
+      { x, y: plus.y - above },
+      { x, y: plus.y + plus.h + below },
     ];
   };
 
@@ -566,8 +573,9 @@ describe.each([
     const reach = (44 - plus.w) / 2;
     const { x, y } = middleOf(plus);
     const left = { x: plus.x - reach - 1, y };
-    // Under the Skill's one row, on the panel.
-    const below = { x, y: plus.y + plus.h + reach + 1 };
+    // Under the last Skill's one row, on the panel.
+    const lastPlus = raise[SKILLS[SKILLS.length - 1]];
+    const below = { x, y: lastPlus.y + lastPlus.h + reach + 1 };
     expect(cursorHitAt(screen, left, w, treeOpen, true)).toEqual(pickUp);
     expect(cursorHitAt(screen, below, w, treeOpen, true)).toEqual({
       button: null,
@@ -659,7 +667,7 @@ function withPoints() {
       energy: 20,
       attributePoints: 5,
       skillPoints: 0,
-      skillLevels: { golem: 1 },
+      skillLevels: { ...FRESH_PROGRESS.skillLevels, golem: 1 },
       skillBar: emptySkillBar(),
     },
   });

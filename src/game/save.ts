@@ -211,18 +211,20 @@ function parseBelongings(
 
 /**
  * The stored Skill Levels, or null when they aren't an object holding a
- * whole number at least 0 for each Skill and nothing else.
+ * whole number at least 0 for Skills and nothing else. A Skill missing from
+ * them, as from a Save written before it was added, is at 0.
  */
 function parseSkillLevels(stored: unknown): Record<Skill, number> | null {
   const levels = objectWithin(stored, SKILLS);
   if (!levels) return null;
+  const levelOf = (skill: Skill) => levels[skill] ?? 0;
   const fits = (skill: Skill) => {
-    const level = levels[skill];
+    const level = levelOf(skill);
     return Number.isInteger(level) && (level as number) >= 0;
   };
   if (!SKILLS.every(fits)) return null;
   return Object.fromEntries(
-    SKILLS.map((skill) => [skill, levels[skill]]),
+    SKILLS.map((skill) => [skill, levelOf(skill)]),
   ) as Record<Skill, number>;
 }
 

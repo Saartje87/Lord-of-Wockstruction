@@ -87,7 +87,10 @@ function withSkillPoints(level: number, skillPoints: number): Progress {
     experience: [0, 500, 1_500, 3_750][level - 1],
     attributePoints: 5 * (level - 1),
     skillPoints,
-    skillLevels: { golem: level - 1 - skillPoints },
+    skillLevels: {
+      ...FRESH_PROGRESS.skillLevels,
+      golem: level - 1 - skillPoints,
+    },
   };
 }
 

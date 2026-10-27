@@ -8,7 +8,12 @@ import {
 } from "../tuning/items";
 import { minionTuning } from "../tuning/minions";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
-import { type Skill, skillTuning } from "../tuning/skills";
+import {
+  corpseTuning,
+  type RaiseEffect,
+  type Skill,
+  skillTuning,
+} from "../tuning/skills";
 import { townPortalTuning } from "../tuning/townPortal";
 import { townPortalLook } from "../tuning/townPortalLook";
 import {
@@ -462,8 +467,11 @@ export type Order =
    */
   | { type: "DrinkItem"; item: ItemId };
 
-/** Why a cast failed: the Hero is in Town, or lacks the Mana for it. */
-export type CastFailure = "town" | "mana";
+/**
+ * Why a cast failed: the Hero is in Town, lacks the Mana for it, or there's
+ * no Corpse near the cast point for a Skill that uses one up.
+ */
+export type CastFailure = "town" | "mana" | "corpse";
 
 /** What happened during a step. */
 export type SimEvent =
@@ -719,10 +727,23 @@ export function canRaiseSkill(world: World, skill: Skill): boolean {
   );
 }
 
+/** Whether `skill` uses a Corpse up, so a cast needs one near its point. */
+export function usesCorpse(skill: Skill): boolean {
+  return skillTuning[skill].effect.type === "raise";
+}
+
 /** The Mana a cast of `skill` costs at Skill Level `skillLevel` (1 and up). */
 export function skillManaCost(skill: Skill, skillLevel: number): number {
   const { manaCost, manaCostPerSkillLevel } = skillTuning[skill];
   return manaCost + manaCostPerSkillLevel * (skillLevel - 1);
+}
+
+/**
+ * How many Minions `effect` lets the Hero have at Skill Level `skillLevel`:
+ * its count, and one more every `countEvery` Skill Levels past the first.
+ */
+export function raiseCount(effect: RaiseEffect, skillLevel: number): number {
+  return effect.count + Math.floor((skillLevel - 1) / effect.countEvery);
 }
 
 /** The Ground Items lying in the active Area. */
@@ -1549,9 +1570,10 @@ function give(world: World, order: Order, events: SimEvent[]) {
 /**
  * Casts the Skill in a Skill Bar slot at `target`: in a Combat Area with the
  * Mana for it, this spends the Mana, roots the Hero facing `target` for the
- * cast time and has the Skill's effect at once. In Town or without the Mana
- * it fails, and from an empty slot it does nothing; neither spends Mana nor
- * stops the Hero.
+ * cast time and has the Skill's effect at once. In Town, without a Corpse
+ * near `target` for a Skill that uses one up, or without the Mana it fails,
+ * and from an empty slot it does nothing; neither spends Mana nor stops the
+ * Hero.
  */
 function castFrom(
   world: World,
@@ -1564,6 +1586,12 @@ function castFrom(
   if (!skill) return;
   if (world.areaName === TOWN) {
     events.push({ type: "CastFailed", reason: "town" });
+    return;
+  }
+  const { effect } = skillTuning[skill];
+  const corpse = usesCorpse(skill) ? nearestCorpse(world, target) : null;
+  if (usesCorpse(skill) && !corpse) {
+    events.push({ type: "CastFailed", reason: "corpse" });
     return;
   }
   const skillLevel = hero.progress.skillLevels[skill];
@@ -1579,12 +1607,28 @@ function castFrom(
   hero.pickingUp = null;
   hero.cast = { skill, elapsed: 0 };
   events.push({ type: "SkillCast", skill, target: { ...target } });
-  const { effect } = skillTuning[skill];
   switch (effect.type) {
     case "summon":
       summon(world, skill, effect.minion, skillLevel, target, events);
       break;
+    case "raise":
+      if (corpse) raise(world, skill, effect, skillLevel, corpse, events);
+      break;
   }
+}
+
+/**
+ * The Corpse nearest `point` within a Corpse-using Skill's reach of it, if
+ * any.
+ */
+function nearestCorpse(world: World, point: Vec): Corpse | null {
+  let nearest: Corpse | null = null;
+  for (const corpse of world.corpses) {
+    const away = distance(corpse.pos, point);
+    if (away > corpseTuning.reach) continue;
+    if (!nearest || away < distance(nearest.pos, point)) nearest = corpse;
+  }
+  return nearest;
 }
 
 /**
@@ -1606,6 +1650,41 @@ function summon(
   for (const minion of world.minions) {
     if (minion.skill === skill) crumbleMinion(world, minion, events);
   }
+  bringMinion(world, skill, type, skillLevel, pos, events);
+}
+
+/**
+ * Raises a fresh Minion at full Life from `corpse`, using it up, and
+ * crumbles away the oldest ones `skill` brought as needed to keep within
+ * the count `effect` allows at `skillLevel`.
+ */
+function raise(
+  world: World,
+  skill: Skill,
+  effect: RaiseEffect,
+  skillLevel: number,
+  corpse: Corpse,
+  events: SimEvent[],
+) {
+  world.corpses = world.corpses.filter((one) => one !== corpse);
+  // Oldest first, as the Hero's Minions are.
+  const raised = world.minions.filter((minion) => minion.skill === skill);
+  const over = raised.length + 1 - raiseCount(effect, skillLevel);
+  for (const minion of raised.slice(0, Math.max(0, over))) {
+    crumbleMinion(world, minion, events);
+  }
+  bringMinion(world, skill, effect.minion, skillLevel, corpse.pos, events);
+}
+
+/** Adds a fresh Minion at full Life at `pos` to the Hero's Minions. */
+function bringMinion(
+  world: World,
+  skill: Skill,
+  type: MinionType,
+  skillLevel: number,
+  pos: Vec,
+  events: SimEvent[],
+) {
   const minion = newMinion(
     world.nextMinionId++,
     type,

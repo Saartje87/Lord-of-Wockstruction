@@ -15,6 +15,7 @@ import {
   type Attribute,
   attackRating,
   createWorld,
+  FRESH_PROGRESS,
   maxLife,
   maxMana,
   type Progress,
@@ -91,7 +92,7 @@ function withPoints(points: number): World {
     energy: 20,
     attributePoints: points,
     skillPoints: 0,
-    skillLevels: { golem: 1 },
+    skillLevels: { ...FRESH_PROGRESS.skillLevels, golem: 1 },
     skillBar: emptySkillBar(),
   });
 }
@@ -202,7 +203,7 @@ describe("heroSheet", () => {
       energy: 20,
       attributePoints: 10,
       skillPoints: 4,
-      skillLevels: { golem: 0 },
+      skillLevels: { ...FRESH_PROGRESS.skillLevels, golem: 0 },
       skillBar: emptySkillBar(),
     });
     step(w, [{ type: "SpendAttributePoints", points: { dexterity: 1 } }]);
@@ -359,7 +360,7 @@ describe("a click on the Hero panel and the Level Up button", () => {
       energy: 20,
       attributePoints: 0,
       skillPoints: 1,
-      skillLevels: { golem: 0 },
+      skillLevels: { ...FRESH_PROGRESS.skillLevels, golem: 0 },
       skillBar: emptySkillBar(),
     });
 

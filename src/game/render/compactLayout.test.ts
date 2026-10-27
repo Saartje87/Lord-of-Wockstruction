@@ -4,7 +4,9 @@ import { EQUIPMENT_SLOTS } from "../sim/inventory";
 import { overlaps, type Rect } from "../sim/rect";
 import { emptySkillBar, SKILL_BAR_SLOTS } from "../sim/skillBar";
 import { ATTRIBUTES, createWorld, FRESH_PROGRESS, SKILLS } from "../sim/world";
+import { heroTuning } from "../tuning/hero";
 import { inventoryTuning } from "../tuning/items";
+import type { Skill } from "../tuning/skills";
 import { type Viewport, viewportOf } from "../viewport";
 import { beltStripLayout } from "./beltStrip";
 import { cursorHitAt } from "./cursorHit";
@@ -47,9 +49,12 @@ const town = {
   ],
 };
 
+/** Enough Levels for each Skill at Skill Level 1 and a Skill Point over. */
+const level = SKILLS.length + 2;
+
 /**
- * A Level 3 Hero with Attribute Points and a Skill Point unspent and the
- * Golem learned, so every +, the Level Up button and the Skill's rows are
+ * A Hero with Attribute Points and a Skill Point unspent and every
+ * Skill learned, so every +, the Level Up button and the Skills' rows are
  * there to hit.
  */
 const world = createWorld({
@@ -57,11 +62,13 @@ const world = createWorld({
   seed: 1,
   progress: {
     ...FRESH_PROGRESS,
-    level: 3,
-    experience: 1_500,
-    attributePoints: 10,
+    level,
+    experience: heroTuning.experienceTable[level - 1],
+    attributePoints: 5 * (level - 1),
     skillPoints: 1,
-    skillLevels: { golem: 1 },
+    skillLevels: Object.fromEntries(
+      SKILLS.map((skill) => [skill, 1]),
+    ) as Record<Skill, number>,
     skillBar: emptySkillBar(),
   },
 });

@@ -461,6 +461,46 @@ describe("the Skill buttons", () => {
     ]);
   });
 
+  it("with no Target casts a Skill that uses a Corpse up at the Hero, walking or not", () => {
+    inputTuning.castDistance = 3;
+    const world = facingEast([]);
+    world.hero.progress.skillBar.right = "raiseSkeleton";
+    const aimed = { ...press("rt"), stick: { x: -0.3, y: -0.4 } };
+
+    const standing = pollPad(
+      createPadInput(),
+      press("rt"),
+      0,
+      tilesOver(world),
+    );
+    const walking = pollPad(createPadInput(), aimed, 0, tilesOver(world));
+
+    expect(standing.orders).toEqual([
+      { type: "Cast", slot: "right", target: { x: 10, y: 10 } },
+    ]);
+    expect(walking.orders).toContainEqual({
+      type: "Cast",
+      slot: "right",
+      target: { x: 10, y: 10 },
+    });
+  });
+
+  it("casts a Skill that uses a Corpse up at the Target", () => {
+    const world = facingEast([{ x: 13, y: 10 }]);
+    world.hero.progress.skillBar.right = "raiseSkeleton";
+
+    const { orders } = pollPad(
+      createPadInput(),
+      press("rt"),
+      0,
+      tilesOver(world),
+    );
+
+    expect(orders).toEqual([
+      { type: "Cast", slot: "right", target: { x: 13, y: 10 } },
+    ]);
+  });
+
   it("casts nothing from an empty slot, and the stick walks", () => {
     const world = facingEast([{ x: 13, y: 10 }]);
     const held = { ...press("x"), stick: { x: 1, y: 0 } };

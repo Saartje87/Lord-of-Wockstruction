@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { emptySkillBar } from "./skillBar";
 import {
   createWorld,
+  FRESH_PROGRESS,
   isInCombat,
   maxMana,
   type Progress,
@@ -136,7 +137,7 @@ const UNSPENT: Progress = {
   energy: 20,
   attributePoints: 10,
   skillPoints: 2,
-  skillLevels: { golem: 0 },
+  skillLevels: { ...FRESH_PROGRESS.skillLevels, golem: 0 },
   skillBar: emptySkillBar(),
 };
 

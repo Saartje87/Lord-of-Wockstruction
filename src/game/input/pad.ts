@@ -3,7 +3,12 @@ import { anyPanelOpen, type OpenPanels } from "../menus";
 import type { ItemId } from "../sim/inventory";
 import { type SkillBarSlot, skillInSlot } from "../sim/skillBar";
 import { distance, type Vec } from "../sim/vec";
-import type { MonsterId, Order, World } from "../sim/world";
+import {
+  type MonsterId,
+  type Order,
+  usesCorpse,
+  type World,
+} from "../sim/world";
 import { inputTuning } from "../tuning/input";
 import {
   type FocusDirection,
@@ -193,8 +198,9 @@ export function hideFocus(input: PadInput) {
  * X, Y, B and RB cast the Skills in the four keyed Skill Bar slots and RT
  * the right-click slot's, at the Target, or with none at a point
  * `castDistance` ahead (of the stick while pushed, else of the Hero's
- * facing). Held, they cast again every `retargetMs`, and the stick keeps
- * walking between casts, for kiting. An empty slot casts nothing. The D-pad's
+ * facing), or for a Skill that uses a Corpse up at the Hero. Held, they
+ * cast again every `retargetMs`, and the stick keeps walking between casts,
+ * for kiting. An empty slot casts nothing. The D-pad's
  * left, up, right and down drink from Belt Columns 1 to 4, and LB opens a
  * Town Portal, once a press.
  *
@@ -246,10 +252,11 @@ export function pollPad(
   // holds the walk back until it ends, so the Hero kites between them.
   const orders: Order[] = walk ? [{ type: "Walk", direction: walk }] : [];
   if (actsNow(input, snapshot, "a", nowMs) && action) orders.push(action);
-  const aim = castPoint(world, target, walk ?? facing);
   for (const [button, slot] of SKILL_BUTTONS) {
-    const acts = actsNow(input, snapshot, button, nowMs);
-    if (acts && skillInSlot(world, slot)) {
+    const skill = skillInSlot(world, slot);
+    if (actsNow(input, snapshot, button, nowMs) && skill) {
+      const ahead = usesCorpse(skill) ? null : (walk ?? facing);
+      const aim = castPoint(world, target, ahead);
       orders.push({ type: "Cast", slot, target: { ...aim } });
     }
   }
@@ -345,12 +352,17 @@ function actsNow(
 
 /**
  * Where a Skill is cast: at the Target, or with none `castDistance` from the
- * Hero along `ahead` (tiles, any length).
+ * Hero along `ahead` (tiles, any length), or at the Hero with no `ahead`.
  */
-function castPoint(world: World, target: MonsterId | null, ahead: Vec): Vec {
+function castPoint(
+  world: World,
+  target: MonsterId | null,
+  ahead: Vec | null,
+): Vec {
   const monster = world.monsters.find(({ id }) => id === target);
   if (monster) return monster.pos;
   const { pos } = world.hero;
+  if (!ahead) return { ...pos };
   const length = Math.hypot(ahead.x, ahead.y) || 1;
   const away = inputTuning.castDistance / length;
   return { x: pos.x + ahead.x * away, y: pos.y + ahead.y * away };

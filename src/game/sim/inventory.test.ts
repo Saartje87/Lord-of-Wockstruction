@@ -8,7 +8,13 @@ import {
   inventoryOf,
 } from "./inventory";
 import { emptySkillBar } from "./skillBar";
-import { createWorld, damageRange, type Progress, type World } from "./world";
+import {
+  createWorld,
+  damageRange,
+  FRESH_PROGRESS,
+  type Progress,
+  type World,
+} from "./world";
 
 /** A Town of open floor three tiles wide, the Hero's `start` on the first. */
 const town = {
@@ -44,7 +50,7 @@ function strongerBy(strength: number): Progress {
     energy: 20,
     attributePoints: 10 - strength,
     skillPoints: 2,
-    skillLevels: { golem: 0 },
+    skillLevels: { ...FRESH_PROGRESS.skillLevels, golem: 0 },
     skillBar: emptySkillBar(),
   };
 }

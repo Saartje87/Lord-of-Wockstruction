@@ -165,14 +165,16 @@ function touchTargets(
     );
   }
 
-  const { buttons } = panelButtonsLayout(screen);
-  for (const panel of PANELS) {
-    const rect = buttons[panel];
-    const hit = { button: { type: "panelButton", panel } } as const;
+  const { buttons, townPortal } = panelButtonsLayout(screen);
+  const hudButton = (rect: Rect, hit: CursorHit) => {
     // One an open panel covers is under it.
     if (panels.some((over) => overlaps(over, rect))) stops.push(rect);
     else grows.push({ rect, hit });
+  };
+  for (const panel of PANELS) {
+    hudButton(buttons[panel], { button: { type: "panelButton", panel } });
   }
+  hudButton(townPortal, { button: { type: "townPortal" } });
   if (hasUnspentPoints(world)) stops.push(heroLayout.levelUp);
   stops.push(
     ...Object.values(skillBarLayout(screen).slots),

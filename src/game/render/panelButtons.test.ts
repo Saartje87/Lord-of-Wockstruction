@@ -17,6 +17,7 @@ import {
   panelButtonsLayout,
   panelButtonsSheet,
   panelButtonTooltipRect,
+  townPortalButtonSheet,
 } from "./panelButtons";
 import { skillBarLayout } from "./skillBar";
 import { skillTreePanelLayout } from "./skillTreePanel";
@@ -45,6 +46,54 @@ describe("the Panel buttons' layout", () => {
     expect(skillTree.x + skillTree.w).toBeLessThan(screen.width - 144);
   });
 
+  it.each([
+    { width: 1280, height: 720 },
+    { width: 1024, height: 640 },
+    { width: 1920, height: 1080 },
+    { width: 1180, height: 820 },
+    { width: 1024, height: 768 },
+    { width: 1366, height: 1024 },
+  ])("puts the round Town Portal button after the Panel buttons, centred on their row, clear of the Mana orb at $width×$height", (size) => {
+    const screen = viewportOf(size);
+    const { buttons, townPortal } = panelButtonsLayout(screen);
+    const { skillTree, inventory } = buttons;
+
+    // 36 px across at native scale, a little smaller than a Panel button.
+    expect(townPortal.w).toBeCloseTo(36 * screen.uiScale);
+    expect(townPortal.h).toBeCloseTo(36 * screen.uiScale);
+    expect(townPortal.y + townPortal.h / 2).toBeCloseTo(
+      skillTree.y + skillTree.h / 2,
+    );
+    expect(townPortal.x - (skillTree.x + skillTree.w)).toBeCloseTo(
+      skillTree.x - (inventory.x + inventory.w),
+    );
+    // Clear of the Mana orb's 144 px at native scale.
+    expect(townPortal.x + townPortal.w).toBeLessThan(
+      screen.width - 144 * screen.uiScale,
+    );
+  });
+
+  it.each([
+    { width: 640, height: 320 },
+    { width: 640, height: 360 },
+    { width: 844, height: 390 },
+    { width: 915, height: 330 },
+  ])("puts the Town Portal button under the Panel buttons' column in the Compact Layout on $width×$height", (size) => {
+    const screen = viewportOf(size);
+    const { buttons, townPortal } = panelButtonsLayout(screen);
+    const { skillTree } = buttons;
+
+    expect(screen.compact).toBe(true);
+    expect(townPortal.w).toBeCloseTo(36 * screen.uiScale);
+    expect(townPortal.x + townPortal.w / 2).toBeCloseTo(
+      skillTree.x + skillTree.w / 2,
+    );
+    expect(townPortal.y).toBeGreaterThan(skillTree.y + skillTree.h);
+    for (const panel of PANELS) {
+      expect(overlaps(townPortal, buttons[panel]), panel).toBe(false);
+    }
+  });
+
   it("mirrors the Belt strip across the Skill Bar", () => {
     const screen = viewportOf({ width: 1280, height: 720 });
     const { hero } = panelButtonsLayout(screen).buttons;
@@ -57,18 +106,19 @@ describe("the Panel buttons' layout", () => {
   });
 });
 
-describe("a Panel button's tooltip", () => {
+describe("a Panel button's or the Town Portal button's tooltip", () => {
   // "Skill Tree (T)" in the tooltip's look at the UI Scale 0.75.
   const size = { w: 96, h: 26 };
   const gap = 4.5;
 
   it("sits over its button on the HUD", () => {
     const screen = viewportOf({ width: 1280, height: 720 });
-    const { buttons } = panelButtonsLayout(screen);
+    const { buttons, townPortal } = panelButtonsLayout(screen);
+    const all = { ...buttons, townPortal };
 
-    for (const panel of PANELS) {
-      const tooltip = panelButtonTooltipRect(screen, panel, size, gap);
-      const button = buttons[panel];
+    for (const name of [...PANELS, "townPortal"] as const) {
+      const tooltip = panelButtonTooltipRect(screen, name, size, gap);
+      const button = all[name];
       expect(tooltip.y + tooltip.h).toBeLessThanOrEqual(button.y);
       expect(tooltip.x + tooltip.w / 2).toBeCloseTo(button.x + button.w / 2);
     }
@@ -77,23 +127,24 @@ describe("a Panel button's tooltip", () => {
   it.each([
     { width: 640, height: 360 },
     { width: 844, height: 390 },
-  ])("covers no Panel button nor an open panel's × in the Compact Layout on $width×$height", (screenSize) => {
+  ])("covers no Panel button, the Town Portal button nor an open panel's × in the Compact Layout on $width×$height", (screenSize) => {
     const screen = viewportOf(screenSize);
-    const { buttons } = panelButtonsLayout(screen);
+    const { buttons, townPortal } = panelButtonsLayout(screen);
     const closes = [
       heroPanelLayout(screen).closeButton,
       skillTreePanelLayout(screen).closeButton,
       inventoryPanelLayout(screen, 4).closeButton,
     ];
 
-    for (const panel of PANELS) {
-      const tooltip = panelButtonTooltipRect(screen, panel, size, gap);
+    for (const button of [...PANELS, "townPortal"] as const) {
+      const tooltip = panelButtonTooltipRect(screen, button, size, gap);
       expect(tooltip.x).toBeGreaterThanOrEqual(0);
       expect(tooltip.y).toBeGreaterThanOrEqual(0);
       expect(tooltip.x + tooltip.w).toBeLessThanOrEqual(screen.width);
       for (const other of PANELS) {
         expect(overlaps(tooltip, buttons[other]), other).toBe(false);
       }
+      expect(overlaps(tooltip, townPortal), "Town Portal button").toBe(false);
       for (const close of closes) {
         expect(overlaps(tooltip, close), "×").toBe(false);
       }
@@ -135,6 +186,33 @@ describe("a click on the Panel buttons", () => {
       panelButtonHitAt(screen, { x: hero.x + 10, y: hero.y - 5 }),
     ).toBeNull();
     expect(panelButtonHitAt(screen, { x: 640, y: 300 })).toBeNull();
+  });
+});
+
+describe("a click on the Town Portal button", () => {
+  it.each([
+    { width: 1280, height: 720 },
+    { width: 640, height: 360 },
+  ])("hands back the Town Portal button inside its circle, and nothing off it, on $width×$height", (size) => {
+    const screen = viewportOf(size);
+    const { townPortal } = panelButtonsLayout(screen);
+    const centre = {
+      x: townPortal.x + townPortal.w / 2,
+      y: townPortal.y + townPortal.h / 2,
+    };
+    const onEdge = { x: townPortal.x + 1, y: centre.y };
+    // Inside its square, outside its circle.
+    const corner = { x: townPortal.x + 1, y: townPortal.y + 1 };
+
+    for (const point of [centre, onEdge]) {
+      expect(panelButtonHitAt(screen, point)).toEqual({
+        button: { type: "townPortal" },
+      });
+    }
+    expect(panelButtonHitAt(screen, corner)).toBeNull();
+    expect(
+      panelButtonHitAt(screen, { x: townPortal.x - 1, y: centre.y }),
+    ).toBeNull();
   });
 });
 
@@ -207,13 +285,56 @@ describe("the Panel buttons' sheet", () => {
   });
 });
 
+describe("the Town Portal button's sheet", () => {
+  it("shows it greyed out in Town", () => {
+    const sheet = townPortalButtonSheet(
+      { heroDead: false, inTown: true },
+      "mouseAndKeyboard",
+    );
+
+    expect(sheet.greyed).toBe(true);
+  });
+
+  it("shows it greyed out while the Hero lies in Death, as the Panel buttons dim", () => {
+    const sheet = townPortalButtonSheet(
+      { heroDead: true, inTown: false },
+      "mouseAndKeyboard",
+    );
+
+    expect(sheet.greyed).toBe(true);
+  });
+
+  it("shows it ready outside Town", () => {
+    const sheet = townPortalButtonSheet(
+      { heroDead: false, inTown: false },
+      "mouseAndKeyboard",
+    );
+
+    expect(sheet.greyed).toBe(false);
+  });
+
+  it("names its key or button following the Active Input", () => {
+    const hero = { heroDead: false, inTown: false };
+
+    expect(townPortalButtonSheet(hero, "mouseAndKeyboard").tooltip).toBe(
+      "Town Portal (P)",
+    );
+    expect(townPortalButtonSheet(hero, "controller").tooltip).toBe(
+      "Town Portal (LB)",
+    );
+  });
+});
+
 describe("the hovered Panel button", () => {
-  it("is the Panel button under the cursor, or null on anything else", () => {
+  it("is the Panel button or Town Portal button under the cursor, or null on anything else", () => {
     const onSkillTree = {
       button: { type: "panelButton", panel: "skillTree" },
     } as const;
 
     expect(hoveredPanelButton(onSkillTree)).toBe("skillTree");
+    expect(hoveredPanelButton({ button: { type: "townPortal" } })).toBe(
+      "townPortal",
+    );
     expect(hoveredPanelButton({ button: { type: "levelUp" } })).toBeNull();
     expect(hoveredPanelButton({ button: null })).toBeNull();
     expect(hoveredPanelButton({ inventory: null })).toBeNull();

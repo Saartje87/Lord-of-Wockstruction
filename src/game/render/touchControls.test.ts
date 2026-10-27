@@ -19,6 +19,8 @@ const SCREENS = [
   { width: 1280, height: 720 },
   { width: 1920, height: 1080 },
   { width: 1180, height: 820 },
+  { width: 1024, height: 768 },
+  { width: 1366, height: 1024 },
   { width: 640, height: 360 },
   { width: 844, height: 390 },
 ];
@@ -32,12 +34,13 @@ function orbBox({ x, y, radius, rim }: OrbCircle): Rect {
 function hudParts(viewport: ReturnType<typeof viewportOf>) {
   const { slots } = skillBarLayout(viewport);
   const { columns } = beltStripLayout(viewport);
-  const { buttons } = panelButtonsLayout(viewport);
+  const { buttons, townPortal } = panelButtonsLayout(viewport);
   const orbs = orbsLayout(viewport);
   return [
     ...SKILL_BAR_SLOTS.map((slot) => [`Skill Bar ${slot}`, slots[slot]]),
     ...columns.map((rect, column) => [`Belt Column ${column}`, rect]),
     ...PANELS.map((panel) => [`${panel} button`, buttons[panel]]),
+    ["Town Portal button", townPortal],
     ["Life orb", orbBox(orbs.life)],
     ["Mana orb", orbBox(orbs.mana)],
     ["Experience bar", experienceBarLayout(viewport)],
@@ -156,6 +159,20 @@ describe("the touch controls with a panel open", () => {
         expect(overlaps(pause, rect), `pause button and ${name}`).toBe(false);
       }
     }
+  });
+
+  it.each([
+    { width: 1280, height: 720 },
+    { width: 1024, height: 768 },
+  ])("puts the pause button at the top centre under the nameplate on $width×$height", (size) => {
+    const viewport = viewportOf(size);
+    const menus = { ...createMenus(), inventoryOpen: true };
+    const { pause } = touchControlsLayout(viewport, menus);
+    const nameplate = nameplateLayout(viewport).panel;
+
+    expect(pause.x + pause.w / 2).toBeCloseTo(size.width / 2);
+    expect(pause.y).toBeGreaterThan(nameplate.y + nameplate.h);
+    expect(pause.y + pause.h).toBeLessThan(size.height / 4);
   });
 
   it("leaves the pause button in its corner with no panel open", () => {

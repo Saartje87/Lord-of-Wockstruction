@@ -241,7 +241,7 @@ The row of squares on the HUD beside the Skill Bar, one per Belt Column, each sh
 _Avoid_: Potion bar, quickbar
 
 **Town Portal button**:
-The round button on the HUD beside the Panel buttons that opens a Town Portal, as its key and a controller's LB do; clicking or tapping it is the same, and it shows greyed out in Town and does nothing during Death.
+The round button on the HUD after the Panel buttons, a little smaller than they are, that opens a Town Portal, as its key and a controller's LB do; clicking or tapping it is the same, and it shows greyed out in Town and does nothing during Death.
 _Avoid_: Portal button, recall button
 
 **Close button**:
@@ -289,7 +289,7 @@ A button that casts one Skill Bar slot's Skill: X, Y, B, RB or RT on a controlle
 _Avoid_: Spell button, action button
 
 **Pause button**:
-The touch button that opens the pause menu as Esc and Menu do: top right, or, while a panel is open, after the Panel buttons.
+The touch button that opens the pause menu as Esc and Menu do: top right, or, while a panel is open, at the top centre under the nameplate (in the Compact Layout, below the Town Portal button).
 _Avoid_: Menu button (that's the controller's), settings button
 
 **Long press**:

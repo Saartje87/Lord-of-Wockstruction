@@ -115,6 +115,9 @@ export function castButton(slot: SkillBarSlot): PadButton {
   return found[0];
 }
 
+/** The pad button that opens a Town Portal. */
+export const TOWN_PORTAL_PAD_BUTTON: PadButton = "lb";
+
 /** The D-pad directions that drink from Belt Columns 1 to 4, in turn. */
 const DRINK_BUTTONS = ["left", "up", "right", "down"] as const;
 
@@ -255,7 +258,9 @@ export function pollPad(
       orders.push({ type: "DrinkFromBelt", column });
     }
   });
-  if (snapshot.pressed.includes("lb")) orders.push({ type: "OpenTownPortal" });
+  if (snapshot.pressed.includes(TOWN_PORTAL_PAD_BUTTON)) {
+    orders.push({ type: "OpenTownPortal" });
+  }
   return { ...none, orders, target, presses };
 }
 

@@ -5,6 +5,7 @@ import type { SkillBarSlot } from "../sim/skillBar";
 import type { Vec } from "../sim/vec";
 import { atUiScale, type Viewport } from "../viewport";
 import { heroPanelLayout } from "./heroPanel";
+import { nameplateLayout } from "./hover";
 import { orbsLayout } from "./orbs";
 import { panelButtonsLayout } from "./panelButtons";
 import { SHOWN_ORDER } from "./skillBar";
@@ -40,7 +41,8 @@ export type TouchControlsLayout = {
   pause: Rect;
   /**
    * Where a touch presses the pause button: its touch hit area, meeting the
-   * Panel buttons' and the other touch buttons' halfway.
+   * Panel buttons', the Town Portal button's and the other touch buttons'
+   * halfway.
    */
   pauseHit: Rect;
   /** Whether only the pause button shows and takes touches: a panel is open. */
@@ -61,9 +63,10 @@ const NO_PANEL_OPEN: OpenPanels = {
  * Skill buttons in a row over that, ending at the orb's right; the pause
  * button in the top-right corner, or in the Compact Layout, where the Panel
  * buttons stack down that corner, left of the top one. While a panel is
- * open only the pause button shows, moved clear of the panels and their ×,
- * after the last Panel button: right of it, or in the Compact Layout, below
- * it.
+ * open only the pause button shows, moved clear of the panels and their ×:
+ * at the top centre under the nameplate, between the panels on the left and
+ * those on the right, or in the Compact Layout below the Town Portal button
+ * that ends the Panel buttons' column.
  */
 export function touchControlsLayout(
   screen: Viewport,
@@ -93,18 +96,24 @@ export function touchControlsLayout(
   };
   const rowY = attackRect.y - gap - skill;
   const rowLeft = right - SHOWN_ORDER.length * (skill + gap) + gap;
-  const { buttons } = panelButtonsLayout(screen);
+  const { buttons, townPortal } = panelButtonsLayout(screen);
   const cornerRight = screen.compact
     ? buttons[PANELS[0]].x - gap
     : screen.width - gap;
   const pauseOnly = anyPanelOpen(open);
+  const nameplate = nameplateLayout(screen).panel;
   let pauseRect = { x: cornerRight - pause, y: gap, w: pause, h: pause };
   if (pauseOnly) {
-    // After the last Panel button: below its column, or right along its row.
-    const last = buttons[PANELS[PANELS.length - 1]];
+    // The bottom row has no room after the Town Portal button on a 4:3
+    // screen, so it goes up top unless the column leaves room below.
+    const column = buttons[PANELS[0]];
     pauseRect = screen.compact
-      ? { ...pauseRect, x: last.x, y: last.y + last.h + gap }
-      : { ...pauseRect, x: last.x + last.w + gap, y: last.y };
+      ? { ...pauseRect, x: column.x, y: townPortal.y + townPortal.h + gap }
+      : {
+          ...pauseRect,
+          x: (screen.width - pause) / 2,
+          y: nameplate.y + nameplate.h + gap,
+        };
   }
   const skillRects = Object.fromEntries(
     SHOWN_ORDER.map((slot, index) => [
@@ -117,6 +126,7 @@ export function touchControlsLayout(
   // That relies on GameCanvas asking `panelAt` before `touchDown`.
   const neighbours = [
     ...Object.values(buttons),
+    townPortal,
     ...(pauseOnly ? [] : [attackRect, ...Object.values(skillRects)]),
   ];
   return {

@@ -8,7 +8,7 @@ import {
   type Menus,
   removePendingPoint,
 } from "./menus";
-import type { Order, World } from "./sim/world";
+import { inTown, type Order, type World } from "./sim/world";
 
 /**
  * The button on a panel or the HUD a press landed on, as the cursor hits
@@ -22,7 +22,8 @@ export type PressedButton = Extract<CursorHit, { button: unknown }>["button"];
  * Hero), a + on the Skill Tree spends a point while the Hero panel's +, −
  * and Accept plan and spend Pending Attribute Points, and a panel's × or
  * Panel button shuts it as its key does (a Panel button opening it too),
- * while the game runs on. Changes `menus` and gives the orders to send;
+ * while the game runs on, and the Town Portal button opens a Town Portal
+ * as its key does, but in Town. Changes `menus` and gives the orders to send;
  * other buttons, and null between them, do nothing here.
  */
 export function pressButton(
@@ -55,6 +56,8 @@ export function pressButton(
       return [];
     case "learn":
       return [{ type: "SpendSkillPoint", skill: button.skill }];
+    case "townPortal":
+      return heroDead || inTown(world) ? [] : [{ type: "OpenTownPortal" }];
     default:
       return [];
   }

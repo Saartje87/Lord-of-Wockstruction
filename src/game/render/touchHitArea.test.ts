@@ -17,4 +17,14 @@ describe("a touch hit area", () => {
       h: 37,
     });
   });
+
+  it("stops halfway to a neighbour too big to grow itself", () => {
+    // 6 px left of a 36 px button that grows 4 px each way: the halfway
+    // line is 3 px left of it, at x 97, though the 44 px neighbour doesn't
+    // grow toward it.
+    const small = { x: 100, y: 104, w: 36, h: 36 };
+    const big = { x: 50, y: 100, w: 44, h: 44 };
+
+    expect(touchHitRect(small, [big]).x).toBe(97);
+  });
 });

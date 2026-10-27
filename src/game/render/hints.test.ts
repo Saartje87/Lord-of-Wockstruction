@@ -7,6 +7,7 @@ import {
   resumeHint,
   skillBarSlotButton,
   skillTooltip,
+  townPortalTooltip,
 } from "./hints";
 
 describe("the hints and labels that name buttons", () => {
@@ -39,6 +40,14 @@ describe("the hints and labels that name buttons", () => {
     ["inventory", "touch", ""],
   ] as const)("hint how to close the %s panel with %s: %j", (panel, way, hint) => {
     expect(panelCloseHint(panel, way)).toBe(hint);
+  });
+
+  it.each([
+    ["mouseAndKeyboard", "Town Portal (P)"],
+    ["controller", "Town Portal (LB)"],
+    ["touch", "Town Portal"],
+  ] as const)("name the Town Portal button's key with %s: %j", (way, tooltip) => {
+    expect(townPortalTooltip(way)).toBe(tooltip);
   });
 
   it.each([

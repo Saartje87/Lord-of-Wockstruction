@@ -75,6 +75,13 @@ describe("the viewport's Compact Layout", () => {
 describe("the viewport's Rotate Notice", () => {
   it.each([
     { screen: "a 640×360 phone", width: 640, height: 360, notice: null },
+    { screen: "a 640×320 window", width: 640, height: 320, notice: null },
+    {
+      screen: "a Pixel 7a sideways in Chrome",
+      width: 915,
+      height: 330,
+      notice: null,
+    },
     { screen: "an 844×390 phone", width: 844, height: 390, notice: null },
     { screen: "a 1180×820 tablet", width: 1180, height: 820, notice: null },
     { screen: "1920×1080", width: 1920, height: 1080, notice: null },
@@ -84,8 +91,8 @@ describe("the viewport's Rotate Notice", () => {
     { screen: "a phone held upright", width: 390, height: 844, notice: "turn" },
     { screen: "a tablet upright", width: 820, height: 1180, notice: "turn" },
     { screen: "a 700×701 window", width: 700, height: 701, notice: "turn" },
-    { screen: "a 639×360 window", width: 639, height: 360, notice: "enlarge" },
-    { screen: "a 640×359 window", width: 640, height: 359, notice: "enlarge" },
+    { screen: "a 639×320 window", width: 639, height: 320, notice: "enlarge" },
+    { screen: "a 640×319 window", width: 640, height: 319, notice: "enlarge" },
     { screen: "below the minimum", width: 500, height: 300, notice: "enlarge" },
     // Upright and small too: turning it sideways is what helps first.
     { screen: "a 300×500 window", width: 300, height: 500, notice: "turn" },

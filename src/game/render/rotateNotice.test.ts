@@ -19,7 +19,7 @@ describe("the Rotate Notice's text", () => {
     const text = rotateNoticeText(rotateNotice ?? "turn");
 
     expect(text.title).toMatch(/enlarge/i);
-    expect(text.body).toMatch(/640×360/);
+    expect(text.body).toMatch(/640×320/);
     expect(`${text.title} ${text.body}`).not.toMatch(/sideways/i);
   });
 });

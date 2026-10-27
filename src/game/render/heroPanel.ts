@@ -32,7 +32,8 @@ import { orbsLayout } from "./orbs";
  * screen's corner, its rows `rowHeight` apart from `firstRow` down, and each
  * Attribute's + button `plus` square at the right of its row, its − button
  * the same size `buttonGap` to the left. Accept spans both on the unspent
- * points' row.
+ * points' row. Its close hint sits `hintHeight` tall at its bottom, inside
+ * its padding.
  */
 export const HERO_PANEL = {
   left: 16,
@@ -44,6 +45,7 @@ export const HERO_PANEL = {
   rowHeight: 28,
   plus: 22,
   buttonGap: 6,
+  hintHeight: 20,
 };
 
 /**
@@ -191,18 +193,22 @@ export function hasUnspentPoints(world: World): boolean {
 }
 
 /**
- * Where the panel, its × close button, its + and − buttons, Accept and the
- * Level Up button are drawn.
+ * Where the panel, its × close button, its close hint, its + and − buttons,
+ * Accept and the Level Up button are drawn.
  */
 export function heroPanelLayout(screen: Viewport): {
   panel: Rect;
   closeButton: Rect;
+  closeHint: Rect;
   raise: Record<Attribute, Rect>;
   lower: Record<Attribute, Rect>;
   accept: Rect;
   levelUp: Rect;
 } {
-  const { plus, buttonGap, rowHeight } = atUiScale(HERO_PANEL, screen.uiScale);
+  const { plus, buttonGap, rowHeight, padding, hintHeight } = atUiScale(
+    HERO_PANEL,
+    screen.uiScale,
+  );
   const panel = heroPanelRect(screen);
   // The Attributes' rows all share one column.
   const column = heroPanelRow(screen, PANEL_ROWS.attributes);
@@ -225,6 +231,12 @@ export function heroPanelLayout(screen: Viewport): {
   return {
     panel,
     closeButton: closeButtonRect(panel, screen.uiScale),
+    closeHint: {
+      x: panel.x + padding,
+      y: panel.y + panel.h - padding - hintHeight,
+      w: panel.w - 2 * padding,
+      h: hintHeight,
+    },
     raise: perAttribute(plusX),
     lower: perAttribute(minusX),
     accept: buttonAt(minusX, PANEL_ROWS.attributePoints, plusX + plus - minusX),
@@ -254,7 +266,8 @@ function heroPanelRect(screen: Viewport): Rect {
  * Where the panel's row `row` is drawn (CSS px), at the UI Scale: its name
  * goes at its left and its value at its right. The rows run down the panel
  * inside its padding; in the Compact Layout, too short for them all, what
- * the Attributes add up to goes in a second column beside the Attributes.
+ * the Attributes add up to goes in a second column from the top row down,
+ * clear of the close hint at the bottom on a screen as short as 320 px.
  */
 export function heroPanelRow(screen: Viewport, row: number): Rect {
   const { width, padding, firstRow, rowHeight } = atUiScale(
@@ -277,7 +290,7 @@ export function heroPanelRow(screen: Viewport, row: number): Rect {
   if (row < PANEL_ROWS.derived) {
     return { x: left, y: top(row), w: column, h: rowHeight };
   }
-  const beside = row - PANEL_ROWS.derived + PANEL_ROWS.attributes;
+  const beside = row - PANEL_ROWS.derived + PANEL_ROWS.level;
   return {
     x: left + column + padding,
     y: top(beside),

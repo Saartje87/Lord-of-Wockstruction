@@ -2369,7 +2369,11 @@ function heroPanelView(activeInput: Readonly<ActiveInput>) {
         .stroke({ color: style.edge, width: 2 });
       closeButton(graphics, layout.closeButton, scale);
       title.position.set(panel.x + panel.w / 2, panel.y + padding);
-      hint.position.set(panel.x + panel.w / 2, panel.y + panel.h - padding);
+      const { closeHint } = layout;
+      hint.position.set(
+        closeHint.x + closeHint.w / 2,
+        closeHint.y + closeHint.h,
+      );
 
       const place = (
         shown: Row,

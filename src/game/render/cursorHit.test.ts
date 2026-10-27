@@ -490,21 +490,24 @@ describe.each([
     const w = withGolem(1, 1);
     const reach = (44 - plus.w) / 2;
     const { x, y } = middleOf(plus);
-    for (const point of [
-      { x: plus.x - reach - 1, y },
-      { x, y: plus.y + plus.h + reach + 1 },
-    ]) {
-      expect(cursorHitAt(screen, point, w, treeOpen, true)).toEqual(pickUp);
-    }
+    const left = { x: plus.x - reach - 1, y };
+    // Under the Skill's one row, on the panel.
+    const below = { x, y: plus.y + plus.h + reach + 1 };
+    expect(cursorHitAt(screen, left, w, treeOpen, true)).toEqual(pickUp);
+    expect(cursorHitAt(screen, below, w, treeOpen, true)).toEqual({
+      button: null,
+    });
   });
 
-  it("a touch on a learned Skill's rows away from the + picks it up", () => {
+  it("a touch on a learned Skill's row away from the + picks it up", () => {
     const w = withGolem(1, 1);
-    const rows = skills.golem;
+    const row = skills.golem;
+    const reach = (44 - plus.w) / 2;
     for (const point of [
-      { x: rows.x + 1, y: rows.y + 1 },
-      middleOf(rows),
-      { x: rows.x + rows.w - 1, y: rows.y + rows.h - 1 },
+      { x: row.x + 1, y: row.y + 1 },
+      middleOf(row),
+      { x: row.x + 1, y: row.y + row.h - 1 },
+      { x: plus.x - reach - 1, y: row.y + row.h - 1 },
     ]) {
       expect(cursorHitAt(screen, point, w, treeOpen, true)).toEqual(pickUp);
     }

@@ -158,6 +158,7 @@ import {
   SKILL_TREE_PANEL,
   SKILL_TREE_ROWS,
   skillRow,
+  skillTreeColumns,
   skillTreePanelLayout,
   skillTreeRow,
   skillTreeSheet,
@@ -2534,9 +2535,10 @@ function heroPanelView(activeInput: Readonly<ActiveInput>) {
 
 /**
  * The Skill Tree panel, in the Hero panel's look: the unspent Skill Points,
- * then each Skill's Skill Level, Mana cost at the next Skill Level and
- * required Level, with a + button while a Skill Point can be spent on it,
- * and the tooltip of the Skill at `tooltipAt`, if any.
+ * then a row for each Skill under its columns' headings: its name, its
+ * required Level greyed-out until the Hero reaches it, its Skill Level and
+ * Mana cost at the next Skill Level, with a + button while a Skill Point
+ * can be spent on it; and the tooltip of the Skill at `tooltipAt`, if any.
  */
 function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
   const style = HERO_PANEL_STYLE;
@@ -2567,18 +2569,34 @@ function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
     value.anchor.set(1, 0.5);
     return { name, value };
   };
-  type Row = ReturnType<typeof row>;
   const points = row();
+  /** A column's heading, its right edge where the column's values end. */
+  const heading = (label: string) => {
+    const t = text(style.hint, style.hintSize);
+    t.text = label;
+    t.anchor.set(1, 0.5);
+    return t;
+  };
+  const headings = {
+    skillLevel: heading("Skill Level"),
+    manaCost: heading("Mana"),
+  };
+  /** A Skill row's cell, at its left (`anchorX` 0) or right (1) edge. */
+  const cell = (fill: number, anchorX: 0 | 1) => {
+    const t = text(fill);
+    t.anchor.set(anchorX, 0.5);
+    return t;
+  };
   const tooltipBox = new Graphics();
   layer.addChild(tooltipBox);
   /** Tooltip lines, made as more are needed, over its box. */
   const tooltipLines: Text[] = [];
   /** Made as the sheet first lists them. */
   const skills: {
-    name: Row;
-    skillLevel: Row;
-    manaCost: Row;
-    requiredLevel: Row;
+    name: Text;
+    requiredLevel: Text;
+    skillLevel: Text;
+    manaCost: Text;
     plus: Text;
   }[] = [];
 
@@ -2608,22 +2626,24 @@ function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
       title.position.set(panel.x + panel.w / 2, panel.y + padding);
       hint.position.set(panel.x + panel.w / 2, panel.y + panel.h - padding);
 
-      const place = (shown: Row, at: number, name: string, value: string) => {
-        const row = skillTreeRow(screen, at);
-        const y = row.y + rowHeight / 2;
-        shown.name.text = name;
-        shown.name.position.set(row.x, y);
-        shown.value.text = value;
-        shown.value.position.set(row.x + row.w, y);
-      };
+      const middle = (row: Rect) => row.y + rowHeight / 2;
       const anyRaisable = sheet.skills.some((skill) => skill.canRaise);
-      place(
-        points,
-        SKILL_TREE_ROWS.skillPoints,
-        "Skill Points",
-        sheet.skillPoints,
-      );
+      const pointsRow = skillTreeRow(screen, SKILL_TREE_ROWS.skillPoints);
+      points.name.text = "Skill Points";
+      points.name.position.set(pointsRow.x, middle(pointsRow));
+      points.value.text = sheet.skillPoints;
+      points.value.position.set(pointsRow.x + pointsRow.w, middle(pointsRow));
       points.value.style.fill = anyRaisable ? style.title : style.value;
+
+      const headingsRow = skillTreeRow(screen, SKILL_TREE_ROWS.headings);
+      const headingAt = skillTreeColumns(screen, headingsRow);
+      headings.skillLevel.position.set(
+        headingAt.skillLevel,
+        middle(headingsRow),
+      );
+      headings.manaCost.position.set(headingAt.manaCost, middle(headingsRow));
+      const ruleY = headingsRow.y - style.ruleGap * scale;
+      graphics.rect(headingsRow.x, ruleY, headingsRow.w, 1).fill(style.edge);
 
       sheet.skills.forEach((skill, index) => {
         if (!skills[index]) {
@@ -2631,43 +2651,32 @@ function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
           plusText.text = "+";
           plusText.anchor.set(0.5);
           skills[index] = {
-            name: row(style.title),
-            skillLevel: row(),
-            manaCost: row(),
-            requiredLevel: row(),
+            name: cell(style.title, 0),
+            requiredLevel: cell(style.hint, 0),
+            skillLevel: cell(style.value, 1),
+            manaCost: cell(style.value, 1),
             plus: plusText,
           };
         }
         const shown = skills[index];
-        const at = (within: number) => skillRow(index, within);
-        place(shown.name, at(SKILL_TREE_ROWS.name), skill.name, "");
-        place(
-          shown.skillLevel,
-          at(SKILL_TREE_ROWS.skillLevel),
-          "Skill Level",
-          skill.skillLevel,
-        );
-        place(
-          shown.manaCost,
-          at(SKILL_TREE_ROWS.manaCost),
-          "Mana cost",
-          skill.manaCost,
-        );
-        place(
-          shown.requiredLevel,
-          at(SKILL_TREE_ROWS.requiredLevel),
-          "Required Level",
-          skill.requiredLevel,
-        );
+        const row = skillTreeRow(screen, skillRow(index));
+        const column = skillTreeColumns(screen, row);
+        const y = middle(row);
+        shown.name.text = skill.name;
+        shown.name.position.set(row.x, y);
+        shown.requiredLevel.visible = skill.requiredLevel !== null;
+        shown.requiredLevel.text = `Level ${skill.requiredLevel}`;
+        shown.requiredLevel.position.set(column.requiredLevel, y);
+        shown.skillLevel.text = skill.skillLevel;
+        shown.skillLevel.position.set(column.skillLevel, y);
+        shown.manaCost.text = skill.manaCost;
+        shown.manaCost.position.set(column.manaCost, y);
         const rect = layout.raise[skill.skill];
         shown.plus.visible = skill.canRaise;
         if (skill.canRaise) {
           button(graphics, rect);
           shown.plus.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
         }
-        const rule = skillTreeRow(screen, at(SKILL_TREE_ROWS.name));
-        const y = rule.y - style.ruleGap * scale;
-        graphics.rect(rule.x, y, rule.w, 1).fill(style.edge);
       });
       // Rows made this draw too.
       texts.size(scale);

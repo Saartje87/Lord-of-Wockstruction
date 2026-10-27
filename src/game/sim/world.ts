@@ -9,6 +9,7 @@ import {
 import { minionTuning } from "../tuning/minions";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import {
+  type CurseEffect,
   corpseTuning,
   type ExplodeEffect,
   type RaiseEffect,
@@ -266,7 +267,12 @@ export type Monster = {
   grace: number;
   /** While idle, steps left before it strolls again. */
   pause: number;
+  /** Its Curse, if it has one. */
+  curse: MonsterCurse | null;
 };
+
+/** A Curse on a Monster: the Skill that put it there, and steps left. */
+export type MonsterCurse = { skill: Skill; left: number };
 
 /** Who a Monster goes after: the Hero, or one of their Minions. */
 export type MonsterTarget = "hero" | MinionId;
@@ -533,6 +539,8 @@ export type SimEvent =
    * `radius` (tiles).
    */
   | { type: "CorpseExploded"; corpse: MonsterId; pos: Vec; radius: number }
+  /** `skill` Cursed every Monster within `radius` (tiles) of `pos`. */
+  | { type: "CurseCast"; skill: Skill; pos: Vec; radius: number }
   /** A cast did nothing, spending no Mana. */
   | { type: "CastFailed"; reason: CastFailure }
   /** Minion `minion` appeared at `pos`. */
@@ -1235,6 +1243,7 @@ function placePack(world: World, area: Area, spawn: Spawn) {
       grace: 0,
       // So a pack doesn't set off strolling in step.
       pause: wanderPause(world, spawn.monster),
+      curse: null,
     });
   }
 }
@@ -1634,6 +1643,9 @@ function castFrom(
     case "explode":
       if (corpse) explode(world, effect, skillLevel, corpse, events);
       break;
+    case "curse":
+      curse(world, skill, effect, skillLevel, target, events);
+      break;
   }
 }
 
@@ -1736,6 +1748,40 @@ function explode(
   // A Skill's damage always hits: no roll against Defense, and no hitstop.
   for (const monster of victims) {
     heroHurts(world, monster, randomInt(world.rng, range), "skill", events);
+  }
+}
+
+/** How far `effect` reaches from the cast point at `skillLevel` (tiles). */
+export function curseRadius(effect: CurseEffect, skillLevel: number): number {
+  return effect.radius + effect.radiusPerSkillLevel * (skillLevel - 1);
+}
+
+/** How long `effect` lasts at `skillLevel` (steps). */
+export function curseSteps(effect: CurseEffect, skillLevel: number): number {
+  return msToSteps(
+    effect.durationMs + effect.durationMsPerSkillLevel * (skillLevel - 1),
+  );
+}
+
+/**
+ * Curses every Monster within the radius `effect` has at `skillLevel` of
+ * `target`, replacing any Curse it had.
+ */
+function curse(
+  world: World,
+  skill: Skill,
+  effect: CurseEffect,
+  skillLevel: number,
+  target: Vec,
+  events: SimEvent[],
+) {
+  const radius = curseRadius(effect, skillLevel);
+  events.push({ type: "CurseCast", skill, pos: { ...target }, radius });
+  const left = curseSteps(effect, skillLevel);
+  for (const monster of world.monsters) {
+    if (distance(monster.pos, target) <= radius) {
+      monster.curse = { skill, left };
+    }
   }
 }
 
@@ -1923,20 +1969,42 @@ function hit(world: World, monster: Monster, events: SimEvent[]) {
 }
 
 /**
- * Lands `damage` from the Hero's swing or Skill on a Monster, keeping the
- * Hero In Combat.
+ * Lands `rolled` damage from the Hero's swing or Skill on a Monster, keeping
+ * the Hero In Combat.
  */
 function heroHurts(
   world: World,
   monster: Monster,
-  damage: number,
+  rolled: number,
   attacker: "hero" | "skill",
   events: SimEvent[],
 ) {
-  monster.life = Math.max(0, monster.life - damage);
   world.hero.combat = COMBAT_STEPS;
+  takeDamage(world, monster, rolled, attacker, events);
+}
+
+/**
+ * Lands `rolled` damage from the Hero's side on a Monster, more if a Curse
+ * makes it take more.
+ */
+function takeDamage(
+  world: World,
+  monster: Monster,
+  rolled: number,
+  attacker: "hero" | "minion" | "skill",
+  events: SimEvent[],
+) {
+  const damage = Math.round(rolled * damageTaken(monster));
+  monster.life = Math.max(0, monster.life - damage);
   events.push({ type: "HitLanded", attacker, target: monster.id, damage });
   hurt(world, monster, events);
+}
+
+/** How many times the damage it is dealt a Monster takes, for its Curse. */
+function damageTaken(monster: Monster): number {
+  if (!monster.curse) return 1;
+  const { effect } = skillTuning[monster.curse.skill];
+  return effect.type === "curse" ? effect.damageTaken : 1;
 }
 
 /**
@@ -2018,14 +2086,7 @@ function minionStrike(
     noticeHit(world, monster);
     return;
   }
-  monster.life = Math.max(0, monster.life - damage);
-  events.push({
-    type: "HitLanded",
-    attacker: "minion",
-    target: monster.id,
-    damage,
-  });
-  hurt(world, monster, events);
+  takeDamage(world, monster, damage, "minion", events);
 }
 
 /**

@@ -110,6 +110,14 @@ describe("skillTreeSheet", () => {
           canRaise: false,
         },
         {
+          skill: "amplifyDamage",
+          name: "Amplify Damage",
+          skillLevel: "0",
+          manaCost: "4",
+          requiredLevel: "2",
+          canRaise: false,
+        },
+        {
           skill: "corpseExplosion",
           name: "Corpse Explosion",
           skillLevel: "0",

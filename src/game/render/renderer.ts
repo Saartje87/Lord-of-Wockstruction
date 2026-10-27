@@ -89,6 +89,7 @@ import { beltStripLayout, beltStripSheet } from "./beltStrip";
 import { type Camera, cameraOn, onScreen, onWorld } from "./camera";
 import { CLOSE_BUTTON } from "./closeButton";
 import { CORPSE_BURST, corpseBurst } from "./corpseBurst";
+import { CURSE_CIRCLE, CURSE_MARK, curseCircle, curseMarkAlpha } from "./curse";
 import { cursorHitAt, type ShownPanels } from "./cursorHit";
 import {
   DAMAGE_NUMBER,
@@ -639,6 +640,9 @@ export function createRenderer(
   // On the floor too, spreading under the Monsters it hurts.
   const corpseBursts = new Graphics();
   camera.addChildAt(corpseBursts, camera.getChildIndex(scene));
+  // And Curses' circles, round the Monsters they Curse.
+  const curseCircles = new Graphics();
+  camera.addChildAt(curseCircles, camera.getChildIndex(scene));
   const levelFlash = new ColorMatrixFilter({ resolution: "inherit" });
   levelFlash.matrix = washTo(LEVEL_UP.colour);
   const outline = outlineView();
@@ -771,6 +775,8 @@ export function createRenderer(
   const closingTownPortals: { area: string; pos: Vec; atMs: number }[] = [];
   /** Corpses bursting in the active Area, each over its radius (tiles). */
   const bursts: { pos: Vec; radius: number; atMs: number }[] = [];
+  /** Curses cast in the active Area, each over its radius (tiles). */
+  const curses: { pos: Vec; radius: number; atMs: number }[] = [];
   /** When the Hero last arrived in an Area, for the Area Banner. */
   let arrivedAtMs: number | null = null;
   /** Starts the Area Banner showing `displayName`, as of `nowMs`. */
@@ -850,6 +856,7 @@ export function createRenderer(
     for (const { text } of floating.splice(0)) text.destroy();
     for (const { view } of crumbling.splice(0)) view.sprite.destroy();
     bursts.length = 0;
+    curses.length = 0;
     markedAtMs = null;
     hoveredTile = null;
     hover.clear();
@@ -1052,6 +1059,9 @@ export function createRenderer(
         if (event.type === "TownPortalOpened") townPortalOpenedAtMs = nowMs;
         if (event.type === "CorpseExploded") {
           bursts.push({ pos: event.pos, radius: event.radius, atMs: nowMs });
+        }
+        if (event.type === "CurseCast") {
+          curses.push({ pos: event.pos, radius: event.radius, atMs: nowMs });
         }
         if (event.type === "TownPortalClosed") {
           closingTownPortals.push({
@@ -1268,6 +1278,28 @@ export function createRenderer(
           });
       }
 
+      curseCircles.clear();
+      for (let i = curses.length - 1; i >= 0; i--) {
+        const { pos, radius, atMs } = curses[i];
+        const circle = curseCircle(nowMs - atMs, radius);
+        if (!circle) {
+          curses.splice(i, 1);
+          continue;
+        }
+        const foot = toScreen(pos);
+        curseCircles
+          .ellipse(foot.x, foot.y, circle.radiusX, circle.radiusY)
+          .fill({
+            color: CURSE_CIRCLE.colour,
+            alpha: CURSE_CIRCLE.fillAlpha * circle.alpha,
+          })
+          .stroke({
+            color: CURSE_CIRCLE.colour,
+            width: CURSE_CIRCLE.ringWidth,
+            alpha: circle.alpha,
+          });
+      }
+
       const seen = new Set<MonsterId>();
       telegraphs.clear();
       for (const monster of world.monsters) {
@@ -1385,6 +1417,12 @@ export function createRenderer(
       }
 
       overheads.clear();
+      const markAlpha = curseMarkAlpha(nowMs);
+      for (const monster of world.monsters) {
+        if (!monster.curse) continue;
+        const { sprite } = viewOf(monster.id, monster.type);
+        curseMark(overheads, sprite.position.x, barTop(sprite), markAlpha);
+      }
       for (const monster of world.monsters) {
         const life = monsterMaxLife(monster);
         if (monster.life >= life) continue;
@@ -1739,6 +1777,34 @@ function barTop(sprite: Sprite): number {
     MONSTER_BAR.above -
     MONSTER_BAR.height
   );
+}
+
+/**
+ * The mark over a Cursed Monster: a diamond centred on `x`, its foot `gap`
+ * above `lifeBarTop`, where its Life bar's top is or would be.
+ */
+function curseMark(
+  graphics: Graphics,
+  x: number,
+  lifeBarTop: number,
+  alpha: number,
+) {
+  const { size, gap, colour, outline, outlineWidth } = CURSE_MARK;
+  const half = size / 2;
+  const bottom = lifeBarTop - gap;
+  graphics
+    .poly([
+      x,
+      bottom - size,
+      x + half,
+      bottom - half,
+      x,
+      bottom,
+      x - half,
+      bottom - half,
+    ])
+    .fill({ color: colour, alpha })
+    .stroke({ color: outline, width: outlineWidth, alpha });
 }
 
 /**

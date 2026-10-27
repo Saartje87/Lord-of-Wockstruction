@@ -18,13 +18,14 @@ export type SkillTuning = {
 
 /**
  * What a Skill's cast does: summon a Minion at the cast point, the Hero
- * having one of it; raise one from a Corpse (see `RaiseEffect`); or burst a
- * Corpse (see `ExplodeEffect`).
+ * having one of it; raise one from a Corpse (see `RaiseEffect`); burst a
+ * Corpse (see `ExplodeEffect`); or Curse Monsters (see `CurseEffect`).
  */
 export type SkillEffect =
   | { type: "summon"; minion: MinionType }
   | RaiseEffect
-  | ExplodeEffect;
+  | ExplodeEffect
+  | CurseEffect;
 
 /**
  * Raise a Minion from the Corpse nearest the cast point, using the Corpse
@@ -51,6 +52,21 @@ export type ExplodeEffect = {
   share: [number, number];
 };
 
+/**
+ * Curse every Monster within `radius` of the cast point, and
+ * `radiusPerSkillLevel` more each Skill Level past the first (tiles), for
+ * `durationMs`, and `durationMsPerSkillLevel` more each Skill Level past the
+ * first. A Cursed Monster takes `damageTaken` times the damage.
+ */
+export type CurseEffect = {
+  type: "curse";
+  radius: number;
+  radiusPerSkillLevel: number;
+  durationMs: number;
+  durationMsPerSkillLevel: number;
+  damageTaken: number;
+};
+
 /** Skills that use a Corpse up. */
 export const corpseTuning = {
   /** How near the cast point a Corpse must lie to be used (tiles). */
@@ -58,7 +74,11 @@ export const corpseTuning = {
 };
 
 /** One of the Skills, by the name the sim and the Save know it by. */
-export type Skill = "golem" | "raiseSkeleton" | "corpseExplosion";
+export type Skill =
+  | "golem"
+  | "raiseSkeleton"
+  | "amplifyDamage"
+  | "corpseExplosion";
 
 /** Every Skill's tuning. */
 export const skillTuning: Record<Skill, SkillTuning> = {
@@ -83,6 +103,22 @@ export const skillTuning: Record<Skill, SkillTuning> = {
       minion: "raisedSkeleton",
       count: 2,
       countEvery: 3,
+    },
+  },
+  // Diablo 2's Amplify Damage: +100% damage taken there, softened to +50%.
+  amplifyDamage: {
+    name: "Amplify Damage",
+    requiredLevel: 2,
+    manaCost: 4,
+    manaCostPerSkillLevel: 0,
+    castMs: 400,
+    effect: {
+      type: "curse",
+      radius: 2,
+      radiusPerSkillLevel: 0.5,
+      durationMs: 8000,
+      durationMsPerSkillLevel: 2000,
+      damageTaken: 1.5,
     },
   },
   // Diablo 2's Corpse Explosion: 60–100% of the dead Monster's max Life.

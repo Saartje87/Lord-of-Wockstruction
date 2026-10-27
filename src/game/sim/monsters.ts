@@ -156,14 +156,19 @@ export function monsterAttack(monster: MonsterOfLevel): AttackNumbers {
 export type Strike = { monster: Monster; target: MonsterTarget };
 
 /**
- * Moves every Monster one step: noticing, chasing, attacking and walking
- * home. Returns the attacks that land on the Hero or their Minions this step.
+ * Moves every Monster one step: noticing, chasing, attacking, walking home
+ * and wearing its Curse down. Returns the attacks that land on the Hero or
+ * their Minions this step.
  */
 export function stepMonsters(world: World): Strike[] {
   const strikes: Strike[] = [];
   for (const monster of world.monsters) {
     if (monster.grace > 0) monster.grace -= 1;
     if (monster.cooldown > 0) monster.cooldown -= 1;
+    if (monster.curse) {
+      monster.curse.left -= 1;
+      if (monster.curse.left <= 0) monster.curse = null;
+    }
     if (monster.state === "windup") {
       if (windUp(world, monster)) {
         strikes.push({ monster, target: monster.target });
@@ -444,7 +449,8 @@ function loose(
 
 /**
  * Walks home, ignoring the Hero and their Minions, and on arrival heals to
- * full and starts a grace period before it can notice either again.
+ * full, loses its Curse and starts a grace period before it can notice
+ * either again.
  */
 function goHome(world: World, monster: Monster) {
   const area = world.areas[world.areaName];
@@ -453,6 +459,7 @@ function goHome(world: World, monster: Monster) {
   if (distance(monster.pos, monster.home) > 0) return;
   monster.state = "idle";
   monster.life = monsterMaxLife(monster);
+  monster.curse = null;
   monster.grace = stepped.graceSteps;
 }
 

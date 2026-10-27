@@ -42,7 +42,7 @@ export function corpseBurst(
 }
 
 /** A tile-space circle of `radius` on the floor, as the screen shows it. */
-function onFloor(radius: number, alpha: number): FloorOval {
+export function onFloor(radius: number, alpha: number): FloorOval {
   return {
     radiusX: (radius * TILE_WIDTH) / Math.SQRT2,
     radiusY: (radius * TILE_HEIGHT) / Math.SQRT2,

@@ -269,8 +269,12 @@ A touch held still on an Item or Skill for a moment, which shows its tooltip ins
 _Avoid_: Hold, press and hold, hover
 
 **Rotate Notice**:
-What shows instead of the game when the screen is held upright or is too small to play on, asking the player to turn or enlarge it; the World is paused while it shows.
+What shows instead of the game when the screen is held upright or is too small to play on, asking the player to turn it, or, when too small, to enlarge the window or, on a touch screen, saying the screen is too small and offering the Fullscreen button; the World is paused while it shows.
 _Avoid_: Orientation warning, portrait screen
+
+**Fullscreen button**:
+The item in the pause menu, and on the Rotate Notice when the screen is too small, that puts the game in or out of fullscreen, holding it sideways while fullscreen; shown only where the browser allows fullscreen.
+_Avoid_: Maximise button
 
 **Active Input**:
 The way the player last played, mouse and keyboard, controller or touch, which decides what the game shows: touch controls only for touch, and each hint and tooltip naming that way's buttons. A controller disconnecting while it is the Active Input opens the pause menu.

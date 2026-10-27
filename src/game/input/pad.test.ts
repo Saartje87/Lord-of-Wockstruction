@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { SKILL_BAR_SLOTS } from "../sim/skillBar";
 import type { Vec } from "../sim/vec";
-import type { World } from "../sim/world";
+import { step, type World } from "../sim/world";
 import { inputTuning } from "../tuning/input";
 import {
   createPadInput,
@@ -20,6 +21,14 @@ const tilesOver = (world: World = arenaWith([])) => ({
   world,
 });
 const asTiles = tilesOver();
+
+/** A snapshot of the pad left alone. */
+const restAt: PadSnapshot = {
+  stick: { x: 0, y: 0 },
+  pressed: [],
+  held: [],
+  released: [],
+};
 
 const original = { ...inputTuning };
 afterEach(() => {
@@ -284,5 +293,145 @@ describe("holding A", () => {
     const { orders } = pollPad(input, press("a"), 1032, tilesOver(world));
 
     expect(orders).toEqual([{ type: "Attack", monster: world.monsters[0].id }]);
+  });
+});
+
+/** `world` with the Golem in every Skill Bar slot. */
+function golemEverywhere(world: World): World {
+  for (const slot of SKILL_BAR_SLOTS) {
+    world.hero.progress.skillBar[slot] = "golem";
+  }
+  return world;
+}
+
+describe("the Skill buttons", () => {
+  it.each([
+    ["x", "key1"],
+    ["y", "key2"],
+    ["b", "key3"],
+    ["rb", "key4"],
+    ["rt", "right"],
+  ] as const)("%s casts slot %s's Skill at the Target", (button, slot) => {
+    const world = golemEverywhere(facingEast([{ x: 13, y: 10 }]));
+
+    const { orders } = pollPad(
+      createPadInput(),
+      press(button),
+      0,
+      tilesOver(world),
+    );
+
+    expect(orders).toEqual([{ type: "Cast", slot, target: { x: 13, y: 10 } }]);
+  });
+
+  it("with no Target casts the tuned distance ahead of the Hero's facing", () => {
+    inputTuning.castDistance = 3;
+    const world = golemEverywhere(facingEast([{ x: 8, y: 10 }]));
+    world.hero.facing = Math.PI / 2;
+
+    const { orders } = pollPad(
+      createPadInput(),
+      press("x"),
+      0,
+      tilesOver(world),
+    );
+
+    expect(orders).toHaveLength(1);
+    const [cast] = orders;
+    if (cast.type !== "Cast") throw new Error("No Cast");
+    expect(cast.target.x).toBeCloseTo(10);
+    expect(cast.target.y).toBeCloseTo(13);
+  });
+
+  it("with no Target casts the tuned distance ahead of the stick, aiming", () => {
+    inputTuning.castDistance = 3;
+    const world = golemEverywhere(facingEast([]));
+    const aimed = { ...press("rt"), stick: { x: -0.3, y: -0.4 } };
+
+    const { orders } = pollPad(createPadInput(), aimed, 0, tilesOver(world));
+
+    expect(orders).toEqual([
+      { type: "Cast", slot: "right", target: { x: 8.2, y: 7.6 } },
+    ]);
+  });
+
+  it("casts nothing from an empty slot, and the stick walks", () => {
+    const world = facingEast([{ x: 13, y: 10 }]);
+    const held = { ...press("x"), stick: { x: 1, y: 0 } };
+
+    const { orders } = pollPad(createPadInput(), held, 0, tilesOver(world));
+
+    expect(orders).toEqual([{ type: "Walk", direction: { x: 1, y: 0 } }]);
+  });
+
+  it("casts again on the retarget interval while held", () => {
+    inputTuning.retargetMs = 120;
+    const world = golemEverywhere(facingEast([{ x: 13, y: 10 }]));
+    const input = createPadInput();
+    const cast = { type: "Cast", slot: "key2", target: { x: 13, y: 10 } };
+    expect(pollPad(input, press("y"), 1000, tilesOver(world)).orders).toEqual([
+      cast,
+    ]);
+    const at = (nowMs: number) =>
+      pollPad(input, hold("y"), nowMs, tilesOver(world)).orders;
+
+    expect(at(1119)).toEqual([]);
+    expect(at(1120)).toEqual([cast]);
+    expect(at(1239)).toEqual([]);
+    expect(at(1240)).toEqual([cast]);
+  });
+
+  it("keeps each held button's interval apart", () => {
+    inputTuning.retargetMs = 120;
+    const world = golemEverywhere(facingEast([{ x: 13, y: 10 }]));
+    const input = createPadInput();
+    pollPad(input, press("x"), 1000, tilesOver(world));
+    const both: PadSnapshot = { ...restAt, pressed: ["y"], held: ["x", "y"] };
+
+    const { orders } = pollPad(input, both, 1060, tilesOver(world));
+
+    expect(orders).toEqual([
+      { type: "Cast", slot: "key2", target: { x: 13, y: 10 } },
+    ]);
+  });
+
+  it("summons the Golem as a key does", () => {
+    inputTuning.castDistance = 3;
+    const world = golemEverywhere(arenaWith([], { combat: true }));
+    world.hero.progress.skillLevels.golem = 1;
+    world.hero.facing = 0;
+
+    const { orders } = pollPad(
+      createPadInput(),
+      press("rt"),
+      0,
+      tilesOver(world),
+    );
+    for (let i = 0; i < 120; i++) step(world, i === 0 ? orders : []);
+
+    expect(world.minion?.type).toBe("golem");
+    expect(world.minion?.pos.x).toBeCloseTo(13, 0);
+    expect(world.minion?.pos.y).toBeCloseTo(10, 0);
+  });
+});
+
+describe("the D-pad", () => {
+  it.each([
+    ["left", 0],
+    ["up", 1],
+    ["right", 2],
+    ["down", 3],
+  ] as const)("%s drinks from Belt Column %i (from 0)", (button, column) => {
+    const { orders } = pollPad(createPadInput(), press(button), 0, asTiles);
+
+    expect(orders).toEqual([{ type: "DrinkFromBelt", column }]);
+  });
+
+  it("drinks once a press, however long it is held", () => {
+    const input = createPadInput();
+    pollPad(input, press("left"), 0, asTiles);
+
+    const later = 10 * inputTuning.retargetMs;
+    expect(pollPad(input, hold("left"), later, asTiles).orders).toEqual([]);
   });
 });

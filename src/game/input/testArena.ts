@@ -1,3 +1,4 @@
+import { combatArea } from "../sim/testAreas";
 import type { Vec } from "../sim/vec";
 import { createWorld, type World } from "../sim/world";
 
@@ -18,9 +19,10 @@ function spawn(x: number, y: number) {
 
 /**
  * A 20×20 Area of open floor with the Hero starting at (10, 10) and a
- * Skeleton at each of `at`.
+ * Skeleton at each of `at`. The Hero stands in Town unless `combat`, then in
+ * a Combat Area of the same floor.
  */
-export function arenaWith(at: Vec[]): World {
+export function arenaWith(at: Vec[], { combat = false } = {}): World {
   const area = {
     orientation: "orthogonal",
     width: 20,
@@ -45,7 +47,12 @@ export function arenaWith(at: Vec[]): World {
       },
     ],
   };
-  const world = createWorld({ areas: { town: area }, seed: 1 });
+  const areas = combat
+    ? { town: area, arena: combatArea(area) }
+    : { town: area };
+  const world = createWorld({ areas, seed: 1 });
+  // Set down in the Combat Area as if just arrived, so Skills can be cast.
+  if (combat) world.areaName = "arena";
   // Spawns scatter around their point; put each exactly where asked.
   world.monsters.forEach((monster, i) => {
     monster.pos = { ...at[i] };

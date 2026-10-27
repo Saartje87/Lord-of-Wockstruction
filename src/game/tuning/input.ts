@@ -21,6 +21,11 @@ export type InputTuning = {
    * it up (tiles).
    */
   groundItemReach: number;
+  /**
+   * How far ahead of the Hero a controller casts a Skill when there is no
+   * Target (tiles).
+   */
+  castDistance: number;
 };
 
 export const inputTuning: InputTuning = {
@@ -30,4 +35,5 @@ export const inputTuning: InputTuning = {
   targetConeDegrees: 90,
   targetRange: 6,
   groundItemReach: 1.5,
+  castDistance: 3,
 };

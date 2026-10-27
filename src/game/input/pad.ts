@@ -1,4 +1,5 @@
 import type { ItemId } from "../sim/inventory";
+import { type SkillBarSlot, skillInSlot } from "../sim/skillBar";
 import { distance, type Vec } from "../sim/vec";
 import type { MonsterId, Order, World } from "../sim/world";
 import { inputTuning } from "../tuning/input";
@@ -45,11 +46,23 @@ export const restingPad: PadSnapshot = {
   released: [],
 };
 
-/** Pad state between frames: when A, held, last ordered. */
+/** Pad state between frames: when each held button last ordered. */
 export type PadInput = {
-  /** When A last ordered while held (ms), or null when it isn't held. */
-  lastOrderMs: number | null;
+  /** When each button last ordered while held (ms); absent when not held. */
+  lastOrderMs: Partial<Record<PadButton, number>>;
 };
+
+/** The Skill Bar slot each Skill button casts. */
+const SKILL_BUTTONS = [
+  ["x", "key1"],
+  ["y", "key2"],
+  ["b", "key3"],
+  ["rb", "key4"],
+  ["rt", "right"],
+] as const satisfies readonly (readonly [PadButton, SkillBarSlot])[];
+
+/** The D-pad directions that drink from Belt Columns 1 to 4, in turn. */
+const DRINK_BUTTONS = ["left", "up", "right", "down"] as const;
 
 /** How the pad sees the screen, as last drawn, and the World, as last stepped. */
 export type PadView = {
@@ -60,7 +73,7 @@ export type PadView = {
 };
 
 export function createPadInput(): PadInput {
-  return { lastOrderMs: null };
+  return { lastOrderMs: {} };
 }
 
 /**
@@ -75,6 +88,13 @@ export function createPadInput(): PadInput {
  * does nothing. Held, A acts again every `retargetMs`, picking the Target
  * afresh, and while it has something to act on, the stick aims rather than
  * walks.
+ *
+ * X, Y, B and RB cast the Skills in the four keyed Skill Bar slots and RT
+ * the right-click slot's, at the Target, or with none at a point
+ * `castDistance` ahead (of the stick while pushed, else of the Hero's
+ * facing). Held, they cast again every `retargetMs`, and while one casts, the
+ * stick aims rather than walks. An empty slot casts nothing. The D-pad's
+ * left, up, right and down drink from Belt Columns 1 to 4, once a press.
  */
 export function pollPad(
   input: PadInput,
@@ -88,22 +108,65 @@ export function pollPad(
     x: Math.cos(world.hero.facing),
     y: Math.sin(world.hero.facing),
   };
-  const target = pickTarget(world, walk ?? facing);
+  const ahead = walk ?? facing;
+  const target = pickTarget(world, ahead);
   const action = target !== null ? attack(target) : pickUpNear(world);
   const orders: Order[] = [];
-  if (!snapshot.held.includes("a")) {
-    input.lastOrderMs = null;
-  } else if (
-    snapshot.pressed.includes("a") ||
-    input.lastOrderMs === null ||
-    nowMs - input.lastOrderMs >= inputTuning.retargetMs
-  ) {
-    input.lastOrderMs = nowMs;
-    if (action) orders.push(action);
+  if (actsNow(input, snapshot, "a", nowMs) && action) orders.push(action);
+  let aiming = snapshot.held.includes("a") && action !== null;
+  const aim = castPoint(world, target, ahead);
+  for (const [button, slot] of SKILL_BUTTONS) {
+    const acts = actsNow(input, snapshot, button, nowMs);
+    if (!skillInSlot(world, slot)) continue;
+    if (snapshot.held.includes(button)) aiming = true;
+    if (acts) orders.push({ type: "Cast", slot, target: { ...aim } });
   }
-  const aiming = snapshot.held.includes("a") && action !== null;
+  DRINK_BUTTONS.forEach((button, column) => {
+    if (snapshot.pressed.includes(button)) {
+      orders.push({ type: "DrinkFromBelt", column });
+    }
+  });
   if (walk && !aiming) orders.push({ type: "Walk", direction: walk });
   return { orders, target };
+}
+
+/**
+ * Whether held `button` acts this frame: on a fresh press, or every
+ * `retargetMs` while held. Keeps its clock in `input`.
+ */
+function actsNow(
+  input: PadInput,
+  snapshot: PadSnapshot,
+  button: PadButton,
+  nowMs: number,
+): boolean {
+  const last = input.lastOrderMs[button];
+  if (!snapshot.held.includes(button)) {
+    delete input.lastOrderMs[button];
+    return false;
+  }
+  if (
+    snapshot.pressed.includes(button) ||
+    last === undefined ||
+    nowMs - last >= inputTuning.retargetMs
+  ) {
+    input.lastOrderMs[button] = nowMs;
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Where a Skill is cast: at the Target, or with none `castDistance` from the
+ * Hero along `ahead` (tiles, any length).
+ */
+function castPoint(world: World, target: MonsterId | null, ahead: Vec): Vec {
+  const monster = world.monsters.find(({ id }) => id === target);
+  if (monster) return monster.pos;
+  const { pos } = world.hero;
+  const length = Math.hypot(ahead.x, ahead.y) || 1;
+  const away = inputTuning.castDistance / length;
+  return { x: pos.x + ahead.x * away, y: pos.y + ahead.y * away };
 }
 
 /**

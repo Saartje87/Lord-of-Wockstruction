@@ -73,7 +73,7 @@ The Hero's state while they have dealt or taken damage in the last few seconds, 
 _Avoid_: Aggro, engaged
 
 **Corpse**:
-What remains of a dead Monster, lying in its Area until the Hero leaves.
+What remains of a dead Monster, lying in its Area until the Hero leaves or a Skill uses it up. A Skill that needs one takes the nearest Corpse a short way from where it is cast, and with none there the cast does nothing and costs nothing.
 _Avoid_: Body, remains
 
 **Experience**:
@@ -105,7 +105,7 @@ An Attribute Point the player has put on an Attribute in the Hero panel but not 
 _Avoid_: Planned point, draft point
 
 **Skill**:
-Something the Hero casts, spending Mana; it can't be cast in Town. Every Hero can learn the same Skills, from the one Skill Tree.
+Something the Hero casts, spending Mana; it can't be cast in Town. Every Hero can learn the same Skills, from the one Skill Tree. Damage a Skill deals always hits: it is never a Miss.
 _Avoid_: Spell, ability, power
 
 **Skill Tree**:
@@ -136,6 +136,18 @@ _Avoid_: Pet, summon, ally (and never a Monster: Monsters are always hostile)
 The Minion summoned by the Golem Skill: the Hero has at most one, which follows them through Exits, never regains Life, leaves no Corpse, and is gone on the Hero's Death or when the Save is loaded. Casting the Skill again replaces it.
 _Avoid_: Golum
 
+**Curse**:
+A mark a Skill puts on every Monster in a circle where it is cast, for a while; a Monster has at most one, a new one replacing the old, and one Returning loses it on reaching home. Amplify Damage's makes the Monster take more damage from everything.
+_Avoid_: Debuff, hex
+
+**Raised Skeleton**:
+The Minion the Raise Skeleton Skill raises from a Corpse, using it up, whatever Monster the Corpse was. The Hero has a few at once, more at a higher Skill Level, raising one more past that replacing the oldest; otherwise it follows the Golem's rules. Never just "Skeleton": that is the Monster.
+_Avoid_: Skeleton (that's the Monster), skelly, undead
+
+**Bone Ward**:
+What the Bone Ward Skill puts on the Hero: an amount of damage it soaks up before their Life, until used up; casting it again fills it back up. It stays on through Exits and is gone on the Hero's Death or when the Save is loaded.
+_Avoid_: Bone Armor (Armour is an Item), shield, barrier
+
 **Attack Rating**:
 How accurate a Hero's or Monster's attacks are (the Hero's raised by Dexterity); set against the target's Defense it gives the chance to hit.
 _Avoid_: Accuracy, to-hit
@@ -149,7 +161,7 @@ A swing that plays out in full but deals no damage because it failed its chance 
 _Avoid_: Dodge, whiff
 
 **Projectile**:
-Something loosed by an attack that flies in a straight line through an Area until it hits the first Hero or Minion it touches, meets a wall, or runs out of range; it flies through Monsters. The Skeleton Archer's is the Arrow.
+Something loosed by an attack or a Skill that flies in a straight line through an Area until it meets a wall or runs out of range. A Monster's hits the first Hero or Minion it touches and flies through Monsters; the Skeleton Archer's is the Arrow. The Hero's flies through Minions and hits every Monster on its way, each once; Bone Spear's is one.
 _Avoid_: Missile, bullet, shot
 
 **Save**:

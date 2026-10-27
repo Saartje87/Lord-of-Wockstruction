@@ -1805,7 +1805,9 @@ function beltStripView(activeInput: Readonly<ActiveInput>) {
           key.anchor.set(1, 0);
           const count = text(style.name);
           count.anchor.set(0, 1);
+          // Outlined to read over the Potion it names.
           const name = text(INVENTORY_STYLE.itemText);
+          name.style.stroke = { color: 0x000000, width: 2 };
           name.anchor.set(0.5);
           labels[index] = { key, count, name };
         }

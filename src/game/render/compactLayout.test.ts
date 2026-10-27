@@ -67,8 +67,10 @@ const pending = { strength: 1, dexterity: 1, vitality: 1, energy: 1 };
 
 /** Phones held sideways, which take the Compact Layout. */
 const PHONES = [
+  { width: 640, height: 320 },
   { width: 640, height: 360 },
   { width: 844, height: 390 },
+  { width: 915, height: 330 },
 ];
 
 /** The rows of Belt Columns a Belt can give, from none Equipped up. */
@@ -143,7 +145,7 @@ describe("the panels in the Compact Layout", () => {
 
   it.each(
     PHONES,
-  )("lay the Hero panel's rows and buttons inside it, apart, on $width×$height", (size) => {
+  )("lay the Hero panel's rows, buttons and close hint inside it, apart, on $width×$height", (size) => {
     const viewport = viewportOf(size);
     const layout = heroPanelLayout(viewport);
     const derived = heroSheet(world).derived.length;
@@ -161,7 +163,12 @@ describe("the panels in the Compact Layout", () => {
     for (const [name, rect] of rowRects) {
       expectInside(rect, layout.panel, name);
     }
-    expectApart([...rowRects, ["×", layout.closeButton]]);
+    expectInside(layout.closeHint, layout.panel, "close hint");
+    expectApart([
+      ...rowRects,
+      ["×", layout.closeButton],
+      ["close hint", layout.closeHint],
+    ]);
     for (const attribute of ATTRIBUTES) {
       const row = heroPanelRow(
         viewport,

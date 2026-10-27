@@ -70,7 +70,7 @@ describe("the hints and labels that name buttons", () => {
     ["newHero", "touch", "New Hero"],
     ["goBack", "touch", "No"],
   ] as const)("label the pause menu's %s button with %s as %j", (choice, way, label) => {
-    expect(menuChoiceLabel(choice, way)).toBe(label);
+    expect(menuChoiceLabel(choice, way, false)).toBe(label);
   });
 
   const golem = {

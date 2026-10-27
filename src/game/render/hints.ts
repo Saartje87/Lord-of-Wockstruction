@@ -80,25 +80,42 @@ export function resumeHint(confirming: boolean, way: InputWay): string {
     : "Click elsewhere or press Esc to resume";
 }
 
-/** Each pause-menu button's label, without its key. */
-const MENU_LABELS: Record<MenuChoice, string> = {
+/** A pause-menu button pressed by a key as well, as New Hero is by N. */
+type KeyedMenuChoice = Exclude<MenuChoice, "fullscreen">;
+
+/** Each keyed pause-menu button's label, without its key. */
+const MENU_LABELS: Record<KeyedMenuChoice, string> = {
   newHero: "New Hero",
   confirm: "Yes",
   goBack: "No",
 };
 
-/** The key that presses each pause-menu button. */
-const MENU_KEYS: Record<MenuChoice, string> = {
+/** The key that presses each keyed pause-menu button. */
+const MENU_KEYS: Record<KeyedMenuChoice, string> = {
   newHero: "N",
   confirm: "Y",
   goBack: "N",
 };
 
 /**
- * A pause-menu button's label with `way`: with its key, with B on No for a
- * controller (A presses the picked one), or bare for touch.
+ * The Fullscreen button's label, whatever the way: what choosing it does
+ * while the game is fullscreen (`on`) or not.
  */
-export function menuChoiceLabel(choice: MenuChoice, way: InputWay): string {
+export function fullscreenLabel(on: boolean): string {
+  return on ? "Exit fullscreen" : "Fullscreen";
+}
+
+/**
+ * A pause-menu button's label with `way`: with its key, with B on No for a
+ * controller (A presses the picked one), or bare for touch. The Fullscreen
+ * button has no key, and reads as `fullscreenOn` says.
+ */
+export function menuChoiceLabel(
+  choice: MenuChoice,
+  way: InputWay,
+  fullscreenOn: boolean,
+): string {
+  if (choice === "fullscreen") return fullscreenLabel(fullscreenOn);
   const label = MENU_LABELS[choice];
   if (way === "mouseAndKeyboard") return `${label} (${MENU_KEYS[choice]})`;
   if (way === "controller" && choice === "goBack") {

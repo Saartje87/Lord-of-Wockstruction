@@ -14,6 +14,7 @@ import {
   releaseCursor,
   settleCursor,
 } from "./cursor";
+import { browserFullscreen, fullscreenPointerEvent } from "./fullscreen";
 import {
   createActiveInput,
   padTouched,
@@ -51,10 +52,12 @@ import {
   createMenus,
   currentPanel,
   fitMenus,
+  type MenuRequest,
   type Menus,
   pressKey,
   pressPad,
   reactMenus,
+  tapRotateNotice,
 } from "./menus";
 import { gameTime, togglePause } from "./pause";
 import { loadArt } from "./render/art";
@@ -138,6 +141,7 @@ export default function GameCanvas() {
       const input = createPointerInput();
       const menus = createMenus();
       const { pause } = menus;
+      const fullscreen = browserFullscreen(listeners.signal);
       let orders: Order[] = [];
       const padInput = createPadInput();
       /** The controller's buttons held last frame. */
@@ -184,10 +188,59 @@ export default function GameCanvas() {
       // button.
       let clickedAt: Vec | null = null;
       let keys: string[] = [];
+      /**
+       * Whether `at` is on the Fullscreen button, of the Rotate Notice or
+       * the pause menu, as last drawn.
+       */
+      const onFullscreenButton = (at: Vec): boolean =>
+        menus.rotateNotice
+          ? renderer.rotateNoticeChoiceAt(at, menus.fullscreen) === "fullscreen"
+          : pause.paused &&
+            renderer.menuChoiceAt(at, pause.confirming, menus.fullscreen) ===
+              "fullscreen";
+      /**
+       * Presses the Fullscreen button and carries out the menus' request at
+       * once, inside the event handler: browsers allow fullscreen only
+       * there.
+       */
+      const pressFullscreen = () => {
+        const asked = menus.rotateNotice
+          ? tapRotateNotice(menus, "fullscreen")
+          : clickPaused(menus, "fullscreen", performance.now());
+        if (asked === "fullscreen") fullscreen.toggle();
+      };
+      /** The finger or pen pressed on the Fullscreen button, till it lifts. */
+      let fullscreenPointer: number | null = null;
       app.canvas.addEventListener(
         "pointerdown",
         (e) => {
-          clickedAt = { x: e.offsetX, y: e.offsetY };
+          const at = { x: e.offsetX, y: e.offsetY };
+          if (!onFullscreenButton(at)) {
+            clickedAt = at;
+          } else if (fullscreenPointerEvent(e.pointerType) === "pointerdown") {
+            pressFullscreen();
+          } else {
+            fullscreenPointer = e.pointerId;
+          }
+        },
+        { signal: listeners.signal },
+      );
+      // A finger or pen presses the Fullscreen button as it lifts there.
+      app.canvas.addEventListener(
+        "pointerup",
+        (e) => {
+          if (e.pointerId !== fullscreenPointer) return;
+          fullscreenPointer = null;
+          if (onFullscreenButton({ x: e.offsetX, y: e.offsetY })) {
+            pressFullscreen();
+          }
+        },
+        { signal: listeners.signal },
+      );
+      app.canvas.addEventListener(
+        "pointercancel",
+        (e) => {
+          if (e.pointerId === fullscreenPointer) fullscreenPointer = null;
         },
         { signal: listeners.signal },
       );
@@ -231,12 +284,16 @@ export default function GameCanvas() {
         // any key or click this frame, which it then takes for nothing.
         const viewport = viewportOf(app.screen);
         fitMenus(menus, viewport, realNow);
+        // Read every frame too, so leaving fullscreen the browser's way (Esc,
+        // the back gesture) turns the Fullscreen button back at once.
+        menus.fullscreen = fullscreen.read();
         // A controller gone while it was played opens the pause menu, so the
         // Hero isn't killed while it's plugged back in.
         if (controllerLost && !pause.paused) togglePause(pause, realNow);
         controllerLost = false;
         let pressed = clickedAt !== null;
-        let newHero = false;
+        /** What the menus asked for this frame, carried out below. */
+        const requests = new Set<MenuRequest>();
         for (const key of keys) {
           const hero = { heroDead: world.death !== null };
           const used = pressKey(menus, key, realNow, hero);
@@ -250,7 +307,7 @@ export default function GameCanvas() {
             const drink = drinkKeyOrder(key);
             if (drink) orders.push(drink);
           }
-          if (used === "newHero") newHero = true;
+          if (used !== null && used !== "handled") requests.add(used);
         }
         // The controller, read every frame so its buttons' presses and
         // releases are seen, and polled with the panels as the keys left
@@ -281,13 +338,25 @@ export default function GameCanvas() {
         });
         for (const button of polled.presses) {
           const hero = { heroDead: world.death !== null };
-          if (pressPad(menus, button, realNow, hero) === "newHero") {
-            newHero = true;
-          }
+          const used = pressPad(menus, button, realNow, hero);
+          if (used !== null && used !== "handled") requests.add(used);
         }
         if (clickedAt && wasPaused && pause.paused) {
-          const choice = renderer.menuChoiceAt(clickedAt, pause.confirming);
-          if (clickPaused(menus, choice, realNow) === "newHero") newHero = true;
+          const choice = renderer.menuChoiceAt(
+            clickedAt,
+            pause.confirming,
+            menus.fullscreen,
+          );
+          const asked = clickPaused(menus, choice, realNow);
+          if (asked !== null) requests.add(asked);
+        }
+        // A click or tap on the Fullscreen button never gets here: its
+        // event handler carried it out, as the browser asks. The Rotate
+        // Notice takes every other click for nothing.
+        if (requests.has("fullscreen")) {
+          // Only from the controller's A, which browsers don't count as the
+          // player's own action, so one may refuse it.
+          fullscreen.toggle();
         }
         if (wasPaused || pause.paused) {
           // Neither a click on the menu nor a hold from before the pause
@@ -298,7 +367,7 @@ export default function GameCanvas() {
         }
         clickedAt = null;
         keys = [];
-        if (newHero) {
+        if (requests.has("newHero")) {
           // Confirmed in the menu: the Save goes, and a fresh Level 1 Hero
           // starts in Town.
           removeSave(storage);

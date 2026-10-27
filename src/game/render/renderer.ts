@@ -7,11 +7,13 @@ import {
   Text,
 } from "pixi.js";
 import type { CursorHit } from "../cursor";
+import type { Fullscreen } from "../fullscreen";
 import type { ActiveInput } from "../input/activeInput";
 import { castButton } from "../input/pad";
 import { buttonsHeld, stickHeld, type TouchControls } from "../input/touch";
 import { toScreen, toTile } from "../iso";
 import {
+  type FullscreenChoice,
   type HeroState,
   type MenuChoice,
   type Menus,
@@ -132,8 +134,18 @@ import {
   panelButtonsSheet,
   panelButtonTooltipRect,
 } from "./panelButtons";
-import { menuChoiceAt, PAUSE_MENU_LAYOUT, pauseMenuLayout } from "./pauseMenu";
-import { rotateNoticeText } from "./rotateNotice";
+import {
+  type MenuButton,
+  menuChoiceAt,
+  PAUSE_MENU_LAYOUT,
+  pauseMenuLayout,
+} from "./pauseMenu";
+import {
+  ROTATE_NOTICE_LAYOUT,
+  rotateNoticeChoiceAt,
+  rotateNoticeLayout,
+  rotateNoticeText,
+} from "./rotateNotice";
 import { SKILL_BAR, skillBarLayout, skillBarSheet } from "./skillBar";
 import {
   SKILL_TREE_PANEL,
@@ -658,7 +670,7 @@ export function createRenderer(
   const menu = pauseMenuView(activeInput);
   app.stage.addChild(menu.layer);
   // Instead of the game, over everything.
-  const notice = rotateNoticeView();
+  const notice = rotateNoticeView(activeInput);
   app.stage.addChild(notice.layer);
 
   /** Living Monsters and Corpses by id. */
@@ -887,10 +899,38 @@ export function createRenderer(
 
     /**
      * The pause-menu button under a click on the canvas (CSS px), or null
-     * off them all; `confirming` while asking to confirm a New Hero.
+     * off them all; `confirming` while asking to confirm a New Hero, and
+     * the Fullscreen button only where `fullscreen` says it's allowed.
      */
-    menuChoiceAt(screen: Vec, confirming: boolean): MenuChoice | null {
-      return menuChoiceAt(viewportOf(app.screen), screen, confirming);
+    menuChoiceAt(
+      screen: Vec,
+      confirming: boolean,
+      fullscreen: Fullscreen,
+    ): MenuChoice | null {
+      return menuChoiceAt(
+        viewportOf(app.screen),
+        screen,
+        confirming,
+        activeInput.way,
+        fullscreen,
+      );
+    },
+
+    /**
+     * The Rotate Notice's Fullscreen button under a tap on the canvas (CSS
+     * px), or null: shown only for touch on a screen too small, where
+     * `fullscreen` says it's allowed.
+     */
+    rotateNoticeChoiceAt(
+      screen: Vec,
+      fullscreen: Fullscreen,
+    ): FullscreenChoice | null {
+      return rotateNoticeChoiceAt(
+        viewportOf(app.screen),
+        screen,
+        activeInput.way,
+        fullscreen,
+      );
     },
 
     /** Turns a step's events into effects. */
@@ -1344,8 +1384,9 @@ export function createRenderer(
         world.hero.progress.level,
         // Only a controller picks with the menu's focus.
         activeInput.way === "controller" ? menus.menuFocus : null,
+        menus.fullscreen,
       );
-      notice.draw(viewport);
+      notice.draw(viewport, menus.fullscreen);
 
       const markerProgress =
         markedAtMs === null
@@ -2357,7 +2398,11 @@ function heroPanelView(activeInput: Readonly<ActiveInput>) {
         .stroke({ color: style.edge, width: 2 });
       closeButton(graphics, layout.closeButton, scale);
       title.position.set(panel.x + panel.w / 2, panel.y + padding);
-      hint.position.set(panel.x + panel.w / 2, panel.y + panel.h - padding);
+      const { closeHint } = layout;
+      hint.position.set(
+        closeHint.x + closeHint.w / 2,
+        closeHint.y + closeHint.h,
+      );
 
       const place = (
         shown: Row,
@@ -2981,24 +3026,24 @@ function pauseMenuView(activeInput: Readonly<ActiveInput>) {
   ];
   const content = new Container();
   content.addChild(box, heading, credits, confirm, resume);
+  layer.addChild(dark, content);
   // On the screen, where `pauseMenuLayout` puts them.
-  const buttons = new Graphics();
-  /** Made as the layout first lists them. */
-  const labels: Text[] = [];
-  layer.addChild(dark, content, buttons);
+  const buttons = menuButtonsView(layer);
   layer.visible = false;
 
   return {
     layer,
     /**
      * While confirming, asks whether to give up the Level `level` Hero for a
-     * New Hero. The button `focus` names is ringed, for a controller.
+     * New Hero. The button `focus` names is ringed, for a controller. The
+     * Fullscreen button shows, and reads, as `fullscreen` says.
      */
     draw(
       screen: Viewport,
       pause: Pause,
       level: number,
       focus: MenuChoice | null,
+      fullscreen: Fullscreen,
     ) {
       layer.visible = pause.paused;
       if (!pause.paused) return;
@@ -3013,7 +3058,12 @@ function pauseMenuView(activeInput: Readonly<ActiveInput>) {
       }
       resume.text = resumeHint(confirming, activeInput.way);
       dark.scale.set(screen.width, screen.height);
-      const layout = pauseMenuLayout(screen, confirming, activeInput.way);
+      const layout = pauseMenuLayout(
+        screen,
+        confirming,
+        activeInput.way,
+        fullscreen,
+      );
       const scale = screen.uiScale;
       content.position.set(layout.panel.x, layout.panel.y);
       box.scale.set(scale);
@@ -3022,15 +3072,112 @@ function pauseMenuView(activeInput: Readonly<ActiveInput>) {
         if (line) text.style.lineHeight = line.lineHeight * scale;
         text.position.set((width / 2) * scale, y * scale);
       }
+      buttons.draw(layout.buttons, scale, focus);
+    },
+  };
+}
 
-      buttons.clear();
+/**
+ * The Rotate Notice's look: the pause menu's colours on a screen blacked
+ * out, its title and text centred. Its sizes are `ROTATE_NOTICE_LAYOUT`'s.
+ */
+const ROTATE_NOTICE = {
+  title: { colour: PAUSE_MENU.title.colour },
+  body: { colour: PAUSE_MENU.credit.colour },
+};
+
+/**
+ * The Rotate Notice, hiding the game while the viewport says it shows:
+ * asking to turn the screen sideways, or saying it's too small, in the
+ * Active Input's words, with the Fullscreen button for touch where the
+ * browser allows fullscreen.
+ */
+function rotateNoticeView(activeInput: Readonly<ActiveInput>) {
+  const { titleSize, bodySize, lineHeight, margin } = ROTATE_NOTICE_LAYOUT;
+  const layer = new Container();
+  const black = new Graphics().rect(0, 0, 1, 1).fill(0x000000);
+  const heading = new Text({
+    text: "",
+    style: {
+      fill: ROTATE_NOTICE.title.colour,
+      fontSize: titleSize,
+      fontFamily: SERIF,
+      align: "center",
+      wordWrap: true,
+    },
+  });
+  heading.anchor.set(0.5, 1);
+  const message = new Text({
+    text: "",
+    style: {
+      fill: ROTATE_NOTICE.body.colour,
+      fontSize: bodySize,
+      fontFamily: SERIF,
+      align: "center",
+      lineHeight,
+      wordWrap: true,
+    },
+  });
+  message.anchor.set(0.5, 0);
+  layer.addChild(black, heading, message);
+  const buttons = menuButtonsView(layer);
+  layer.visible = false;
+
+  return {
+    layer,
+    /** The Fullscreen button shows, and reads, as `fullscreen` says. */
+    draw(screen: Viewport, fullscreen: Fullscreen) {
+      layer.visible = screen.rotateNotice !== null;
+      if (screen.rotateNotice === null) return;
+      const text = rotateNoticeText(screen.rotateNotice, activeInput.way);
+      heading.text = text.title;
+      message.text = text.body;
+      black.scale.set(screen.width, screen.height);
+      const scale = screen.uiScale;
+      const wrap = Math.max(1, screen.width - 2 * margin * scale);
+      for (const t of [heading, message]) {
+        if (t.style.wordWrapWidth !== wrap) t.style.wordWrapWidth = wrap;
+      }
+      sizeText(heading, titleSize * scale);
+      sizeText(message, bodySize * scale);
+      if (message.style.lineHeight !== lineHeight * scale) {
+        message.style.lineHeight = lineHeight * scale;
+      }
+      const layout = rotateNoticeLayout(screen, activeInput.way, fullscreen);
+      heading.position.set(screen.width / 2, layout.title.bottom);
+      message.position.set(screen.width / 2, layout.body.top);
+      buttons.draw(layout.button ? [layout.button] : [], scale, null);
+    },
+  };
+}
+
+/**
+ * Menu buttons with their labels, added to `layer`: the pause menu's, and
+ * the Rotate Notice's Fullscreen button.
+ */
+function menuButtonsView(layer: Container) {
+  const graphics = new Graphics();
+  layer.addChild(graphics);
+  /** Made as the buttons are first drawn. */
+  const labels: Text[] = [];
+  return {
+    /**
+     * Draws `buttons` where they are laid out, at the UI Scale `scale`,
+     * ringing the one `focus` names for a controller.
+     */
+    draw(
+      buttons: readonly MenuButton[],
+      scale: number,
+      focus: MenuChoice | null,
+    ) {
+      graphics.clear();
       for (const label of labels) label.visible = false;
-      layout.buttons.forEach(({ choice, label: name, rect }, i) => {
-        button(buttons, rect);
+      buttons.forEach(({ choice, label: name, rect }, i) => {
+        button(graphics, rect);
         if (choice === focus) {
           const { colour, width } = FOCUS_RING;
           const ring = (width * scale) / 2 + 1;
-          buttons
+          graphics
             .rect(
               rect.x - ring,
               rect.y - ring,
@@ -3043,86 +3190,14 @@ function pauseMenuView(activeInput: Readonly<ActiveInput>) {
         const label = labels[i];
         label.text = name;
         label.visible = true;
-        sizeText(label, PAUSE_MENU.button.size * screen.uiScale);
+        sizeText(label, PAUSE_MENU.button.size * scale);
         label.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
       });
     },
   };
 }
 
-/**
- * The Rotate Notice's look: the pause menu's colours on a screen blacked
- * out, its title and text centred, sizes at native scale.
- */
-const ROTATE_NOTICE = {
-  title: { colour: PAUSE_MENU.title.colour, size: 30 },
-  body: { colour: PAUSE_MENU.credit.colour, size: 17, lineHeight: 24 },
-  gap: 16,
-  margin: 16,
-};
-
-/**
- * The Rotate Notice, hiding the game while the viewport says it shows:
- * asking to turn the screen sideways or to enlarge it.
- */
-function rotateNoticeView() {
-  const { title, body, gap, margin } = ROTATE_NOTICE;
-  const layer = new Container();
-  const black = new Graphics().rect(0, 0, 1, 1).fill(0x000000);
-  const heading = new Text({
-    text: "",
-    style: {
-      fill: title.colour,
-      fontSize: title.size,
-      fontFamily: SERIF,
-      align: "center",
-      wordWrap: true,
-    },
-  });
-  heading.anchor.set(0.5, 1);
-  const message = new Text({
-    text: "",
-    style: {
-      fill: body.colour,
-      fontSize: body.size,
-      fontFamily: SERIF,
-      align: "center",
-      lineHeight: body.lineHeight,
-      wordWrap: true,
-    },
-  });
-  message.anchor.set(0.5, 0);
-  layer.addChild(black, heading, message);
-  layer.visible = false;
-
-  return {
-    layer,
-    draw(screen: Viewport) {
-      layer.visible = screen.rotateNotice !== null;
-      if (screen.rotateNotice === null) return;
-      const text = rotateNoticeText(screen.rotateNotice);
-      heading.text = text.title;
-      message.text = text.body;
-      black.scale.set(screen.width, screen.height);
-      const scale = screen.uiScale;
-      const wrap = Math.max(1, screen.width - 2 * margin * scale);
-      for (const t of [heading, message]) {
-        if (t.style.wordWrapWidth !== wrap) t.style.wordWrapWidth = wrap;
-      }
-      sizeText(heading, title.size * scale);
-      sizeText(message, body.size * scale);
-      const lineHeight = body.lineHeight * scale;
-      if (message.style.lineHeight !== lineHeight) {
-        message.style.lineHeight = lineHeight;
-      }
-      const middle = Math.round(screen.height / 2);
-      heading.position.set(screen.width / 2, middle - (gap / 2) * scale);
-      message.position.set(screen.width / 2, middle + (gap / 2) * scale);
-    },
-  };
-}
-
-/** A pause-menu button's label, centred where it's put, added to `layer`. */
+/** A menu button's label, centred where it's put, added to `layer`. */
 function menuLabel(layer: Container): Text {
   const label = new Text({
     text: "",

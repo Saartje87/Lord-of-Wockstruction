@@ -14,6 +14,7 @@ import {
   pressPad,
   reactMenus,
   removePendingPoint,
+  tapRotateNotice,
   unplacedPoints,
 } from "./menus";
 import { gameTime, togglePause } from "./pause";
@@ -243,6 +244,85 @@ describe("a click while paused", () => {
     expect(clickPaused(menus, null, 3000)).toBeNull();
     expect(menus.pause.paused).toBe(false);
     expect(menus.pause.confirming).toBe(false);
+  });
+});
+
+describe("the Fullscreen button", () => {
+  /** Menus paused by Esc where the browser allows fullscreen, at 1000. */
+  function pausedWithFullscreen(on = false) {
+    const menus = createMenus();
+    menus.fullscreen = { available: true, on };
+    pressKey(menus, "Escape", 1000, alive);
+    return menus;
+  }
+
+  it("asks for fullscreen on a click or tap, leaving the menu open", () => {
+    const menus = pausedWithFullscreen();
+
+    expect(clickPaused(menus, "fullscreen", 2000)).toBe("fullscreen");
+    expect(menus.pause.paused).toBe(true);
+    expect(menus.pause.confirming).toBe(false);
+  });
+
+  it("asks to leave fullscreen the same way while fullscreen", () => {
+    const menus = pausedWithFullscreen(true);
+
+    expect(clickPaused(menus, "fullscreen", 2000)).toBe("fullscreen");
+    expect(menus.pause.paused).toBe(true);
+  });
+
+  it("is reached by the controller's focus, and A asks for fullscreen", () => {
+    const menus = createMenus();
+    menus.fullscreen = { available: true, on: false };
+    pressPad(menus, "menu", 1000, alive);
+
+    pressPad(menus, "right", 2000, alive);
+    expect(menus.menuFocus).toBe("fullscreen");
+
+    expect(pressPad(menus, "a", 3000, alive)).toBe("fullscreen");
+    expect(menus.pause.paused).toBe(true);
+    expect(menus.pause.confirming).toBe(false);
+    expect(menus.menuFocus).toBe("fullscreen");
+  });
+
+  it("can't be reached by the controller where the browser forbids it", () => {
+    const menus = createMenus();
+    pressPad(menus, "menu", 1000, alive);
+
+    pressPad(menus, "right", 2000, alive);
+
+    expect(menus.menuFocus).toBe("newHero");
+  });
+
+  it("leaves New Hero to ask to confirm, and Yes to start one", () => {
+    const menus = pausedWithFullscreen();
+
+    expect(clickPaused(menus, "newHero", 2000)).toBeNull();
+    expect(menus.pause.confirming).toBe(true);
+    expect(clickPaused(menus, "confirm", 3000)).toBe("newHero");
+    expect(menus.pause.paused).toBe(false);
+  });
+
+  it("leaves New Hero to the controller, left of it", () => {
+    const menus = createMenus();
+    menus.fullscreen = { available: true, on: false };
+    pressPad(menus, "menu", 1000, alive);
+    pressPad(menus, "right", 2000, alive);
+
+    pressPad(menus, "left", 3000, alive);
+    pressPad(menus, "a", 4000, alive);
+    pressPad(menus, "up", 5000, alive);
+
+    expect(menus.pause.confirming).toBe(true);
+    expect(pressPad(menus, "a", 6000, alive)).toBe("newHero");
+  });
+
+  it("does nothing while the Rotate Notice shows", () => {
+    const menus = pausedWithFullscreen();
+    fitMenus(menus, { compact: true, rotateNotice: "tooSmall" }, 2000);
+
+    expect(clickPaused(menus, "fullscreen", 3000)).toBeNull();
+    expect(pressPad(menus, "a", 3000, alive)).toBe("handled");
   });
 });
 
@@ -860,6 +940,86 @@ describe("the Rotate Notice", () => {
 
     expect(menus.pause.paused).toBe(true);
     expect(menus.pause.confirming).toBe(false);
+  });
+
+  describe("on a touch screen too small, where fullscreen is allowed", () => {
+    const tooSmall = { compact: true, rotateNotice: "tooSmall" } as const;
+    /** Menus with the notice showing, paused by it at 1000. */
+    const showing = () => {
+      const menus = createMenus();
+      menus.fullscreen = { available: true, on: false };
+      fitMenus(menus, tooSmall, 1000);
+      return menus;
+    };
+
+    it("asks for fullscreen on a tap on its Fullscreen button", () => {
+      const menus = showing();
+
+      expect(tapRotateNotice(menus, "fullscreen")).toBe("fullscreen");
+
+      expect(menus.pause.paused).toBe(true);
+      expect(menus.pause.confirming).toBe(false);
+    });
+
+    it("takes a tap anywhere else and does nothing", () => {
+      const menus = showing();
+
+      expect(tapRotateNotice(menus, null)).toBeNull();
+
+      expect(menus.pause.paused).toBe(true);
+      fitMenus(menus, sideways, 3000);
+      expect(menus.pause.paused).toBe(false);
+    });
+
+    it("still takes every other input for nothing", () => {
+      const menus = showing();
+
+      expect(clickPaused(menus, "fullscreen", 2000)).toBeNull();
+      expect(clickPaused(menus, null, 2000)).toBeNull();
+      expect(pressKey(menus, "Escape", 2000, alive)).toBe("handled");
+      expect(pressPad(menus, "a", 2000, alive)).toBe("handled");
+      expect(pressPad(menus, "menu", 2000, alive)).toBe("handled");
+
+      expect(menus.pause.paused).toBe(true);
+      expect(menus.pause.confirming).toBe(false);
+    });
+
+    it("asks for nothing where the browser doesn't allow fullscreen", () => {
+      const menus = showing();
+      menus.fullscreen = { available: false, on: false };
+
+      expect(tapRotateNotice(menus, "fullscreen")).toBeNull();
+    });
+
+    it("asks for nothing once the notice has gone", () => {
+      const menus = showing();
+      fitMenus(menus, sideways, 2000);
+
+      expect(tapRotateNotice(menus, "fullscreen")).toBeNull();
+    });
+
+    it("resumes the World it paused once fullscreen gives room", () => {
+      const menus = showing();
+      tapRotateNotice(menus, "fullscreen");
+      menus.fullscreen = { available: true, on: true };
+
+      fitMenus(menus, sideways, 61_000);
+
+      expect(menus.pause.paused).toBe(false);
+      expect(gameTime(menus.pause, 61_016)).toBe(1016);
+    });
+
+    it("leaves the pause menu open once fullscreen gives room, if it was open before", () => {
+      const menus = createMenus();
+      menus.fullscreen = { available: true, on: false };
+      pressKey(menus, "Escape", 500, alive);
+      fitMenus(menus, tooSmall, 1000);
+      tapRotateNotice(menus, "fullscreen");
+
+      fitMenus(menus, sideways, 2000);
+
+      expect(menus.pause.paused).toBe(true);
+    });
   });
 
   it("opens no panel from a Panel button or the Level Up button", () => {

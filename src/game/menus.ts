@@ -1,3 +1,4 @@
+import { type Fullscreen, NO_FULLSCREEN } from "./fullscreen";
 import { DIRECTIONS, type PadButton } from "./input/pad";
 import { createPause, type Pause, togglePause } from "./pause";
 import {
@@ -44,6 +45,11 @@ export type Menus = {
    * until the controller first touches the menu.
    */
   menuFocus: MenuChoice | null;
+  /**
+   * Whether the browser allows fullscreen and whether the game is
+   * fullscreen, as the game loop last read them from the browser.
+   */
+  fullscreen: Fullscreen;
 };
 
 /** A count of Pending Attribute Points on each Attribute. */
@@ -61,6 +67,7 @@ export function createMenus(): Menus {
     rotateNotice: false,
     pausedForNotice: false,
     menuFocus: null,
+    fullscreen: NO_FULLSCREEN,
   };
 }
 
@@ -79,16 +86,31 @@ export type HeroState = { heroDead: boolean };
 
 /**
  * The pause menu's buttons: New Hero asks to confirm one, and then
- * `confirm` starts it while `goBack` returns to the menu.
+ * `confirm` starts it while `goBack` returns to the menu; the Fullscreen
+ * button asks to go in or out of fullscreen.
  */
-export type MenuChoice = "newHero" | "confirm" | "goBack";
+export type MenuChoice = "newHero" | "confirm" | "goBack" | "fullscreen";
+
+/** The Fullscreen button, the Rotate Notice's one choice. */
+export type FullscreenChoice = Extract<MenuChoice, "fullscreen">;
 
 /**
- * The pause menu's buttons in their row from left to right: New Hero, or
- * Yes and No while `confirming` one.
+ * What the menus ask the game loop to carry out: start a New Hero, or take
+ * the game in or out of fullscreen.
  */
-export function menuChoices(confirming: boolean): MenuChoice[] {
-  return confirming ? ["confirm", "goBack"] : ["newHero"];
+export type MenuRequest = "newHero" | "fullscreen";
+
+/**
+ * The pause menu's buttons in their row from left to right: New Hero, and
+ * the Fullscreen button where `fullscreen` says the browser allows it, or
+ * Yes and No while `confirming` a New Hero.
+ */
+export function menuChoices(
+  confirming: boolean,
+  fullscreen: Fullscreen,
+): MenuChoice[] {
+  if (confirming) return ["confirm", "goBack"];
+  return fullscreen.available ? ["newHero", "fullscreen"] : ["newHero"];
 }
 
 /**
@@ -106,7 +128,7 @@ export function pressKey(
   key: string,
   nowMs: number,
   hero: HeroState,
-): "newHero" | "handled" | null {
+): MenuRequest | "handled" | null {
   const { pause } = menus;
   if (menus.rotateNotice) return "handled";
   const letter = key.toLowerCase();
@@ -361,14 +383,15 @@ function closePanels(menus: Menus) {
 /**
  * A click at real time `nowMs` while paused, on one of the menu's buttons
  * or, for null, anywhere else, which resumes; nothing while the Rotate
- * Notice shows. Returns `"newHero"` once one
- * is confirmed, for the caller to start it.
+ * Notice shows. Returns `"newHero"` once one is confirmed, for the caller
+ * to start it, and `"fullscreen"` on the Fullscreen button, for the caller
+ * to take the game in or out of fullscreen, the menu staying open.
  */
 export function clickPaused(
   menus: Menus,
   choice: MenuChoice | null,
   nowMs: number,
-): "newHero" | null {
+): MenuRequest | null {
   if (menus.rotateNotice) return null;
   menus.menuFocus = null;
   if (choice === null) {
@@ -376,6 +399,22 @@ export function clickPaused(
     return null;
   }
   return choose(menus, choice, nowMs);
+}
+
+/**
+ * A tap while the Rotate Notice shows, on its Fullscreen button (`choice`)
+ * or, for null, anywhere else: the one input the notice lets through.
+ * Returns `"fullscreen"` on the button where the browser allows it, for the
+ * caller to take the game fullscreen, and otherwise null, taking the tap
+ * for nothing. The pause stays as it was: the notice going away resumes the
+ * World only if it paused it.
+ */
+export function tapRotateNotice(
+  menus: Menus,
+  choice: FullscreenChoice | null,
+): MenuRequest | null {
+  if (!menus.rotateNotice || !menus.fullscreen.available) return null;
+  return choice;
 }
 
 /**
@@ -387,14 +426,15 @@ export function clickPaused(
  * and with a panel open, LB and RB move to the panel before or after it (in
  * Panel-button order, round from the last to the first), shutting it as
  * its key would, and B shuts it. While the Rotate Notice shows, every
- * button is taken and does nothing. Returns as `pressKey` does.
+ * button is taken and does nothing. Returns as `pressKey` does, or
+ * `"fullscreen"` on A with the Fullscreen button picked, as `clickPaused`.
  */
 export function pressPad(
   menus: Menus,
   button: PadButton,
   nowMs: number,
   hero: HeroState,
-): "newHero" | "handled" | null {
+): MenuRequest | "handled" | null {
   const { pause } = menus;
   if (menus.rotateNotice) return "handled";
   if (pause.paused) return pressPaused(menus, button, nowMs);
@@ -427,9 +467,9 @@ function pressPaused(
   menus: Menus,
   button: PadButton,
   nowMs: number,
-): "newHero" | "handled" {
+): MenuRequest | "handled" {
   const { pause } = menus;
-  const choices = menuChoices(pause.confirming);
+  const choices = menuChoices(pause.confirming, menus.fullscreen);
   const picked = menus.menuFocus;
   const at = picked === null ? -1 : choices.indexOf(picked);
   if (button === "menu" || button === "b") {
@@ -447,14 +487,20 @@ function pressPaused(
   return "handled";
 }
 
-/** Presses pause-menu button `choice`, picking the new row's first choice. */
+/**
+ * Presses pause-menu button `choice`, picking the new row's first choice,
+ * or keeping the Fullscreen button picked.
+ */
 function pickChoice(
   menus: Menus,
   choice: MenuChoice,
   nowMs: number,
-): "newHero" | null {
+): MenuRequest | null {
   const started = choose(menus, choice, nowMs);
-  menus.menuFocus = defaultChoice(menus.pause.confirming);
+  // The Fullscreen button leaves the row as it was, so stays picked.
+  if (choice !== "fullscreen") {
+    menus.menuFocus = defaultChoice(menus.pause.confirming);
+  }
   return started;
 }
 
@@ -484,7 +530,7 @@ function choose(
   menus: Menus,
   choice: MenuChoice,
   nowMs: number,
-): "newHero" | null {
+): MenuRequest | null {
   const { pause } = menus;
   switch (choice) {
     case "newHero":
@@ -493,6 +539,8 @@ function choose(
     case "goBack":
       pause.confirming = false;
       return null;
+    case "fullscreen":
+      return "fullscreen";
     case "confirm":
       if (!pause.confirming) return null;
       // Starts afresh with nothing open.

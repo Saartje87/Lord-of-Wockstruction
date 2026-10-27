@@ -44,5 +44,5 @@ export const viewportTuning: ViewportTuning = {
   maxWorldZoom: 2,
   compactBelowHeight: 540,
   minPlayWidth: 640,
-  minPlayHeight: 360,
+  minPlayHeight: 320,
 };

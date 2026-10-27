@@ -69,6 +69,21 @@ describe("an Item's label", () => {
     });
   });
 
+  it("shrinks a Short name to a size it truly fits at, though text doesn't narrow in step with its size", () => {
+    /** Each character half the size wide, plus 1 px of spacing. */
+    const spaced = (text: string, size: number) =>
+      text.length * (size * 0.5 + 1);
+    // "Rejuv" is 32.5 px wide at 11 px, and 31 px at 10.4 px: in step with
+    // its size it would fit at 10.49 px, but is 31.2 px wide there.
+    const rejuvenation = { name: "Rejuvenation Potion", shortName: "Rejuv" };
+
+    const label = itemLabel({ ...rejuvenation, width: 31, measure: spaced });
+
+    expect(label.text).toBe("Rejuv");
+    expect(spaced(label.text, label.size)).toBeLessThanOrEqual(31);
+    expect(label.size).toBeCloseTo(10.4, 1);
+  });
+
   it("never shrinks below 10 px, however narrow the box", () => {
     expect(itemLabel({ ...ringOfLife, width: 5, measure })).toEqual({
       text: "Life",

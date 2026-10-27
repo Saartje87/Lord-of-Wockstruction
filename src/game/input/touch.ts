@@ -34,8 +34,8 @@ export function createTouchControls(): TouchControls {
  * starts the stick there; on the attack button it holds A; on a Skill
  * button, that slot's controller button; on the pause button or its touch
  * hit area, Menu, the only one taken while a panel is open (`pauseOnly`).
- * Returns whether the
- * touch controls take it; one they don't is for the pointer.
+ * Returns whether the touch controls take it; one they don't is for the
+ * pointer.
  */
 export function touchDown(
   controls: TouchControls,

@@ -114,6 +114,7 @@ export function touchControlsLayout(
   ) as Record<SkillBarSlot, Rect>;
   // The panels and the rest of the HUD take a touch before the touch
   // controls do, and their hit areas stop halfway to the drawn pause button.
+  // That relies on GameCanvas asking `panelAt` before `touchDown`.
   const neighbours = [
     ...Object.values(buttons),
     ...(pauseOnly ? [] : [attackRect, ...Object.values(skillRects)]),

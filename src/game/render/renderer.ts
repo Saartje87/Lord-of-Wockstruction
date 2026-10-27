@@ -1812,9 +1812,7 @@ function beltStripView(activeInput: Readonly<ActiveInput>) {
           key.anchor.set(1, 0);
           const count = text(style.name);
           count.anchor.set(0, 1);
-          // Outlined to read over the Potion it names.
           const name = text(INVENTORY_STYLE.itemText);
-          name.style.stroke = { color: 0x000000, width: 2 };
           name.anchor.set(0.5);
           labels[index] = { key, count, name };
         }
@@ -1842,7 +1840,8 @@ function beltStripView(activeInput: Readonly<ActiveInput>) {
             .circle(centreX, centreY, 10 * scale)
             .fill(colour)
             .stroke({ color: style.skillEdge, width: 1 });
-          labelItem(name, shown.type, rect.w - 4, scale);
+          // Outlined to read over the Potion it names.
+          labelItem(name, shown.type, rect.w, scale, 2);
           name.position.set(centreX, centreY);
         }
         name.visible = shown.type !== null;
@@ -2742,7 +2741,7 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
       .fill({ color: itemColour(type), alpha })
       .stroke({ color: look.itemEdge, width: 1 });
     name.visible = true;
-    labelItem(name, type, rect.w - 4, scale);
+    labelItem(name, type, rect.w, scale);
     name.anchor.set(0.5);
     name.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
   };
@@ -3231,14 +3230,6 @@ function menuLabel(layer: Container): Text {
   return label;
 }
 
-/** The point `alpha` (0..1) of the way from `from` to `to`. */
-/** The width of the black outline `sizeText` last gave each text. */
-const strokeWidths = new WeakMap<Text, number>();
-
-/**
- * Sets `text`'s font size, and its black outline's width if given, only
- * when they change, as each change renders the text afresh.
- */
 /** The style Item labels are measured in, made on first use. */
 let itemLabelStyle: TextStyle | null = null;
 
@@ -3249,26 +3240,43 @@ function measureItemText(text: string, size: number): number {
   return CanvasTextMetrics.measureText(text, itemLabelStyle).width;
 }
 
+/** How far an Item's label keeps in from each side of its box (CSS px). */
+const ITEM_LABEL_INSET = 2;
+
 /**
- * Sets `text` to an Item type's label for a box `width` CSS px wide inside,
- * on one line, at the UI Scale `scale`: the full name, or the Short name
- * where it won't fit. Names grow with a UI Scale over 1, never shrink below
- * their normal size with one under it.
+ * Sets `text` to an Item type's label for a box `width` CSS px wide, on one
+ * line inside its inset, at the UI Scale `scale`, with a black outline
+ * `stroke` wide if given: the full name, or the Short name where it won't
+ * fit. Names grow with a UI Scale over 1, never shrink below their normal
+ * size with one under it.
  */
-function labelItem(text: Text, type: ItemType, width: number, scale: number) {
+function labelItem(
+  text: Text,
+  type: ItemType,
+  width: number,
+  scale: number,
+  stroke?: number,
+) {
   const { name, shortName } = itemOf(type);
   const label = itemLabel({
     name,
     shortName,
-    width,
+    width: width - 2 * ITEM_LABEL_INSET,
     measure: measureItemText,
     size: ITEM_TEXT.size * Math.max(1, scale),
   });
   text.text = label.text;
   text.style.wordWrap = false;
-  sizeText(text, label.size);
+  sizeText(text, label.size, stroke);
 }
 
+/** The width of the black outline `sizeText` last gave each text. */
+const strokeWidths = new WeakMap<Text, number>();
+
+/**
+ * Sets `text`'s font size, and its black outline's width if given, only
+ * when they change, as each change renders the text afresh.
+ */
 function sizeText(text: Text, size: number, stroke?: number) {
   if (text.style.fontSize !== size) text.style.fontSize = size;
   if (stroke !== undefined && strokeWidths.get(text) !== stroke) {
@@ -3277,6 +3285,7 @@ function sizeText(text: Text, size: number, stroke?: number) {
   }
 }
 
+/** The point `alpha` (0..1) of the way from `from` to `to`. */
 function lerp(from: Vec, to: Vec, alpha: number): Vec {
   return {
     x: from.x + (to.x - from.x) * alpha,

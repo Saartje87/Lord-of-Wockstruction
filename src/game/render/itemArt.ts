@@ -37,8 +37,9 @@ export type ItemLabel = { text: string; size: number };
 /**
  * The label inside an Item's box, `width` CSS px wide inside, on one line:
  * the full `name` at `size` if it fits, else the Short name at `size` if it
- * fits, else the Short name at the largest size down to `minSize` that fits,
- * else at `minSize` anyway. `measure` gives a text's width at a size.
+ * fits, else the Short name at the largest size down to `ITEM_TEXT.minSize`
+ * that fits, else at `ITEM_TEXT.minSize` anyway. `measure` gives a text's
+ * width at a size.
  */
 export function itemLabel({
   name,
@@ -46,21 +47,30 @@ export function itemLabel({
   width,
   measure,
   size = ITEM_TEXT.size,
-  minSize = ITEM_TEXT.minSize,
 }: {
   name: string;
   shortName: string;
   width: number;
   measure: (text: string, size: number) => number;
   size?: number;
-  minSize?: number;
 }): ItemLabel {
   if (measure(name, size) <= width) return { text: name, size };
-  const shortWidth = measure(shortName, size);
-  if (shortWidth <= width) return { text: shortName, size };
-  // A text's width grows with its size, so this is the size it just fits at.
-  return {
-    text: shortName,
-    size: Math.max(minSize, (size * width) / shortWidth),
-  };
+  const fits = (at: number) => measure(shortName, at) <= width;
+  if (fits(size)) return { text: shortName, size };
+  const { minSize } = ITEM_TEXT;
+  // Were its width in step with its size, it would just fit here.
+  const inStep = (size * width) / measure(shortName, size);
+  if (inStep <= minSize || !fits(minSize)) {
+    return { text: shortName, size: minSize };
+  }
+  if (fits(inStep)) return { text: shortName, size: inStep };
+  // It doesn't narrow in step, so close in on the largest size that fits.
+  let fitting = minSize;
+  let tooBig = inStep;
+  for (let step = 0; step < 12; step++) {
+    const between = (fitting + tooBig) / 2;
+    if (fits(between)) fitting = between;
+    else tooBig = between;
+  }
+  return { text: shortName, size: fitting };
 }

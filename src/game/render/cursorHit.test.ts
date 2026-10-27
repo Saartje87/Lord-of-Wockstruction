@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createMenus, noPendingPoints, PANELS } from "../menus";
 import { beltRows, emptyBelt } from "../sim/belt";
-import { middleOf, overlaps, type Rect } from "../sim/rect";
+import { inside, middleOf, overlaps, type Rect } from "../sim/rect";
 import { emptySkillBar } from "../sim/skillBar";
 import {
   ATTRIBUTES,
@@ -370,6 +370,57 @@ describe.each(PHONES)("with touch at $width×$height", (size) => {
   });
 });
 
+describe.each([
+  ...PHONES.map((size) => ({
+    at: `${size.width}×${size.height}`,
+    screen: viewportOf(size),
+  })),
+  // Drawn small enough that a Panel button's hit area reaches into the
+  // panel beside it.
+  {
+    at: "640×320 at a UI Scale of 0.5",
+    screen: { ...viewportOf(PHONES[0]), uiScale: 0.5 },
+  },
+])("with touch at $at, the Compact Layout's open panel", ({ screen }) => {
+  const { buttons } = panelButtonsLayout(screen);
+  const w = world("sash");
+  const panels = [
+    { name: "hero", open: heroOpen, panel: heroPanelLayout(screen).panel },
+    {
+      name: "inventory",
+      open: inventoryOpen,
+      panel: inventoryPanelLayout(screen, beltRows(w)).panel,
+    },
+    {
+      name: "skillTree",
+      open: { ...createMenus(), skillTreeOpen: true },
+      panel: skillTreePanelLayout(screen).panel,
+    },
+  ];
+
+  it.each(
+    panels,
+  )("$name keeps a touch on it from the Panel buttons beside it", ({
+    open,
+    panel,
+  }) => {
+    expect(screen.compact).toBe(true);
+    // Every point a Panel button's 44 px square hit area could reach.
+    for (const rect of Object.values(buttons)) {
+      const { x: midX, y: midY } = middleOf(rect);
+      for (let x = midX - 22.5; x < midX + 23; x += 1) {
+        for (let y = midY - 22.5; y < midY + 23; y += 1) {
+          const point = { x, y };
+          if (!inside(panel, point)) continue;
+          const hit = cursorHitAt(screen, point, w, open, true);
+          const button = hoveredPanelButton(hit);
+          if (button) expect(inside(buttons[button], point)).toBe(true);
+        }
+      }
+    }
+  });
+});
+
 /** A Level 3 Hero with the Golem at `golem` and `skillPoints` unspent. */
 function withGolem(golem: number, skillPoints: number) {
   return createWorld({
@@ -484,6 +535,33 @@ describe.each([
       for (const point of nearMisses()) {
         const hit = cursorHitAt(screen, point, w, treeOpen, false);
         expect(hit).not.toEqual(learn);
+      }
+    }
+  });
+});
+
+describe.each([
+  { at: "1280×720", screen: viewportOf({ width: 1280, height: 720 }) },
+  // Drawn small enough that its panel's padding is narrower than the +
+  // hit area's reach.
+  {
+    at: "1280×720 at a UI Scale of 0.5",
+    screen: { ...viewportOf({ width: 1280, height: 720 }), uiScale: 0.5 },
+  },
+])("with touch on the Skill Tree at $at", ({ screen }) => {
+  it("a + hit area never reaches off its panel", () => {
+    const w = withGolem(1, 1);
+    const { panel, raise } = skillTreePanelLayout(screen);
+    const treeOpen = { ...createMenus(), skillTreeOpen: true };
+    const { x: midX, y: midY } = middleOf(raise.golem);
+    // Every point its 44 px square hit area could reach.
+    for (let x = midX - 22.5; x < midX + 23; x += 1) {
+      for (let y = midY - 22.5; y < midY + 23; y += 1) {
+        const point = { x, y };
+        if (inside(panel, point)) continue;
+        expect(cursorHitAt(screen, point, w, treeOpen, true)).not.toEqual({
+          button: { type: "learn", skill: "golem" },
+        });
       }
     }
   });

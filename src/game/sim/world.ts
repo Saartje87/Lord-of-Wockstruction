@@ -561,8 +561,9 @@ function copyProgress(progress: Progress): Progress {
  * Town at its `start` Entry with full Life: with `progress` and `belongings`
  * if given, or a fresh Level 1 Hero with a Short Sword if not. `tilesets`
  * holds the raw `.tsj` content of the tilesets the Areas keep in their own
- * files, keyed by file name. Throws,
- * naming the Area, on content that doesn't fit together (see
+ * files, keyed by file name. With `start`, the Hero starts at that Entry
+ * instead, as if just arrived there, or in Town if there's no such Entry.
+ * Throws, naming the Area, on content that doesn't fit together (see
  * `validateAreas`).
  */
 export function createWorld(options: {
@@ -571,6 +572,7 @@ export function createWorld(options: {
   seed: number;
   progress?: Progress | null;
   belongings?: Belongings | null;
+  start?: { area: string; entry: string } | null;
 }): World {
   const areas: Record<string, Area> = {};
   for (const [name, content] of Object.entries(options.areas)) {
@@ -631,6 +633,14 @@ export function createWorld(options: {
   world.hero.life = maxLife(world);
   world.hero.mana = maxMana(world);
   for (const spawn of town.spawns) placePack(world, town, spawn);
+  const at = options.start;
+  if (
+    at &&
+    Object.hasOwn(areas, at.area) &&
+    Object.hasOwn(areas[at.area].entries, at.entry)
+  ) {
+    arrive(world, { ...at, elapsed: ARRIVE_STEP }, []);
+  }
   return world;
 }
 

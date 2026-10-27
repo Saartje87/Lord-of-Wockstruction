@@ -51,6 +51,43 @@ describe("createWorld", () => {
     expect(world.hero.pos).toEqual({ x: 1.5, y: 1.5 });
   });
 
+  it("puts the Hero at the `start` option's Entry, with its Monsters", () => {
+    const fromTown = { ...start, name: "from-town", x: 16, y: 16 };
+    const skeleton = {
+      name: "",
+      type: "monsterSpawn",
+      point: true,
+      x: 48,
+      y: 16,
+      properties: [{ name: "monster", type: "string", value: "skeleton" }],
+    };
+    const cave = combatArea(tmj([start, fromTown, skeleton]));
+
+    const world = createWorld({
+      areas: { town: tmj([start]), cave },
+      seed: 1,
+      start: { area: "cave", entry: "from-town" },
+    });
+
+    expect(world.areaName).toBe("cave");
+    expect(world.hero.pos).toEqual({ x: 0.5, y: 0.5 });
+    expect(world.monsters).toHaveLength(1);
+  });
+
+  it("puts the Hero in Town when the `start` option's Area or Entry is unknown", () => {
+    const areas = { town: tmj([start]), cave: combatArea(tmj([start])) };
+
+    for (const unknown of [
+      { area: "swamp", entry: "start" },
+      { area: "cave", entry: "from-swamp" },
+    ]) {
+      const world = createWorld({ areas, seed: 1, start: unknown });
+
+      expect(world.areaName).toBe("town");
+      expect(world.hero.pos).toEqual({ x: 1.5, y: 1.5 });
+    }
+  });
+
   it("throws naming the Area when it has no `start` Entry", () => {
     const elsewhere = { ...start, name: "from-cave" };
 

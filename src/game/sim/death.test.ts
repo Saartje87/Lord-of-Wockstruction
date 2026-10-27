@@ -138,6 +138,7 @@ describe("dying", () => {
         { type: "MoveTo", target: { x: 8.5, y: 0.5 } },
         { type: "Attack", monster: skeleton.id },
         { type: "SwingAt", target: skeleton.pos },
+        { type: "Walk", direction: { x: 1, y: 0 } },
       ]);
       expect(events).toEqual([]);
     }

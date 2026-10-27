@@ -7,6 +7,9 @@ import {
   Text,
 } from "pixi.js";
 import type { CursorHit } from "../cursor";
+import type { ActiveInput } from "../input/activeInput";
+import { castButton } from "../input/pad";
+import { buttonsHeld, stickHeld, type TouchControls } from "../input/touch";
 import { toScreen, toTile } from "../iso";
 import {
   type HeroState,
@@ -33,7 +36,7 @@ import {
 } from "../sim/inventory";
 import { minionWindUpProgress } from "../sim/minions";
 import { monsterMaxLife, windUpProgress } from "../sim/monsters";
-import type { Rect } from "../sim/rect";
+import { inside, middleOf, type Rect } from "../sim/rect";
 import type { SkillBarSlot } from "../sim/skillBar";
 import { STEP_MS } from "../sim/units";
 import { tileOf, type Vec } from "../sim/vec";
@@ -103,9 +106,10 @@ import {
   heroSheet,
   PANEL_ROWS,
 } from "./heroPanel";
+import { deathHint, panelCloseHint, resumeHint, skillTooltip } from "./hints";
 import {
   characterUnder,
-  type Hovered,
+  hoveredOf,
   nameplateLayout,
   nameplateOf,
   type Pickable,
@@ -140,6 +144,7 @@ import {
   skillTreeSheet,
 } from "./skillTreePanel";
 import { tooltipRect } from "./tooltip";
+import { touchControlsLayout, touchControlsShown } from "./touchControls";
 
 const HOVER_LINE = 0xd8c48a;
 const MARKER_LINE = 0xe8d27a;
@@ -181,6 +186,12 @@ const DEATH_SCREEN = {
   /** How faint the hint gets at the bottom of a pulse (0..1). */
   faintest: 0.35,
 };
+
+/**
+ * The ring round the Focus in a panel, and round the pause-menu button a
+ * controller has picked (CSS px at native scale).
+ */
+const FOCUS_RING = { colour: 0xfff4c0, width: 3 };
 
 /**
  * The pause menu's look: a dark panel in the middle of a darkened screen,
@@ -521,12 +532,16 @@ type MonsterView = CharacterView & {
 /**
  * Draws the World's active Area and everything in it into a Pixi stage,
  * following the Hero. `areaDisplayNames` are what the Area Banner on arriving in
- * an Area shows, by Area name.
+ * an Area shows, by Area name. Hints name the buttons of `activeInput`, read
+ * as it is each frame, and the touch controls show while it is touch, held
+ * as `touch` is each frame.
  */
 export function createRenderer(
   app: Application,
   art: Art,
   areaDisplayNames: Readonly<Record<string, string>>,
+  activeInput: Readonly<ActiveInput>,
+  touch: Readonly<TouchControls>,
 ) {
   // The World, drawn at the World zoom.
   const camera = new Container();
@@ -597,9 +612,9 @@ export function createRenderer(
   app.stage.addChild(nameplateText);
   const orb = orbsView();
   app.stage.addChild(orb.layer);
-  const skillBar = skillBarView();
+  const skillBar = skillBarView(activeInput);
   app.stage.addChild(skillBar.layer);
-  const beltStrip = beltStripView();
+  const beltStrip = beltStripView(activeInput);
   app.stage.addChild(beltStrip.layer);
   const panelButtons = panelButtonsView();
   app.stage.addChild(panelButtons.layer);
@@ -607,12 +622,17 @@ export function createRenderer(
   app.stage.addChild(experience.layer);
   const levelUp = levelUpButtonView();
   app.stage.addChild(levelUp.layer);
-  const heroPanel = heroPanelView();
+  const touchControls = touchControlsView(activeInput, touch);
+  app.stage.addChild(touchControls.layer);
+  const heroPanel = heroPanelView(activeInput);
   app.stage.addChild(heroPanel.layer);
-  const inventoryPanel = inventoryPanelView();
+  const inventoryPanel = inventoryPanelView(activeInput);
   app.stage.addChild(inventoryPanel.layer);
-  const skillTreePanel = skillTreePanelView();
+  const skillTreePanel = skillTreePanelView(activeInput);
   app.stage.addChild(skillTreePanel.layer);
+  // The Focus's ring, over the panel it is in.
+  const focusRing = new Graphics();
+  app.stage.addChild(focusRing);
   // Over the panels, so a hovered Panel button's tooltip is never hidden.
   app.stage.addChild(panelButtons.tooltipLayer);
   app.stage.addChild(inventoryPanel.heldLayer);
@@ -629,13 +649,13 @@ export function createRenderer(
   const hurt = new Graphics().rect(0, 0, 1, 1).fill(HURT_COLOUR);
   hurt.visible = false;
   app.stage.addChild(hurt);
-  const death = deathScreenView();
+  const death = deathScreenView(activeInput);
   app.stage.addChild(death.layer);
   // The fade to black of an Area change, over everything.
   const fade = new Graphics().rect(0, 0, 1, 1).fill(0x000000);
   fade.visible = false;
   app.stage.addChild(fade);
-  const menu = pauseMenuView();
+  const menu = pauseMenuView(activeInput);
   app.stage.addChild(menu.layer);
   // Instead of the game, over everything.
   const notice = rotateNoticeView();
@@ -932,7 +952,10 @@ export function createRenderer(
      * Inventory panels while they're open, and the pause menu over
      * everything while paused. `heldSkill` is the Held Skill, if any, drawn
      * at the pointer, and `heldSkillSlot` the Skill Bar slot it was picked
-     * up from, drawn dimmed.
+     * up from, drawn dimmed. `target` is the Target auto-aim picked, if any,
+     * outlined and named as a hovered Monster is when the pointer is over no
+     * one. `focus` is where the Focus rests in an open panel, if it shows,
+     * ringed as the pause menu's focused button is.
      */
     draw(
       world: World,
@@ -942,6 +965,8 @@ export function createRenderer(
       menus: Menus,
       heldSkill: Skill | null = null,
       heldSkillSlot: SkillBarSlot | null = null,
+      target: MonsterId | null = null,
+      focus: Rect | null = null,
     ) {
       const active = world.areas[world.areaName];
       // Read afresh each frame, so a resized window re-lays the HUD at once.
@@ -1205,14 +1230,16 @@ export function createRenderer(
       drawGroundItems(world, hoveredItem, uiScale);
       const hoveredMonster =
         world.monsters.find((monster) => monster.id === hoveredId) ?? null;
-      const hovered: Hovered | null = hoveredMonster
-        ? { monster: hoveredMonster }
-        : hoveredId === "golem" && world.minion
-          ? { minion: world.minion }
+      // With the pointer over no one, the Target is shown as if hovered.
+      const pointed =
+        typeof hoveredId === "number" || hoveredId === "golem"
+          ? hoveredId
           : null;
-      const hoveredView = hoveredMonster
-        ? monsters.get(hoveredMonster.id)
-        : hovered && golem?.view;
+      const hovered = hoveredOf(world, pointed, target);
+      const hoveredView =
+        hovered && "monster" in hovered
+          ? monsters.get(hovered.monster.id)
+          : hovered && golem?.view;
       outline.show(hoveredView?.sprite ?? null);
       nameplate.clear();
       nameplateText.visible = hovered !== null;
@@ -1267,11 +1294,23 @@ export function createRenderer(
       );
       experience.draw(viewport, world);
       levelUp.draw(viewport, world, nowMs);
+      touchControls.draw(viewport, world, menus);
       heroPanel.draw(viewport, world, menus.heroPanelOpen, menus.pendingPoints);
-      skillTreePanel.draw(viewport, world, menus.skillTreeOpen);
+      // The focused or long-pressed Skill shows its tooltip; the mouse's
+      // pointer, as before, none, and nor does a Held Skill.
+      const touching = activeInput.way === "touch";
+      const skillTooltipAt = (focus || touching) && !heldSkill ? pointer : null;
+      skillTreePanel.draw(viewport, world, menus.skillTreeOpen, skillTooltipAt);
       heldSkillView.draw(heldSkill, pointer, uiScale);
       const spot = onPanel && "inventory" in onPanel ? onPanel.inventory : null;
       inventoryPanel.draw(viewport, world, menus.inventoryOpen, spot, pointer);
+      focusRing.clear();
+      if (focus) {
+        const { colour, width } = FOCUS_RING;
+        focusRing
+          .rect(focus.x, focus.y, focus.w, focus.h)
+          .stroke({ color: colour, width: width * uiScale });
+      }
 
       const hurtLeft = hurtAtMs === null ? 0 : 1 - (nowMs - hurtAtMs) / HURT_MS;
       hurt.visible = hurtLeft > 0;
@@ -1299,7 +1338,13 @@ export function createRenderer(
         fade.scale.set(app.screen.width, app.screen.height);
       }
 
-      menu.draw(viewport, menus.pause, world.hero.progress.level);
+      menu.draw(
+        viewport,
+        menus.pause,
+        world.hero.progress.level,
+        // Only a controller picks with the menu's focus.
+        activeInput.way === "controller" ? menus.menuFocus : null,
+      );
       notice.draw(viewport);
 
       const markerProgress =
@@ -1627,7 +1672,7 @@ function orbsView() {
  * Skill's name, dimmed while the Hero lacks the Mana for it or while it's
  * the Held Skill.
  */
-function skillBarView() {
+function skillBarView(activeInput: Readonly<ActiveInput>) {
   const style = SKILL_BAR_STYLE;
   const layer = new Container();
   const graphics = new Graphics();
@@ -1646,7 +1691,8 @@ function skillBarView() {
       const { slots } = skillBarLayout(screen);
       const scale = screen.uiScale;
       graphics.clear();
-      skillBarSheet(world, heldFrom).forEach((shown, index) => {
+      const sheet = skillBarSheet(world, heldFrom, activeInput.way);
+      sheet.forEach((shown, index) => {
         if (!labels[index]) {
           const key = text(style.key);
           key.anchor.set(1, 0);
@@ -1691,7 +1737,7 @@ function skillBarView() {
  * in its corner, its bottom Potion drawn tinted as its type, and how many
  * Potions the column holds.
  */
-function beltStripView() {
+function beltStripView(activeInput: Readonly<ActiveInput>) {
   const style = SKILL_BAR_STYLE;
   const layer = new Container();
   const graphics = new Graphics();
@@ -1710,7 +1756,8 @@ function beltStripView() {
       const { columns } = beltStripLayout(screen);
       const scale = screen.uiScale;
       graphics.clear();
-      beltStripSheet(world).forEach((shown, index) => {
+      const sheet = beltStripSheet(world, activeInput.way);
+      sheet.forEach((shown, index) => {
         if (!labels[index]) {
           const key = text(style.key);
           key.anchor.set(1, 0);
@@ -1753,6 +1800,135 @@ function beltStripView() {
       });
     },
   };
+}
+
+/** The touch controls' look; where they go is `touchControlsLayout`. */
+const TOUCH_STYLE = {
+  fill: 0x17130e,
+  fillAlpha: 0.45,
+  pressed: 0x6a4428,
+  pressedAlpha: 0.75,
+  edge: 0xe8d27a,
+  edgeAlpha: 0.5,
+  stickAlpha: 0.3,
+  knob: 0.42,
+  attackSize: 14,
+  /** The pause button's two bars, as parts of its side. */
+  pauseBar: { w: 0.14, h: 0.44, apart: 0.14 },
+};
+
+/**
+ * The touch controls, while touch is the Active Input and the World runs
+ * (with a panel open, the pause button alone): the Virtual Stick's ring where it rests or where the
+ * thumb landed, its knob following the thumb, and the round attack and
+ * Skill buttons, each Skill button naming its slot's Skill, dimmed when it
+ * has none or lacks the Mana, and the pause button's two bars. A held
+ * button shows pressed in.
+ */
+function touchControlsView(
+  activeInput: Readonly<ActiveInput>,
+  touch: Readonly<TouchControls>,
+) {
+  const style = TOUCH_STYLE;
+  const layer = new Container();
+  const graphics = new Graphics();
+  layer.addChild(graphics);
+  const text = () => {
+    const label = new Text({
+      text: "",
+      style: { fill: SKILL_BAR_STYLE.name, fontFamily: SERIF },
+    });
+    label.anchor.set(0.5);
+    layer.addChild(label);
+    return label;
+  };
+  const attackLabel = text();
+  attackLabel.text = "Attack";
+  const skillLabels = new Map<SkillBarSlot, Text>();
+
+  return {
+    layer,
+    draw(screen: Viewport, world: World, menus: Menus) {
+      layer.visible = touchControlsShown(activeInput.way, menus);
+      if (!layer.visible) return;
+      const layout = touchControlsLayout(screen, menus);
+      const scale = screen.uiScale;
+      const held = buttonsHeld(touch);
+      graphics.clear();
+      const ring = (middle: Vec, radius: number, down: boolean) =>
+        graphics
+          .circle(middle.x, middle.y, radius)
+          .fill({
+            color: down ? style.pressed : style.fill,
+            alpha: down ? style.pressedAlpha : style.fillAlpha,
+          })
+          .stroke({ color: style.edge, width: 1.5, alpha: style.edgeAlpha });
+      /** Rings the round button in `rect`, returning its middle. */
+      const button = (rect: Rect, down: boolean) => {
+        const middle = middleOf(rect);
+        ring(middle, rect.w / 2, down);
+        return middle;
+      };
+
+      // The pause button shows even while a panel is open.
+      const { pause } = layout;
+      const middle = button(pause, held.includes("menu"));
+      const bar = style.pauseBar;
+      for (const side of [-1, 1]) {
+        graphics
+          .rect(
+            middle.x + side * bar.apart * pause.w - (bar.w * pause.w) / 2,
+            middle.y - (bar.h * pause.h) / 2,
+            bar.w * pause.w,
+            bar.h * pause.h,
+          )
+          .fill({ color: style.edge, alpha: style.edgeAlpha });
+      }
+      attackLabel.visible = !layout.pauseOnly;
+      for (const label of skillLabels.values()) {
+        label.visible = !layout.pauseOnly;
+      }
+      if (layout.pauseOnly) return;
+
+      const { reach, rest } = layout.stick;
+      const stick = stickHeld(touch);
+      const from = stick?.from ?? rest;
+      graphics
+        .circle(from.x, from.y, reach)
+        .fill({ color: style.fill, alpha: style.stickAlpha })
+        .stroke({ color: style.edge, width: 1.5, alpha: style.edgeAlpha });
+      const pushed = stick ? clampedTo(stick.from, stick.at, reach) : from;
+      ring(pushed, reach * style.knob, stick !== null);
+
+      const attackMiddle = button(layout.attack, held.includes("a"));
+      sizeText(attackLabel, style.attackSize * scale);
+      attackLabel.position.set(attackMiddle.x, attackMiddle.y);
+
+      for (const shown of skillBarSheet(world, null, "touch")) {
+        const rect = layout.skills[shown.slot];
+        const down = held.includes(castButton(shown.slot));
+        const skillMiddle = button(rect, down);
+        let label = skillLabels.get(shown.slot);
+        if (!label) {
+          label = text();
+          skillLabels.set(shown.slot, label);
+        }
+        label.text = shown.name ?? "";
+        label.alpha = shown.dimmed ? SKILL_BAR_STYLE.dimmed : 1;
+        sizeText(label, SKILL_BAR_STYLE.nameSize * scale);
+        label.position.set(skillMiddle.x, skillMiddle.y);
+      }
+    },
+  };
+}
+
+/** `to`, brought within `reach` of `from`. */
+function clampedTo(from: Vec, to: Vec, reach: number): Vec {
+  const x = to.x - from.x;
+  const y = to.y - from.y;
+  const length = Math.hypot(x, y);
+  if (length <= reach) return to;
+  return { x: from.x + (x / length) * reach, y: from.y + (y / length) * reach };
 }
 
 /**
@@ -2107,7 +2283,7 @@ function scaledTexts() {
  * the unspent points with Accept while any are pending, and what the
  * Attributes add up to, the pending points previewed in each.
  */
-function heroPanelView() {
+function heroPanelView(activeInput: Readonly<ActiveInput>) {
   const style = HERO_PANEL_STYLE;
   const layer = new Container();
   const graphics = new Graphics();
@@ -2127,7 +2303,6 @@ function heroPanelView() {
   title.text = "Hero";
   title.anchor.set(0.5, 0);
   const hint = text(style.hint, style.hintSize);
-  hint.text = "Press C to close";
   hint.anchor.set(0.5, 1);
   /** A row's name at its left and value at its right. */
   const row = () => {
@@ -2166,6 +2341,7 @@ function heroPanelView() {
     ) {
       layer.visible = open;
       if (!open) return;
+      hint.text = panelCloseHint("hero", activeInput.way);
       const sheet = heroSheet(world, pending);
       const layout = heroPanelLayout(screen);
       const { panel } = layout;
@@ -2252,9 +2428,10 @@ function heroPanelView() {
 /**
  * The Skill Tree panel, in the Hero panel's look: the unspent Skill Points,
  * then each Skill's Skill Level, Mana cost at the next Skill Level and
- * required Level, with a + button while a Skill Point can be spent on it.
+ * required Level, with a + button while a Skill Point can be spent on it,
+ * and the tooltip of the Skill at `tooltipAt`, if any.
  */
-function skillTreePanelView() {
+function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
   const style = HERO_PANEL_STYLE;
   const layer = new Container();
   const graphics = new Graphics();
@@ -2274,7 +2451,6 @@ function skillTreePanelView() {
   title.text = "Skill Tree";
   title.anchor.set(0.5, 0);
   const hint = text(style.hint, style.hintSize);
-  hint.text = "Press T to close";
   hint.anchor.set(0.5, 1);
   /** A row's name at its left and value at its right. */
   const row = (nameFill: number = style.name) => {
@@ -2286,6 +2462,10 @@ function skillTreePanelView() {
   };
   type Row = ReturnType<typeof row>;
   const points = row();
+  const tooltipBox = new Graphics();
+  layer.addChild(tooltipBox);
+  /** Tooltip lines, made as more are needed, over its box. */
+  const tooltipLines: Text[] = [];
   /** Made as the sheet first lists them. */
   const skills: {
     name: Row;
@@ -2297,9 +2477,15 @@ function skillTreePanelView() {
 
   return {
     layer,
-    draw(screen: Viewport, world: World, open: boolean) {
+    draw(
+      screen: Viewport,
+      world: World,
+      open: boolean,
+      tooltipAt: Vec | null = null,
+    ) {
       layer.visible = open;
       if (!open) return;
+      hint.text = panelCloseHint("skillTree", activeInput.way);
       const sheet = skillTreeSheet(world);
       const layout = skillTreePanelLayout(screen);
       const { panel } = layout;
@@ -2378,6 +2564,41 @@ function skillTreePanelView() {
       });
       // Rows made this draw too.
       texts.size(scale);
+
+      tooltipBox.clear();
+      for (const line of tooltipLines) line.visible = false;
+      const under =
+        tooltipAt &&
+        sheet.skills.find((skill) =>
+          inside(layout.skills[skill.skill], tooltipAt),
+        );
+      if (tooltipAt && under) {
+        const look = INVENTORY_STYLE;
+        const lines = skillTooltip(under, activeInput.way);
+        // Over the rows, some made after it.
+        layer.setChildIndex(tooltipBox, layer.children.length - 1);
+        lines.forEach((line, i) => {
+          if (!tooltipLines[i]) {
+            tooltipLines[i] = text(look.tooltipLine, look.tooltipSize);
+            tooltipLines[i].anchor.set(0.5, 0);
+          }
+          const shown = tooltipLines[i];
+          // Over the box, which is made before any line.
+          layer.setChildIndex(shown, layer.children.length - 1);
+          shown.visible = true;
+          shown.text = line;
+          shown.style.fill = i === 0 ? look.tooltipName : look.tooltipLine;
+        });
+        // Lines made this draw too, before the box is fitted to them.
+        texts.size(scale);
+        const rect = layout.skills[under.skill];
+        drawTooltip(
+          tooltipBox,
+          tooltipLines.slice(0, lines.length),
+          screen,
+          (size, gap) => tooltipRect(rect, size, screen, gap),
+        );
+      }
     },
   };
 }
@@ -2386,7 +2607,7 @@ function skillTreePanelView() {
  * The Inventory panel: the Equipment slots over the 10×4 grid, each Item
  * drawn at its size, and the tooltip of the Item under the cursor.
  */
-function inventoryPanelView() {
+function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
   const style = HERO_PANEL_STYLE;
   const look = INVENTORY_STYLE;
   const layer = new Container();
@@ -2407,7 +2628,6 @@ function inventoryPanelView() {
   title.text = "Inventory";
   title.anchor.set(0.5, 0);
   const hint = text(style.hint, style.hintSize);
-  hint.text = "Press I to close";
   hint.anchor.set(0.5, 1);
   const slotLabels = Object.fromEntries(
     EQUIPMENT_SLOTS.map((slot) => {
@@ -2503,6 +2723,7 @@ function inventoryPanelView() {
       drawHeld(world, pointer, layout);
       layer.visible = open;
       if (!open) return;
+      hint.text = panelCloseHint("inventory", activeInput.way);
 
       graphics.clear();
       graphics
@@ -2642,9 +2863,9 @@ function inventoryPanelView() {
 
 /**
  * The screen over a dead Hero: darkening while they lie still, then "You
- * died" with a pulsing hint to click.
+ * died" with a pulsing hint to go on, named for the Active Input.
  */
-function deathScreenView() {
+function deathScreenView(activeInput: Readonly<ActiveInput>) {
   const layer = new Container();
   const dark = new Graphics().rect(0, 0, 1, 1).fill(0x000000);
   const title = new Text({
@@ -2657,7 +2878,7 @@ function deathScreenView() {
   });
   title.anchor.set(0.5, 1);
   const hint = new Text({
-    text: "Click to return to Town",
+    text: "",
     style: {
       fill: DEATH_SCREEN.hint.colour,
       fontSize: DEATH_SCREEN.hint.size,
@@ -2684,6 +2905,7 @@ function deathScreenView() {
       const ready = lying === 1;
       title.visible = ready;
       hint.visible = ready;
+      hint.text = deathHint(activeInput.way);
       const centre = { x: screen.width / 2, y: screen.height / 2 };
       title.position.set(centre.x, centre.y);
       hint.position.set(centre.x, centre.y + DEATH_SCREEN.hint.gap);
@@ -2700,7 +2922,7 @@ function deathScreenView() {
  * The menu over a paused game: it credits the Flare art and points to
  * `CREDITS.md` for the rest, and offers a New Hero.
  */
-function pauseMenuView() {
+function pauseMenuView(activeInput: Readonly<ActiveInput>) {
   const { darkness, panel, title, credit, question, hint } = PAUSE_MENU;
   const { width, height } = PAUSE_MENU_LAYOUT;
   const layer = new Container();
@@ -2770,9 +2992,14 @@ function pauseMenuView() {
     layer,
     /**
      * While confirming, asks whether to give up the Level `level` Hero for a
-     * New Hero.
+     * New Hero. The button `focus` names is ringed, for a controller.
      */
-    draw(screen: Viewport, pause: Pause, level: number) {
+    draw(
+      screen: Viewport,
+      pause: Pause,
+      level: number,
+      focus: MenuChoice | null,
+    ) {
       layer.visible = pause.paused;
       if (!pause.paused) return;
       const { confirming } = pause;
@@ -2784,12 +3011,9 @@ function pauseMenuView() {
           `Your Level ${level} Hero will be lost for good.`,
         ].join("\n");
       }
-      // Esc goes back from the question rather than resuming.
-      resume.text = confirming
-        ? "Click elsewhere to resume"
-        : "Click elsewhere or press Esc to resume";
+      resume.text = resumeHint(confirming, activeInput.way);
       dark.scale.set(screen.width, screen.height);
-      const layout = pauseMenuLayout(screen, confirming);
+      const layout = pauseMenuLayout(screen, confirming, activeInput.way);
       const scale = screen.uiScale;
       content.position.set(layout.panel.x, layout.panel.y);
       box.scale.set(scale);
@@ -2801,8 +3025,20 @@ function pauseMenuView() {
 
       buttons.clear();
       for (const label of labels) label.visible = false;
-      layout.buttons.forEach(({ label: name, rect }, i) => {
+      layout.buttons.forEach(({ choice, label: name, rect }, i) => {
         button(buttons, rect);
+        if (choice === focus) {
+          const { colour, width } = FOCUS_RING;
+          const ring = (width * scale) / 2 + 1;
+          buttons
+            .rect(
+              rect.x - ring,
+              rect.y - ring,
+              rect.w + 2 * ring,
+              rect.h + 2 * ring,
+            )
+            .stroke({ color: colour, width: width * scale });
+        }
         labels[i] ??= menuLabel(layer);
         const label = labels[i];
         label.text = name;

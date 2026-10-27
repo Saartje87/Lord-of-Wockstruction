@@ -2,7 +2,7 @@ import { minionMaxLife } from "../sim/minions";
 import { monsterMaxLife } from "../sim/monsters";
 import type { Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
-import type { Minion, Monster } from "../sim/world";
+import type { Minion, Monster, MonsterId, World } from "../sim/world";
 import { minionTuning } from "../tuning/minions";
 import { monsterTuning } from "../tuning/monsters";
 import { atUiScale, type Viewport } from "../viewport";
@@ -40,6 +40,22 @@ export function characterUnder<Id>(
 
 /** A hovered Monster, or the Hero's hovered Minion. */
 export type Hovered = { monster: Monster } | { minion: Minion };
+
+/**
+ * What is outlined and named as hovered: the character `pointed` at by the
+ * pointer, else the Target auto-aim picked; null for neither, or for one no
+ * longer among the living.
+ */
+export function hoveredOf(
+  world: World,
+  pointed: MonsterId | "golem" | null,
+  target: MonsterId | null,
+): Hovered | null {
+  if (pointed === "golem") return world.minion && { minion: world.minion };
+  const id = pointed ?? target;
+  const monster = world.monsters.find((one) => one.id === id);
+  return monster ? { monster } : null;
+}
 
 /**
  * What the top-centre nameplate shows for a hovered character: its name, how

@@ -22,3 +22,8 @@ export function overlaps(a: Rect, b: Rect): boolean {
     a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
   );
 }
+
+/** The middle of `rect`. */
+export function middleOf(rect: Rect): Vec {
+  return { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
+}

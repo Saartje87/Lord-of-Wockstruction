@@ -1,14 +1,24 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { pressButton } from "./buttonPress";
 import {
   type CursorHit,
+  clickCursor,
   createCursor,
   forTheWorld,
   pressCursor,
   releaseCursor,
   settleCursor,
 } from "./cursor";
+import type { InputWay } from "./input/activeInput";
+import { createMenus } from "./menus";
 import { beltStripLayout } from "./render/beltStrip";
-import { inventoryPanelLayout } from "./render/inventoryPanel";
+import {
+  type InventoryHit,
+  inventoryFocusSpots,
+  inventoryPanelLayout,
+  inventoryRightClickOrder,
+} from "./render/inventoryPanel";
+import { skillTreeFocusSpots } from "./render/skillTreePanel";
 import { beltOf, emptyBelt } from "./sim/belt";
 import {
   type Belongings,
@@ -904,5 +914,178 @@ describe("the cursor on the Belt strip", () => {
 
     expect(orders).toEqual([{ type: "DropItem" }]);
     expect(taken).toBe(true);
+  });
+});
+
+describe("a tap on the Belt strip", () => {
+  const tapped = (way: InputWay) => ({
+    world: beltedWorld(),
+    screen: SCREEN,
+    way,
+  });
+
+  it("drinks from the Belt Column tapped, lifting nothing", () => {
+    const scene = tapped("touch");
+
+    const { orders, taken } = clickCursor(createCursor(), onStrip(0), scene);
+    step(scene.world, orders);
+
+    expect(orders).toEqual([{ type: "DrinkFromBelt", column: 0 }]);
+    expect(taken).toBe(true);
+    expect(heldType(scene.world)).toBeUndefined();
+    expect(beltTypes(scene.world)[0]).toEqual(["manaPotion"]);
+  });
+
+  it("only ever drinks, even with an Item held", () => {
+    const scene = tapped("touch");
+    step(scene.world, [{ type: "LiftItem", from: { beltColumn: 2, row: 0 } }]);
+
+    const { orders } = clickCursor(createCursor(), onStrip(1), scene);
+
+    expect(orders).toEqual([{ type: "DrinkFromBelt", column: 1 }]);
+  });
+
+  it("still lifts with the mouse", () => {
+    const scene = tapped("mouseAndKeyboard");
+
+    const { orders } = clickCursor(createCursor(), onStrip(0), scene);
+
+    expect(orders).toEqual([
+      { type: "LiftItem", from: { beltColumn: 0, row: 0 } },
+    ]);
+  });
+});
+
+describe("a click at the Focus", () => {
+  /** The Inventory panel's Focus spot `hit` names, as laid out for `world`. */
+  const focusOn = (world: World, hit: CursorHit) => {
+    const spot = inventoryFocusSpots(world, SCREEN).find(
+      (one) => JSON.stringify(one.hit) === JSON.stringify(hit),
+    );
+    if (!spot) throw new Error("no such spot");
+    return { at: spot.at, hit: spot.hit };
+  };
+
+  it("lifts the focused Item, from any cell it covers", () => {
+    const { world, screen } = scene();
+
+    const { orders, cursor } = clickCursor(
+      createCursor(),
+      focusOn(world, onCell(5, 3)),
+      { world, screen },
+    );
+
+    expect(orders).toEqual([{ type: "LiftItem", from: { column: 5, row: 3 } }]);
+    expect(cursor).toEqual(createCursor());
+  });
+
+  it("puts the Held Item down with its top-left on the focused cell", () => {
+    const { world, screen } = scene();
+    step(world, [{ type: "LiftItem", from: { column: 4, row: 1 } }]);
+
+    const { orders } = clickCursor(
+      createCursor(),
+      focusOn(world, onCell(0, 0)),
+      { world, screen },
+    );
+    step(world, orders);
+
+    expect(orders).toEqual([{ type: "PlaceItem", to: { column: 0, row: 0 } }]);
+    expect(inventoryItemAt(world, { column: 0, row: 0 })?.item.type).toBe(
+      "axe",
+    );
+  });
+
+  it("Equips the Held Item into the focused slot", () => {
+    const { world, screen } = scene();
+    step(world, [{ type: "LiftItem", from: { column: 4, row: 1 } }]);
+
+    const { orders } = clickCursor(
+      createCursor(),
+      focusOn(world, { inventory: "weapon" }),
+      { world, screen },
+    );
+    step(world, orders);
+
+    expect(equipmentOf(world).weapon?.type).toBe("axe");
+  });
+
+  it("drops the Held Item clicked off the panel at the Focus", () => {
+    const { world, screen } = scene();
+    step(world, [{ type: "LiftItem", from: { column: 4, row: 1 } }]);
+    const { at } = focusOn(world, onCell(0, 0));
+
+    const { orders } = clickCursor(
+      createCursor(),
+      { at, hit: { drop: true } },
+      { world, screen },
+    );
+
+    expect(orders).toEqual([{ type: "DropItem" }]);
+  });
+
+  it("right-clicked, Equips or drinks the focused Item", () => {
+    const world = createWorld({
+      areas: { town },
+      seed: 1,
+      belongings: {
+        ...belongings,
+        inventory: [
+          ...belongings.inventory,
+          { type: "lifePotion", cell: { column: 0, row: 0 } },
+        ],
+      },
+    });
+    const right = (hit: CursorHit) =>
+      inventoryRightClickOrder(world, focusOn(world, hit).hit as InventoryHit);
+
+    expect(right(onCell(4, 2))).toMatchObject({ type: "EquipItem" });
+    expect(right(onCell(0, 0))).toMatchObject({ type: "DrinkItem" });
+  });
+});
+
+describe("a click at the Focus on the Skill Tree", () => {
+  /** The Skill Tree's Focus spot `hit` names, as laid out for `world`. */
+  const spotOn = (world: World, hit: CursorHit) => {
+    const spot = skillTreeFocusSpots(world, SCREEN).find(
+      (one) => JSON.stringify(one.hit) === JSON.stringify(hit),
+    );
+    if (!spot) throw new Error("no such spot");
+    return spot;
+  };
+  const LEARN_GOLEM = { button: { type: "learn", skill: "golem" } } as const;
+
+  it("spends a Skill Point on the focused Skill", () => {
+    const { world, screen } = scene();
+    world.hero.progress.skillPoints = 1;
+    const spot = spotOn(world, LEARN_GOLEM);
+
+    const { cursor } = clickCursor(createCursor(), spot, { world, screen });
+    step(world, pressButton(createMenus(), world, LEARN_GOLEM.button));
+
+    expect(cursor).toEqual(createCursor());
+    expect(world.hero.progress.skillLevels.golem).toBe(1);
+  });
+
+  it("picks the focused learned Skill up with its second hit, and puts it in the focused Skill Bar slot", () => {
+    const { world, screen } = scene();
+    world.hero.progress.skillPoints = 1;
+    step(world, [{ type: "SpendSkillPoint", skill: "golem" }]);
+    const { at, secondHit } = spotOn(world, ON_GOLEM);
+
+    const held = clickCursor(
+      createCursor(),
+      { at, hit: secondHit ?? null },
+      { world, screen },
+    );
+    const put = clickCursor(held.cursor, spotOn(world, ON_KEY4), {
+      world,
+      screen,
+    });
+    step(world, put.orders);
+
+    expect(held.cursor.heldSkill).toBe("golem");
+    expect(put.cursor.heldSkill).toBeNull();
+    expect(world.hero.progress.skillBar.key4).toBe("golem");
   });
 });

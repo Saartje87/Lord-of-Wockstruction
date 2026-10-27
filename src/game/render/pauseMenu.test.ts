@@ -27,6 +27,15 @@ describe("the pause menu's buttons", () => {
     ]);
   });
 
+  it("are labelled with their keys, or for the controller with B on No", () => {
+    const labels = (confirming: boolean, way?: "controller") =>
+      pauseMenuLayout(screen, confirming, way).buttons.map((b) => b.label);
+
+    expect(labels(false)).toEqual(["New Hero (N)"]);
+    expect(labels(true)).toEqual(["Yes (Y)", "No (N)"]);
+    expect(labels(true, "controller")).toEqual(["Yes", "No (B)"]);
+  });
+
   it("are found under a click", () => {
     const [newHero] = pauseMenuLayout(screen, false).buttons;
     const [yes, no] = pauseMenuLayout(screen, true).buttons;

@@ -1,5 +1,5 @@
 import type { CursorHit } from "../cursor";
-import type { Menus } from "../menus";
+import type { Menus, OpenPanels } from "../menus";
 import { beltRows } from "../sim/belt";
 import { cursorItemOf } from "../sim/inventory";
 import type { Vec } from "../sim/vec";
@@ -13,10 +13,7 @@ import { skillBarHitAt } from "./skillBar";
 import { skillTreeHitAt } from "./skillTreePanel";
 
 /** The panels as drawn: which are open, and the Hero panel's Pending Attribute Points. */
-export type ShownPanels = Pick<
-  Menus,
-  "heroPanelOpen" | "inventoryOpen" | "skillTreeOpen" | "pendingPoints"
->;
+export type ShownPanels = OpenPanels & Pick<Menus, "pendingPoints">;
 
 /**
  * What a point on the screen hits of the panels and the HUD, or null when

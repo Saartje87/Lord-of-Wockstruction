@@ -1,3 +1,4 @@
+import { DIRECTIONS, type PadButton } from "./input/pad";
 import { createPause, type Pause, togglePause } from "./pause";
 import {
   ATTRIBUTES,
@@ -38,6 +39,11 @@ export type Menus = {
    * pause menu open, so its going away resumes it.
    */
   pausedForNotice: boolean;
+  /**
+   * The pause-menu button a controller has picked, for A to press: null
+   * until the controller first touches the menu.
+   */
+  menuFocus: MenuChoice | null;
 };
 
 /** A count of Pending Attribute Points on each Attribute. */
@@ -54,6 +60,7 @@ export function createMenus(): Menus {
     lastOpened: null,
     rotateNotice: false,
     pausedForNotice: false,
+    menuFocus: null,
   };
 }
 
@@ -75,6 +82,14 @@ export type HeroState = { heroDead: boolean };
  * `confirm` starts it while `goBack` returns to the menu.
  */
 export type MenuChoice = "newHero" | "confirm" | "goBack";
+
+/**
+ * The pause menu's buttons in their row from left to right: New Hero, or
+ * Yes and No while `confirming` one.
+ */
+export function menuChoices(confirming: boolean): MenuChoice[] {
+  return confirming ? ["confirm", "goBack"] : ["newHero"];
+}
 
 /**
  * A key pressed at real time `nowMs`, by `KeyboardEvent.key`. Esc opens and
@@ -102,6 +117,7 @@ export function pressKey(
   }
   if (key === "Escape") {
     togglePause(pause, nowMs);
+    menus.menuFocus = null;
     return "handled";
   }
   if (pause.paused) {
@@ -140,9 +156,17 @@ const OPEN_FLAGS = {
   skillTree: "skillTreeOpen",
 } as const satisfies Record<Panel, keyof Menus>;
 
+/** The menus' flags for which panels are open. */
+export type OpenPanels = Pick<Menus, (typeof OPEN_FLAGS)[Panel]>;
+
 /** Whether `panel` is open. */
-export function panelOpen(menus: Menus, panel: Panel): boolean {
+export function panelOpen(menus: OpenPanels, panel: Panel): boolean {
   return menus[OPEN_FLAGS[panel]];
+}
+
+/** Whether any panel is open. */
+export function anyPanelOpen(menus: OpenPanels): boolean {
+  return PANELS.some((panel) => panelOpen(menus, panel));
 }
 
 /**
@@ -346,11 +370,113 @@ export function clickPaused(
   nowMs: number,
 ): "newHero" | null {
   if (menus.rotateNotice) return null;
+  menus.menuFocus = null;
   if (choice === null) {
     togglePause(menus.pause, nowMs);
     return null;
   }
   return choose(menus, choice, nowMs);
+}
+
+/**
+ * A controller button pressed at real time `nowMs`, as `pollPad` hands it
+ * over. Menu opens and shuts the pause menu, picking New Hero; in it, the
+ * D-pad (or the stick) moves between its buttons, A presses the one picked,
+ * and Menu or B goes back from confirming a New Hero, as Esc does, or
+ * resumes. While the game runs, View opens and shuts the Inventory panel,
+ * and with a panel open, LB and RB move to the panel before or after it (in
+ * Panel-button order, round from the last to the first), shutting it as
+ * its key would, and B shuts it. While the Rotate Notice shows, every
+ * button is taken and does nothing. Returns as `pressKey` does.
+ */
+export function pressPad(
+  menus: Menus,
+  button: PadButton,
+  nowMs: number,
+  hero: HeroState,
+): "newHero" | "handled" | null {
+  const { pause } = menus;
+  if (menus.rotateNotice) return "handled";
+  if (pause.paused) return pressPaused(menus, button, nowMs);
+  if (button === "menu") {
+    togglePause(pause, nowMs);
+    menus.menuFocus = "newHero";
+    return "handled";
+  }
+  if (button === "view") {
+    togglePanel(menus, "inventory", hero);
+    return "handled";
+  }
+  const panel = currentPanel(menus);
+  if (!panel) return null;
+  if (button === "b") {
+    shutPanel(menus, panel);
+    return "handled";
+  }
+  if (button === "lb" || button === "rb") {
+    const next = PANELS.indexOf(panel) + (button === "rb" ? 1 : -1);
+    shutPanel(menus, panel);
+    openPanel(menus, PANELS[(next + PANELS.length) % PANELS.length]);
+    return "handled";
+  }
+  return null;
+}
+
+/** A controller button pressed in the pause menu, which takes them all. */
+function pressPaused(
+  menus: Menus,
+  button: PadButton,
+  nowMs: number,
+): "newHero" | "handled" {
+  const { pause } = menus;
+  const choices = menuChoices(pause.confirming);
+  const picked = menus.menuFocus;
+  const at = picked === null ? -1 : choices.indexOf(picked);
+  if (button === "menu" || button === "b") {
+    if (pause.confirming) pickChoice(menus, "goBack", nowMs);
+    else togglePause(pause, nowMs);
+  } else if (at === -1 && (button === "a" || isDirection(button))) {
+    menus.menuFocus = defaultChoice(pause.confirming);
+  } else if (picked !== null && button === "a") {
+    return pickChoice(menus, picked, nowMs) ?? "handled";
+  } else if (button === "left" || button === "up") {
+    menus.menuFocus = choices[Math.max(at - 1, 0)];
+  } else if (button === "right" || button === "down") {
+    menus.menuFocus = choices[Math.min(at + 1, choices.length - 1)];
+  }
+  return "handled";
+}
+
+/** Presses pause-menu button `choice`, picking the new row's first choice. */
+function pickChoice(
+  menus: Menus,
+  choice: MenuChoice,
+  nowMs: number,
+): "newHero" | null {
+  const started = choose(menus, choice, nowMs);
+  menus.menuFocus = defaultChoice(menus.pause.confirming);
+  return started;
+}
+
+/** The choice a controller starts on: No while confirming, for safety. */
+function defaultChoice(confirming: boolean): MenuChoice {
+  return confirming ? "goBack" : "newHero";
+}
+
+/** Whether `button` is one of the D-pad's directions. */
+function isDirection(button: PadButton): boolean {
+  return DIRECTIONS.some((direction) => direction === button);
+}
+
+/**
+ * The open panel the controller acts on: the one opened last, if still
+ * open, otherwise the first open one, or null with none open.
+ */
+export function currentPanel(menus: Menus): Panel | null {
+  if (menus.lastOpened && panelOpen(menus, menus.lastOpened)) {
+    return menus.lastOpened;
+  }
+  return PANELS.find((panel) => panelOpen(menus, panel)) ?? null;
 }
 
 /** Picks a pause-menu button, by key or by click. */

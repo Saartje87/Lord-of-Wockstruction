@@ -259,6 +259,21 @@ describe("hitstop", () => {
     expect(world.hero.swing).toBeNull();
     expect(world.hero.pos.y).toBeGreaterThan(1.5);
   });
+
+  // A walk in a direction is for its own step: kept through the hitstop, the
+  // Hero would leap the 4 steps at once as it ends.
+  it("drops a Walk given during it, which walks no faster after", () => {
+    const world = withSkeletons([[2.5, 1.5]]);
+    step(world, [attack(1)]);
+    stepTimes(world, 8);
+    const walk: Order = { type: "Walk", direction: { x: 0, y: 1 } };
+
+    for (let i = 0; i < 4; i++) step(world, [walk]);
+    expect(world.hero.pos).toEqual({ x: 1.5, y: 1.5 });
+    step(world, [walk]);
+
+    expect(world.hero.pos.y).toBeCloseTo(1.5 + 5.5 / 60);
+  });
 });
 
 describe("SwingAt", () => {

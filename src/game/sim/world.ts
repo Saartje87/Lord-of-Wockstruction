@@ -89,6 +89,7 @@ import {
 import { msToSteps, perStep } from "./units";
 import { validateAreas } from "./validate";
 import { distance, type Vec } from "./vec";
+import { stepInDirection } from "./walking";
 
 const EXPERIENCE_TABLE = heroTuning.experienceTable;
 /** The most Experience the Hero can have: what the last Level needs. */
@@ -330,6 +331,13 @@ export type World = {
 /** Input reaching the simulation. */
 export type Order =
   | { type: "MoveTo"; target: Vec }
+  /**
+   * Walk one step at walking speed in `direction` (its length doesn't
+   * matter), sliding along a wall in the way. Given each step the Hero is
+   * to keep walking: on a step without it the Hero stands, as with a zero
+   * `direction`.
+   */
+  | { type: "Walk"; direction: Vec }
   /** Walk into reach of a Monster and swing at it. */
   | { type: "Attack"; monster: MonsterId }
   /** Swing in place towards a point, hitting every Monster in the arc. */
@@ -963,7 +971,8 @@ function placePack(world: World, area: Area, spawn: Spawn) {
 
 /**
  * Advances the World by one fixed 1/60 s step. During hitstop nothing
- * happens at all: orders wait until it ends. During an Area change nothing
+ * happens at all: orders wait until it ends, but for a `Walk`, which is
+ * dropped. During an Area change nothing
  * happens but the change, and orders are ignored.
  */
 export function step(world: World, orders: readonly Order[]): SimEvent[] {
@@ -985,7 +994,9 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
 
   if (world.hitstop > 0) {
     world.hitstop -= 1;
-    world.heldOrders.push(...orders);
+    // A walk in a direction is for its own step only, or the Hero would
+    // leap every held one at once.
+    world.heldOrders.push(...orders.filter((order) => order.type !== "Walk"));
     world.tick += 1;
     return events;
   }
@@ -1236,7 +1247,8 @@ function give(world: World, order: Order, events: SimEvent[]) {
   }
   if (hero.swing) {
     // A move may walk out of a swing's follow-through, not its wind-up.
-    if (order.type !== "MoveTo" || !hero.swing.landed) {
+    const moves = order.type === "MoveTo" || order.type === "Walk";
+    if (!moves || !hero.swing.landed) {
       hero.buffered = order;
       return;
     }
@@ -1250,6 +1262,9 @@ function give(world: World, order: Order, events: SimEvent[]) {
       hero.attacking = null;
       hero.pickingUp = null;
       hero.path = findPath(area, hero.pos, order.target, heroTuning.radius);
+      break;
+    case "Walk":
+      walkInDirection(world, order.direction);
       break;
     case "Attack": {
       const monster = monsterById(world, order.monster);
@@ -1351,6 +1366,28 @@ function advanceCast(world: World, cast: Cast, events: SimEvent[]) {
   if (cast.elapsed < CAST_STEPS[cast.skill]) return;
   world.hero.cast = null;
   giveBuffered(world, events);
+}
+
+/**
+ * Walks the Hero one step in `direction`, sliding along walls, dropping
+ * whatever it was walking to; a zero `direction` stops it where it stands.
+ */
+function walkInDirection(world: World, direction: Vec) {
+  const { hero } = world;
+  hero.path = [];
+  hero.attacking = null;
+  hero.pickingUp = null;
+  if (direction.x === 0 && direction.y === 0) return;
+  hero.facing = Math.atan2(direction.y, direction.x);
+  const area = world.areas[world.areaName];
+  const to = stepInDirection(
+    area,
+    hero.pos,
+    direction,
+    WALK_PER_STEP,
+    heroTuning.radius,
+  );
+  if (to) hero.pos = to;
 }
 
 /** Swings at the Monster the Hero walks to once it is in reach. */

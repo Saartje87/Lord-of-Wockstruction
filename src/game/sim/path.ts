@@ -139,6 +139,20 @@ export function isClear(area: Area, a: Vec, b: Vec, radius: number): boolean {
   );
 }
 
+/**
+ * Whether a body of `radius` can stand at `point`: the square around it,
+ * `radius` each way, touches only walkable tiles. A body exactly `radius`
+ * from a wall still fits.
+ */
+export function fitsAt(area: Area, point: Vec, radius: number): boolean {
+  const reach = radius - EDGE_SLACK;
+  return [-1, 1].every((sx) =>
+    [-1, 1].every((sy) =>
+      isWalkable(area, { x: point.x + sx * reach, y: point.y + sy * reach }),
+    ),
+  );
+}
+
 /** Whether nothing blocks the line of sight from `a` to `b`. */
 export function canSee(area: Area, a: Vec, b: Vec): boolean {
   return touchesOnlyWalkable(area, a, b);

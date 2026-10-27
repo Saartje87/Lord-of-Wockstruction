@@ -8,8 +8,10 @@ import {
   clickPaused,
   createMenus,
   fitMenus,
+  type Menus,
   panelOpen,
   pressKey,
+  pressPad,
   reactMenus,
   removePendingPoint,
   unplacedPoints,
@@ -874,5 +876,283 @@ describe("the Rotate Notice", () => {
     expect(menus.heroPanelOpen).toBe(false);
     expect(menus.inventoryOpen).toBe(false);
     expect(menus.skillTreeOpen).toBe(false);
+  });
+});
+
+describe("the controller", () => {
+  /** Which of the three panels are open, by name. */
+  function openPanels(menus: Menus) {
+    return (["hero", "inventory", "skillTree"] as const).filter((panel) =>
+      panelOpen(menus, panel),
+    );
+  }
+
+  /** Menus with the pause menu opened by Menu, at real time 1000. */
+  function pausedByPad() {
+    const menus = createMenus();
+    pressPad(menus, "menu", 1000, alive);
+    return menus;
+  }
+
+  describe("Menu", () => {
+    it("opens the pause menu with New Hero picked, and shuts it", () => {
+      const menus = createMenus();
+
+      expect(pressPad(menus, "menu", 1000, alive)).toBe("handled");
+      expect(menus.pause.paused).toBe(true);
+      expect(menus.menuFocus).toBe("newHero");
+      pressPad(menus, "menu", 2000, alive);
+      expect(menus.pause.paused).toBe(false);
+      expect(gameTime(menus.pause, 2000)).toBe(1000);
+    });
+
+    it("opens the pause menu during Death", () => {
+      const menus = createMenus();
+
+      pressPad(menus, "menu", 1000, dead);
+
+      expect(menus.pause.paused).toBe(true);
+    });
+
+    it("goes back from confirming a New Hero, as Esc does", () => {
+      const menus = pausedByPad();
+      pressPad(menus, "a", 2000, alive);
+
+      pressPad(menus, "menu", 3000, alive);
+
+      expect(menus.pause.paused).toBe(true);
+      expect(menus.pause.confirming).toBe(false);
+    });
+  });
+
+  describe("in the pause menu", () => {
+    it("A on New Hero asks to confirm, with No picked", () => {
+      const menus = pausedByPad();
+
+      expect(pressPad(menus, "a", 2000, alive)).toBe("handled");
+
+      expect(menus.pause.confirming).toBe(true);
+      expect(menus.menuFocus).toBe("goBack");
+    });
+
+    it("A on No goes back, with New Hero picked", () => {
+      const menus = pausedByPad();
+      pressPad(menus, "a", 2000, alive);
+
+      pressPad(menus, "a", 3000, alive);
+
+      expect(menus.pause.confirming).toBe(false);
+      expect(menus.menuFocus).toBe("newHero");
+    });
+
+    it.each([
+      "left",
+      "up",
+    ] as const)("%s moves to Yes, and A starts a New Hero", (direction) => {
+      const menus = pausedByPad();
+      pressPad(menus, "a", 2000, alive);
+
+      pressPad(menus, direction, 3000, alive);
+      expect(menus.menuFocus).toBe("confirm");
+
+      expect(pressPad(menus, "a", 4000, alive)).toBe("newHero");
+      expect(menus.pause.paused).toBe(false);
+    });
+
+    it("stays on the last choice when pushed past it", () => {
+      const menus = pausedByPad();
+      pressPad(menus, "a", 2000, alive);
+
+      pressPad(menus, "right", 3000, alive);
+      pressPad(menus, "down", 3000, alive);
+
+      expect(menus.menuFocus).toBe("goBack");
+    });
+
+    it("moves back the other way", () => {
+      const menus = pausedByPad();
+      pressPad(menus, "a", 2000, alive);
+      pressPad(menus, "left", 3000, alive);
+
+      pressPad(menus, "right", 4000, alive);
+
+      expect(menus.menuFocus).toBe("goBack");
+    });
+
+    it("B goes back from confirming, then resumes", () => {
+      const menus = pausedByPad();
+      pressPad(menus, "a", 2000, alive);
+
+      pressPad(menus, "b", 3000, alive);
+      expect(menus.pause.confirming).toBe(false);
+      expect(menus.pause.paused).toBe(true);
+      pressPad(menus, "b", 4000, alive);
+      expect(menus.pause.paused).toBe(false);
+    });
+
+    it("picks nothing until a choice is picked, when opened by Esc", () => {
+      const menus = createMenus();
+      pressPad(menus, "menu", 500, alive);
+      pressPad(menus, "menu", 600, alive);
+      pressKey(menus, "Escape", 1000, alive);
+      expect(menus.menuFocus).toBeNull();
+
+      pressPad(menus, "a", 2000, alive);
+      expect(menus.pause.confirming).toBe(false);
+      expect(menus.menuFocus).toBe("newHero");
+    });
+
+    it("picks New Hero on the first push, when opened by Esc", () => {
+      const menus = createMenus();
+      pressKey(menus, "Escape", 1000, alive);
+
+      pressPad(menus, "right", 2000, alive);
+
+      expect(menus.menuFocus).toBe("newHero");
+    });
+
+    it.each([
+      "view",
+      "lb",
+      "rb",
+      "x",
+    ] as const)("takes %s but does nothing with it", (button) => {
+      const menus = pausedByPad();
+
+      expect(pressPad(menus, button, 2000, alive)).toBe("handled");
+
+      expect(menus.pause.paused).toBe(true);
+      expect(menus.pause.confirming).toBe(false);
+      expect(openPanels(menus)).toEqual([]);
+    });
+  });
+
+  describe("View", () => {
+    it("opens and shuts the Inventory panel", () => {
+      const menus = createMenus();
+
+      expect(pressPad(menus, "view", 1000, alive)).toBe("handled");
+      expect(openPanels(menus)).toEqual(["inventory"]);
+      pressPad(menus, "view", 2000, alive);
+      expect(openPanels(menus)).toEqual([]);
+    });
+
+    it("opens nothing during Death", () => {
+      const menus = createMenus();
+
+      pressPad(menus, "view", 1000, dead);
+
+      expect(openPanels(menus)).toEqual([]);
+    });
+  });
+
+  describe("with a panel open", () => {
+    it("RB moves on to the next panel, round to the first", () => {
+      const menus = createMenus();
+      pressKey(menus, "c", 1000, alive);
+
+      expect(pressPad(menus, "rb", 1000, alive)).toBe("handled");
+      expect(openPanels(menus)).toEqual(["inventory"]);
+      pressPad(menus, "rb", 1000, alive);
+      expect(openPanels(menus)).toEqual(["skillTree"]);
+      pressPad(menus, "rb", 1000, alive);
+      expect(openPanels(menus)).toEqual(["hero"]);
+    });
+
+    it("LB moves back to the panel before, round to the last", () => {
+      const menus = createMenus();
+      pressKey(menus, "c", 1000, alive);
+
+      expect(pressPad(menus, "lb", 1000, alive)).toBe("handled");
+      expect(openPanels(menus)).toEqual(["skillTree"]);
+      pressPad(menus, "lb", 1000, alive);
+      expect(openPanels(menus)).toEqual(["inventory"]);
+    });
+
+    it("moves on from the panel opened last, leaving the Hero panel beside it", () => {
+      const menus = createMenus();
+      pressKey(menus, "c", 1000, alive);
+      pressKey(menus, "i", 1000, alive);
+
+      pressPad(menus, "rb", 1000, alive);
+
+      expect(openPanels(menus)).toEqual(["hero", "skillTree"]);
+    });
+
+    it("cancels Pending Attribute Points on moving off the Hero panel", () => {
+      const menus = createMenus();
+      pressKey(menus, "c", 1000, alive);
+      addPendingPoint(menus, "strength", {
+        heroDead: false,
+        attributePoints: 5,
+      });
+
+      pressPad(menus, "rb", 1000, alive);
+
+      expect(unplacedPoints(menus, 5)).toBe(5);
+    });
+
+    it("keeps to one panel in the Compact Layout", () => {
+      const menus = createMenus();
+      fitMenus(menus, { compact: true, rotateNotice: null }, 1000);
+      pressKey(menus, "i", 1000, alive);
+
+      pressPad(menus, "lb", 1000, alive);
+
+      expect(openPanels(menus)).toEqual(["hero"]);
+    });
+
+    it("B shuts it", () => {
+      const menus = createMenus();
+      pressKey(menus, "t", 1000, alive);
+
+      expect(pressPad(menus, "b", 1000, alive)).toBe("handled");
+
+      expect(openPanels(menus)).toEqual([]);
+    });
+
+    it("B shuts the panel opened last first", () => {
+      const menus = createMenus();
+      pressKey(menus, "i", 1000, alive);
+      pressKey(menus, "c", 1000, alive);
+
+      pressPad(menus, "b", 1000, alive);
+      expect(openPanels(menus)).toEqual(["inventory"]);
+      pressPad(menus, "b", 1000, alive);
+      expect(openPanels(menus)).toEqual([]);
+    });
+  });
+
+  it.each([
+    "lb",
+    "rb",
+    "b",
+    "a",
+    "x",
+    "left",
+  ] as const)("leaves %s to the game with no panel open", (button) => {
+    const menus = createMenus();
+
+    expect(pressPad(menus, button, 1000, alive)).toBeNull();
+
+    expect(openPanels(menus)).toEqual([]);
+  });
+
+  it.each([
+    "menu",
+    "view",
+    "a",
+    "rb",
+  ] as const)("takes %s while the Rotate Notice shows, and does nothing", (button) => {
+    const menus = createMenus();
+    pressKey(menus, "c", 500, alive);
+    fitMenus(menus, { compact: false, rotateNotice: "turn" }, 1000);
+
+    expect(pressPad(menus, button, 2000, alive)).toBe("handled");
+
+    expect(menus.pause.confirming).toBe(false);
+    expect(openPanels(menus)).toEqual(["hero"]);
+    fitMenus(menus, { compact: false, rotateNotice: null }, 3000);
+    expect(menus.pause.paused).toBe(false);
   });
 });

@@ -1,7 +1,9 @@
-import type { MenuChoice } from "../menus";
+import type { InputWay } from "../input/activeInput";
+import { type MenuChoice, menuChoices } from "../menus";
 import { inside, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
 import { atUiScale, type Viewport } from "../viewport";
+import { menuChoiceLabel } from "./hints";
 
 /**
  * Where the pause menu goes (CSS px at native scale, drawn at the UI
@@ -29,6 +31,7 @@ export type MenuButton = { choice: MenuChoice; label: string; rect: Rect };
 export function pauseMenuLayout(
   screen: Viewport,
   confirming: boolean,
+  way: InputWay = "mouseAndKeyboard",
 ): { panel: Rect; buttons: MenuButton[] } {
   const { width, height, buttonsTop, gap } = atUiScale(
     PAUSE_MENU_LAYOUT,
@@ -41,12 +44,10 @@ export function pauseMenuLayout(
     w: width,
     h: height,
   };
-  const row: { choice: MenuChoice; label: string }[] = confirming
-    ? [
-        { choice: "confirm", label: "Yes (Y)" },
-        { choice: "goBack", label: "No (N)" },
-      ]
-    : [{ choice: "newHero", label: "New Hero (N)" }];
+  const row = menuChoices(confirming).map((choice) => ({
+    choice,
+    label: menuChoiceLabel(choice, way),
+  }));
   const rowWidth = row.length * button.width + (row.length - 1) * gap;
   const left = panel.x + (panel.w - rowWidth) / 2;
   return {

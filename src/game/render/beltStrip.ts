@@ -1,9 +1,11 @@
-import { beltColumnKey, beltOf } from "../sim/belt";
+import type { InputWay } from "../input/activeInput";
+import { beltOf } from "../sim/belt";
 import { inside, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
 import type { World } from "../sim/world";
 import { beltTuning, type ItemType, itemOf } from "../tuning/items";
 import { atUiScale, type Viewport } from "../viewport";
+import { beltColumnButton } from "./hints";
 import { BELT_STRIP, SKILL_BAR, skillBarLayout } from "./skillBar";
 
 /** Where each Belt Column's square of the Belt strip is drawn, from the left. */
@@ -48,7 +50,7 @@ export function beltStripHitAt(
 }
 
 /**
- * What a Belt Column's square shows: the key that drinks from it, its
+ * What a Belt Column's square shows: the key or button that drinks from it, its
  * bottom Potion (the one drunk next) or null when empty, and how many
  * Potions it holds.
  */
@@ -60,13 +62,19 @@ export type BeltStripColumnSheet = {
   count: number;
 };
 
-/** What the Belt strip shows, Belt Column by Belt Column from the left. */
-export function beltStripSheet(world: World): BeltStripColumnSheet[] {
+/**
+ * What the Belt strip shows, Belt Column by Belt Column from the left, each
+ * naming the button that drinks from it with the Active Input `way`.
+ */
+export function beltStripSheet(
+  world: World,
+  way: InputWay = "mouseAndKeyboard",
+): BeltStripColumnSheet[] {
   return beltOf(world).map((potions, column) => {
     const bottom = potions[0]?.type ?? null;
     return {
       column,
-      key: beltColumnKey(column),
+      key: beltColumnButton(column, way),
       type: bottom,
       name: bottom && itemOf(bottom).name,
       count: potions.length,

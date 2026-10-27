@@ -302,14 +302,27 @@ export type Death = {
 
 /**
  * The Hero's one Town Portal: its end in Combat Area `area` stands at `pos`,
- * its Town end at Town's Town Portal spot.
+ * its Town end at Town's Town Portal spot. `area` is the Kept Area: `kept`
+ * holds what it held as the Hero left it, while they are away.
  */
-export type TownPortal = { area: string; pos: Vec };
+export type TownPortal = { area: string; pos: Vec; kept: KeptArea | null };
+
+/**
+ * What the Kept Area held as the Hero left it, set aside unchanged: nothing
+ * in it is stepped until they arrive there again (ADR 0003).
+ */
+export type KeptArea = Pick<
+  World,
+  "monsters" | "projectiles" | "corpses" | "groundItems"
+>;
 
 /** What remains of a dead Monster: inert, not clickable, not blocking. */
 export type Corpse = { id: MonsterId; type: MonsterType; pos: Vec };
 
-/** An Item lying in the active Area, until picked up or the Hero leaves. */
+/**
+ * An Item lying in the active Area, until picked up or the Hero leaves, but
+ * for the Kept Area.
+ */
 export type GroundItem = { item: Item; pos: Vec };
 
 export type World = {
@@ -931,13 +944,15 @@ function stepAreaChange(world: World, change: AreaChange, events: SimEvent[]) {
 
 /**
  * Makes the target Area the active one, fresh from its definition: its
- * Monsters back at their spawns, and no Projectiles or Corpses. The Hero
- * carries over to the target Entry, facing away from the Area's nearest
- * edge, or through a Town Portal to beside its end there, facing away from
- * it, with their Life restored to full on arriving in Town, and back on
- * their feet if they died.
- * Their Minions come along, next to them. Going through a Town Portal from
- * Town closes it.
+ * Monsters back at their spawns, and no Projectiles or Corpses. The Kept
+ * Area instead comes back just as the Hero left it, and leaving it, by any
+ * route, sets aside what it holds.
+ *
+ * The Hero carries over to the target Entry, facing away from the Area's
+ * nearest edge, or through a Town Portal to beside its end there, facing
+ * away from it, with their Life restored to full on arriving in Town, and
+ * back on their feet if they died. Their Minions come along, next to them.
+ * Going through a Town Portal from Town closes it.
  */
 function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   const area = world.areas[change.area];
@@ -956,14 +971,27 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
     hero.combat = 0;
   }
   world.death = null;
+  const { townPortal } = world;
+  if (townPortal?.area === world.areaName) {
+    const { monsters, projectiles, corpses, groundItems } = world;
+    townPortal.kept = { monsters, projectiles, corpses, groundItems };
+  }
   world.areaName = area.name;
-  world.monsters = [];
-  world.projectiles = [];
-  world.corpses = [];
-  world.groundItems = [];
+  let kept: KeptArea | null = null;
+  if (townPortal?.area === area.name) {
+    kept = townPortal.kept;
+    // Back in the Kept Area, it holds its own state again.
+    townPortal.kept = null;
+  }
+  world.monsters = kept?.monsters ?? [];
+  world.projectiles = kept?.projectiles ?? [];
+  world.corpses = kept?.corpses ?? [];
+  world.groundItems = kept?.groundItems ?? [];
   for (const minion of world.minions) placeBesideHero(world, minion);
   world.heldOrders = [];
-  for (const spawn of area.spawns) placePack(world, area, spawn);
+  if (!kept) {
+    for (const spawn of area.spawns) placePack(world, area, spawn);
+  }
   events.push({ type: "AreaChanged", area: area.name, entry: change.entry });
   if (change.entry === null && area.name !== TOWN) {
     closeTownPortal(world, events);
@@ -1054,7 +1082,7 @@ function openTownPortal(world: World, events: SimEvent[]) {
   const at = summonPoint(area, ahead, heroTuning.radius);
   if (!at) return;
   closeTownPortal(world, events);
-  world.townPortal = { area: area.name, pos: at };
+  world.townPortal = { area: area.name, pos: at, kept: null };
   events.push({ type: "TownPortalOpened", area: area.name, pos: { ...at } });
 }
 

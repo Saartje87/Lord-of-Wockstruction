@@ -8,6 +8,8 @@ import {
 } from "pixi.js";
 import type { CursorHit } from "../cursor";
 import type { ActiveInput } from "../input/activeInput";
+import { castButton } from "../input/pad";
+import { buttonsHeld, stickHeld, type TouchControls } from "../input/touch";
 import { toScreen, toTile } from "../iso";
 import {
   type HeroState,
@@ -142,6 +144,7 @@ import {
   skillTreeSheet,
 } from "./skillTreePanel";
 import { tooltipRect } from "./tooltip";
+import { touchControlsLayout, touchControlsShown } from "./touchControls";
 
 const HOVER_LINE = 0xd8c48a;
 const MARKER_LINE = 0xe8d27a;
@@ -526,13 +529,15 @@ type MonsterView = CharacterView & {
  * Draws the World's active Area and everything in it into a Pixi stage,
  * following the Hero. `areaDisplayNames` are what the Area Banner on arriving in
  * an Area shows, by Area name. Hints name the buttons of `activeInput`, read
- * as it is each frame.
+ * as it is each frame, and the touch controls show while it is touch, held
+ * as `touch` is each frame.
  */
 export function createRenderer(
   app: Application,
   art: Art,
   areaDisplayNames: Readonly<Record<string, string>>,
   activeInput: Readonly<ActiveInput>,
+  touch: Readonly<TouchControls>,
 ) {
   // The World, drawn at the World zoom.
   const camera = new Container();
@@ -613,6 +618,8 @@ export function createRenderer(
   app.stage.addChild(experience.layer);
   const levelUp = levelUpButtonView();
   app.stage.addChild(levelUp.layer);
+  const touchControls = touchControlsView(activeInput, touch);
+  app.stage.addChild(touchControls.layer);
   const heroPanel = heroPanelView(activeInput);
   app.stage.addChild(heroPanel.layer);
   const inventoryPanel = inventoryPanelView(activeInput);
@@ -1283,6 +1290,7 @@ export function createRenderer(
       );
       experience.draw(viewport, world);
       levelUp.draw(viewport, world, nowMs);
+      touchControls.draw(viewport, world, menus);
       heroPanel.draw(viewport, world, menus.heroPanelOpen, menus.pendingPoints);
       // The focused Skill shows its tooltip; the mouse's pointer, as before,
       // none, and nor does a Held Skill.
@@ -1786,6 +1794,115 @@ function beltStripView(activeInput: Readonly<ActiveInput>) {
       });
     },
   };
+}
+
+/** The touch controls' look; where they go is `touchControlsLayout`. */
+const TOUCH_STYLE = {
+  fill: 0x17130e,
+  fillAlpha: 0.45,
+  pressed: 0x6a4428,
+  pressedAlpha: 0.75,
+  edge: 0xe8d27a,
+  edgeAlpha: 0.5,
+  stickAlpha: 0.3,
+  knob: 0.42,
+  attackSize: 14,
+};
+
+/**
+ * The touch controls, while touch is the Active Input and the World runs
+ * with no panel open: the Virtual Stick's ring where it rests or where the
+ * thumb landed, its knob following the thumb, and the round attack and
+ * Skill buttons, each Skill button naming its slot's Skill, dimmed when it
+ * has none or lacks the Mana. A held button shows pressed in.
+ */
+function touchControlsView(
+  activeInput: Readonly<ActiveInput>,
+  touch: Readonly<TouchControls>,
+) {
+  const style = TOUCH_STYLE;
+  const layer = new Container();
+  const graphics = new Graphics();
+  layer.addChild(graphics);
+  const text = () => {
+    const t = new Text({
+      text: "",
+      style: { fill: SKILL_BAR_STYLE.name, fontFamily: SERIF },
+    });
+    t.anchor.set(0.5);
+    layer.addChild(t);
+    return t;
+  };
+  const attackLabel = text();
+  attackLabel.text = "Attack";
+  const skillLabels = new Map<SkillBarSlot, Text>();
+
+  return {
+    layer,
+    draw(screen: Viewport, world: World, menus: Menus) {
+      layer.visible = touchControlsShown(activeInput.way, menus);
+      if (!layer.visible) return;
+      const layout = touchControlsLayout(screen);
+      const scale = screen.uiScale;
+      const held = buttonsHeld(touch);
+      graphics.clear();
+      const ring = (x: number, y: number, radius: number, down: boolean) =>
+        graphics
+          .circle(x, y, radius)
+          .fill({
+            color: down ? style.pressed : style.fill,
+            alpha: down ? style.pressedAlpha : style.fillAlpha,
+          })
+          .stroke({ color: style.edge, width: 1.5, alpha: style.edgeAlpha });
+
+      const { reach, rest } = layout.stick;
+      const stick = stickHeld(touch);
+      const from = stick?.from ?? rest;
+      graphics
+        .circle(from.x, from.y, reach)
+        .fill({ color: style.fill, alpha: style.stickAlpha })
+        .stroke({ color: style.edge, width: 1.5, alpha: style.edgeAlpha });
+      const pushed = stick ? clampedTo(stick.from, stick.at, reach) : from;
+      ring(pushed.x, pushed.y, reach * style.knob, stick !== null);
+
+      const { attack } = layout;
+      ring(
+        attack.x + attack.w / 2,
+        attack.y + attack.h / 2,
+        attack.w / 2,
+        held.includes("a"),
+      );
+      sizeText(attackLabel, style.attackSize * scale);
+      attackLabel.position.set(
+        attack.x + attack.w / 2,
+        attack.y + attack.h / 2,
+      );
+
+      for (const shown of skillBarSheet(world, null, "touch")) {
+        const rect = layout.skills[shown.slot];
+        const down = held.includes(castButton(shown.slot));
+        ring(rect.x + rect.w / 2, rect.y + rect.h / 2, rect.w / 2, down);
+        let label = skillLabels.get(shown.slot);
+        if (!label) {
+          label = text();
+          skillLabels.set(shown.slot, label);
+        }
+        label.text = shown.name ?? "";
+        label.alpha = shown.dimmed ? SKILL_BAR_STYLE.dimmed : 1;
+        sizeText(label, SKILL_BAR_STYLE.nameSize * scale);
+        label.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
+      }
+    },
+  };
+}
+
+/** `to`, brought within `reach` of `from`. */
+function clampedTo(from: Vec, to: Vec, reach: number): Vec {
+  const x = to.x - from.x;
+  const y = to.y - from.y;
+  const length = Math.hypot(x, y);
+  if (length <= reach) return to;
+  return { x: from.x + (x / length) * reach, y: from.y + (y / length) * reach };
 }
 
 /**

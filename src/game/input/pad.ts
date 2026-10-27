@@ -55,6 +55,26 @@ export const restingPad: PadSnapshot = {
 };
 
 /**
+ * The controller and the touch controls read as one pad: the stick pushed
+ * further, and the buttons of either, let go only once neither holds them.
+ */
+export function bothPads(a: PadSnapshot, b: PadSnapshot): PadSnapshot {
+  const union = (x: readonly PadButton[], y: readonly PadButton[]) => [
+    ...new Set([...x, ...y]),
+  ];
+  const held = union(a.held, b.held);
+  const further = (stick: Vec) => Math.hypot(stick.x, stick.y);
+  return {
+    stick: further(b.stick) > further(a.stick) ? b.stick : a.stick,
+    pressed: union(a.pressed, b.pressed),
+    held,
+    released: union(a.released, b.released).filter(
+      (button) => !held.includes(button),
+    ),
+  };
+}
+
+/**
  * Pad state between frames: when each held button last ordered, and whether
  * the stick is out of its dead zone.
  */
@@ -81,6 +101,13 @@ const SKILL_BUTTONS = [
   ["rb", "key4"],
   ["rt", "right"],
 ] as const satisfies readonly (readonly [PadButton, SkillBarSlot])[];
+
+/** The pad button that casts the Skill in Skill Bar slot `slot`. */
+export function castButton(slot: SkillBarSlot): PadButton {
+  const found = SKILL_BUTTONS.find(([, cast]) => cast === slot);
+  if (!found) throw new Error(`No pad button casts ${slot}`);
+  return found[0];
+}
 
 /** The D-pad directions that drink from Belt Columns 1 to 4, in turn. */
 const DRINK_BUTTONS = ["left", "up", "right", "down"] as const;

@@ -6,6 +6,7 @@ import { step, type World } from "../sim/world";
 import { inputTuning } from "../tuning/input";
 import type { FocusSpot } from "./focus";
 import {
+  bothPads,
   createPadInput,
   hideFocus,
   type PadButton,
@@ -760,5 +761,36 @@ describe("the presses for the menus", () => {
     );
 
     expect(presses).toEqual([]);
+  });
+});
+
+describe("two pads at once, the controller and the touch controls", () => {
+  it("take the stick pushed further", () => {
+    const pad = bothPads(stickAt({ x: 0.3, y: 0 }), stickAt({ x: 0, y: -0.9 }));
+
+    expect(pad.stick).toEqual({ x: 0, y: -0.9 });
+  });
+
+  it("give the buttons of both", () => {
+    const pad = bothPads(
+      { ...restAt, pressed: ["a"], held: ["a", "x"], released: ["y"] },
+      { ...restAt, pressed: ["rt"], held: ["rt", "a"], released: ["b"] },
+    );
+
+    expect(pad).toEqual({
+      stick: { x: 0, y: 0 },
+      pressed: ["a", "rt"],
+      held: ["a", "x", "rt"],
+      released: ["y", "b"],
+    });
+  });
+
+  it("let go of a button only once neither holds it", () => {
+    const pad = bothPads(
+      { ...restAt, released: ["a"] },
+      { ...restAt, held: ["a"] },
+    );
+
+    expect(pad).toMatchObject({ held: ["a"], released: [] });
   });
 });

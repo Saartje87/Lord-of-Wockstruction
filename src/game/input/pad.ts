@@ -1,3 +1,4 @@
+import { type Menus, PANELS, panelOpen } from "../menus";
 import type { ItemId } from "../sim/inventory";
 import { type SkillBarSlot, skillInSlot } from "../sim/skillBar";
 import { distance, type Vec } from "../sim/vec";
@@ -46,11 +47,19 @@ export const restingPad: PadSnapshot = {
   released: [],
 };
 
-/** Pad state between frames: when each held button last ordered. */
+/**
+ * Pad state between frames: when each held button last ordered, and whether
+ * the stick is out of its dead zone.
+ */
 export type PadInput = {
   /** When each button last ordered while held (ms); absent when not held. */
   lastOrderMs: Partial<Record<PadButton, number>>;
+  /** Whether the stick was pushed past the dead zone last frame. */
+  stickPushed: boolean;
 };
+
+/** The D-pad directions, which a push of the stick stands in for in menus. */
+type PadDirection = "up" | "down" | "left" | "right";
 
 /** The Skill Bar slot each Skill button casts. */
 const SKILL_BUTTONS = [
@@ -64,16 +73,21 @@ const SKILL_BUTTONS = [
 /** The D-pad directions that drink from Belt Columns 1 to 4, in turn. */
 const DRINK_BUTTONS = ["left", "up", "right", "down"] as const;
 
-/** How the pad sees the screen, as last drawn, and the World, as last stepped. */
+/**
+ * How the pad sees the screen, as last drawn, the World, as last stepped,
+ * and the menus, as this frame found them.
+ */
 export type PadView = {
   /** Maps a canvas point (CSS px) to tile units. */
   toTile(screen: Vec): Vec;
   /** The World as last stepped, which auto-aim picks the Target from. */
   world: World;
+  /** Which panels are open: while any is, the Hero stands still. */
+  menus: Pick<Menus, "heroPanelOpen" | "inventoryOpen" | "skillTreeOpen">;
 };
 
 export function createPadInput(): PadInput {
-  return { lastOrderMs: {} };
+  return { lastOrderMs: {}, stickPushed: false };
 }
 
 /**
@@ -95,14 +109,34 @@ export function createPadInput(): PadInput {
  * facing). Held, they cast again every `retargetMs`, and while one casts, the
  * stick aims rather than walks. An empty slot casts nothing. The D-pad's
  * left, up, right and down drink from Belt Columns 1 to 4, once a press.
+ *
+ * While a panel is open the Hero stands still and nothing is ordered; during
+ * Death, A sends the Hero back to Town, once a press, and nothing else is
+ * ordered. Neither shows a Target.
+ *
+ * `presses` are the buttons pressed this frame, for the menus (`pressPad`),
+ * with a push of the stick past the dead zone counted, once until it comes
+ * back to rest, as a press of the D-pad direction nearest it.
  */
 export function pollPad(
   input: PadInput,
   snapshot: PadSnapshot,
   nowMs: number,
   view: PadView,
-): { orders: Order[]; target: MonsterId | null } {
+): { orders: Order[]; target: MonsterId | null; presses: PadButton[] } {
+  const presses = [...snapshot.pressed, ...stickPress(input, snapshot.stick)];
   const { world } = view;
+  if (PANELS.some((panel) => panelOpen(view.menus, panel))) {
+    return { orders: [], target: null, presses };
+  }
+  if (world.death) {
+    const back = snapshot.pressed.includes("a");
+    return {
+      orders: back ? [{ type: "Continue" }] : [],
+      target: null,
+      presses,
+    };
+  }
   const walk = walkDirection(snapshot.stick, view);
   const facing = {
     x: Math.cos(world.hero.facing),
@@ -127,7 +161,23 @@ export function pollPad(
     }
   });
   if (walk && !aiming) orders.push({ type: "Walk", direction: walk });
-  return { orders, target };
+  return { orders, target, presses };
+}
+
+/**
+ * The D-pad direction a push of `stick` past the dead zone stands in for, as
+ * it goes past; nothing while it stays pushed or rests. Keeps whether it is
+ * pushed in `input`.
+ */
+function stickPress(input: PadInput, stick: Vec): PadDirection[] {
+  const pushed = Math.hypot(stick.x, stick.y) > inputTuning.stickDeadZone;
+  const fresh = pushed && !input.stickPushed;
+  input.stickPushed = pushed;
+  if (!fresh) return [];
+  if (Math.abs(stick.x) >= Math.abs(stick.y)) {
+    return [stick.x > 0 ? "right" : "left"];
+  }
+  return [stick.y > 0 ? "down" : "up"];
 }
 
 /**

@@ -30,6 +30,7 @@ import {
   fitMenus,
   type Menus,
   pressKey,
+  pressPad,
   reactMenus,
 } from "./menus";
 import { gameTime } from "./pause";
@@ -154,6 +155,24 @@ export default function GameCanvas() {
           }
           if (used === "newHero") newHero = true;
         }
+        // The controller, read every frame so its buttons' presses and
+        // releases are seen, and polled with the panels as the keys left
+        // them, before its own presses open or shut any: B shutting a panel
+        // casts nothing. It auto-aims from the World as last stepped (ADR
+        // 0002).
+        const pad = readGamepad(padHeld);
+        padHeld = pad.held;
+        const polled = pollPad(padInput, pad, gameTime(pause, realNow), {
+          toTile: renderer.screenToTile,
+          world,
+          menus,
+        });
+        for (const button of polled.presses) {
+          const hero = { heroDead: world.death !== null };
+          if (pressPad(menus, button, realNow, hero) === "newHero") {
+            newHero = true;
+          }
+        }
         if (clickedAt && wasPaused && pause.paused) {
           const choice = renderer.menuChoiceAt(clickedAt, pause.confirming);
           if (clickPaused(menus, choice, realNow) === "newHero") newHero = true;
@@ -204,17 +223,9 @@ export default function GameCanvas() {
           panelAt: (at) => forTheWorld(renderer.panelAt(at)),
         });
         orders.push(...newOrders);
-        // The controller, read every frame so its buttons' presses and
-        // releases are seen. A walk in a direction is for the steps of this
-        // frame only, each of them, so it goes apart from the other orders.
-        // It orders nothing while paused, nor for the Rotate Notice, and
-        // auto-aims from the World as last stepped (ADR 0002).
-        const pad = readGamepad(padHeld);
-        padHeld = pad.held;
-        const polled = pollPad(padInput, pad, now, {
-          toTile: renderer.screenToTile,
-          world,
-        });
+        // A walk in a direction is for the steps of this frame only, each of
+        // them, so it goes apart from the other orders. The controller orders
+        // nothing while paused, nor for the Rotate Notice.
         const padOrders = wasPaused || pause.paused ? [] : polled.orders;
         const walking = padOrders.filter((order) => order.type === "Walk");
         orders.push(...padOrders.filter((order) => order.type !== "Walk"));

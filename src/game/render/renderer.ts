@@ -194,6 +194,8 @@ const PAUSE_MENU = {
   title: { colour: 0xe8d27a, size: 40, top: 28 },
   credit: { colour: 0xd8d0b8, size: 15, top: 96, lineHeight: 22 },
   button: { size: 17 },
+  /** The ring round the button a controller has picked (CSS px at native scale). */
+  focus: { colour: 0xfff4c0, width: 3 },
   question: { colour: 0xd8d0b8, size: 17, top: 110, lineHeight: 28 },
   hint: { colour: 0x9a9080, size: 14, bottom: 26 },
 };
@@ -1304,7 +1306,12 @@ export function createRenderer(
         fade.scale.set(app.screen.width, app.screen.height);
       }
 
-      menu.draw(viewport, menus.pause, world.hero.progress.level);
+      menu.draw(
+        viewport,
+        menus.pause,
+        world.hero.progress.level,
+        menus.menuFocus,
+      );
       notice.draw(viewport);
 
       const markerProgress =
@@ -2775,9 +2782,14 @@ function pauseMenuView() {
     layer,
     /**
      * While confirming, asks whether to give up the Level `level` Hero for a
-     * New Hero.
+     * New Hero. The button `focus` names is ringed, for a controller.
      */
-    draw(screen: Viewport, pause: Pause, level: number) {
+    draw(
+      screen: Viewport,
+      pause: Pause,
+      level: number,
+      focus: MenuChoice | null,
+    ) {
       layer.visible = pause.paused;
       if (!pause.paused) return;
       const { confirming } = pause;
@@ -2806,8 +2818,20 @@ function pauseMenuView() {
 
       buttons.clear();
       for (const label of labels) label.visible = false;
-      layout.buttons.forEach(({ label: name, rect }, i) => {
+      layout.buttons.forEach(({ choice, label: name, rect }, i) => {
         button(buttons, rect);
+        if (choice === focus) {
+          const { colour, width } = PAUSE_MENU.focus;
+          const ring = (width * scale) / 2 + 1;
+          buttons
+            .rect(
+              rect.x - ring,
+              rect.y - ring,
+              rect.w + 2 * ring,
+              rect.h + 2 * ring,
+            )
+            .stroke({ color: colour, width: width * scale });
+        }
         labels[i] ??= menuLabel(layer);
         const label = labels[i];
         label.text = name;

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { createMenus, type Menus } from "../menus";
 import { SKILL_BAR_SLOTS } from "../sim/skillBar";
 import type { Vec } from "../sim/vec";
 import { step, type World } from "../sim/world";
@@ -16,9 +17,10 @@ import { arenaWith } from "./testArena";
  * Treats canvas points as tile units, so tests can speak in tiles, over
  * `world` (an empty Area unless given).
  */
-const tilesOver = (world: World = arenaWith([])) => ({
+const tilesOver = (world: World = arenaWith([]), menus = createMenus()) => ({
   toTile: (screen: Vec) => screen,
   world,
+  menus,
 });
 const asTiles = tilesOver();
 
@@ -90,7 +92,7 @@ describe("pad input", () => {
   it("walks the way the stick points on screen, in tiles", () => {
     const input = createPadInput();
     const turned = {
-      world: asTiles.world,
+      ...asTiles,
       toTile: (screen: Vec) => ({
         x: 10 + screen.x + screen.y,
         y: 4 + screen.y - screen.x,
@@ -433,5 +435,160 @@ describe("the D-pad", () => {
 
     const later = 10 * inputTuning.retargetMs;
     expect(pollPad(input, hold("left"), later, asTiles).orders).toEqual([]);
+  });
+});
+
+/** Menus with the Inventory panel open. */
+function inventoryOpen(): Menus {
+  const menus = createMenus();
+  menus.inventoryOpen = true;
+  return menus;
+}
+
+describe("with a panel open", () => {
+  it("the stick walks nothing", () => {
+    const view = tilesOver(arenaWith([]), inventoryOpen());
+
+    const { orders } = pollPad(
+      createPadInput(),
+      stickAt({ x: 1, y: 0 }),
+      0,
+      view,
+    );
+
+    expect(orders).toEqual([]);
+  });
+
+  it.each([
+    "left",
+    "up",
+    "right",
+    "down",
+    "a",
+    "b",
+    "x",
+    "y",
+    "rb",
+    "rt",
+  ] as const)("%s orders nothing in the World", (button) => {
+    const world = golemEverywhere(facingEast([{ x: 13, y: 10 }]));
+    const view = tilesOver(world, inventoryOpen());
+
+    const { orders } = pollPad(createPadInput(), press(button), 0, view);
+
+    expect(orders).toEqual([]);
+  });
+
+  it("shows no Target", () => {
+    const view = tilesOver(facingEast([{ x: 13, y: 10 }]), inventoryOpen());
+
+    expect(pollPad(createPadInput(), restAt, 0, view).target).toBeNull();
+  });
+});
+
+describe("during Death", () => {
+  /** A World with the Hero lying dead, a Skeleton ahead of them. */
+  function deadAhead(): World {
+    const world = golemEverywhere(facingEast([{ x: 13, y: 10 }]));
+    world.death = { elapsed: 0 };
+    return world;
+  }
+
+  it("A goes back to Town and orders nothing else", () => {
+    const pushed = { ...press("a"), stick: { x: 1, y: 0 } };
+
+    const { orders } = pollPad(
+      createPadInput(),
+      pushed,
+      0,
+      tilesOver(deadAhead()),
+    );
+
+    expect(orders).toEqual([{ type: "Continue" }]);
+  });
+
+  it("A goes back to Town once a press, however long it is held", () => {
+    const input = createPadInput();
+    pollPad(input, press("a"), 0, tilesOver(deadAhead()));
+
+    const later = 10 * inputTuning.retargetMs;
+    const { orders } = pollPad(input, hold("a"), later, tilesOver(deadAhead()));
+
+    expect(orders).toEqual([]);
+  });
+
+  it.each([
+    "x",
+    "rt",
+    "left",
+  ] as const)("%s and the stick order nothing", (button) => {
+    const pushed = { ...press(button), stick: { x: 1, y: 0 } };
+
+    const { orders } = pollPad(
+      createPadInput(),
+      pushed,
+      0,
+      tilesOver(deadAhead()),
+    );
+
+    expect(orders).toEqual([]);
+  });
+
+  it("shows no Target", () => {
+    const { target } = pollPad(
+      createPadInput(),
+      restAt,
+      0,
+      tilesOver(deadAhead()),
+    );
+
+    expect(target).toBeNull();
+  });
+});
+
+describe("the presses for the menus", () => {
+  it("are the buttons pressed this frame", () => {
+    const snapshot: PadSnapshot = {
+      ...restAt,
+      pressed: ["menu", "lb"],
+      held: ["menu", "lb", "a"],
+    };
+
+    const { presses } = pollPad(createPadInput(), snapshot, 0, asTiles);
+
+    expect(presses).toEqual(["menu", "lb"]);
+  });
+
+  it.each([
+    [{ x: 0.9, y: 0.2 }, "right"],
+    [{ x: -0.9, y: 0.2 }, "left"],
+    [{ x: 0.2, y: -0.9 }, "up"],
+    [{ x: -0.2, y: 0.9 }, "down"],
+  ] as const)("count a push of the stick to %o as %s", (stick, button) => {
+    const { presses } = pollPad(createPadInput(), stickAt(stick), 0, asTiles);
+
+    expect(presses).toEqual([button]);
+  });
+
+  it("count a push of the stick once, until it comes back to rest", () => {
+    const input = createPadInput();
+    const pushed = stickAt({ x: 1, y: 0 });
+    pollPad(input, pushed, 0, asTiles);
+
+    expect(pollPad(input, pushed, 16, asTiles).presses).toEqual([]);
+    expect(pollPad(input, restAt, 32, asTiles).presses).toEqual([]);
+    expect(pollPad(input, pushed, 48, asTiles).presses).toEqual(["right"]);
+  });
+
+  it("count nothing for the stick inside the dead zone", () => {
+    const edge = inputTuning.stickDeadZone;
+    const { presses } = pollPad(
+      createPadInput(),
+      stickAt({ x: edge * 0.9, y: 0 }),
+      0,
+      asTiles,
+    );
+
+    expect(presses).toEqual([]);
   });
 });

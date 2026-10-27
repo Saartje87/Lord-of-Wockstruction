@@ -229,7 +229,12 @@ export default function GameCanvas() {
           toTile: renderer.screenToTile,
           world,
           menus,
-          focusSpots: panelFocusSpots(currentPanel(menus), world, viewport),
+          focusSpots: panelFocusSpots(
+            currentPanel(menus),
+            world,
+            viewport,
+            menus.pendingPoints,
+          ),
         });
         for (const button of polled.presses) {
           const hero = { heroDead: world.death !== null };

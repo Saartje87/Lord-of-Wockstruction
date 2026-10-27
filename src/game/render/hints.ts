@@ -3,6 +3,7 @@ import type { PadButton } from "../input/pad";
 import { type MenuChoice, PANEL_KEYS, type Panel } from "../menus";
 import { beltColumnKey } from "../sim/belt";
 import { type SkillBarSlot, slotKey } from "../sim/skillBar";
+import type { SkillSheet } from "./skillTreePanel";
 
 /** Each pad button's Xbox-style name, whatever the controller. */
 const PAD_BUTTON_NAMES: Record<PadButton, string> = {
@@ -112,4 +113,22 @@ export function menuChoiceLabel(choice: MenuChoice, way: InputWay): string {
     return `${label} (${PAD_BUTTON_NAMES.b})`;
   }
   return label;
+}
+
+/**
+ * A Skill's tooltip with `way`: its name and Skill Level, then how to spend
+ * a Skill Point on it while one can be, and how to put it on the Skill Bar
+ * once learned.
+ */
+export function skillTooltip(sheet: SkillSheet, way: InputWay): string[] {
+  const lines = [sheet.name, `Skill Level ${sheet.skillLevel}`];
+  const [learn, pickUp] =
+    way === "controller"
+      ? [`Press ${PAD_BUTTON_NAMES.a}`, `Press ${PAD_BUTTON_NAMES.x}`]
+      : way === "touch"
+        ? ["Tap +", "Tap"]
+        : ["Click +", "Click"];
+  if (sheet.canRaise) lines.push(`${learn} to spend a Skill Point`);
+  if (sheet.skillLevel !== "0") lines.push(`${pickUp} to put on the Skill Bar`);
+  return lines;
 }

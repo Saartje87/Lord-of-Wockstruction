@@ -1,4 +1,5 @@
-import { inside, type Rect } from "../sim/rect";
+import { inside, middleOf, type Rect } from "../sim/rect";
+import { SKILL_BAR_SLOTS } from "../sim/skillBar";
 import type { Vec } from "../sim/vec";
 import {
   canRaiseSkill,
@@ -11,6 +12,7 @@ import { skillTuning } from "../tuning/skills";
 import { atUiScale, type Viewport } from "../viewport";
 import { type CloseButton, closeButtonRect, closeHitAt } from "./closeButton";
 import { compactPanelRect } from "./compactLayout";
+import { type SkillBarHit, skillBarLayout } from "./skillBar";
 
 /**
  * The Skill Tree panel at the top right, where the Inventory panel goes
@@ -203,4 +205,46 @@ export function skillTreeHitAt(
     }
   }
   return { button: null };
+}
+
+/**
+ * A spot the Focus can rest on with the Skill Tree open: a Skill, a Skill
+ * Bar slot or the ×; for a learned Skill, the hit picking it up.
+ */
+export type SkillTreeFocusSpot = {
+  rect: Rect;
+  at: Vec;
+  hit: SkillTreeHit | SkillBarHit;
+  secondHit?: SkillTreeHit;
+};
+
+/**
+ * The Skill Tree panel's Focus spots: each Skill's rows, clicked on its +,
+ * which spends a point on it while one can be, else picks it up if learned,
+ * the second face button always picking a learned one up; each Skill Bar
+ * slot, to put a Held Skill in; and the ×.
+ */
+export function skillTreeFocusSpots(
+  world: World,
+  screen: Viewport,
+): SkillTreeFocusSpot[] {
+  const layout = skillTreePanelLayout(screen);
+  const spots: SkillTreeFocusSpot[] = SKILLS.map((skill) => {
+    const at = middleOf(layout.raise[skill]);
+    const hit = skillTreeHitAt(screen, at, world, true) ?? { button: null };
+    const learned = world.hero.progress.skillLevels[skill] > 0;
+    const spot = { rect: layout.skills[skill], at, hit };
+    if (!learned) return spot;
+    return { ...spot, secondHit: { button: { type: "pickUpSkill", skill } } };
+  });
+  const { slots } = skillBarLayout(screen);
+  for (const slot of SKILL_BAR_SLOTS) {
+    const rect = slots[slot];
+    const hit = { button: { type: "skillBarSlot", slot } } as const;
+    spots.push({ rect, at: middleOf(rect), hit });
+  }
+  const { closeButton } = layout;
+  const hit = { button: { type: "close", panel: "skillTree" } } as const;
+  spots.push({ rect: closeButton, at: middleOf(closeButton), hit });
+  return spots;
 }

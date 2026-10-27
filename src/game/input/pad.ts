@@ -9,7 +9,7 @@ import {
   type FocusDirection,
   type FocusSpot,
   moveFocus,
-  sameSpot,
+  refocus,
 } from "./focus";
 import { pickTarget } from "./target";
 
@@ -154,10 +154,12 @@ export function hideFocus(input: PadInput) {
  *
  * While a panel is open the Hero stands still and nothing is ordered.
  * Instead, once the pad has been pressed, the Focus shows on a spot of
- * `focusSpots`, where it last rested or else the first; the press that
- * shows it does nothing more. The D-pad and a push of the stick move it
- * (`moveFocus`); A clicks the spot (lifting, putting down or pressing), X
- * right-clicks it (Equipping or drinking) and Y clicks off the panel there,
+ * `focusSpots`, where it last rested, else the spot nearest there, else the
+ * first (`refocus`); the press that shows it does nothing more. The D-pad
+ * and a push of the stick move it (`moveFocus`); A clicks the spot
+ * (lifting, putting down or pressing), X right-clicks it (Equipping or
+ * drinking) or clicks its second hit if it has one (picking up a learned
+ * Skill) and Y clicks off the panel there,
  * dropping a Held Item, each once a press. During Death, A sends the Hero
  * back to Town, once a press, and nothing else is ordered. Neither shows a
  * Target.
@@ -225,8 +227,7 @@ function steerFocus(
   wasShown: boolean,
 ): Pick<PadPoll, "focus" | "click" | "rightClick"> {
   const { focus: last } = input;
-  let focus =
-    (last && spots.find((spot) => sameSpot(spot, last))) ?? spots[0] ?? null;
+  let focus = refocus(spots, last);
   input.focus = focus ?? last;
   if (!focus || !input.focusShown) {
     return { focus: null, click: null, rightClick: null };
@@ -244,6 +245,9 @@ function steerFocus(
     : presses.includes("y")
       ? drop
       : null;
+  if (presses.includes("x") && focus.secondHit) {
+    return { focus, click: { at, hit: focus.secondHit }, rightClick: null };
+  }
   const rightClick = presses.includes("x") ? { at, hit } : null;
   return { focus, click, rightClick };
 }

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { pressButton } from "./buttonPress";
 import {
   type CursorHit,
   clickCursor,
@@ -8,6 +9,7 @@ import {
   releaseCursor,
   settleCursor,
 } from "./cursor";
+import { createMenus } from "./menus";
 import { beltStripLayout } from "./render/beltStrip";
 import {
   type InventoryHit,
@@ -15,6 +17,7 @@ import {
   inventoryPanelLayout,
   inventoryRightClickOrder,
 } from "./render/inventoryPanel";
+import { skillTreeFocusSpots } from "./render/skillTreePanel";
 import { beltOf, emptyBelt } from "./sim/belt";
 import {
   type Belongings,
@@ -998,5 +1001,51 @@ describe("a click at the Focus", () => {
 
     expect(right(onCell(4, 2))).toMatchObject({ type: "EquipItem" });
     expect(right(onCell(0, 0))).toMatchObject({ type: "DrinkItem" });
+  });
+});
+
+describe("a click at the Focus on the Skill Tree", () => {
+  /** The Skill Tree's Focus spot `hit` names, as laid out for `world`. */
+  const spotOn = (world: World, hit: CursorHit) => {
+    const spot = skillTreeFocusSpots(world, SCREEN).find(
+      (one) => JSON.stringify(one.hit) === JSON.stringify(hit),
+    );
+    if (!spot) throw new Error("no such spot");
+    return spot;
+  };
+  const LEARN_GOLEM = { button: { type: "learn", skill: "golem" } } as const;
+
+  it("spends a Skill Point on the focused Skill", () => {
+    const { world, screen } = scene();
+    world.hero.progress.skillPoints = 1;
+    const spot = spotOn(world, LEARN_GOLEM);
+
+    const { cursor } = clickCursor(createCursor(), spot, { world, screen });
+    step(world, pressButton(createMenus(), world, LEARN_GOLEM.button));
+
+    expect(cursor).toEqual(createCursor());
+    expect(world.hero.progress.skillLevels.golem).toBe(1);
+  });
+
+  it("picks the focused learned Skill up with its second hit, and puts it in the focused Skill Bar slot", () => {
+    const { world, screen } = scene();
+    world.hero.progress.skillPoints = 1;
+    step(world, [{ type: "SpendSkillPoint", skill: "golem" }]);
+    const { at, secondHit } = spotOn(world, ON_GOLEM);
+
+    const held = clickCursor(
+      createCursor(),
+      { at, hit: secondHit ?? null },
+      { world, screen },
+    );
+    const put = clickCursor(held.cursor, spotOn(world, ON_KEY4), {
+      world,
+      screen,
+    });
+    step(world, put.orders);
+
+    expect(held.cursor.heldSkill).toBe("golem");
+    expect(put.cursor.heldSkill).toBeNull();
+    expect(world.hero.progress.skillBar.key4).toBe("golem");
   });
 });

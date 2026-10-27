@@ -6,6 +6,7 @@ import {
   panelCloseHint,
   resumeHint,
   skillBarSlotButton,
+  skillTooltip,
 } from "./hints";
 
 describe("the hints and labels that name buttons", () => {
@@ -70,5 +71,61 @@ describe("the hints and labels that name buttons", () => {
     ["goBack", "touch", "No"],
   ] as const)("label the pause menu's %s button with %s as %j", (choice, way, label) => {
     expect(menuChoiceLabel(choice, way)).toBe(label);
+  });
+
+  const golem = {
+    skill: "golem",
+    name: "Golem",
+    manaCost: "15",
+    requiredLevel: "1",
+  } as const;
+  it.each([
+    [
+      "learned, a point to spend",
+      { ...golem, skillLevel: "1", canRaise: true },
+      "controller",
+      [
+        "Golem",
+        "Skill Level 1",
+        "Press A to spend a Skill Point",
+        "Press X to put on the Skill Bar",
+      ],
+    ],
+    [
+      "learned",
+      { ...golem, skillLevel: "2", canRaise: false },
+      "controller",
+      ["Golem", "Skill Level 2", "Press X to put on the Skill Bar"],
+    ],
+    [
+      "not learned",
+      { ...golem, skillLevel: "0", canRaise: false },
+      "controller",
+      ["Golem", "Skill Level 0"],
+    ],
+    [
+      "learned, a point to spend",
+      { ...golem, skillLevel: "1", canRaise: true },
+      "mouseAndKeyboard",
+      [
+        "Golem",
+        "Skill Level 1",
+        "Click + to spend a Skill Point",
+        "Click to put on the Skill Bar",
+      ],
+    ],
+    [
+      "learned, a point to spend",
+      { ...golem, skillLevel: "1", canRaise: true },
+      "touch",
+      [
+        "Golem",
+        "Skill Level 1",
+        "Tap + to spend a Skill Point",
+        "Tap to put on the Skill Bar",
+      ],
+    ],
+  ] as const)("give a Skill's tooltip, %s, with %s", (_, sheet, way, lines) => {
+    expect(skillTooltip(sheet, way)).toEqual(lines);
   });
 });

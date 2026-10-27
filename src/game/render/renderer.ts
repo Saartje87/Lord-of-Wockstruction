@@ -34,7 +34,7 @@ import {
 } from "../sim/inventory";
 import { minionWindUpProgress } from "../sim/minions";
 import { monsterMaxLife, windUpProgress } from "../sim/monsters";
-import type { Rect } from "../sim/rect";
+import { inside, type Rect } from "../sim/rect";
 import type { SkillBarSlot } from "../sim/skillBar";
 import { STEP_MS } from "../sim/units";
 import { tileOf, type Vec } from "../sim/vec";
@@ -104,7 +104,7 @@ import {
   heroSheet,
   PANEL_ROWS,
 } from "./heroPanel";
-import { deathHint, panelCloseHint, resumeHint } from "./hints";
+import { deathHint, panelCloseHint, resumeHint, skillTooltip } from "./hints";
 import {
   characterUnder,
   hoveredOf,
@@ -1284,7 +1284,10 @@ export function createRenderer(
       experience.draw(viewport, world);
       levelUp.draw(viewport, world, nowMs);
       heroPanel.draw(viewport, world, menus.heroPanelOpen, menus.pendingPoints);
-      skillTreePanel.draw(viewport, world, menus.skillTreeOpen);
+      // The focused Skill shows its tooltip; the mouse's pointer, as before,
+      // none, and nor does a Held Skill.
+      const skillTooltipAt = focus && !heldSkill ? pointer : null;
+      skillTreePanel.draw(viewport, world, menus.skillTreeOpen, skillTooltipAt);
       heldSkillView.draw(heldSkill, pointer, uiScale);
       const spot = onPanel && "inventory" in onPanel ? onPanel.inventory : null;
       inventoryPanel.draw(viewport, world, menus.inventoryOpen, spot, pointer);
@@ -2282,7 +2285,8 @@ function heroPanelView(activeInput: Readonly<ActiveInput>) {
 /**
  * The Skill Tree panel, in the Hero panel's look: the unspent Skill Points,
  * then each Skill's Skill Level, Mana cost at the next Skill Level and
- * required Level, with a + button while a Skill Point can be spent on it.
+ * required Level, with a + button while a Skill Point can be spent on it,
+ * and the tooltip of the Skill at `tooltipAt`, if any.
  */
 function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
   const style = HERO_PANEL_STYLE;
@@ -2315,6 +2319,10 @@ function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
   };
   type Row = ReturnType<typeof row>;
   const points = row();
+  const tooltipBox = new Graphics();
+  layer.addChild(tooltipBox);
+  /** Tooltip lines, made as more are needed, over its box. */
+  const tooltipLines: Text[] = [];
   /** Made as the sheet first lists them. */
   const skills: {
     name: Row;
@@ -2326,7 +2334,12 @@ function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
 
   return {
     layer,
-    draw(screen: Viewport, world: World, open: boolean) {
+    draw(
+      screen: Viewport,
+      world: World,
+      open: boolean,
+      tooltipAt: Vec | null = null,
+    ) {
       layer.visible = open;
       if (!open) return;
       hint.text = panelCloseHint("skillTree", activeInput.way);
@@ -2408,6 +2421,41 @@ function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
       });
       // Rows made this draw too.
       texts.size(scale);
+
+      tooltipBox.clear();
+      for (const line of tooltipLines) line.visible = false;
+      const under =
+        tooltipAt &&
+        sheet.skills.find((skill) =>
+          inside(layout.skills[skill.skill], tooltipAt),
+        );
+      if (tooltipAt && under) {
+        const look = INVENTORY_STYLE;
+        const lines = skillTooltip(under, activeInput.way);
+        // Over the rows, some made after it.
+        layer.setChildIndex(tooltipBox, layer.children.length - 1);
+        lines.forEach((line, i) => {
+          if (!tooltipLines[i]) {
+            tooltipLines[i] = text(look.tooltipLine, look.tooltipSize);
+            tooltipLines[i].anchor.set(0.5, 0);
+          }
+          const shown = tooltipLines[i];
+          // Over the box, which is made before any line.
+          layer.setChildIndex(shown, layer.children.length - 1);
+          shown.visible = true;
+          shown.text = line;
+          shown.style.fill = i === 0 ? look.tooltipName : look.tooltipLine;
+        });
+        // Lines made this draw too, before the box is fitted to them.
+        texts.size(scale);
+        const rect = layout.skills[under.skill];
+        drawTooltip(
+          tooltipBox,
+          tooltipLines.slice(0, lines.length),
+          screen,
+          (size, gap) => tooltipRect(rect, size, screen, gap),
+        );
+      }
     },
   };
 }

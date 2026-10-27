@@ -4,7 +4,7 @@ import {
   type PendingPoints,
   pendingTotal,
 } from "../menus";
-import { inside, type Rect } from "../sim/rect";
+import { inside, middleOf, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
 import {
   ATTRIBUTES,
@@ -349,4 +349,33 @@ export function heroPanelHitAt(
     return { button: { type: "accept" } };
   }
   return { button: null };
+}
+
+/** A spot on the Hero panel the Focus can rest on: a button shown on it. */
+export type HeroFocusSpot = { rect: Rect; at: Vec; hit: PanelHit };
+
+/**
+ * The Hero panel's Focus spots, for `pending` points: each + and − button,
+ * Accept and the ×, only while they're shown, each clicked at its middle.
+ */
+export function heroFocusSpots(
+  world: World,
+  screen: Viewport,
+  pending: Readonly<PendingPoints> = NO_PENDING,
+): HeroFocusSpot[] {
+  const layout = heroPanelLayout(screen);
+  const spots: HeroFocusSpot[] = [];
+  const add = (rect: Rect, button: PanelButton) => {
+    spots.push({ rect, at: middleOf(rect), hit: { button } });
+  };
+  const raisable = canRaise(world, pending);
+  for (const attribute of ATTRIBUTES) {
+    if (pending[attribute] > 0) {
+      add(layout.lower[attribute], { type: "lower", attribute });
+    }
+    if (raisable) add(layout.raise[attribute], { type: "raise", attribute });
+  }
+  if (hasPendingPoints(pending)) add(layout.accept, { type: "accept" });
+  add(layout.closeButton, { type: "close", panel: "hero" });
+  return spots;
 }

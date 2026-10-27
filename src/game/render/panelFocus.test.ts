@@ -1,11 +1,22 @@
 import { describe, expect, it } from "vitest";
 import type { CursorHit } from "../cursor";
 import { type FocusDirection, type FocusSpot, moveFocus } from "../input/focus";
+import { noPendingPoints, type PendingPoints } from "../menus";
 import { emptyBelt } from "../sim/belt";
 import { type Belongings, EQUIPMENT_SLOTS } from "../sim/inventory";
-import { createWorld, step, type World } from "../sim/world";
+import { SKILL_BAR_SLOTS } from "../sim/skillBar";
+import {
+  ATTRIBUTES,
+  createWorld,
+  FRESH_PROGRESS,
+  type Progress,
+  SKILLS,
+  step,
+  type World,
+} from "../sim/world";
 import { inventoryTuning } from "../tuning/items";
 import { type Viewport, viewportOf } from "../viewport";
+import { cursorHitAt } from "./cursorHit";
 import {
   inventoryHitAt,
   inventoryPanelLayout,
@@ -30,8 +41,13 @@ const town = {
   ],
 };
 
-const world = (belongings?: Belongings) =>
-  createWorld({ areas: { town }, seed: 1, belongings });
+const world = (belongings?: Belongings, progress?: Partial<Progress>) =>
+  createWorld({
+    areas: { town },
+    seed: 1,
+    belongings,
+    progress: progress && { ...FRESH_PROGRESS, ...progress },
+  });
 
 const WIDE = viewportOf({ width: 1280, height: 800 });
 const COMPACT = viewportOf({ width: 800, height: 400 });
@@ -206,5 +222,169 @@ describe("the Inventory panel's Focus spots", () => {
     // An Axe is 2×3.
     expect(landsAt(cell(4, 1))).toEqual({ column: 4, row: 1 });
     expect(landsAt(cell(9, 3))).toEqual({ column: 8, row: 1 });
+  });
+});
+
+/** Every spot of `spots` reached from each by moving the Focus about. */
+function expectAllReachable(spots: FocusSpot[]) {
+  for (const from of spots) {
+    const reached = new Set([from]);
+    const next = [from];
+    while (next.length > 0) {
+      const at = next.pop() as FocusSpot;
+      for (const direction of DIRECTIONS) {
+        const to = moveFocus(spots, at, direction);
+        if (reached.has(to)) continue;
+        reached.add(to);
+        next.push(to);
+      }
+    }
+    expect(reached.size).toBe(spots.length);
+  }
+}
+
+const SCREENS: [string, Viewport][] = [
+  ["wide", WIDE],
+  ["compact", COMPACT],
+];
+
+describe("the Hero panel's Focus spots", () => {
+  const raise = (attribute: (typeof ATTRIBUTES)[number]) =>
+    ({ button: { type: "raise", attribute } }) as const;
+  const lower = (attribute: (typeof ATTRIBUTES)[number]) =>
+    ({ button: { type: "lower", attribute } }) as const;
+  const accept = { button: { type: "accept" } } as const;
+  const heroClose = { button: { type: "close", panel: "hero" } } as const;
+  /** A Hero with 5 Attribute Points, 2 of them pending on Strength. */
+  const leveled = () => world(undefined, { level: 2, attributePoints: 5 });
+  const pending = (): PendingPoints => ({ ...noPendingPoints(), strength: 2 });
+  const shown = (pendingPoints: PendingPoints) => ({
+    heroPanelOpen: true,
+    inventoryOpen: false,
+    skillTreeOpen: false,
+    pendingPoints,
+  });
+
+  it.each(SCREENS)("are every + and −, Accept and the × (%s)", (_, screen) => {
+    const spots = panelFocusSpots("hero", leveled(), screen, pending());
+
+    expect(spots).toHaveLength(ATTRIBUTES.length + 1 + 1 + 1);
+    for (const attribute of ATTRIBUTES) spotOf(spots, raise(attribute));
+    spotOf(spots, lower("strength"));
+    spotOf(spots, accept);
+    spotOf(spots, heroClose);
+  });
+
+  it("are only the buttons shown: the × with no points to place", () => {
+    expect(panelFocusSpots("hero", world(), WIDE).map((s) => s.hit)).toEqual([
+      heroClose,
+    ]);
+  });
+
+  it.each(SCREENS)("each point where a click hits it (%s)", (_, screen) => {
+    const w = leveled();
+    for (const spot of panelFocusSpots("hero", w, screen, pending())) {
+      expect(cursorHitAt(screen, spot.at, w, shown(pending()))).toEqual(
+        spot.hit,
+      );
+    }
+  });
+
+  it.each(SCREENS)("are each reachable from any other (%s)", (_, screen) => {
+    expectAllReachable(panelFocusSpots("hero", leveled(), screen, pending()));
+  });
+
+  it("goes down the + buttons, across to a −, and down to Accept", () => {
+    const spots = panelFocusSpots("hero", leveled(), WIDE, pending());
+
+    expect(move(spots, raise("strength"), "down")).toEqual(raise("dexterity"));
+    expect(move(spots, raise("dexterity"), "up")).toEqual(raise("strength"));
+    expect(move(spots, raise("strength"), "left")).toEqual(lower("strength"));
+    expect(move(spots, lower("strength"), "right")).toEqual(raise("strength"));
+    expect(move(spots, raise("energy"), "down")).toEqual(accept);
+  });
+});
+
+describe("the Skill Tree panel's Focus spots", () => {
+  const learn = (skill: (typeof SKILLS)[number]) =>
+    ({ button: { type: "learn", skill } }) as const;
+  const pickUp = (skill: (typeof SKILLS)[number]) =>
+    ({ button: { type: "pickUpSkill", skill } }) as const;
+  const barSlot = (slot: (typeof SKILL_BAR_SLOTS)[number]) =>
+    ({ button: { type: "skillBarSlot", slot } }) as const;
+  const treeClose = { button: { type: "close", panel: "skillTree" } } as const;
+  const shown = {
+    heroPanelOpen: false,
+    inventoryOpen: false,
+    skillTreeOpen: true,
+    pendingPoints: noPendingPoints(),
+  };
+  const learnedSkills = Object.fromEntries(SKILLS.map((s) => [s, 1])) as Record<
+    (typeof SKILLS)[number],
+    number
+  >;
+  const worlds: [string, () => World][] = [
+    ["Skill Points to spend", () => world(undefined, { skillPoints: 1 })],
+    ["learned Skills", () => world(undefined, { skillLevels: learnedSkills })],
+  ];
+  const cases = SCREENS.flatMap(([name, screen]) =>
+    worlds.map(([with_, made]) => [name, with_, screen, made] as const),
+  );
+
+  it.each(
+    cases,
+  )("are every Skill, Skill Bar slot and the × (%s, %s)", (_, __, screen, made) => {
+    const spots = panelFocusSpots("skillTree", made(), screen);
+
+    expect(spots).toHaveLength(SKILLS.length + SKILL_BAR_SLOTS.length + 1);
+    for (const slot of SKILL_BAR_SLOTS) spotOf(spots, barSlot(slot));
+    spotOf(spots, treeClose);
+  });
+
+  it("puts each Skill's spot on its +, spending a point, while it can", () => {
+    const spots = panelFocusSpots("skillTree", worlds[0][1](), WIDE);
+    for (const skill of SKILLS) spotOf(spots, learn(skill));
+  });
+
+  it("picks a learned Skill up with the second face button", () => {
+    const spots = panelFocusSpots("skillTree", worlds[1][1](), WIDE);
+    for (const skill of SKILLS) {
+      expect(spotOf(spots, pickUp(skill)).secondHit).toEqual(pickUp(skill));
+    }
+  });
+
+  it("is a Skill not yet learned, with nothing to press, while no point can be spent", () => {
+    const spots = panelFocusSpots("skillTree", world(), WIDE);
+
+    expect(spots).toHaveLength(SKILLS.length + SKILL_BAR_SLOTS.length + 1);
+    expect(spots[0].hit).toEqual({ button: null });
+    expect(spots[0].secondHit).toBeUndefined();
+  });
+
+  it.each(
+    cases,
+  )("each point where a click hits it (%s, %s)", (_, __, screen, made) => {
+    const w = made();
+    for (const spot of panelFocusSpots("skillTree", w, screen)) {
+      expect(cursorHitAt(screen, spot.at, w, shown)).toEqual(spot.hit);
+    }
+  });
+
+  it.each(
+    cases,
+  )("are each reachable from any other (%s, %s)", (_, __, screen, made) => {
+    expectAllReachable(panelFocusSpots("skillTree", made(), screen));
+  });
+
+  it("goes down from the last Skill to the Skill Bar, and up to the ×", () => {
+    const spots = panelFocusSpots("skillTree", worlds[1][1](), WIDE);
+    const last = pickUp(SKILLS[SKILLS.length - 1]);
+    const first = pickUp(SKILLS[0]);
+
+    expect(SKILL_BAR_SLOTS.map(barSlot)).toContainEqual(
+      move(spots, last, "down"),
+    );
+    expect(move(spots, first, "up")).toEqual(treeClose);
+    expect(move(spots, barSlot("key1"), "right")).toEqual(barSlot("key2"));
   });
 });

@@ -11,7 +11,7 @@ import {
   isCell,
   isSlot,
 } from "../sim/inventory";
-import { inside, type Rect } from "../sim/rect";
+import { inside, middleOf, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
 import type { Order, World } from "../sim/world";
 import {
@@ -519,7 +519,7 @@ export function inventoryFocusSpots(
       const size = held && itemOf(held).size;
       const at =
         held && size
-          ? middle(
+          ? middleOf(
               itemRect(
                 layout,
                 {
@@ -529,27 +529,22 @@ export function inventoryFocusSpots(
                 held,
               ),
             )
-          : middle(rect);
+          : middleOf(rect);
       spots.push({ rect, at, hit: { inventory: { column, row } } });
     }
   }
   for (const slot of EQUIPMENT_SLOTS) {
     const rect = layout.slots[slot];
-    spots.push({ rect, at: middle(rect), hit: { inventory: slot } });
+    spots.push({ rect, at: middleOf(rect), hit: { inventory: slot } });
   }
   layout.belt.forEach((cells, beltColumn) => {
     cells.forEach((rect, row) => {
       const hit = { inventory: { beltColumn, row } };
-      spots.push({ rect, at: middle(rect), hit });
+      spots.push({ rect, at: middleOf(rect), hit });
     });
   });
   const { closeButton } = layout;
   const hit = { button: { type: "close", panel: "inventory" } } as const;
-  spots.push({ rect: closeButton, at: middle(closeButton), hit });
+  spots.push({ rect: closeButton, at: middleOf(closeButton), hit });
   return spots;
-}
-
-/** The middle of `rect`. */
-function middle(rect: Rect): Vec {
-  return { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
 }

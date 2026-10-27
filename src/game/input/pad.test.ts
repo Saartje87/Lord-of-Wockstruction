@@ -591,6 +591,44 @@ describe("the Focus", () => {
     expect(click).toBeNull();
   });
 
+  it("X clicks a spot's second hit where it has one, as on a learned Skill", () => {
+    const pickUp = { button: { type: "pickUpSkill", skill: "golem" } } as const;
+    const spots = SPOTS.map((spot) => ({ ...spot, secondHit: pickUp }));
+    const input = createPadInput();
+    pollPad(input, press("right"), 0, focusView(spots));
+
+    const { rightClick, click } = pollPad(
+      input,
+      press("x"),
+      16,
+      focusView(spots),
+    );
+
+    expect(click).toEqual({ at: { x: 0.5, y: 0.5 }, hit: pickUp });
+    expect(rightClick).toBeNull();
+  });
+
+  it("goes to the nearest spot when its own is gone", () => {
+    const input = focused();
+    pollPad(input, press("right"), 16, focusView());
+    pollPad(input, press("down"), 32, focusView());
+
+    const { focus } = pollPad(input, restAt, 48, focusView(SPOTS.slice(0, 3)));
+
+    expect(focus).toEqual(spotAt(1, 0));
+  });
+
+  it("keeps to its own spot among spots with the same hit", () => {
+    const blank = SPOTS.map((spot) => ({ ...spot, hit: { button: null } }));
+    const input = createPadInput();
+    pollPad(input, press("right"), 0, focusView(blank));
+    pollPad(input, press("right"), 16, focusView(blank));
+
+    const { focus } = pollPad(input, restAt, 32, focusView(blank));
+
+    expect(focus).toEqual(blank[1]);
+  });
+
   it("Y clicks off the panel at the Focus, dropping a Held Item", () => {
     const { click } = pollPad(focused(), press("y"), 16, focusView());
 

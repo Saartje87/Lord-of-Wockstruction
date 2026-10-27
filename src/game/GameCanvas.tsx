@@ -20,7 +20,7 @@ import {
 } from "./input/activeInput";
 import { readGamepad } from "./input/gamepad";
 import { castKeyOrder, drinkKeyOrder } from "./input/keys";
-import { createPadInput, type PadButton, pollPad } from "./input/pad";
+import { bothPads, createPadInput, type PadButton, pollPad } from "./input/pad";
 import {
   attachPointer,
   cancel,
@@ -30,6 +30,7 @@ import {
   takeRelease,
   takeRightClick,
 } from "./input/pointer";
+import { attachTouch, createTouchControls, readTouch } from "./input/touch";
 import {
   clickPaused,
   createMenus,
@@ -43,6 +44,10 @@ import { gameTime, togglePause } from "./pause";
 import { loadArt } from "./render/art";
 import { inventoryRightClickOrder } from "./render/inventoryPanel";
 import { createRenderer } from "./render/renderer";
+import {
+  touchControlsLayout,
+  touchControlsShown,
+} from "./render/touchControls";
 import {
   browserStorage,
   changesSave,
@@ -102,7 +107,15 @@ export default function GameCanvas() {
 
       // The way the player last played, which the hints name the buttons of.
       const activeInput = createActiveInput();
-      const renderer = createRenderer(app, art, areaDisplayNames, activeInput);
+      // What the fingers hold of the touch controls.
+      const touch = createTouchControls();
+      const renderer = createRenderer(
+        app,
+        art,
+        areaDisplayNames,
+        activeInput,
+        touch,
+      );
       const clock = createClock();
       const input = createPointerInput();
       const menus = createMenus();
@@ -115,6 +128,33 @@ export default function GameCanvas() {
       /** What the cursor holds besides the Held Item. */
       let cursor = createCursor();
 
+      // Each input event tells the Active Input the way it came by, first,
+      // so the touch that makes it touch can already be the touch
+      // controls'. The controller is told of in the loop, as it's read there.
+      for (const type of ["pointerdown", "pointermove"] as const) {
+        window.addEventListener(
+          type,
+          (e) => {
+            if (e.target !== app.canvas) return;
+            reportInput(activeInput, {
+              type: "used",
+              way: pointerWay(e.pointerType),
+            });
+          },
+          { capture: true, signal: listeners.signal },
+        );
+      }
+      // A touch on the touch controls, shown and not under a panel or the
+      // HUD, is theirs and never the pointer's.
+      attachTouch(
+        app.canvas,
+        touch,
+        (at) =>
+          touchControlsShown(activeInput.way, menus) && !renderer.panelAt(at)
+            ? touchControlsLayout(viewportOf(app.screen))
+            : null,
+        listeners.signal,
+      );
       attachPointer(app.canvas, input, listeners.signal);
       // Keys and clicks on the pause menu go to the menus; a click anywhere
       // else on it resumes. Any other click or key press goes on from the
@@ -136,20 +176,6 @@ export default function GameCanvas() {
         },
         { signal: listeners.signal },
       );
-      // Each input event tells the Active Input the way it came by. The
-      // controller is told of in the loop, as it's read there.
-      for (const type of ["pointerdown", "pointermove"] as const) {
-        app.canvas.addEventListener(
-          type,
-          (e) => {
-            reportInput(activeInput, {
-              type: "used",
-              way: pointerWay(e.pointerType),
-            });
-          },
-          { signal: listeners.signal },
-        );
-      }
       window.addEventListener(
         "keydown",
         () =>
@@ -209,11 +235,14 @@ export default function GameCanvas() {
         // them, before its own presses open or shut any: B shutting a panel
         // casts nothing. It auto-aims from the World as last stepped (ADR
         // 0002).
-        const pad = readGamepad(padHeld);
-        padHeld = pad.held;
-        if (padTouched(pad)) {
+        // The touch controls stand in for the same pad, and were told of as
+        // touches.
+        const controller = readGamepad(padHeld);
+        padHeld = controller.held;
+        if (padTouched(controller)) {
           reportInput(activeInput, { type: "used", way: "controller" });
         }
+        const pad = bothPads(controller, readTouch(touch));
         const polled = pollPad(padInput, pad, gameTime(pause, realNow), {
           toTile: renderer.screenToTile,
           world,

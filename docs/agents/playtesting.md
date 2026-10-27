@@ -26,7 +26,7 @@ The Save lives in `localStorage` under `wiablo.save` as JSON. Write one and relo
 
 ```js
 localStorage.setItem("wiablo.save", JSON.stringify({
-  version: 6, level: 3, experience: 2000,
+  version: 7, level: 3, experience: 2000,
   strength: 20, dexterity: 20, vitality: 20, energy: 20, attributePoints: 10,
   // Skills are the keys of `skillTuning` in src/game/tuning/skills.ts.
   skillPoints: 2, skillLevels: { golem: 0 },
@@ -35,8 +35,35 @@ localStorage.setItem("wiablo.save", JSON.stringify({
   // Item types are the keys of `itemTuning` in src/game/tuning/items.ts.
   inventory: [{ type: "axe", cell: { column: 0, row: 0 } }],
   equipment: { weapon: "shortSword" },
+  // Belt Columns, one Potion each without a Belt equipped.
+  belt: [["lifePotion"], ["lifePotion"], ["lifePotion"], ["lifePotion"]],
 }));
 location.reload();
 ```
 
-A Save at 450 Experience levels up on the next Skeleton kill. **New Hero** in the Esc menu, or `localStorage.removeItem("wiablo.save")`, puts things back. A Save written on a port belongs to that port only.
+A Save at 450 Experience levels up on the next Skeleton kill. For fights, use Level 30 or more with Vitality raised: Monster Level comes from the Combat Area, not the Hero, so a Level 1 to 10 Hero dies to the first Skeleton group while you take screenshots. **New Hero** in the Esc menu, or `localStorage.removeItem("wiablo.save")`, puts things back. A Save written on a port belongs to that port only.
+
+## Touch screen
+
+Chrome stands in for a phone: touch controls read `PointerEvent`s with `pointerType: "touch"` on the canvas (`src/game/input/touch.ts`), so dispatched events drive them.
+
+```js
+const canvas = document.querySelector("canvas");
+// Dispatched events here report offsetX as clientX / devicePixelRatio, so
+// scale CSS px up. Check once: log e.offsetX from a pointerdown listener.
+const touch = (type, id, x, y) => canvas.dispatchEvent(new PointerEvent(type, {
+  pointerId: id, pointerType: "touch", isPrimary: true, bubbles: true,
+  clientX: x * devicePixelRatio, clientY: y * devicePixelRatio,
+}));
+```
+
+- **The first touch** switches the HUD to touch controls; take a screenshot then to read the stick and button positions in CSS px.
+- **The stick**: `pointerdown` in the stick zone, `pointermove` by up to the stick's reach (about 60 px) in the walk direction, `pointerup` to let go.
+- **Buttons**: `pointerdown` on the button holds it until `pointerup`.
+- **Run timed sequences in one `javascript_exec`** (await a timeout between events), then screenshot. A tool round trip lasts seconds, and Monsters keep hitting meanwhile.
+- **A `setPointerCapture` error in the dev overlay** comes from dispatched touches outside the controls, which have no real pointer. It is no game bug.
+- **From Town to Monsters**: Town's Exit to the Catacombs lies down-right of the start. The nearest Skeletons (3) are about 23 tiles east of the Catacombs entry.
+
+## Deploys
+
+`main` deploys to https://wiablo.vercel.app through Vercel's GitHub integration. When something works locally but not there, check the deploy before the code: `gh api repos/Saartje87/diablo/commits/<sha>/status` on `main`'s tip. No `Vercel` context means production never deployed; the user redeploys from the Vercel dashboard.

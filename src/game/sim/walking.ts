@@ -1,5 +1,5 @@
 import type { Area } from "./area";
-import { findPath, isClear } from "./path";
+import { findPath, fitsAt, isClear } from "./path";
 import type { Vec } from "./vec";
 
 /** A creature the sim walks for itself: a Monster or a Minion. */
@@ -44,6 +44,33 @@ export function goToward(
     walker.replan = gait.replanSteps;
   }
   walkAlong(walker, walker.path, budget);
+}
+
+/**
+ * Where a body of `radius` at `from` gets to walking `budget` in `direction`
+ * (any length but 0): straight on if it fits there, else sliding along the
+ * wall in the way, on whichever axis the direction leans to more first;
+ * null where it can't move at all.
+ */
+export function stepInDirection(
+  area: Area,
+  from: Vec,
+  direction: Vec,
+  budget: number,
+  radius: number,
+): Vec | null {
+  const length = Math.hypot(direction.x, direction.y);
+  const dx = (direction.x / length) * budget;
+  const dy = (direction.y / length) * budget;
+  const across = { x: from.x + dx, y: from.y };
+  const down = { x: from.x, y: from.y + dy };
+  const slides = Math.abs(dx) >= Math.abs(dy) ? [across, down] : [down, across];
+  const tries = [{ x: from.x + dx, y: from.y + dy }, ...slides];
+  return (
+    tries.find(
+      (to) => (to.x !== from.x || to.y !== from.y) && fitsAt(area, to, radius),
+    ) ?? null
+  );
 }
 
 /**

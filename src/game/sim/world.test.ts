@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { combatArea } from "./testAreas";
+import type { Vec } from "./vec";
 import { createWorld, type Order, step, type World } from "./world";
 
 // A 3×2 orthogonal Area with 32 px tiles and a `start` Entry in the middle
@@ -560,5 +561,110 @@ describe("MoveTo around walls", () => {
     step(world, [{ type: "MoveTo", target: { x: 4.5, y: 5.5 } }]);
 
     expect(world.hero.facing).toBeCloseTo(Math.atan2(4, 3));
+  });
+});
+
+/** Gives `Walk` in `direction` on each of `steps` steps. */
+function walkFor(world: World, direction: Vec, steps: number) {
+  for (let i = 0; i < steps; i++) step(world, [{ type: "Walk", direction }]);
+}
+
+/** A wall down the whole of column 3. */
+const fullColumn: [number, number][] = [0, 1, 2, 3, 4, 5, 6, 7].map((y) => [
+  3,
+  y,
+]);
+
+describe("Walk", () => {
+  // 5.5 tiles/s is 5.5 / 60 tiles a step: 30 steps walk 2.75 tiles.
+  it("walks the Hero at walking speed in the direction, given each step", () => {
+    const world = createWorld({ areas: { town: openFloor() }, seed: 1 });
+
+    walkFor(world, { x: 1, y: 0 }, 30);
+
+    expect(world.hero.pos.x).toBeCloseTo(1.5 + 2.75);
+    expect(world.hero.pos.y).toBeCloseTo(1.5);
+  });
+
+  // A 3-4-5 direction splits the 2.75 tiles 0.6 across and 0.8 down.
+  it("walks at walking speed however far the stick is pushed", () => {
+    const world = createWorld({ areas: { town: openFloor() }, seed: 1 });
+
+    walkFor(world, { x: 0.3, y: 0.4 }, 30);
+
+    expect(world.hero.pos.x).toBeCloseTo(1.5 + 2.75 * 0.6);
+    expect(world.hero.pos.y).toBeCloseTo(1.5 + 2.75 * 0.8);
+    expect(world.hero.facing).toBeCloseTo(Math.atan2(4, 3));
+  });
+
+  it("stops the Hero on the step it is no longer given", () => {
+    const world = createWorld({ areas: { town: openFloor() }, seed: 1 });
+    walkFor(world, { x: 1, y: 0 }, 10);
+    const at = { ...world.hero.pos };
+
+    step(world, []);
+
+    expect(world.hero.pos).toEqual(at);
+  });
+
+  it("stops the Hero when given no direction", () => {
+    const world = createWorld({ areas: { town: openFloor() }, seed: 1 });
+    walkFor(world, { x: 1, y: 0 }, 10);
+    const at = { ...world.hero.pos };
+
+    walkFor(world, { x: 0, y: 0 }, 1);
+
+    expect(world.hero.pos).toEqual(at);
+  });
+
+  it("takes over from a MoveTo, which doesn't carry on after", () => {
+    const world = createWorld({ areas: { town: openFloor() }, seed: 1 });
+    step(world, [{ type: "MoveTo", target: { x: 5.5, y: 1.5 } }]);
+
+    walkFor(world, { x: 0, y: 1 }, 30);
+    const at = { ...world.hero.pos };
+    step(world, []);
+
+    expect(world.hero.pos).toEqual(at);
+    expect(at.y).toBeGreaterThan(4);
+  });
+
+  it("stops against a wall it walks straight into, its radius away", () => {
+    const world = createWorld({ areas: { town: walled(fullColumn) }, seed: 1 });
+
+    walkFor(world, { x: 1, y: 0 }, 60);
+
+    expect(world.hero.pos.x).toBeLessThanOrEqual(2.7);
+    expect(world.hero.pos.x).toBeGreaterThan(2.6);
+    expect(world.hero.pos.y).toBeCloseTo(1.5);
+  });
+
+  it("slides along a wall it walks into at an angle", () => {
+    const world = createWorld({ areas: { town: walled(fullColumn) }, seed: 1 });
+
+    walkFor(world, { x: 2, y: 1 }, 60);
+
+    expect(world.hero.pos.x).toBeLessThanOrEqual(2.7);
+    expect(world.hero.pos.y).toBeGreaterThan(3.5);
+  });
+
+  it("slides past the end of a wall and on in the direction", () => {
+    const world = createWorld({ areas: { town: walled(column) }, seed: 1 });
+
+    // Down-right: into the wall in column 3, along it and past its end.
+    walkFor(world, { x: 1, y: 1 }, 120);
+
+    expect(world.hero.pos.x).toBeGreaterThan(3.5);
+  });
+
+  it("takes the Hero through an Exit it walks into", () => {
+    const town = tmj([start, exit(0, 1, "cave", "start")]);
+    const cave = combatArea(tmj([start]));
+    const world = createWorld({ areas: { town, cave }, seed: 1 });
+
+    walkFor(world, { x: -1, y: 0 }, 10);
+    while (world.areaChange !== null) step(world, []);
+
+    expect(world.areaName).toBe("cave");
   });
 });

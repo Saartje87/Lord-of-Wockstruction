@@ -12,7 +12,9 @@ import {
   releaseCursor,
   settleCursor,
 } from "./cursor";
+import { readGamepad } from "./input/gamepad";
 import { castKeyOrder, drinkKeyOrder } from "./input/keys";
+import { createPadInput, type PadButton, pollPad } from "./input/pad";
 import {
   attachPointer,
   cancel,
@@ -97,6 +99,9 @@ export default function GameCanvas() {
       const menus = createMenus();
       const { pause } = menus;
       let orders: Order[] = [];
+      const padInput = createPadInput();
+      /** The controller's buttons held last frame. */
+      let padHeld: readonly PadButton[] = [];
       let last = performance.now();
       /** What the cursor holds besides the Held Item. */
       let cursor = createCursor();
@@ -199,6 +204,20 @@ export default function GameCanvas() {
           panelAt: (at) => forTheWorld(renderer.panelAt(at)),
         });
         orders.push(...newOrders);
+        // The controller, read every frame so its buttons' presses and
+        // releases are seen. A walk in a direction is for the steps of this
+        // frame only, each of them, so it goes apart from the other orders;
+        // none while paused, nor for the Rotate Notice.
+        const pad = readGamepad(padHeld);
+        padHeld = pad.held;
+        const padOrders = pollPad(padInput, pad, now, {
+          toTile: renderer.screenToTile,
+        }).orders;
+        const walking =
+          wasPaused || pause.paused
+            ? []
+            : padOrders.filter((order) => order.type === "Walk");
+        orders.push(...padOrders.filter((order) => order.type !== "Walk"));
         // A press on a button on a panel or the HUD changes the menus or
         // orders a point spent. A press that put down or let go of a Held Skill does none
         // of that; one on a Panel button keeps it held, as the key would.
@@ -247,7 +266,7 @@ export default function GameCanvas() {
         const { steps, alpha } = advance(clock, now - last);
         last = now;
         for (let i = 0; i < steps; i++) {
-          const events = step(world, orders);
+          const events = step(world, [...orders, ...walking]);
           if (changesSave(events)) writeSave(storage, saveOf(world));
           renderer.react(events, now);
           // The Hero's Death closes the panels. The World has already put

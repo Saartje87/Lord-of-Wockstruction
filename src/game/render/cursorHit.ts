@@ -1,17 +1,26 @@
 import type { CursorHit } from "../cursor";
-import { type Menus, type OpenPanels, PANELS, type Panel } from "../menus";
+import {
+  hasPendingPoints,
+  type Menus,
+  type OpenPanels,
+  PANELS,
+  type Panel,
+} from "../menus";
 import { beltRows } from "../sim/belt";
 import { cursorItemOf } from "../sim/inventory";
 import { inside, overlaps, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
-import { canRaiseSkill, SKILLS, type World } from "../sim/world";
+import { ATTRIBUTES, canRaiseSkill, SKILLS, type World } from "../sim/world";
 import type { Viewport } from "../viewport";
 import { beltStripHitAt, beltStripLayout } from "./beltStrip";
 import {
+  canRaise,
   hasUnspentPoints,
   heroPanelHitAt,
   heroPanelLayout,
+  heroPanelRow,
   levelUpHitAt,
+  PANEL_ROWS,
 } from "./heroPanel";
 import { inventoryHitAt, inventoryPanelLayout } from "./inventoryPanel";
 import { panelButtonHitAt, panelButtonsLayout } from "./panelButtons";
@@ -65,8 +74,11 @@ export function cursorHitAt(
   );
 }
 
-/** A small button that takes a touch from a hit area around it: where it's drawn, and what it hits. */
-type TouchTarget = { rect: Rect; hit: CursorHit };
+/**
+ * A small button that takes a touch from a hit area around it: where it's
+ * drawn, what it hits, and what its hit area stays `within`, if bounded.
+ */
+type TouchTarget = { rect: Rect; hit: CursorHit; within?: Rect };
 
 /**
  * What a touch at `point` hits of the small buttons' touch hit areas, or
@@ -81,9 +93,9 @@ function touchHitAt(
 ): CursorHit | null {
   const { growing, still } = touchTargets(screen, world, shown);
   const drawn = [...growing.map(({ rect }) => rect), ...still];
-  const target = growing.find(({ rect }) => {
+  const target = growing.find(({ rect, within }) => {
     const neighbours = drawn.filter((other) => other !== rect);
-    return inside(touchHitRect(rect, neighbours), point);
+    return inside(touchHitRect(rect, neighbours, within), point);
   });
   return target?.hit ?? null;
 }
@@ -110,11 +122,7 @@ function touchTargets(
   if (shown.heroPanelOpen) {
     panels.push(hero.panel);
     close("hero", hero.closeButton);
-    still.push(
-      ...Object.values(hero.raise),
-      ...Object.values(hero.lower),
-      hero.accept,
-    );
+    growing.push(...heroButtonTargets(screen, world, shown, hero));
   }
   if (shown.skillTreeOpen) {
     const tree = skillTreePanelLayout(screen);
@@ -158,4 +166,44 @@ function touchTargets(
     still.push(controls.attack, ...Object.values(controls.skills));
   }
   return { growing, still };
+}
+
+/**
+ * The Hero panel's +, − and Accept as touch targets, only while each is
+ * shown: each takes a touch along its own row, across the panel, never
+ * reaching the rows above or below.
+ */
+function heroButtonTargets(
+  screen: Viewport,
+  world: World,
+  shown: ShownPanels,
+  hero: ReturnType<typeof heroPanelLayout>,
+): TouchTarget[] {
+  const pending = shown.pendingPoints;
+  /** Row `row`'s band across the panel. */
+  const rowOf = (row: number): Rect => {
+    const { y, h } = heroPanelRow(screen, row);
+    return { x: hero.panel.x, y, w: hero.panel.w, h };
+  };
+  const targets: TouchTarget[] = [];
+  const raisable = canRaise(world, pending);
+  ATTRIBUTES.forEach((attribute, i) => {
+    const within = rowOf(PANEL_ROWS.attributes + i);
+    if (raisable) {
+      const hit = { button: { type: "raise", attribute } } as const;
+      targets.push({ rect: hero.raise[attribute], hit, within });
+    }
+    if (pending[attribute] > 0) {
+      const hit = { button: { type: "lower", attribute } } as const;
+      targets.push({ rect: hero.lower[attribute], hit, within });
+    }
+  });
+  if (hasPendingPoints(pending)) {
+    targets.push({
+      rect: hero.accept,
+      hit: { button: { type: "accept" } },
+      within: rowOf(PANEL_ROWS.attributePoints),
+    });
+  }
+  return targets;
 }

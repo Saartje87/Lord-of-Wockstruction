@@ -18,6 +18,15 @@ function grown(rect: Rect): Rect {
   };
 }
 
+/** `rect` cut to the part of it inside `bound`. */
+function clipped(rect: Rect, bound: Rect): Rect {
+  const x = Math.max(rect.x, bound.x);
+  const y = Math.max(rect.y, bound.y);
+  const right = Math.min(rect.x + rect.w, bound.x + bound.w);
+  const bottom = Math.min(rect.y + rect.h, bound.y + bound.h);
+  return { x, y, w: right - x, h: bottom - y };
+}
+
 /**
  * How far apart `a` and `b` are along each axis: the gap between them, or
  * less than zero where they're side by side along it.
@@ -59,13 +68,20 @@ function stoppedHalfway(area: Rect, drawn: Rect, neighbour: Rect): Rect {
  * of the targets drawn at `neighbours` it would reach (the halfway rule).
  * So no two hit areas overlap, a touch between two targets goes to the
  * nearer, and each target's drawn rect stays its own. A neighbour drawn
- * over `drawn`, like a Skill's rows round its +, doesn't stop it.
+ * over `drawn`, like a Skill's rows round its +, doesn't stop it. Given
+ * `within`, like a Hero panel button's own row, the hit area never leaves
+ * it, and neighbours wholly outside it don't stop it either.
  */
-export function touchHitRect(drawn: Rect, neighbours: readonly Rect[]): Rect {
+export function touchHitRect(
+  drawn: Rect,
+  neighbours: readonly Rect[],
+  within?: Rect,
+): Rect {
   const reach = grown(drawn);
-  let area = reach;
+  let area = within ? clipped(reach, within) : reach;
   for (const neighbour of neighbours) {
     if (overlaps(drawn, neighbour)) continue;
+    if (within && !overlaps(within, neighbour)) continue;
     // Only where the two could reach each other's, as from either side.
     if (!overlaps(reach, grown(neighbour))) continue;
     area = stoppedHalfway(area, drawn, neighbour);

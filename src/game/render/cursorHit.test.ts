@@ -1,13 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { createMenus, PANELS } from "../menus";
+import { createMenus, noPendingPoints, PANELS } from "../menus";
 import { beltRows, emptyBelt } from "../sim/belt";
 import { middleOf, overlaps, type Rect } from "../sim/rect";
-import { createWorld, FRESH_PROGRESS, step } from "../sim/world";
+import { emptySkillBar } from "../sim/skillBar";
+import {
+  ATTRIBUTES,
+  type Attribute,
+  createWorld,
+  FRESH_PROGRESS,
+  step,
+} from "../sim/world";
 import type { ItemType } from "../tuning/items";
 import { type Viewport, viewportOf } from "../viewport";
 import { beltStripLayout } from "./beltStrip";
 import { cursorHitAt } from "./cursorHit";
-import { heroPanelLayout } from "./heroPanel";
+import { heroPanelLayout, heroPanelRow, PANEL_ROWS } from "./heroPanel";
 import { inventoryPanelLayout } from "./inventoryPanel";
 import { hoveredPanelButton, panelButtonsLayout } from "./panelButtons";
 import { skillBarLayout } from "./skillBar";
@@ -462,6 +469,184 @@ describe.each([
         const hit = cursorHitAt(screen, point, w, treeOpen, false);
         expect(hit).not.toEqual(learn);
       }
+    }
+  });
+});
+
+/** A Level 2 Hero with 5 Attribute Points unspent, holding an Axe. */
+function withPoints() {
+  return createWorld({
+    areas: { town },
+    seed: 1,
+    progress: {
+      level: 2,
+      experience: 500,
+      strength: 20,
+      dexterity: 20,
+      vitality: 20,
+      energy: 20,
+      attributePoints: 5,
+      skillPoints: 0,
+      skillLevels: { golem: 1 },
+      skillBar: emptySkillBar(),
+    },
+  });
+}
+
+/** The Hero panel open with `pending` Pending Attribute Points. */
+function heroPending(pending: Partial<Record<Attribute, number>>) {
+  return {
+    ...heroOpen,
+    pendingPoints: { ...noPendingPoints(), ...pending },
+  };
+}
+/** One Pending Attribute Point on each Attribute: every + and − shown. */
+const allPending = heroPending({
+  strength: 1,
+  dexterity: 1,
+  vitality: 1,
+  energy: 1,
+});
+
+describe.each(
+  PHONES,
+)("with touch on the Hero panel at $width×$height", (size) => {
+  const screen = viewportOf(size);
+  const layout = heroPanelLayout(screen);
+  const raise = (attribute: Attribute) => ({
+    button: { type: "raise", attribute },
+  });
+  const lower = (attribute: Attribute) => ({
+    button: { type: "lower", attribute },
+  });
+  const accept = { button: { type: "accept" } };
+
+  it("a point on an Attribute's row left of its + raises that Attribute", () => {
+    for (const attribute of ATTRIBUTES) {
+      const plus = layout.raise[attribute];
+      // Inside the 44 px wide hit area centred on the +.
+      const point = { x: plus.x - (44 - plus.w) / 2 + 1, y: middleOf(plus).y };
+      expect(cursorHitAt(screen, point, withPoints(), heroOpen, true)).toEqual(
+        raise(attribute),
+      );
+    }
+  });
+
+  it("but no further left than a 44 px wide hit area", () => {
+    const plus = layout.raise.strength;
+    const point = { x: plus.x - (44 - plus.w) / 2 - 1, y: middleOf(plus).y };
+    expect(cursorHitAt(screen, point, withPoints(), heroOpen, true)).toEqual({
+      button: null,
+    });
+  });
+
+  it("a − on the row below doesn't stop a + reaching left along its own row", () => {
+    const plus = layout.raise.strength;
+    const point = { x: plus.x - 10, y: middleOf(plus).y };
+    const shown = heroPending({ dexterity: 1 });
+    expect(cursorHitAt(screen, point, withPoints(), shown, true)).toEqual(
+      raise("strength"),
+    );
+  });
+
+  it("a point between a row's − and + hits the nearer", () => {
+    for (const attribute of ATTRIBUTES) {
+      const minus = layout.lower[attribute];
+      const plus = layout.raise[attribute];
+      const { y } = middleOf(plus);
+      const gap = plus.x - (minus.x + minus.w);
+      expect(gap).toBeGreaterThan(2);
+      const w = withPoints();
+      expect(
+        cursorHitAt(screen, { x: plus.x - 1, y }, w, allPending, true),
+      ).toEqual(raise(attribute));
+      expect(
+        cursorHitAt(
+          screen,
+          { x: minus.x + minus.w + 1, y },
+          w,
+          allPending,
+          true,
+        ),
+      ).toEqual(lower(attribute));
+      // And left of the −, along its row.
+      expect(
+        cursorHitAt(screen, { x: minus.x - 5, y }, w, allPending, true),
+      ).toEqual(lower(attribute));
+    }
+  });
+
+  it("no + or − hit area reaches into the row above or below", () => {
+    ATTRIBUTES.forEach((attribute, i) => {
+      const row = heroPanelRow(screen, PANEL_ROWS.attributes + i);
+      expect(row.h).toBeCloseTo((21 * screen.uiScale) / 0.75);
+      for (const [rect, hit] of [
+        [layout.raise[attribute], raise(attribute)],
+        [layout.lower[attribute], lower(attribute)],
+      ] as const) {
+        const { x } = middleOf(rect);
+        const w = withPoints();
+        const at = (y: number) =>
+          cursorHitAt(screen, { x, y }, w, allPending, true);
+        // Its whole row's height is its own...
+        expect(at(row.y + 0.5)).toEqual(hit);
+        expect(at(row.y + row.h - 0.5)).toEqual(hit);
+        // ...and no more.
+        expect(at(row.y - 0.5)).not.toEqual(hit);
+        expect(at(row.y + row.h + 0.5)).not.toEqual(hit);
+      }
+    });
+  });
+
+  it("a point just beside Accept accepts the Pending Attribute Points", () => {
+    const rect = layout.accept;
+    const { x, y } = middleOf(rect);
+    const row = heroPanelRow(screen, PANEL_ROWS.attributePoints);
+    for (const point of [
+      { x: rect.x - 2, y },
+      { x: rect.x + rect.w + 2, y },
+      { x, y: row.y + 0.5 },
+      { x, y: row.y + row.h - 0.5 },
+    ]) {
+      expect(
+        cursorHitAt(screen, point, withPoints(), allPending, true),
+      ).toEqual(accept);
+    }
+    // Not into the Energy row above it.
+    expect(
+      cursorHitAt(
+        screen,
+        { x, y: row.y - 0.5 },
+        withPoints(),
+        allPending,
+        true,
+      ),
+    ).not.toEqual(accept);
+  });
+
+  it("a mouse at the same near misses hits no button", () => {
+    const w = withPoints();
+    const near: { x: number; y: number }[] = [];
+    for (const attribute of ATTRIBUTES) {
+      const minus = layout.lower[attribute];
+      const plus = layout.raise[attribute];
+      const { y } = middleOf(plus);
+      near.push(
+        { x: plus.x - 1, y },
+        { x: minus.x + minus.w + 1, y },
+        { x: minus.x - 5, y },
+        { x: middleOf(plus).x, y: plus.y - 1 },
+      );
+    }
+    const rect = layout.accept;
+    near.push(
+      { x: rect.x - 2, y: middleOf(rect).y },
+      { x: rect.x + rect.w + 2, y: middleOf(rect).y },
+    );
+    for (const point of near) {
+      expect(cursorHitAt(screen, point, w, allPending, false)).toEqual({
+        button: null,
+      });
     }
   });
 });

@@ -10,8 +10,13 @@ import { skillTuning } from "../tuning/skills";
 import { viewportOf } from "../viewport";
 import { inventoryPanelLayout } from "./inventoryPanel";
 import {
+  SKILL_TREE_PANEL,
+  skillRow,
+  skillTreeColumns,
   skillTreeHitAt,
   skillTreePanelLayout,
+  skillTreePanelRect,
+  skillTreeRow,
   skillTreeSheet,
 } from "./skillTreePanel";
 
@@ -80,6 +85,9 @@ afterEach(() => {
 /** The rows of a Belt Column with no Belt Equipped. */
 const ONE_ROW = 1;
 
+/** The Skills the Skill Tree must fit: Golem and Necromancy's five. */
+const SIX_SKILLS = 6;
+
 describe("skillTreeSheet", () => {
   it("shows a New Hero's Golem unlearned, with what Skill Level 1 costs", () => {
     expect(skillTreeSheet(world())).toEqual({
@@ -90,7 +98,7 @@ describe("skillTreeSheet", () => {
           name: "Golem",
           skillLevel: "0",
           manaCost: "15",
-          requiredLevel: "1",
+          requiredLevel: null,
           canRaise: false,
         },
       ],
@@ -118,11 +126,16 @@ describe("skillTreeSheet", () => {
     });
   });
 
-  it("shows no + below the Skill's required Level", () => {
+  it("shows the required Level, and no +, until the Hero reaches it", () => {
     skillTuning.golem.requiredLevel = 6;
 
     expect(skillTreeSheet(withGolem(0))).toMatchObject({
       skills: [{ requiredLevel: "6", canRaise: false }],
+    });
+
+    skillTuning.golem.requiredLevel = 3;
+    expect(skillTreeSheet(withGolem(0))).toMatchObject({
+      skills: [{ requiredLevel: null, canRaise: true }],
     });
   });
 
@@ -191,14 +204,27 @@ describe("skillTreeHitAt", () => {
     });
   });
 
-  it("puts each Skill's rows under the Skill Points row, its + inside them", () => {
+  it("gives each Skill one row under the Skill Points, its + inside it", () => {
     const skill = layout.skills.golem;
     const plus = layout.raise.golem;
 
-    expect(skill.y).toBeGreaterThan(layout.panel.y + 56);
+    expect(skill.h).toBe(26);
+    expect(skill.y).toBeGreaterThan(layout.panel.y + 56 + 26);
     expect(plus.y).toBeGreaterThanOrEqual(skill.y);
-    expect(plus.x + plus.w).toBeLessThanOrEqual(skill.x + skill.w);
+    expect(plus.y + plus.h).toBeLessThanOrEqual(skill.y + skill.h);
+    expect(plus.x + plus.w).toBe(skill.x + skill.w);
     expect(skill.y + skill.h).toBeLessThan(layout.panel.y + layout.panel.h);
+  });
+
+  it("puts a Skill's required Level, Skill Level and Mana cost left to right before its +, leaving room for its name", () => {
+    const row = layout.skills.golem;
+    const columns = skillTreeColumns(screen, row);
+
+    // Room for "Corpse Explosion", the longest name to come.
+    expect(columns.requiredLevel).toBeGreaterThanOrEqual(row.x + 120);
+    expect(columns.skillLevel).toBeGreaterThan(columns.requiredLevel + 60);
+    expect(columns.manaCost).toBeGreaterThan(columns.skillLevel + 30);
+    expect(columns.manaCost).toBeLessThan(layout.raise.golem.x);
   });
 
   it("finds the × above the open panel's Skills", () => {
@@ -212,6 +238,23 @@ describe("skillTreeHitAt", () => {
       button: { type: "close", panel: "skillTree" },
     });
     expect(skillTreeHitAt(screen, at, withGolem(1), false)).toBeNull();
+  });
+
+  it.each([
+    { width: 1024, height: 600 },
+    { width: 1280, height: 720 },
+    { width: 1920, height: 1080 },
+  ])("fits six Skills' rows over its hint, on the screen, on $width×$height", (size) => {
+    const viewport = viewportOf(size);
+    const panel = skillTreePanelRect(viewport, SIX_SKILLS);
+    const last = skillTreeRow(viewport, skillRow(SIX_SKILLS - 1));
+    const hint =
+      (SKILL_TREE_PANEL.hintHeight + SKILL_TREE_PANEL.padding) *
+      viewport.uiScale;
+
+    expect(viewport.compact).toBe(false);
+    expect(panel.y + panel.h).toBeLessThanOrEqual(size.height);
+    expect(last.y + last.h).toBeLessThanOrEqual(panel.y + panel.h - hint);
   });
 
   it("catches anywhere else on the open panel, and nothing off it", () => {

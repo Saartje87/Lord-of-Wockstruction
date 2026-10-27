@@ -87,7 +87,7 @@ describe("the panels at the UI Scale", () => {
     const skillTree = skillTreePanelLayout(viewport);
     const inventory = inventoryPanelLayout(viewport, 1);
 
-    // At native scale: 300×524 Hero panel and 300 px Skill Tree panel,
+    // At native scale: 300×524 Hero panel and 320 px Skill Tree panel,
     // 16 px from the corners, with 22 px × buttons and 22 px + buttons.
     expect(hero.panel.x).toBeCloseTo(16 * uiScale);
     expect(hero.panel.y).toBeCloseTo(16 * uiScale);
@@ -95,7 +95,7 @@ describe("the panels at the UI Scale", () => {
     expect(hero.panel.h).toBeCloseTo(524 * uiScale);
     expect(hero.closeButton.w).toBeCloseTo(22 * uiScale);
     expect(hero.raise.strength.w).toBeCloseTo(22 * uiScale);
-    expect(skillTree.panel.w).toBeCloseTo(300 * uiScale);
+    expect(skillTree.panel.w).toBeCloseTo(320 * uiScale);
     expect(skillTree.closeButton.w).toBeCloseTo(22 * uiScale);
     expect(skillTree.raise.golem.w).toBeCloseTo(22 * uiScale);
     expect(skillTree.panel.x + skillTree.panel.w).toBeCloseTo(

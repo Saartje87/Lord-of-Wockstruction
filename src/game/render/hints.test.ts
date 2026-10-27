@@ -77,7 +77,7 @@ describe("the hints and labels that name buttons", () => {
     skill: "golem",
     name: "Golem",
     manaCost: "15",
-    requiredLevel: "1",
+    requiredLevel: null,
   } as const;
   it.each([
     [

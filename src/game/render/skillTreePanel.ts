@@ -23,29 +23,33 @@ import { type SkillBarHit, skillBarLayout } from "./skillBar";
 export const SKILL_TREE_PANEL = {
   right: 16,
   top: 16,
-  width: 300,
+  width: 320,
   padding: 18,
   firstRow: 56,
-  rowHeight: 28,
+  rowHeight: 26,
   hintHeight: 28,
   plus: 22,
 };
 
 /**
- * The rows of the panel under its title: the unspent Skill Points, a gap,
- * then each Skill's rows (its name, Skill Level, Mana cost and required
- * Level) and a gap after them.
+ * How far left of a Skill's row's right edge its columns go (CSS px at
+ * native scale, drawn at the UI Scale): where its required Level starts,
+ * and where its Skill Level and its Mana cost end, clear of its +.
+ */
+export const SKILL_TREE_COLUMNS = {
+  requiredLevel: 156,
+  skillLevel: 78,
+  manaCost: 32,
+};
+
+/**
+ * The rows of the panel under its title: the unspent Skill Points, the
+ * headings over the Skills' columns, then one row for each Skill.
  */
 export const SKILL_TREE_ROWS = {
   skillPoints: 0,
+  headings: 1,
   firstSkill: 2,
-  /** Rows each Skill takes, its gap included. */
-  perSkill: 5,
-  /** Within a Skill's rows. */
-  name: 0,
-  skillLevel: 1,
-  manaCost: 2,
-  requiredLevel: 3,
 } as const;
 
 /** What the Skill Tree panel shows of a Skill, as text. */
@@ -55,7 +59,8 @@ export type SkillSheet = {
   skillLevel: string;
   /** What a cast costs at the next Skill Level: what a + buys. */
   manaCost: string;
-  requiredLevel: string;
+  /** The Level the Hero must reach to spend a Skill Point on it, until then. */
+  requiredLevel: string | null;
   /** Whether a Skill Point can be spent on it now, so its + shows. */
   canRaise: boolean;
 };
@@ -70,12 +75,14 @@ export function skillTreeSheet(world: World): SkillTreeSheet {
     skillPoints: String(progress.skillPoints),
     skills: SKILLS.map((skill) => {
       const skillLevel = progress.skillLevels[skill];
+      const { requiredLevel } = skillTuning[skill];
       return {
         skill,
         name: skillTuning[skill].name,
         skillLevel: String(skillLevel),
         manaCost: String(skillManaCost(skill, skillLevel + 1)),
-        requiredLevel: String(skillTuning[skill].requiredLevel),
+        requiredLevel:
+          progress.level < requiredLevel ? String(requiredLevel) : null,
         canRaise: canRaiseSkill(world, skill),
       };
     }),
@@ -104,14 +111,17 @@ export function skillTreeRow(screen: Viewport, row: number): Rect {
 }
 
 /**
- * Where the panel itself is drawn: at the top right, as tall as its rows,
- * or in the Compact Layout filling the screen.
+ * Where the panel itself is drawn: at the top right, as tall as its rows
+ * for `skills` Skills, or in the Compact Layout filling the screen.
  */
-function skillTreePanelRect(screen: Viewport): Rect {
+export function skillTreePanelRect(
+  screen: Viewport,
+  skills: number = SKILLS.length,
+): Rect {
   if (screen.compact) return compactPanelRect(screen);
   const { right, top, width, padding, firstRow, rowHeight, hintHeight } =
     atUiScale(SKILL_TREE_PANEL, screen.uiScale);
-  const rows = skillRow(SKILLS.length, 0) - 1;
+  const rows = skillRow(skills);
   return {
     x: screen.width - right - width,
     y: top,
@@ -120,13 +130,31 @@ function skillTreePanelRect(screen: Viewport): Rect {
   };
 }
 
-/** The panel row of row `row` within the `index`th Skill's rows. */
-export function skillRow(index: number, row: number): number {
-  return SKILL_TREE_ROWS.firstSkill + index * SKILL_TREE_ROWS.perSkill + row;
+/**
+ * Where a Skill's row `row` puts its columns (CSS px), at the UI Scale: the
+ * x its required Level starts at, and the x its Skill Level and its Mana
+ * cost end at. The headings over them line up the same way.
+ */
+export function skillTreeColumns(
+  screen: Viewport,
+  row: Rect,
+): { requiredLevel: number; skillLevel: number; manaCost: number } {
+  const right = row.x + row.w;
+  const at = atUiScale(SKILL_TREE_COLUMNS, screen.uiScale);
+  return {
+    requiredLevel: right - at.requiredLevel,
+    skillLevel: right - at.skillLevel,
+    manaCost: right - at.manaCost,
+  };
+}
+
+/** The panel row of the `index`th Skill. */
+export function skillRow(index: number): number {
+  return SKILL_TREE_ROWS.firstSkill + index;
 }
 
 /**
- * Where the panel and its × close button are drawn, each Skill's rows (where
+ * Where the panel and its × close button are drawn, each Skill's row (where
  * pressing a learned Skill picks it up to drag onto the Skill Bar) and each
  * Skill's + button.
  */
@@ -138,27 +166,21 @@ export function skillTreePanelLayout(screen: Viewport): {
 } {
   const { rowHeight, plus } = atUiScale(SKILL_TREE_PANEL, screen.uiScale);
   const panel = skillTreePanelRect(screen);
-  const row = (index: number, within: number) =>
-    skillTreeRow(screen, skillRow(index, within));
+  const row = (index: number) => skillTreeRow(screen, skillRow(index));
   const plusAt = (index: number): Rect => {
-    const name = row(index, SKILL_TREE_ROWS.name);
+    const at = row(index);
     return {
-      x: name.x + name.w - plus,
-      y: name.y + (rowHeight - plus) / 2,
+      x: at.x + at.w - plus,
+      y: at.y + (rowHeight - plus) / 2,
       w: plus,
       h: plus,
     };
-  };
-  const rowsOf = (index: number): Rect => {
-    const name = row(index, SKILL_TREE_ROWS.name);
-    const end = row(index, SKILL_TREE_ROWS.requiredLevel + 1).y;
-    return { ...name, h: end - name.y };
   };
   return {
     panel,
     closeButton: closeButtonRect(panel, screen.uiScale),
     skills: Object.fromEntries(
-      SKILLS.map((skill, index) => [skill, rowsOf(index)]),
+      SKILLS.map((skill, index) => [skill, row(index)]),
     ) as Record<Skill, Rect>,
     raise: Object.fromEntries(
       SKILLS.map((skill, index) => [skill, plusAt(index)]),

@@ -19,12 +19,16 @@ import { inventoryHitAt, inventoryPanelLayout } from "./inventoryPanel";
 import { panelButtonsLayout } from "./panelButtons";
 import { skillBarLayout } from "./skillBar";
 import {
-  SKILL_TREE_ROWS,
+  SKILL_TREE_PANEL,
   skillRow,
   skillTreeHitAt,
   skillTreePanelLayout,
+  skillTreePanelRect,
   skillTreeRow,
 } from "./skillTreePanel";
+
+/** The Skills the Skill Tree must fit: Golem and Necromancy's five. */
+const SIX_SKILLS = 6;
 
 /** A Town of one tile with the Hero's `start` on it. */
 const town = {
@@ -214,10 +218,19 @@ describe("the panels in the Compact Layout", () => {
     const layout = skillTreePanelLayout(viewport);
     const at = (rect: Rect) =>
       skillTreeHitAt(viewport, centre(rect), world, true);
-    const lastRow = skillRow(SKILLS.length - 1, SKILL_TREE_ROWS.requiredLevel);
+    // Room for six Skills, Golem and the five to come.
+    const panel = skillTreePanelRect(viewport, SIX_SKILLS);
+    const hint =
+      (SKILL_TREE_PANEL.hintHeight + SKILL_TREE_PANEL.padding) *
+      viewport.uiScale;
 
-    for (let row = 0; row <= lastRow; row++) {
-      expectInside(skillTreeRow(viewport, row), layout.panel, `row ${row}`);
+    expect(panel).toEqual(layout.panel);
+    for (let row = 0; row <= skillRow(SIX_SKILLS - 1); row++) {
+      const rect = skillTreeRow(viewport, row);
+      expectInside(rect, panel, `row ${row}`);
+      expect(rect.y + rect.h, `row ${row} over the hint`).toBeLessThanOrEqual(
+        panel.y + panel.h - hint,
+      );
     }
     for (const skill of SKILLS) {
       expectInside(layout.skills[skill], layout.panel, `${skill} rows`);

@@ -1,7 +1,8 @@
 /**
- * What the browser says of fullscreen: whether it allows the page to go
- * fullscreen at all (iPhone Safari doesn't), and whether the game is
- * fullscreen now. The menus are given it; they never ask the browser.
+ * What the browser says of fullscreen: whether the page can go fullscreen
+ * at all (iPhone Safari doesn't allow it, and the Installed game has no
+ * browser around it to remove), and whether the game is fullscreen now.
+ * The menus are given it; they never ask the browser.
  */
 export type Fullscreen = { available: boolean; on: boolean };
 
@@ -18,6 +19,21 @@ export type FullscreenAdapter = {
    */
   toggle(): void;
 };
+
+/**
+ * Whether the Fullscreen button has anything to do: only where the browser
+ * allows fullscreen, and never in the Installed game, which already has no
+ * browser around it.
+ */
+export function fullscreenAvailable({
+  allowed,
+  installed,
+}: {
+  allowed: boolean;
+  installed: boolean;
+}): boolean {
+  return allowed && !installed;
+}
 
 /**
  * The pointer event whose handler may ask for fullscreen, by
@@ -47,7 +63,10 @@ export function browserFullscreen(signal: AbortSignal): FullscreenAdapter {
     { signal },
   );
   const read = (): Fullscreen => ({
-    available: document.fullscreenEnabled === true,
+    available: fullscreenAvailable({
+      allowed: document.fullscreenEnabled === true,
+      installed: isInstalled(),
+    }),
     on: (document.fullscreenElement ?? null) !== null,
   });
   return {
@@ -58,6 +77,22 @@ export function browserFullscreen(signal: AbortSignal): FullscreenAdapter {
       else if (available) void enter();
     },
   };
+}
+
+/**
+ * Whether the page is the Installed game, opened from its icon: shown
+ * fullscreen or standalone by the manifest, or from the home screen on iOS,
+ * which reports it through `navigator.standalone` instead. A browser tab the
+ * Fullscreen button put fullscreen matches `display-mode: fullscreen` too,
+ * so that only counts while no element is fullscreen.
+ */
+function isInstalled(): boolean {
+  return (
+    (matchMedia("(display-mode: fullscreen)").matches &&
+      (document.fullscreenElement ?? null) === null) ||
+    matchMedia("(display-mode: standalone)").matches ||
+    (navigator as { standalone?: boolean }).standalone === true
+  );
 }
 
 /** Puts the whole page fullscreen, then locks it sideways where allowed. */

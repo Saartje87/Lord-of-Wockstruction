@@ -6,6 +6,7 @@ import {
   minionAttackRating,
   minionDamageRange,
   minionDefense,
+  newMinion,
 } from "./minions";
 import { monsterMaxLife } from "./monsters";
 import { emptySkillBar } from "./skillBar";
@@ -169,13 +170,35 @@ function summonAt(w: World, target: Vec) {
 }
 
 function golemOf(w: World) {
-  if (!w.minion) throw new Error("No Golem");
-  return w.minion;
+  const [golem] = w.minions;
+  if (!golem) throw new Error("No Golem");
+  return golem;
+}
+
+/**
+ * A Golem-like Minion at `pos` that no cast brought, for the caller to add
+ * to the Hero's Minions: the Hero can't have two Golems.
+ */
+function anotherMinion(w: World, pos: Vec) {
+  return newMinion(w.nextMinionId++, "golem", "golem", 1, pos, 0);
 }
 
 const { followDistance, speed, stuckMs } = minionTuning.golem;
 const { leash } = monsterTuning.skeleton;
 const golemLeash = minionTuning.golem.leash;
+
+describe("the Hero's Minions", () => {
+  it("start as none, and a cast Golem joins them knowing the Skill that brought it", () => {
+    const w = inField();
+    expect(w.minions).toEqual([]);
+
+    summonAt(w, { x: 3.5, y: 4.5 });
+
+    expect(w.minions).toEqual([
+      expect.objectContaining({ type: "golem", skill: "golem" }),
+    ]);
+  });
+});
 
 describe("the Golem following the Hero", () => {
   it("walks around walls after a Hero who left it behind and stops within the follow distance", () => {
@@ -254,6 +277,20 @@ describe("the Golem going through Exits", () => {
     expect(golemOf(w).id).toBe(id);
     expect(distance(golemOf(w).pos, w.hero.pos)).toBeLessThanOrEqual(1 + 1e-9);
   });
+
+  it("brings every Minion along, each next to the Hero", () => {
+    const w = inField();
+    summonAt(w, { x: 3.5, y: 4.5 });
+    w.minions.push(anotherMinion(w, { x: 12.5, y: 3.5 }));
+    const ids = w.minions.map((minion) => minion.id);
+
+    takeExit(w);
+
+    expect(w.minions.map((minion) => minion.id)).toEqual(ids);
+    for (const minion of w.minions) {
+      expect(distance(minion.pos, w.hero.pos)).toBeLessThanOrEqual(1 + 1e-9);
+    }
+  });
 });
 
 describe("the Golem when the Hero dies", () => {
@@ -271,14 +308,41 @@ describe("the Golem when the Hero dies", () => {
     const events = stepUntil(
       w,
       () => {
-        pos = w.minion ? { ...w.minion.pos } : pos;
+        pos = w.minions[0] ? { ...w.minions[0].pos } : pos;
         return w.death !== null;
       },
       60 * 60,
     );
 
     expect(events).toContainEqual({ type: "MinionCrumbled", minion: id, pos });
-    expect(w.minion).toBeNull();
+    expect(w.minions).toEqual([]);
+  });
+
+  it("crumbles every Minion away", () => {
+    const w = inField(GOLEM_HERO, {
+      ...AREAS,
+      field: map(["EA.H....", "..SSS...", "..SSS..."], "town", 9),
+    });
+    summonAt(w, { x: 6.5, y: 0.5 });
+    w.minions.push(anotherMinion(w, { x: 7.5, y: 0.5 }));
+
+    // Those still living when the Hero dies.
+    let living: number[] = [];
+    const events = stepUntil(
+      w,
+      () => {
+        if (!w.death) living = w.minions.map((minion) => minion.id);
+        return w.death !== null;
+      },
+      60 * 60,
+    );
+
+    const crumbled = events.flatMap((event) =>
+      event.type === "MinionCrumbled" ? [event.minion] : [],
+    );
+    expect(living).toHaveLength(2);
+    expect(crumbled).toEqual(living);
+    expect(w.minions).toEqual([]);
   });
 });
 
@@ -296,7 +360,7 @@ describe("the Golem and the Save", () => {
     });
 
     expect(save?.progress.skillLevels.golem).toBe(1);
-    expect(loaded.minion).toBeNull();
+    expect(loaded.minions).toEqual([]);
   });
 });
 
@@ -358,6 +422,24 @@ describe("Monsters fighting the Golem", () => {
     expect(events.some((event) => event.type === "HeroHit")).toBe(false);
   });
 
+  it("go after the nearest of several Minions", () => {
+    const w = inField(GOLEM_HERO, SKELETON_FIELD);
+    summonAt(w, { x: 4.5, y: 0.5 });
+    const golem = golemOf(w);
+    // Another Minion beside the Hero, further from the Skeleton, and first.
+    const other = anotherMinion(w, { x: 2.5, y: 2.5 });
+    w.minions.unshift(other);
+
+    let hit: SimEvent | undefined;
+    for (let i = 0; !hit; i++) {
+      if (i > 60 * 30) throw new Error("Never hit a Minion");
+      hit = step(w, []).find((event) => event.type === "MinionHit");
+    }
+
+    expect(hit).toMatchObject({ minion: golem.id });
+    expect(other.life).toBe(minionMaxLife(other));
+  });
+
   it("switch to the Hero once the Hero is nearer than the Golem", () => {
     const w = inField(GOLEM_HERO, SKELETON_FIELD);
     summonAt(w, { x: 4.5, y: 0.5 });
@@ -398,7 +480,7 @@ describe("Monsters fighting the Golem", () => {
     expect(events).toContainEqual(
       expect.objectContaining({ type: "MinionHit", minion: golem.id }),
     );
-    expect(w.minion).toBe(golem);
+    expect(w.minions).toEqual([golem]);
     expect(w.hero.life).toBe(life);
   });
 
@@ -426,7 +508,7 @@ describe("Monsters fighting the Golem", () => {
       () => {
         if (golem.life > lowest) regained = true;
         lowest = Math.min(lowest, golem.life);
-        return w.minion === null;
+        return w.minions.length === 0;
       },
       60 * 120,
     );

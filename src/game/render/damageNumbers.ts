@@ -1,4 +1,5 @@
 import type { CastFailure, MonsterId, SimEvent } from "../sim/world";
+import type { CharacterId } from "./hover";
 
 /** How long a damage number floats (ms). */
 export const FLOAT_MS = 900;
@@ -13,19 +14,19 @@ export const DAMAGE_NUMBER = { size: 18, stroke: 3, gap: 2 };
 
 /**
  * A number to float up from whoever was hit: `hit` for the Hero's hits,
- * `kill` for a killing blow and `taken` for damage the Hero or their Minion
- * takes; a `miss` floating up from a Monster the Hero Missed, or from the
- * Hero or their Minion a Monster Missed; `noRoom` over the Hero, who found
- * no room for a Ground Item; or `castFailed` over the Hero, whose cast
- * failed for `reason`.
+ * `kill` for a killing blow and `taken` for damage the Hero or one of their
+ * Minions takes; a `miss` floating up from a Monster the Hero Missed, or
+ * from the Hero or one of their Minions a Monster Missed; `noRoom` over the
+ * Hero, who found no room for a Ground Item; or `castFailed` over the Hero,
+ * whose cast failed for `reason`.
  */
 export type DamageNumber =
   | {
-      on: MonsterId | "hero" | "minion";
+      on: CharacterId | "hero";
       damage: number;
       kind: "hit" | "kill" | "taken";
     }
-  | { on: MonsterId | "hero" | "minion"; kind: "miss" }
+  | { on: CharacterId | "hero"; kind: "miss" }
   | { on: "hero"; kind: "noRoom" }
   | { on: "hero"; kind: "castFailed"; reason: CastFailure };
 
@@ -57,10 +58,14 @@ export function damageNumbers(events: readonly SimEvent[]): DamageNumber[] {
       numbers.push({ on: "hero", damage: event.damage, kind: "taken" });
     }
     if (event.type === "MinionHit") {
-      numbers.push({ on: "minion", damage: event.damage, kind: "taken" });
+      numbers.push({
+        on: { minion: event.minion },
+        damage: event.damage,
+        kind: "taken",
+      });
     }
     if (event.type === "MinionMissed") {
-      numbers.push({ on: "minion", kind: "miss" });
+      numbers.push({ on: { minion: event.minion }, kind: "miss" });
     }
     if (event.type === "NoRoom") numbers.push({ on: "hero", kind: "noRoom" });
     if (event.type === "CastFailed") {

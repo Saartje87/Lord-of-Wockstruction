@@ -201,7 +201,7 @@ describe("an Arrow and the Golem", () => {
     expect(archer.target).toBe("hero");
     // Summoned on the line between them while the Archer draws at the Hero.
     step(w, [{ type: "Cast", slot: "right", target: { x: 4.5, y: 0.5 } }]);
-    expect(w.minion).not.toBeNull();
+    expect(w.minions).toHaveLength(1);
     const life = w.hero.life;
 
     const arrow = untilLoosed(w);
@@ -224,11 +224,11 @@ describe("an Arrow and the Golem", () => {
     ]);
     const archer = archerOf(w);
     step(w, [{ type: "Cast", slot: "right", target: { x: 9.5, y: 0.5 } }]);
-    const golem = w.minion;
+    const [golem] = w.minions;
     if (!golem) throw new Error("No Golem");
 
     untilWindUp(w, archer);
-    expect(archer.target).toBe("minion");
+    expect(archer.target).toBe(golem.id);
     const arrow = untilLoosed(w);
     const toGolem = {
       x: golem.pos.x - archer.pos.x,

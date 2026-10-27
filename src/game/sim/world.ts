@@ -48,7 +48,7 @@ import {
   minionMaxLife,
   newMinion,
   placeBesideHero,
-  stepMinion,
+  stepMinions,
   summonPoint,
 } from "./minions";
 import {
@@ -223,7 +223,7 @@ export type Monster = {
    */
   facing: number;
   /**
-   * Who it last went after: the nearer of the Hero and their Minion. A
+   * Who it last went after: the nearest of the Hero and their Minions. A
    * wind-up resolves against this one.
    */
   target: MonsterTarget;
@@ -249,12 +249,12 @@ export type Monster = {
   pause: number;
 };
 
-/** Who a Monster goes after: the Hero, or their Minion. */
-export type MonsterTarget = "hero" | "minion";
+/** Who a Monster goes after: the Hero, or one of their Minions. */
+export type MonsterTarget = "hero" | MinionId;
 
 /**
- * `idle` and `wander` stroll around the spawn, `chase` goes after the nearer
- * of the Hero and their Minion, `windup` telegraphs an attack on it,
+ * `idle` and `wander` stroll around the spawn, `chase` goes after the nearest
+ * of the Hero and their Minions, `windup` telegraphs an attack on it,
  * `recover` stands rooted after it and `return` walks home after giving up,
  * ignoring both.
  */
@@ -318,8 +318,10 @@ export type World = {
   corpses: Corpse[];
   /** The Ground Items in the active Area, never kept by the Save. */
   groundItems: GroundItem[];
-  /** The Hero's Golem, if one lives; never kept by the Save. */
-  minion: Minion | null;
+  /**
+   * The Hero's living Minions, oldest first; never kept by the Save.
+   */
+  minions: Minion[];
   /** The id the next Monster gets. */
   nextMonsterId: MonsterId;
   /** The id the next Minion gets. */
@@ -624,7 +626,7 @@ export function createWorld(options: {
     projectiles: [],
     corpses: [],
     groundItems: [],
-    minion: null,
+    minions: [],
     nextMonsterId: 1,
     nextMinionId: 1,
     nextItemId: 1,
@@ -891,7 +893,7 @@ function stepAreaChange(world: World, change: AreaChange, events: SimEvent[]) {
  * carries over to the target Entry, facing away from the Area's nearest
  * edge, with their Life restored to full on arriving in Town, and back on
  * their feet if they died.
- * Their Minion, if any, comes along, next to them.
+ * Their Minions come along, next to them.
  */
 function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   const area = world.areas[change.area];
@@ -910,7 +912,7 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   world.projectiles = [];
   world.corpses = [];
   world.groundItems = [];
-  if (world.minion) placeBesideHero(world, world.minion);
+  for (const minion of world.minions) placeBesideHero(world, minion);
   world.heldOrders = [];
   for (const spawn of area.spawns) placePack(world, area, spawn);
   events.push({ type: "AreaChanged", area: area.name, entry: change.entry });
@@ -993,7 +995,7 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   for (const projectile of world.projectiles) {
     projectile.prevPos = { ...projectile.pos };
   }
-  if (world.minion) world.minion.prevPos = { ...world.minion.pos };
+  for (const minion of world.minions) minion.prevPos = { ...minion.pos };
   if (hero.combat > 0) hero.combat -= 1;
 
   if (world.areaChange) {
@@ -1024,8 +1026,9 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
 
   if (hero.flinch > 0) stepFlinch(world, events);
   // Before the orders, so a Minion summoned this step stands where it appears.
-  const struck = stepMinion(world);
-  if (struck && world.minion) minionStrike(world, world.minion, struck, events);
+  stepMinions(world, (minion, monster) =>
+    minionStrike(world, minion, monster, events),
+  );
   for (const order of [...world.heldOrders, ...orders]) {
     give(world, order, events);
   }
@@ -1087,7 +1090,7 @@ function stepDeath(
 }
 
 /**
- * Moves every Projectile and lands those that touch the Hero or their Minion.
+ * Moves every Projectile and lands those that touch the Hero or their Minions.
  * One reaching the Hero on the step another kills them flies on over them.
  */
 function landProjectiles(world: World, events: SimEvent[]) {
@@ -1098,7 +1101,7 @@ function landProjectiles(world: World, events: SimEvent[]) {
 
 /**
  * Lands a Monster's attack, a melee one or a Projectile, on `target`: the
- * Hero, unless they are in Death, or their Minion.
+ * Hero, unless they are in Death, or one of their Minions.
  */
 function strike(
   world: World,
@@ -1106,7 +1109,7 @@ function strike(
   attack: AttackNumbers,
   events: SimEvent[],
 ) {
-  if (target === "minion") hitMinion(world, attack, events);
+  if (target !== "hero") hitMinion(world, target, attack, events);
   else if (!world.death) hitHero(world, attack, events);
 }
 
@@ -1338,18 +1341,19 @@ function castFrom(
   const { effect } = skillTuning[skill];
   switch (effect.type) {
     case "summon":
-      summon(world, effect.minion, skillLevel, target, events);
+      summon(world, skill, effect.minion, skillLevel, target, events);
       break;
   }
 }
 
 /**
  * Brings a fresh Minion at full Life at `target`, or the nearest point to it
- * a Minion can stand on, crumbling away the one already there: the Hero has
- * at most one.
+ * a Minion can stand on, crumbling away the one `skill` brought before: the
+ * Hero has at most one of each summoned Minion.
  */
 function summon(
   world: World,
+  skill: Skill,
   type: MinionType,
   skillLevel: number,
   target: Vec,
@@ -1358,15 +1362,18 @@ function summon(
   const area = world.areas[world.areaName];
   const pos = summonPoint(area, target, minionTuning[type].radius);
   if (!pos) return;
-  crumbleMinion(world, events);
+  for (const minion of world.minions) {
+    if (minion.skill === skill) crumbleMinion(world, minion, events);
+  }
   const minion = newMinion(
     world.nextMinionId++,
     type,
+    skill,
     skillLevel,
     pos,
     world.hero.facing,
   );
-  world.minion = minion;
+  world.minions.push(minion);
   events.push({ type: "MinionSummoned", minion: minion.id, pos: { ...pos } });
 }
 
@@ -1599,7 +1606,7 @@ function rollAttack(
 }
 
 /**
- * Lands the Hero's Minion's attack on a Monster: it rolls the Minion's
+ * Lands a Minion's attack on a Monster: it rolls the Minion's
  * Attack Rating against the Monster's Defense, and a hit hurts it as the
  * Hero's do. Neither keeps the Hero In Combat, and there is no hitstop.
  */
@@ -1682,12 +1689,17 @@ function hitHero(world: World, attack: AttackNumbers, events: SimEvent[]) {
 
 /**
  * Lands a Monster's attack, a melee one or a Projectile, on the Hero's
- * Minion, if it still lives: it rolls the attack's Attack Rating against the
- * Minion's Defense, and at 0 Life the Minion dies, leaving no Corpse.
+ * Minion `id`, if it still lives: it rolls the attack's Attack Rating against
+ * the Minion's Defense, and at 0 Life the Minion dies, leaving no Corpse.
  * Neither keeps the Hero In Combat.
  */
-function hitMinion(world: World, attack: AttackNumbers, events: SimEvent[]) {
-  const { minion } = world;
+function hitMinion(
+  world: World,
+  id: MinionId,
+  attack: AttackNumbers,
+  events: SimEvent[],
+) {
+  const minion = world.minions.find((one) => one.id === id);
   if (!minion) return;
   const damage = rollAttack(
     world,
@@ -1701,7 +1713,7 @@ function hitMinion(world: World, attack: AttackNumbers, events: SimEvent[]) {
   minion.life = Math.max(0, minion.life - damage);
   events.push({ type: "MinionHit", minion: minion.id, damage });
   if (minion.life > 0) return;
-  world.minion = null;
+  removeMinion(world, minion);
   events.push({
     type: "MinionDied",
     minion: minion.id,
@@ -1709,27 +1721,30 @@ function hitMinion(world: World, attack: AttackNumbers, events: SimEvent[]) {
   });
 }
 
-/** Crumbles the Hero's Minion away, if any, leaving nothing behind. */
-function crumbleMinion(world: World, events: SimEvent[]) {
-  const { minion } = world;
-  if (!minion) return;
+/** Crumbles one of the Hero's Minions away, leaving nothing behind. */
+function crumbleMinion(world: World, minion: Minion, events: SimEvent[]) {
   events.push({
     type: "MinionCrumbled",
     minion: minion.id,
     pos: { ...minion.pos },
   });
-  world.minion = null;
+  removeMinion(world, minion);
+}
+
+/** Takes a Minion out of the Hero's Minions. */
+function removeMinion(world: World, minion: Minion) {
+  world.minions = world.minions.filter((one) => one !== minion);
 }
 
 /**
  * Lays the Hero down, stopping whatever they were doing, ending every
- * running Potion effect, crumbles their Minion away and sends every Monster
+ * running Potion effect, crumbles their Minions away and sends every Monster
  * home.
  */
 function die(world: World, events: SimEvent[]) {
   world.death = { elapsed: 0 };
   world.hero.potionEffects = [];
-  crumbleMinion(world, events);
+  for (const minion of world.minions) crumbleMinion(world, minion, events);
   for (const monster of world.monsters) sendHome(monster);
   stopHero(world.hero);
   returnCursorItem(world, events);

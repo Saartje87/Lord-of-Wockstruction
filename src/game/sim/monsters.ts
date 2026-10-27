@@ -157,7 +157,7 @@ export type Strike = { monster: Monster; target: MonsterTarget };
 
 /**
  * Moves every Monster one step: noticing, chasing, attacking and walking
- * home. Returns the attacks that land on the Hero or their Minion this step.
+ * home. Returns the attacks that land on the Hero or their Minions this step.
  */
 export function stepMonsters(world: World): Strike[] {
   const strikes: Strike[] = [];
@@ -206,8 +206,9 @@ export function noticeHit(world: World, monster: Monster) {
 }
 
 /**
- * Sends a Monster after the Hero or their Minion, waking the strolling Monsters near it that
- * aren't in their grace period. Those it wakes don't wake others in turn.
+ * Sends a Monster after the Hero or their Minions, waking the strolling
+ * Monsters near it that aren't in their grace period. Those it wakes don't
+ * wake others in turn.
  */
 function notice(world: World, monster: Monster) {
   wake(monster);
@@ -236,17 +237,19 @@ function isStrolling(monster: Monster): boolean {
 /** Who a Monster can go after, and where they stand. */
 type Quarry = { target: MonsterTarget; pos: Vec };
 
-/** The Hero, while alive, and their Minion, if any. */
+/** The Hero, while alive, and each of their Minions. */
 function quarriesOf(world: World): Quarry[] {
   const quarries: Quarry[] = [];
   if (!world.death) quarries.push({ target: "hero", pos: world.hero.pos });
-  if (world.minion) quarries.push({ target: "minion", pos: world.minion.pos });
+  for (const minion of world.minions) {
+    quarries.push({ target: minion.id, pos: minion.pos });
+  }
   return quarries;
 }
 
 /**
- * The nearer to the Monster of the Hero and their Minion, the Hero on a tie,
- * or null with neither there.
+ * The nearest to the Monster of the Hero and their Minions, the Hero on a
+ * tie, or null with none there.
  */
 function nearestQuarry(world: World, monster: Monster): Quarry | null {
   let nearest: Quarry | null = null;
@@ -264,12 +267,12 @@ function nearestQuarry(world: World, monster: Monster): Quarry | null {
 /** Where a Monster's target stands, or null when it's gone. */
 function targetPos(world: World, target: MonsterTarget): Vec | null {
   if (target === "hero") return world.death ? null : world.hero.pos;
-  return world.minion?.pos ?? null;
+  return world.minions.find((minion) => minion.id === target)?.pos ?? null;
 }
 
 /**
- * Whether the Monster can see the living Hero or their Minion near enough to
- * go after them.
+ * Whether the Monster can see the living Hero or one of their Minions near
+ * enough to go after them.
  */
 function sees(world: World, monster: Monster): boolean {
   const tuning = monsterTuning[monster.type];
@@ -326,7 +329,7 @@ export function wanderPause(world: World, type: MonsterType): number {
 }
 
 /**
- * Goes after the nearer of the Hero and their Minion, stopping once in
+ * Goes after the nearest of the Hero and their Minions, stopping once in
  * reach, or gives up beyond its leash.
  */
 function chase(world: World, monster: Monster) {
@@ -362,7 +365,7 @@ function chase(world: World, monster: Monster) {
   );
 }
 
-/** Gives up on the Hero and their Minion and walks home. */
+/** Gives up on the Hero and their Minions and walks home. */
 export function sendHome(monster: Monster) {
   monster.state = "return";
   monster.path = [];
@@ -440,7 +443,7 @@ function loose(
 }
 
 /**
- * Walks home, ignoring the Hero and their Minion, and on arrival heals to
+ * Walks home, ignoring the Hero and their Minions, and on arrival heals to
  * full and starts a grace period before it can notice either again.
  */
 function goHome(world: World, monster: Monster) {
@@ -463,13 +466,12 @@ function gaitOf(monster: Monster): Gait {
 
 /**
  * Pushes overlapping Monsters apart, out of the Hero, and apart from the
- * Hero's Minion, as circles. The Hero is never moved. A push into a wall
+ * Hero's Minions, as circles. The Hero is never moved. A push into a wall
  * slides along it, keeping only the part along whichever axis is open.
  */
 function separate(world: World) {
   const area = world.areas[world.areaName];
   const hero = world.hero.pos;
-  const { minion } = world;
   const push = (creature: { pos: Vec }, by: Vec) => {
     const { x, y } = creature.pos;
     const to = [
@@ -485,7 +487,7 @@ function separate(world: World) {
     const overlap = radius + heroTuning.radius - distance(a.pos, hero);
     if (overlap > 0) push(a, scaled(away(hero, a.pos, a.id), overlap));
 
-    if (minion) {
+    for (const minion of world.minions) {
       const apart = radius + minionTuning[minion.type].radius;
       const overlap = apart - distance(a.pos, minion.pos);
       if (overlap > 0) {

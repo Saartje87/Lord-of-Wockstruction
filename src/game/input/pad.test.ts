@@ -515,9 +515,9 @@ describe("the Skill buttons", () => {
     );
     for (let i = 0; i < 120; i++) step(world, i === 0 ? orders : []);
 
-    expect(world.minion?.type).toBe("golem");
-    expect(world.minion?.pos.x).toBeCloseTo(13, 0);
-    expect(world.minion?.pos.y).toBeCloseTo(10, 0);
+    expect(world.minions[0]?.type).toBe("golem");
+    expect(world.minions[0]?.pos.x).toBeCloseTo(13, 0);
+    expect(world.minions[0]?.pos.y).toBeCloseTo(10, 0);
   });
 });
 

@@ -141,15 +141,15 @@ describe("casting the Golem", () => {
     });
     expect(events).toContainEqual({
       type: "MinionSummoned",
-      minion: w.minion?.id,
+      minion: w.minions[0]?.id,
       pos: { x: 5.5, y: 1.5 },
     });
     expect(w.hero.mana).toBeCloseTo(mana - 15, 0);
-    expect(w.minion).toMatchObject({
+    expect(w.minions[0]).toMatchObject({
       type: "golem",
       pos: { x: 5.5, y: 1.5 },
     });
-    expect(w.minion?.life).toBe(
+    expect(w.minions[0]?.life).toBe(
       minionMaxLife({ type: "golem", skillLevel: 1 }),
     );
   });
@@ -188,7 +188,7 @@ describe("casting the Golem", () => {
     // The middle of the block of wall, 1.5 tiles from its edges.
     cast(w, { x: 3.5, y: 3.5 });
 
-    const pos = w.minion?.pos as Vec;
+    const pos = w.minions[0]?.pos as Vec;
     const area = w.areas[w.areaName];
     expect(
       area.walkable[Math.floor(pos.y) * area.width + Math.floor(pos.x)],
@@ -199,7 +199,7 @@ describe("casting the Golem", () => {
   it("crumbles the living Golem and summons a fresh one at full Life", () => {
     const w = inField({ ...GOLEM_HERO, energy: 40, attributePoints: 0 });
     cast(w, { x: 5.5, y: 1.5 });
-    const old = w.minion;
+    const [old] = w.minions;
     if (!old) throw new Error("No Golem");
     old.life = 1;
     const mana = w.hero.mana;
@@ -214,9 +214,10 @@ describe("casting the Golem", () => {
       minion: old.id,
       pos: oldPos,
     });
-    expect(w.minion?.id).not.toBe(old.id);
-    expect(w.minion).toMatchObject({ pos: { x: 1.5, y: 5.5 } });
-    expect(w.minion?.life).toBe(
+    expect(w.minions).toHaveLength(1);
+    expect(w.minions[0]?.id).not.toBe(old.id);
+    expect(w.minions[0]).toMatchObject({ pos: { x: 1.5, y: 5.5 } });
+    expect(w.minions[0]?.life).toBe(
       minionMaxLife({ type: "golem", skillLevel: 1 }),
     );
     // 60 steps of regeneration, then the cost again.
@@ -236,7 +237,7 @@ describe("a failed cast", () => {
 
     expect(events).toEqual([{ type: "CastFailed", reason: "town" }]);
     expect(w.hero.mana).toBe(mana);
-    expect(w.minion).toBeNull();
+    expect(w.minions).toEqual([]);
     expect(w.hero.pos.x).toBeGreaterThan(0.5);
   });
 
@@ -251,7 +252,7 @@ describe("a failed cast", () => {
 
     expect(events).toEqual([{ type: "CastFailed", reason: "mana" }]);
     expect(w.hero.mana).toBeCloseTo(14 + 2 / 60);
-    expect(w.minion).toBeNull();
+    expect(w.minions).toEqual([]);
     expect(w.hero.pos.y).toBeGreaterThan(0.5);
   });
 
@@ -261,7 +262,7 @@ describe("a failed cast", () => {
 
     expect(cast(w, { x: 5.5, y: 1.5 }, "key1")).toEqual([]);
     expect(w.hero.mana).toBe(mana);
-    expect(w.minion).toBeNull();
+    expect(w.minions).toEqual([]);
   });
 
   it("from an empty slot during a cast keeps the order given before it", () => {
@@ -287,6 +288,6 @@ describe("a failed cast", () => {
 
     cast(w, { x: 5.5, y: 1.5 }, "key3");
 
-    expect(w.minion).toMatchObject({ pos: { x: 5.5, y: 1.5 } });
+    expect(w.minions[0]).toMatchObject({ pos: { x: 5.5, y: 1.5 } });
   });
 });

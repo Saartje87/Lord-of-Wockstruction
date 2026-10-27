@@ -128,7 +128,7 @@ import {
   itemUnder,
   landingCell,
 } from "./inventoryPanel";
-import { ITEM_TEXT, itemColour, itemLabel } from "./itemArt";
+import { itemColour, itemLabel } from "./itemArt";
 import { type Orb, orbFill, orbsLayout } from "./orbs";
 import {
   hoveredPanelButton,
@@ -3263,7 +3263,7 @@ function labelItem(
     shortName,
     width: width - 2 * ITEM_LABEL_INSET,
     measure: measureItemText,
-    size: ITEM_TEXT.size * Math.max(1, scale),
+    uiScale: scale,
   });
   text.text = label.text;
   text.style.wordWrap = false;

@@ -91,6 +91,27 @@ describe("an Item's label", () => {
     });
   });
 
+  it("grows with the UI Scale above 1, its floor too", () => {
+    const rejuvenation = { name: "Rejuvenation Potion", shortName: "Rejuv" };
+
+    // At 1.5, "Rejuv" is 41.25 px wide at 16.5 px, and 37.5 px at 15 px.
+    expect(
+      itemLabel({ ...rejuvenation, width: 50, measure, uiScale: 1.5 }),
+    ).toEqual({ text: "Rejuv", size: 16.5 });
+    expect(
+      itemLabel({ ...rejuvenation, width: 5, measure, uiScale: 1.5 }),
+    ).toEqual({ text: "Rejuv", size: 15 });
+  });
+
+  it("never shrinks with a UI Scale below 1", () => {
+    expect(
+      itemLabel({ ...ringOfLife, width: 65, measure, uiScale: 0.75 }),
+    ).toEqual({ text: "Life", size: 11 });
+    expect(
+      itemLabel({ ...ringOfLife, width: 5, measure, uiScale: 0.75 }),
+    ).toEqual({ text: "Life", size: 10 });
+  });
+
   it("is never more than one line", () => {
     const widths = [1, 10, 20, 22, 30, 60, 66, 200];
     const labels = widths.map((width) =>

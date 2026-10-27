@@ -27,7 +27,8 @@ export function itemColour(type: ItemType): number {
 
 /**
  * The size of an Item's name in its box (CSS px), and the least it shrinks
- * to so a Short name fits.
+ * to so a Short name fits, at a UI Scale of 1: they grow with a larger UI
+ * Scale but never shrink with a smaller one.
  */
 export const ITEM_TEXT = { size: 11, minSize: 10 };
 
@@ -35,29 +36,31 @@ export const ITEM_TEXT = { size: 11, minSize: 10 };
 export type ItemLabel = { text: string; size: number };
 
 /**
- * The label inside an Item's box, `width` CSS px wide inside, on one line:
- * the full `name` at `size` if it fits, else the Short name at `size` if it
- * fits, else the Short name at the largest size down to `ITEM_TEXT.minSize`
- * that fits, else at `ITEM_TEXT.minSize` anyway. `measure` gives a text's
- * width at a size.
+ * The label inside an Item's box, `width` CSS px wide inside, on one line,
+ * at the UI Scale `uiScale`: the full `name` at the `ITEM_TEXT` size if it
+ * fits, else the Short name at that size if it fits, else the Short name at
+ * the largest size down to the `ITEM_TEXT` floor that fits, else at the
+ * floor anyway. `measure` gives a text's width at a size.
  */
 export function itemLabel({
   name,
   shortName,
   width,
   measure,
-  size = ITEM_TEXT.size,
+  uiScale = 1,
 }: {
   name: string;
   shortName: string;
   width: number;
   measure: (text: string, size: number) => number;
-  size?: number;
+  uiScale?: number;
 }): ItemLabel {
+  const grown = Math.max(1, uiScale);
+  const size = ITEM_TEXT.size * grown;
   if (measure(name, size) <= width) return { text: name, size };
   const fits = (at: number) => measure(shortName, at) <= width;
   if (fits(size)) return { text: shortName, size };
-  const { minSize } = ITEM_TEXT;
+  const minSize = ITEM_TEXT.minSize * grown;
   // Were its width in step with its size, it would just fit here.
   const inStep = (size * width) / measure(shortName, size);
   if (inStep <= minSize || !fits(minSize)) {

@@ -33,8 +33,10 @@ export type PotionEffectTuning =
 
 /** One Item type's tuning. */
 export type ItemTuning = {
-  /** Shown in the tooltip. */
+  /** Shown in the tooltip, and on the Item's box where it fits. */
   name: string;
+  /** Its Short name, shown on its box where `name` won't fit on one line. */
+  shortName: string;
   kind: ItemKind;
   /** How many Inventory cells it takes, across and down. */
   size: { columns: number; rows: number };
@@ -58,6 +60,7 @@ export const itemTuning = {
   // 20–30 with the starting 20 Strength, as before Items.
   shortSword: {
     name: "Short Sword",
+    shortName: "Sword",
     kind: "weapon",
     size: { columns: 1, rows: 3 },
     damage: [50 / 3, 25],
@@ -66,6 +69,7 @@ export const itemTuning = {
   // 30–48 with the starting 20 Strength.
   axe: {
     name: "Axe",
+    shortName: "Axe",
     kind: "weapon",
     size: { columns: 2, rows: 3 },
     damage: [25, 40],
@@ -73,6 +77,7 @@ export const itemTuning = {
   },
   leatherArmour: {
     name: "Leather Armour",
+    shortName: "Leather",
     kind: "armour",
     size: { columns: 2, rows: 3 },
     // A Skeleton's 20 Attack Rating hits it 85% of the time.
@@ -81,6 +86,7 @@ export const itemTuning = {
   },
   chainMail: {
     name: "Chain Mail",
+    shortName: "Chain",
     kind: "armour",
     size: { columns: 2, rows: 3 },
     // A Skeleton hits it two times in three.
@@ -89,30 +95,35 @@ export const itemTuning = {
   },
   ringOfStrength: {
     name: "Ring of Strength",
+    shortName: "Str",
     kind: "ring",
     size: { columns: 1, rows: 1 },
     bonuses: { strength: 5 },
   },
   ringOfDexterity: {
     name: "Ring of Dexterity",
+    shortName: "Dex",
     kind: "ring",
     size: { columns: 1, rows: 1 },
     bonuses: { dexterity: 5 },
   },
   ringOfLife: {
     name: "Ring of Life",
+    shortName: "Life",
     kind: "ring",
     size: { columns: 1, rows: 1 },
     bonuses: { life: 10 },
   },
   amuletOfVitality: {
     name: "Amulet of Vitality",
+    shortName: "Vit",
     kind: "amulet",
     size: { columns: 1, rows: 1 },
     bonuses: { vitality: 5 },
   },
   sash: {
     name: "Sash",
+    shortName: "Sash",
     kind: "belt",
     size: { columns: 2, rows: 1 },
     bonuses: {},
@@ -120,6 +131,7 @@ export const itemTuning = {
   },
   heavyBelt: {
     name: "Heavy Belt",
+    shortName: "Heavy",
     kind: "belt",
     size: { columns: 2, rows: 1 },
     bonuses: {},
@@ -127,6 +139,7 @@ export const itemTuning = {
   },
   platedBelt: {
     name: "Plated Belt",
+    shortName: "Plated",
     kind: "belt",
     size: { columns: 2, rows: 1 },
     bonuses: {},
@@ -134,6 +147,7 @@ export const itemTuning = {
   },
   lifePotion: {
     name: "Life Potion",
+    shortName: "Life",
     kind: "potion",
     size: { columns: 1, rows: 1 },
     bonuses: {},
@@ -146,6 +160,7 @@ export const itemTuning = {
   },
   manaPotion: {
     name: "Mana Potion",
+    shortName: "Mana",
     kind: "potion",
     size: { columns: 1, rows: 1 },
     bonuses: {},
@@ -158,6 +173,7 @@ export const itemTuning = {
   },
   rejuvenationPotion: {
     name: "Rejuvenation Potion",
+    shortName: "Rejuv",
     kind: "potion",
     size: { columns: 1, rows: 1 },
     bonuses: {},

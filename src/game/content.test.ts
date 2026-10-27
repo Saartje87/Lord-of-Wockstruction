@@ -12,6 +12,7 @@ import {
   step,
   type World,
 } from "./sim/world";
+import { ITEM_TYPES, itemOf } from "./tuning/items";
 import type { MonsterType } from "./tuning/monsters";
 
 // Building the World runs the loader's validation: a `start` Entry, Exits to
@@ -474,5 +475,30 @@ describe("the shipped Areas", () => {
       expect(arrived?.area).toBe(to);
     }
     expect(world.areaName).toBe("town");
+  });
+});
+
+describe("the Item types", () => {
+  it("each have a Short name, as the spec lists them", () => {
+    const shortNames = Object.fromEntries(
+      ITEM_TYPES.map((type) => [itemOf(type).name, itemOf(type).shortName]),
+    );
+
+    expect(shortNames).toEqual({
+      "Short Sword": "Sword",
+      Axe: "Axe",
+      "Leather Armour": "Leather",
+      "Chain Mail": "Chain",
+      "Ring of Strength": "Str",
+      "Ring of Dexterity": "Dex",
+      "Ring of Life": "Life",
+      "Amulet of Vitality": "Vit",
+      Sash: "Sash",
+      "Heavy Belt": "Heavy",
+      "Plated Belt": "Plated",
+      "Life Potion": "Life",
+      "Mana Potion": "Mana",
+      "Rejuvenation Potion": "Rejuv",
+    });
   });
 });

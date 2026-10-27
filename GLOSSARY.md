@@ -30,7 +30,15 @@ _Avoid_: Level, zone, map, scene
 
 **Exit**:
 A zone in an Area that, when the Hero walks into it, takes the Hero to an Entry in another Area.
-_Avoid_: Portal, door, transition, warp
+_Avoid_: Portal (that's the Town Portal), door, transition, warp
+
+**Town Portal**:
+A two-way gateway the Hero opens a step ahead of them anywhere outside Town, its other end at a fixed place in Town; the Hero goes through by walking into it, as with an Exit, and nothing else does. The Hero has at most one: opening another closes the old, and going back through it from Town closes it. It stays open through the Hero's Death and through Exits, and the Save never keeps one.
+_Avoid_: Portal on its own, TP, waypoint, gate
+
+**Kept Area**:
+The Combat Area a Town Portal stands in, which, unlike any other Area, stands still while the Hero is away and is just as they left it when they come back, by the Town Portal or an Exit: its Monsters, Corpses and Ground Items where they were. It stops being kept when the Town Portal closes.
+_Avoid_: Saved Area, persistent Area
 
 **Entry**:
 A named place in an Area where the Hero appears on arriving; the Entry named `start` is where the Hero begins.
@@ -133,7 +141,7 @@ A creature on the Hero's side, brought by a Skill, that fights Monsters for the 
 _Avoid_: Pet, summon, ally (and never a Monster: Monsters are always hostile)
 
 **Golem**:
-The Minion summoned by the Golem Skill: the Hero has at most one, which follows them through Exits, never regains Life, leaves no Corpse, and is gone on the Hero's Death or when the Save is loaded. Casting the Skill again replaces it.
+The Minion summoned by the Golem Skill: the Hero has at most one, which follows them through Exits and Town Portals, never regains Life, leaves no Corpse, and is gone on the Hero's Death or when the Save is loaded. Casting the Skill again replaces it.
 _Avoid_: Golum
 
 **Curse**:
@@ -145,7 +153,7 @@ The Minion the Raise Skeleton Skill raises from a Corpse, using it up, whatever 
 _Avoid_: Skeleton (that's the Monster), skelly, undead
 
 **Bone Ward**:
-What the Bone Ward Skill puts on the Hero: an amount of damage it soaks up before their Life, until used up; casting it again fills it back up. It stays on through Exits and is gone on the Hero's Death or when the Save is loaded.
+What the Bone Ward Skill puts on the Hero: an amount of damage it soaks up before their Life, until used up; casting it again fills it back up. It stays on through Exits and Town Portals and is gone on the Hero's Death or when the Save is loaded.
 _Avoid_: Bone Armor (Armour is an Item), shield, barrier
 
 **Attack Rating**:
@@ -231,6 +239,10 @@ _Avoid_: Belt slot (a slot is Equipment), potion slot
 **Belt strip**:
 The row of squares on the HUD beside the Skill Bar, one per Belt Column, each showing that column's bottom Potion, its key and how many Potions it holds; a Potion can be lifted from it or put down on it as a Held Item, Inventory panel open or not, except on a touch screen, where tapping a square drinks from its column.
 _Avoid_: Potion bar, quickbar
+
+**Town Portal button**:
+The round button on the HUD beside the Panel buttons that opens a Town Portal, as its key and a controller's LB do; clicking or tapping it is the same, and it shows greyed out in Town and does nothing during Death.
+_Avoid_: Portal button, recall button
 
 **Close button**:
 The × in the top-right corner of the Hero, Inventory and Skill Tree panels; clicking it shuts that panel just as its key does, so shutting the Inventory panel puts a Held Item back where it was lifted from.

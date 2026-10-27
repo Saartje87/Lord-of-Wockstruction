@@ -1,3 +1,4 @@
+import { type Fullscreen, NO_FULLSCREEN } from "../fullscreen";
 import type { InputWay } from "../input/activeInput";
 import { type MenuChoice, menuChoices } from "../menus";
 import { inside, type Rect } from "../sim/rect";
@@ -25,13 +26,15 @@ const PAUSE_MENU_BUTTON = { width: 160, height: 32 };
 export type MenuButton = { choice: MenuChoice; label: string; rect: Rect };
 
 /**
- * Where the pause menu and its buttons are drawn: New Hero, or Yes and No
- * while `confirming` one.
+ * Where the pause menu and its buttons are drawn: New Hero, and the
+ * Fullscreen button where `fullscreen` says the browser allows it, or Yes
+ * and No while `confirming` a New Hero.
  */
 export function pauseMenuLayout(
   screen: Viewport,
   confirming: boolean,
   way: InputWay = "mouseAndKeyboard",
+  fullscreen: Fullscreen = NO_FULLSCREEN,
 ): { panel: Rect; buttons: MenuButton[] } {
   const { width, height, buttonsTop, gap } = atUiScale(
     PAUSE_MENU_LAYOUT,
@@ -44,9 +47,9 @@ export function pauseMenuLayout(
     w: width,
     h: height,
   };
-  const row = menuChoices(confirming).map((choice) => ({
+  const row = menuChoices(confirming, fullscreen).map((choice) => ({
     choice,
-    label: menuChoiceLabel(choice, way),
+    label: menuChoiceLabel(choice, way, fullscreen.on),
   }));
   const rowWidth = row.length * button.width + (row.length - 1) * gap;
   const left = panel.x + (panel.w - rowWidth) / 2;
@@ -64,12 +67,21 @@ export function pauseMenuLayout(
   };
 }
 
-/** The pause-menu button under `point`, or null off them all. */
+/**
+ * The pause-menu button under `point`, or null off them all; the
+ * Fullscreen button only where `fullscreen` says the browser allows it.
+ */
 export function menuChoiceAt(
   screen: Viewport,
   point: Vec,
   confirming: boolean,
+  fullscreen: Fullscreen = NO_FULLSCREEN,
 ): MenuChoice | null {
-  const { buttons } = pauseMenuLayout(screen, confirming);
+  const { buttons } = pauseMenuLayout(
+    screen,
+    confirming,
+    undefined,
+    fullscreen,
+  );
   return buttons.find((button) => inside(button.rect, point))?.choice ?? null;
 }

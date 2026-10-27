@@ -246,6 +246,85 @@ describe("a click while paused", () => {
   });
 });
 
+describe("the Fullscreen button", () => {
+  /** Menus paused by Esc where the browser allows fullscreen, at 1000. */
+  function pausedWithFullscreen(on = false) {
+    const menus = createMenus();
+    menus.fullscreen = { available: true, on };
+    pressKey(menus, "Escape", 1000, alive);
+    return menus;
+  }
+
+  it("asks for fullscreen on a click or tap, leaving the menu open", () => {
+    const menus = pausedWithFullscreen();
+
+    expect(clickPaused(menus, "fullscreen", 2000)).toBe("fullscreen");
+    expect(menus.pause.paused).toBe(true);
+    expect(menus.pause.confirming).toBe(false);
+  });
+
+  it("asks to leave fullscreen the same way while fullscreen", () => {
+    const menus = pausedWithFullscreen(true);
+
+    expect(clickPaused(menus, "fullscreen", 2000)).toBe("fullscreen");
+    expect(menus.pause.paused).toBe(true);
+  });
+
+  it("is reached by the controller's focus, and A asks for fullscreen", () => {
+    const menus = createMenus();
+    menus.fullscreen = { available: true, on: false };
+    pressPad(menus, "menu", 1000, alive);
+
+    pressPad(menus, "right", 2000, alive);
+    expect(menus.menuFocus).toBe("fullscreen");
+
+    expect(pressPad(menus, "a", 3000, alive)).toBe("fullscreen");
+    expect(menus.pause.paused).toBe(true);
+    expect(menus.pause.confirming).toBe(false);
+    expect(menus.menuFocus).toBe("fullscreen");
+  });
+
+  it("can't be reached by the controller where the browser forbids it", () => {
+    const menus = createMenus();
+    pressPad(menus, "menu", 1000, alive);
+
+    pressPad(menus, "right", 2000, alive);
+
+    expect(menus.menuFocus).toBe("newHero");
+  });
+
+  it("leaves New Hero to ask to confirm, and Yes to start one", () => {
+    const menus = pausedWithFullscreen();
+
+    expect(clickPaused(menus, "newHero", 2000)).toBeNull();
+    expect(menus.pause.confirming).toBe(true);
+    expect(clickPaused(menus, "confirm", 3000)).toBe("newHero");
+    expect(menus.pause.paused).toBe(false);
+  });
+
+  it("leaves New Hero to the controller, left of it", () => {
+    const menus = createMenus();
+    menus.fullscreen = { available: true, on: false };
+    pressPad(menus, "menu", 1000, alive);
+    pressPad(menus, "right", 2000, alive);
+
+    pressPad(menus, "left", 3000, alive);
+    pressPad(menus, "a", 4000, alive);
+    pressPad(menus, "up", 5000, alive);
+
+    expect(menus.pause.confirming).toBe(true);
+    expect(pressPad(menus, "a", 6000, alive)).toBe("newHero");
+  });
+
+  it("does nothing while the Rotate Notice shows", () => {
+    const menus = pausedWithFullscreen();
+    fitMenus(menus, { compact: true, rotateNotice: "enlarge" }, 2000);
+
+    expect(clickPaused(menus, "fullscreen", 3000)).toBeNull();
+    expect(pressPad(menus, "a", 3000, alive)).toBe("handled");
+  });
+});
+
 describe("a click on the Level Up button", () => {
   it("opens the Hero panel with Attribute Points unspent", () => {
     const menus = createMenus();

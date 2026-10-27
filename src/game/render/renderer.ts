@@ -7,6 +7,7 @@ import {
   Text,
 } from "pixi.js";
 import type { CursorHit } from "../cursor";
+import type { Fullscreen } from "../fullscreen";
 import type { ActiveInput } from "../input/activeInput";
 import { castButton } from "../input/pad";
 import { buttonsHeld, stickHeld, type TouchControls } from "../input/touch";
@@ -887,10 +888,20 @@ export function createRenderer(
 
     /**
      * The pause-menu button under a click on the canvas (CSS px), or null
-     * off them all; `confirming` while asking to confirm a New Hero.
+     * off them all; `confirming` while asking to confirm a New Hero, and
+     * the Fullscreen button only where `fullscreen` says it's allowed.
      */
-    menuChoiceAt(screen: Vec, confirming: boolean): MenuChoice | null {
-      return menuChoiceAt(viewportOf(app.screen), screen, confirming);
+    menuChoiceAt(
+      screen: Vec,
+      confirming: boolean,
+      fullscreen: Fullscreen,
+    ): MenuChoice | null {
+      return menuChoiceAt(
+        viewportOf(app.screen),
+        screen,
+        confirming,
+        fullscreen,
+      );
     },
 
     /** Turns a step's events into effects. */
@@ -1344,6 +1355,7 @@ export function createRenderer(
         world.hero.progress.level,
         // Only a controller picks with the menu's focus.
         activeInput.way === "controller" ? menus.menuFocus : null,
+        menus.fullscreen,
       );
       notice.draw(viewport);
 
@@ -2992,13 +3004,15 @@ function pauseMenuView(activeInput: Readonly<ActiveInput>) {
     layer,
     /**
      * While confirming, asks whether to give up the Level `level` Hero for a
-     * New Hero. The button `focus` names is ringed, for a controller.
+     * New Hero. The button `focus` names is ringed, for a controller. The
+     * Fullscreen button shows, and reads, as `fullscreen` says.
      */
     draw(
       screen: Viewport,
       pause: Pause,
       level: number,
       focus: MenuChoice | null,
+      fullscreen: Fullscreen,
     ) {
       layer.visible = pause.paused;
       if (!pause.paused) return;
@@ -3013,7 +3027,12 @@ function pauseMenuView(activeInput: Readonly<ActiveInput>) {
       }
       resume.text = resumeHint(confirming, activeInput.way);
       dark.scale.set(screen.width, screen.height);
-      const layout = pauseMenuLayout(screen, confirming, activeInput.way);
+      const layout = pauseMenuLayout(
+        screen,
+        confirming,
+        activeInput.way,
+        fullscreen,
+      );
       const scale = screen.uiScale;
       content.position.set(layout.panel.x, layout.panel.y);
       box.scale.set(scale);

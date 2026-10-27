@@ -56,3 +56,75 @@ describe("the pause menu's buttons", () => {
     );
   });
 });
+
+describe("the pause menu's Fullscreen button", () => {
+  const available = { available: true, on: false };
+  const on = { available: true, on: true };
+  const unavailable = { available: false, on: false };
+
+  it("sits beside New Hero where the browser allows fullscreen", () => {
+    const { buttons } = pauseMenuLayout(screen, false, undefined, available);
+
+    expect(buttons.map((button) => button.choice)).toEqual([
+      "newHero",
+      "fullscreen",
+    ]);
+  });
+
+  it("isn't shown where the browser doesn't allow fullscreen", () => {
+    const { buttons } = pauseMenuLayout(screen, false, undefined, unavailable);
+
+    expect(buttons.map((button) => button.choice)).toEqual(["newHero"]);
+  });
+
+  it.each([
+    "mouseAndKeyboard",
+    "touch",
+    "controller",
+  ] as const)("reads Fullscreen, or Exit fullscreen while fullscreen (%s)", (way) => {
+    const label = (fullscreen: typeof on) =>
+      pauseMenuLayout(screen, false, way, fullscreen).buttons[1].label;
+
+    expect(label(available)).toBe("Fullscreen");
+    expect(label(on)).toBe("Exit fullscreen");
+  });
+
+  it("fits on the smallest screen, clear of New Hero", () => {
+    const smallest = viewportOf({ width: 640, height: 320 });
+    const [newHero, fullscreen] = pauseMenuLayout(
+      smallest,
+      false,
+      "touch",
+      available,
+    ).buttons;
+
+    expect(fullscreen.rect.x).toBeGreaterThanOrEqual(0);
+    expect(fullscreen.rect.y).toBeGreaterThanOrEqual(0);
+    expect(fullscreen.rect.x + fullscreen.rect.w).toBeLessThanOrEqual(640);
+    expect(fullscreen.rect.y + fullscreen.rect.h).toBeLessThanOrEqual(320);
+    expect(newHero.rect.x + newHero.rect.w).toBeLessThan(fullscreen.rect.x);
+  });
+
+  it("is found under a click or tap, but not where the browser forbids it", () => {
+    const [, fullscreen] = pauseMenuLayout(
+      screen,
+      false,
+      undefined,
+      available,
+    ).buttons;
+    const at = centre(fullscreen.rect);
+
+    expect(menuChoiceAt(screen, at, false, available)).toBe("fullscreen");
+    expect(menuChoiceAt(screen, at, false, unavailable)).toBeNull();
+    expect(menuChoiceAt(screen, at, true, available)).not.toBe("fullscreen");
+  });
+
+  it("is hidden while confirming a New Hero, as New Hero is", () => {
+    const { buttons } = pauseMenuLayout(screen, true, undefined, available);
+
+    expect(buttons.map((button) => button.choice)).toEqual([
+      "confirm",
+      "goBack",
+    ]);
+  });
+});

@@ -27,7 +27,7 @@ export type GroundLabel = { id: ItemId; rect: Rect };
  */
 export function groundLabels(
   items: readonly { id: ItemId; at: Vec; width: number }[],
-  uiScale = 1,
+  uiScale: number,
 ): GroundLabel[] {
   const { height, above, gap } = atUiScale(GROUND_LABEL, uiScale);
   // Nearest the viewer first, so theirs stay lowest.

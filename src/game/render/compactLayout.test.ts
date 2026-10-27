@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createMenus, type Panel } from "../menus";
+import { createMenus, PANELS, type Panel } from "../menus";
 import { EQUIPMENT_SLOTS } from "../sim/inventory";
 import { overlaps, type Rect } from "../sim/rect";
 import { emptySkillBar, SKILL_BAR_SLOTS } from "../sim/skillBar";
@@ -9,14 +9,14 @@ import { type Viewport, viewportOf } from "../viewport";
 import { beltStripLayout } from "./beltStrip";
 import { cursorHitAt } from "./cursorHit";
 import {
+  heroPanelHitAt,
   heroPanelLayout,
   heroPanelRow,
   heroSheet,
   PANEL_ROWS,
-  panelHitAt,
 } from "./heroPanel";
 import { inventoryHitAt, inventoryPanelLayout } from "./inventoryPanel";
-import { PANEL_BUTTONS, panelButtonsLayout } from "./panelButtons";
+import { panelButtonsLayout } from "./panelButtons";
 import { skillBarLayout } from "./skillBar";
 import {
   SKILL_TREE_ROWS,
@@ -101,7 +101,7 @@ function hudButtons(viewport: Viewport): [string, Rect][] {
   return [
     ...SKILL_BAR_SLOTS.map((slot) => [`Skill Bar ${slot}`, slots[slot]]),
     ...columns.map((rect, column) => [`Belt Column ${column}`, rect]),
-    ...PANEL_BUTTONS.map((panel) => [`${panel} button`, buttons[panel]]),
+    ...PANELS.map((panel) => [`${panel} button`, buttons[panel]]),
   ] as [string, Rect][];
 }
 
@@ -184,7 +184,7 @@ describe("the panels in the Compact Layout", () => {
     const viewport = viewportOf(size);
     const layout = heroPanelLayout(viewport);
     const at = (rect: Rect) =>
-      panelHitAt(viewport, centre(rect), world, true, pending);
+      heroPanelHitAt(viewport, centre(rect), world, true, pending);
 
     for (const attribute of ATTRIBUTES) {
       expect(at(layout.raise[attribute])).toEqual({
@@ -276,6 +276,30 @@ describe("the panels in the Compact Layout", () => {
       });
     }
   });
+
+  it.each([
+    { rows: 1, atLeast: 30 },
+    { rows: 2, atLeast: 30 },
+    { rows: 3, atLeast: 27 },
+    { rows: 4, atLeast: 24 },
+  ])("make the Inventory's cells as big as the 640×360 screen has room for, with $rows Belt rows", ({
+    rows,
+    atLeast,
+  }) => {
+    const viewport = viewportOf({ width: 640, height: 360 });
+
+    expect(inventoryPanelLayout(viewport, rows).cell).toBeGreaterThanOrEqual(
+      atLeast,
+    );
+  });
+
+  it("draws the Inventory's cells no bigger than native size on a roomy phone", () => {
+    const viewport = viewportOf({ width: 844, height: 390 });
+
+    for (const rows of BELT_ROWS) {
+      expect(inventoryPanelLayout(viewport, rows).cell).toBeLessThanOrEqual(36);
+    }
+  });
 });
 
 describe("a point in the Compact Layout", () => {
@@ -294,7 +318,7 @@ describe("a point in the Compact Layout", () => {
     const viewport = viewportOf(size);
     const { levelUp } = heroPanelLayout(viewport);
 
-    for (const panel of PANEL_BUTTONS) {
+    for (const panel of PANELS) {
       const hit = cursorHitAt(
         viewport,
         centre(levelUp),
@@ -313,9 +337,9 @@ describe("a point in the Compact Layout", () => {
     const { buttons } = panelButtonsLayout(viewport);
     const { slots } = skillBarLayout(viewport);
 
-    for (const open of PANEL_BUTTONS) {
+    for (const open of PANELS) {
       const shown = shownWith(open);
-      for (const panel of PANEL_BUTTONS) {
+      for (const panel of PANELS) {
         expect(
           cursorHitAt(viewport, centre(buttons[panel]), world, shown),
         ).toEqual({ button: { type: "panelButton", panel } });

@@ -3,19 +3,19 @@ import { inside, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
 import type { World } from "../sim/world";
 import { beltTuning, type ItemType, itemOf } from "../tuning/items";
-import type { Viewport } from "../viewport";
+import { atUiScale, type Viewport } from "../viewport";
 import { BELT_STRIP, SKILL_BAR, skillBarLayout } from "./skillBar";
 
 /** Where each Belt Column's square of the Belt strip is drawn, from the left. */
 export function beltStripLayout(screen: Viewport): {
   columns: Rect[];
 } {
-  const slot = SKILL_BAR.slot * screen.uiScale;
-  const gap = SKILL_BAR.gap * screen.uiScale;
+  const { slot, gap } = atUiScale(SKILL_BAR, screen.uiScale);
+  const { toSkillBar } = atUiScale(BELT_STRIP, screen.uiScale);
   const { key1 } = skillBarLayout(screen).slots;
   const count = beltTuning.columns;
   const width = count * slot + (count - 1) * gap;
-  const left = key1.x - BELT_STRIP.toSkillBar * screen.uiScale - width;
+  const left = key1.x - toSkillBar - width;
   return {
     columns: Array.from({ length: count }, (_, index) => ({
       x: left + index * (slot + gap),

@@ -126,6 +126,7 @@ import {
   hoveredPanelButton,
   panelButtonsLayout,
   panelButtonsSheet,
+  panelButtonTooltipRect,
 } from "./panelButtons";
 import { menuChoiceAt, PAUSE_MENU_LAYOUT, pauseMenuLayout } from "./pauseMenu";
 import { rotateNoticeText } from "./rotateNotice";
@@ -138,6 +139,7 @@ import {
   skillTreeRow,
   skillTreeSheet,
 } from "./skillTreePanel";
+import { tooltipRect } from "./tooltip";
 
 const HOVER_LINE = 0xd8c48a;
 const MARKER_LINE = 0xe8d27a;
@@ -967,9 +969,9 @@ export function createRenderer(
       camera.scale.set(shot.zoom);
       // A device pixel, in the World's own pixels.
       const pixel = shot.zoom * resolution;
-      const snap = (v: number) => Math.round(v * pixel) / pixel;
-      const snapOnScreen = (v: number) =>
-        Math.round(v * resolution) / resolution;
+      const snap = (value: number) => Math.round(value * pixel) / pixel;
+      const snapOnScreen = (value: number) =>
+        Math.round(value * resolution) / resolution;
       const place = (view: CharacterView, at: Vec, depth = 0) => {
         const screen = toScreen(at);
         view.sprite.position.set(snap(screen.x), snap(screen.y));
@@ -1176,12 +1178,12 @@ export function createRenderer(
           floating.splice(i, 1);
           continue;
         }
-        const look = atUiScale(DAMAGE_NUMBER, uiScale);
-        sizeText(text, look.size, look.stroke);
+        const sizes = atUiScale(DAMAGE_NUMBER, uiScale);
+        sizeText(text, sizes.size, sizes.stroke);
         const over = onScreen(shot, at);
         text.position.set(
           snapOnScreen(over.x),
-          snapOnScreen(over.y - look.gap - float.rise),
+          snapOnScreen(over.y - sizes.gap - float.rise),
         );
         text.alpha = float.alpha;
       }
@@ -1826,7 +1828,9 @@ function panelButtonsView() {
           tooltipText.text = shown.tooltip;
           tooltipText.visible = true;
           sizeText(tooltipText, INVENTORY_STYLE.tooltipSize * scale);
-          drawTooltip(tooltipBox, [tooltipText], rect, screen);
+          drawTooltip(tooltipBox, [tooltipText], screen, (size, gap) =>
+            panelButtonTooltipRect(screen, shown.panel, size, gap),
+          );
         }
       }
     },
@@ -1835,17 +1839,17 @@ function panelButtonsView() {
 
 /**
  * Draws a tooltip's box behind `lines`, already holding their words and
- * anchored at their top centre, and puts the lines in it: over `under`, or
- * under it where there's no room above, and kept on the screen. In the
- * Item tooltip's look.
+ * anchored at their top centre, and puts the lines in it: where `place`
+ * puts a box its size, `gap` from what it's about. In the Item tooltip's
+ * look.
  */
 function drawTooltip(
   box: Graphics,
   lines: readonly Text[],
-  under: Rect,
   screen: Viewport,
+  place: (size: { w: number; h: number }, gap: number) => Rect,
 ) {
-  const look = atUiScale(
+  const sizes = atUiScale(
     {
       padding: INVENTORY_STYLE.tooltipPadding,
       lineHeight: INVENTORY_STYLE.tooltipLineHeight,
@@ -1853,14 +1857,13 @@ function drawTooltip(
     },
     screen.uiScale,
   );
-  const pad = look.padding;
-  const w = Math.max(...lines.map((line) => line.width)) + 2 * pad;
-  const h = lines.length * look.lineHeight + 2 * pad;
-  const above = under.y - look.gap - h;
-  const y = above >= 0 ? above : under.y + under.h + look.gap;
-  const x = Math.min(
-    screen.width - w,
-    Math.max(0, under.x + under.w / 2 - w / 2),
+  const pad = sizes.padding;
+  const { x, y, w, h } = place(
+    {
+      w: Math.max(...lines.map((line) => line.width)) + 2 * pad,
+      h: lines.length * sizes.lineHeight + 2 * pad,
+    },
+    sizes.gap,
   );
   box
     .rect(x, y, w, h)
@@ -1870,7 +1873,7 @@ function drawTooltip(
     })
     .stroke({ color: HERO_PANEL_STYLE.edge, width: 1 });
   lines.forEach((line, i) => {
-    line.position.set(x + w / 2, y + pad + i * look.lineHeight);
+    line.position.set(x + w / 2, y + pad + i * sizes.lineHeight);
   });
 }
 
@@ -2630,8 +2633,8 @@ function inventoryPanelView() {
       drawTooltip(
         tooltipBox,
         tooltipLines.slice(0, lines.length),
-        under,
         screen,
+        (size, gap) => tooltipRect(under, size, screen, gap),
       );
     },
   };

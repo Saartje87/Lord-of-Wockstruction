@@ -228,6 +228,10 @@ _Avoid_: Menu button, mini-panel, HUD button
 How big the HUD and panels are drawn, following the screen's height within limits, so they read the same on a phone, a tablet and a desktop.
 _Avoid_: Zoom (that's the World), DPI, resolution
 
+**World zoom**:
+How big the World is drawn, following the screen's height within limits, so about as many tiles show top to bottom on a phone as on a desktop, each of the art's pixels covering a whole number of the screen's where it can.
+_Avoid_: Camera zoom, UI Scale (that's the HUD and panels), scale
+
 **Compact Layout**:
 How the HUD and panels are arranged on a short screen, such as a phone held sideways: one panel at a time, filling the screen, opening another shuts it.
 _Avoid_: Mobile layout, small mode

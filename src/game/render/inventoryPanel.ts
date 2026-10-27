@@ -101,13 +101,7 @@ export function inventoryPanelLayout(
   );
   const { columns, rows } = inventoryTuning;
   const fits = (screen.width / 2 - right - 2 * padding) / columns;
-  // Whole pixels, so the grid's lines stay crisp.
-  const cell = Math.floor(
-    Math.max(
-      INVENTORY_PANEL.minCell * screen.uiScale,
-      Math.min(INVENTORY_PANEL.maxCell * screen.uiScale, fits),
-    ),
-  );
+  const cell = cellSize(screen, INVENTORY_PANEL.maxCell * screen.uiScale, fits);
   const width = columns * cell + 2 * padding;
   const x = screen.width - right - width;
   const inner = x + padding;
@@ -147,9 +141,10 @@ export function inventoryPanelLayout(
 
 /**
  * The Inventory panel in the Compact Layout, filling the screen: too short
- * for them one above the other, the Equipment slots, the Belt Columns and
- * the grid sit side by side under its title, `gridGap` apart, centred, with
- * cells as big as fit, up to `maxCell`.
+ * for them all one above the other, the Equipment slots sit on the left and
+ * the grid on the right, `gridGap` apart, with the Belt Columns either
+ * between them or centred above the grid, whichever gives bigger cells.
+ * Cells are as big as fit, up to `maxCell` at native scale.
  */
 function compactInventoryLayout(
   screen: Viewport,
@@ -161,20 +156,37 @@ function compactInventoryLayout(
   );
   const { columns, rows } = inventoryTuning;
   const panel = compactPanelRect(screen);
-  const across = EQUIPMENT_COLUMNS + beltTuning.columns + columns;
-  const down = Math.max(EQUIPMENT_ROWS, beltRows, rows);
-  const fitsAcross = (panel.w - 2 * padding - 2 * gridGap) / across;
-  const fitsDown = (panel.h - 2 * padding - titleHeight - hintHeight) / down;
-  // Whole pixels, so the grid's lines stay crisp.
-  const cell = Math.floor(
-    Math.max(
-      INVENTORY_PANEL.minCell * screen.uiScale,
-      Math.min(INVENTORY_PANEL.maxCell * screen.uiScale, fitsAcross, fitsDown),
-    ),
+  const room = {
+    w: panel.w - 2 * padding,
+    h: panel.h - 2 * padding - titleHeight - hintHeight,
+  };
+  const largest = INVENTORY_PANEL.maxCell;
+  // The Belt Columns between the Equipment slots and the grid.
+  const beside = cellSize(
+    screen,
+    largest,
+    (room.w - 2 * gridGap) / (EQUIPMENT_COLUMNS + beltTuning.columns + columns),
+    room.h / Math.max(EQUIPMENT_ROWS, beltRows, rows),
   );
-  const left = panel.x + (panel.w - across * cell - 2 * gridGap) / 2;
+  // The Belt Columns above the grid.
+  const above = cellSize(
+    screen,
+    largest,
+    (room.w - gridGap) / (EQUIPMENT_COLUMNS + columns),
+    room.h / EQUIPMENT_ROWS,
+    (room.h - gridGap) / (beltRows + rows),
+  );
+  const cell = Math.max(beside, above);
+  const beltAbove = above > beside;
+  const across = beltAbove
+    ? (EQUIPMENT_COLUMNS + columns) * cell + gridGap
+    : (EQUIPMENT_COLUMNS + beltTuning.columns + columns) * cell + 2 * gridGap;
+  const left = panel.x + (panel.w - across) / 2;
   const top = panel.y + padding + titleHeight;
-  const beltLeft = left + EQUIPMENT_COLUMNS * cell + gridGap;
+  const gridLeft = left + across - columns * cell;
+  const beltLeft = beltAbove
+    ? gridLeft + ((columns - beltTuning.columns) / 2) * cell
+    : left + EQUIPMENT_COLUMNS * cell + gridGap;
   const belt = Array.from({ length: beltTuning.columns }, (_, column) =>
     Array.from({ length: beltRows }, (_, row) => ({
       x: beltLeft + column * cell,
@@ -184,8 +196,8 @@ function compactInventoryLayout(
     })),
   );
   const grid = {
-    x: beltLeft + beltTuning.columns * cell + gridGap,
-    y: top,
+    x: gridLeft,
+    y: beltAbove ? top + beltRows * cell + gridGap : top,
     w: columns * cell,
     h: rows * cell,
   };
@@ -197,6 +209,20 @@ function compactInventoryLayout(
     grid,
     cell,
   };
+}
+
+/**
+ * A grid cell's side on `screen`: as big as each of the room's `fits`
+ * allows, up to `largest`, and never under `minCell` at the UI Scale. Whole
+ * pixels, so the grid's lines stay crisp.
+ */
+function cellSize(screen: Viewport, largest: number, ...fits: number[]) {
+  return Math.floor(
+    Math.max(
+      INVENTORY_PANEL.minCell * screen.uiScale,
+      Math.min(largest, ...fits),
+    ),
+  );
 }
 
 /**

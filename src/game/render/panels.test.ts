@@ -5,7 +5,7 @@ import { emptySkillBar } from "../sim/skillBar";
 import { ATTRIBUTES, createWorld, FRESH_PROGRESS, SKILLS } from "../sim/world";
 import { ITEM_TYPES, inventoryTuning, itemOf } from "../tuning/items";
 import { type Viewport, viewportOf } from "../viewport";
-import { heroPanelLayout, panelHitAt } from "./heroPanel";
+import { heroPanelHitAt, heroPanelLayout } from "./heroPanel";
 import {
   heldItemRect,
   inventoryHitAt,
@@ -131,7 +131,7 @@ describe("the panels at the UI Scale", () => {
     const viewport = viewportOf(size);
     const layout = heroPanelLayout(viewport);
     const at = (rect: Rect) =>
-      panelHitAt(viewport, centre(rect), world, true, pending);
+      heroPanelHitAt(viewport, centre(rect), world, true, pending);
 
     for (const attribute of ATTRIBUTES) {
       expect(at(layout.raise[attribute])).toEqual({

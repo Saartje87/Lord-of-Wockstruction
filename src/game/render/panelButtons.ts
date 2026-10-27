@@ -3,21 +3,16 @@ import {
   type HeroState,
   type Menus,
   PANEL_KEYS,
+  PANELS,
   type Panel,
   panelOpen,
 } from "../menus";
 import { inside, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
-import type { Viewport } from "../viewport";
+import { atUiScale, type Viewport } from "../viewport";
 import { COMPACT_LAYOUT } from "./compactLayout";
 import { BELT_STRIP, SKILL_BAR, skillBarLayout } from "./skillBar";
-
-/** The Panel buttons from left to right. */
-export const PANEL_BUTTONS: readonly Panel[] = [
-  "hero",
-  "inventory",
-  "skillTree",
-];
+import { tooltipRect } from "./tooltip";
 
 /**
  * Where each Panel button is drawn: as big and as far apart as the Skill
@@ -29,14 +24,13 @@ export const PANEL_BUTTONS: readonly Panel[] = [
 export function panelButtonsLayout(screen: Viewport): {
   buttons: Record<Panel, Rect>;
 } {
-  const slot = SKILL_BAR.slot * screen.uiScale;
-  const gap = SKILL_BAR.gap * screen.uiScale;
+  const { slot, gap } = atUiScale(SKILL_BAR, screen.uiScale);
   if (screen.compact) {
-    const margin = COMPACT_LAYOUT.margin * screen.uiScale;
+    const { margin } = atUiScale(COMPACT_LAYOUT, screen.uiScale);
     const x = screen.width - margin - slot;
     return {
       buttons: Object.fromEntries(
-        PANEL_BUTTONS.map((panel, index) => [
+        PANELS.map((panel, index) => [
           panel,
           { x, y: margin + index * (slot + gap), w: slot, h: slot },
         ]),
@@ -44,14 +38,38 @@ export function panelButtonsLayout(screen: Viewport): {
     };
   }
   const { right } = skillBarLayout(screen).slots;
-  const left = right.x + right.w + BELT_STRIP.toSkillBar * screen.uiScale;
+  const { toSkillBar } = atUiScale(BELT_STRIP, screen.uiScale);
+  const left = right.x + right.w + toSkillBar;
   return {
     buttons: Object.fromEntries(
-      PANEL_BUTTONS.map((panel, index) => [
+      PANELS.map((panel, index) => [
         panel,
         { x: left + index * (slot + gap), y: right.y, w: slot, h: slot },
       ]),
     ) as Record<Panel, Rect>,
+  };
+}
+
+/**
+ * Where the tooltip of `panel`'s Panel button goes, `size` big and `gap`
+ * from what it's over: over the button on the HUD. In the Compact Layout,
+ * where the buttons stack down the top-right corner with the open panel's ×
+ * beside the top one, under the whole stack, clear of them all.
+ */
+export function panelButtonTooltipRect(
+  screen: Viewport,
+  panel: Panel,
+  size: { w: number; h: number },
+  gap: number,
+): Rect {
+  const { buttons } = panelButtonsLayout(screen);
+  if (!screen.compact) return tooltipRect(buttons[panel], size, screen, gap);
+  const top = buttons[PANELS[0]];
+  const bottom = buttons[PANELS[PANELS.length - 1]];
+  const stack = { ...top, h: bottom.y + bottom.h - top.y };
+  return {
+    ...tooltipRect(stack, size, screen, gap),
+    y: stack.y + stack.h + gap,
   };
 }
 
@@ -67,7 +85,7 @@ export function panelButtonHitAt(
   point: Vec,
 ): PanelButtonHit | null {
   const { buttons } = panelButtonsLayout(screen);
-  const panel = PANEL_BUTTONS.find((name) => inside(buttons[name], point));
+  const panel = PANELS.find((name) => inside(buttons[name], point));
   return panel ? { button: { type: "panelButton", panel } } : null;
 }
 
@@ -95,7 +113,7 @@ export function panelButtonsSheet(
   menus: Menus,
   hero: HeroState,
 ): PanelButtonSheet[] {
-  return PANEL_BUTTONS.map((panel) => ({
+  return PANELS.map((panel) => ({
     panel,
     lit: panelOpen(menus, panel),
     dimmed: hero.heroDead,

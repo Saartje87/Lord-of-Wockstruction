@@ -13,7 +13,7 @@ const SCREENS = [
 const HERO = { x: 12.25, y: 7.5 };
 
 describe("the camera", () => {
-  it.each(SCREENS)("shows 7.5 tiles top to bottom on $screen", ({
+  it.each(SCREENS)("shows about 7.5 tiles top to bottom on $screen", ({
     width,
     height,
   }) => {
@@ -22,8 +22,11 @@ describe("the camera", () => {
     const top = onWorld(camera, { x: width / 2, y: 0 });
     const bottom = onWorld(camera, { x: width / 2, y: height });
 
-    // 720 CSS px of World at native size, half-tiles 96 px tall.
-    expect((bottom.y - top.y) / TILE_HEIGHT).toBeCloseTo(7.5, 1);
+    // 720 CSS px of World at native size, half-tiles 96 px tall, give or
+    // take the zoom's snap to whole device pixels.
+    const tiles = (bottom.y - top.y) / TILE_HEIGHT;
+    expect(tiles).toBeGreaterThan(7.5 * 0.8);
+    expect(tiles).toBeLessThan(7.5 * 1.2);
   });
 
   it.each(SCREENS)("keeps the Hero at the centre of $screen", ({
@@ -67,6 +70,33 @@ describe("the camera", () => {
     // One tile down-screen is 96 px at native size.
     expect(onScreen(phone, nextTile).y - 180).toBeCloseTo(48, 0);
     expect(onScreen(desktop, nextTile).y - 720).toBeCloseTo(192, 0);
+  });
+
+  it.each([
+    { screen: "1180×820 at 2 device px", width: 1180, height: 820, at: 2 },
+    { screen: "1600×900 at 2 device px", width: 1600, height: 900, at: 2 },
+    { screen: "1180×820 at 1 device px", width: 1180, height: 820, at: 1 },
+    { screen: "1600×900 at 1.5 device px", width: 1600, height: 900, at: 1.5 },
+  ])("draws each World pixel over whole device pixels on $screen", ({
+    width,
+    height,
+    at,
+  }) => {
+    const camera = cameraOn(viewportOf({ width, height }), toScreen(HERO), at);
+
+    const devicePixels = camera.zoom * at;
+    expect(devicePixels).toBeCloseTo(Math.round(devicePixels), 9);
+  });
+
+  it("keeps the zoom where a World pixel is under one device pixel", () => {
+    // A whole device pixel would show half as many tiles on the phone.
+    const camera = cameraOn(
+      viewportOf({ width: 640, height: 360 }),
+      toScreen(HERO),
+      1,
+    );
+
+    expect(camera.zoom).toBe(0.5);
   });
 
   it("sits on whole device pixels, so the art stays crisp", () => {

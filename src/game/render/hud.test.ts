@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createMenus } from "../menus";
+import { createMenus, PANELS } from "../menus";
 import { overlaps, type Rect } from "../sim/rect";
 import { emptySkillBar, SKILL_BAR_SLOTS } from "../sim/skillBar";
 import { createWorld, FRESH_PROGRESS } from "../sim/world";
@@ -9,7 +9,7 @@ import { cursorHitAt } from "./cursorHit";
 import { experienceBarLayout } from "./experienceBar";
 import { heroPanelLayout } from "./heroPanel";
 import { type OrbCircle, orbsLayout } from "./orbs";
-import { PANEL_BUTTONS, panelButtonsLayout } from "./panelButtons";
+import { panelButtonsLayout } from "./panelButtons";
 import { skillBarLayout } from "./skillBar";
 
 /** A Town of one tile with the Hero's `start` on it. */
@@ -75,7 +75,7 @@ function hudParts(viewport: ReturnType<typeof viewportOf>) {
   return [
     ...SKILL_BAR_SLOTS.map((slot) => [`Skill Bar ${slot}`, slots[slot]]),
     ...columns.map((rect, column) => [`Belt Column ${column}`, rect]),
-    ...PANEL_BUTTONS.map((panel) => [`${panel} button`, buttons[panel]]),
+    ...PANELS.map((panel) => [`${panel} button`, buttons[panel]]),
     ["Life orb", orbBox(orbs.life)],
     ["Mana orb", orbBox(orbs.mana)],
     ["Experience bar", experienceBarLayout(viewport)],
@@ -154,7 +154,7 @@ describe("the HUD at the UI Scale", () => {
     for (const [beltColumn, rect] of columns.entries()) {
       expect(at(rect)).toEqual({ button: null, beltColumn });
     }
-    for (const panel of PANEL_BUTTONS) {
+    for (const panel of PANELS) {
       expect(at(buttons[panel])).toEqual({
         button: { type: "panelButton", panel },
       });

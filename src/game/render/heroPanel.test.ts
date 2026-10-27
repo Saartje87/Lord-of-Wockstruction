@@ -23,11 +23,12 @@ import {
 } from "../sim/world";
 import { viewportOf } from "../viewport";
 import {
+  heroPanelHitAt,
   heroPanelLayout,
   heroPanelRow,
   heroSheet,
+  levelUpHitAt,
   PANEL_ROWS,
-  panelHitAt,
 } from "./heroPanel";
 
 /** Whether `rect` lies wholly inside `outer`. */
@@ -331,7 +332,7 @@ describe("heroSheet with Pending Attribute Points", () => {
   });
 });
 
-describe("panelHitAt", () => {
+describe("a click on the Hero panel and the Level Up button", () => {
   const screen = viewportOf({ width: 1280, height: 720 });
   const layout = heroPanelLayout(screen);
   const centre = (rect: { x: number; y: number; w: number; h: number }) => ({
@@ -342,10 +343,10 @@ describe("panelHitAt", () => {
   it("finds the Level Up button only while points are unspent", () => {
     const at = centre(layout.levelUp);
 
-    expect(panelHitAt(screen, at, withPoints(5), false)).toEqual({
+    expect(levelUpHitAt(screen, at, withPoints(5))).toEqual({
       button: { type: "levelUp" },
     });
-    expect(panelHitAt(screen, at, withPoints(0), false)).toBeNull();
+    expect(levelUpHitAt(screen, at, withPoints(0))).toBeNull();
   });
 
   it("finds the Level Up button while only Skill Points are unspent", () => {
@@ -362,7 +363,7 @@ describe("panelHitAt", () => {
       skillBar: emptySkillBar(),
     });
 
-    expect(panelHitAt(screen, centre(layout.levelUp), w, false)).toEqual({
+    expect(levelUpHitAt(screen, centre(layout.levelUp), w)).toEqual({
       button: { type: "levelUp" },
     });
   });
@@ -370,19 +371,19 @@ describe("panelHitAt", () => {
   it("finds a + button only while the panel is open with points unspent", () => {
     const at = centre(layout.raise.vitality);
 
-    expect(panelHitAt(screen, at, withPoints(1), true)).toEqual({
+    expect(heroPanelHitAt(screen, at, withPoints(1), true)).toEqual({
       button: { type: "raise", attribute: "vitality" },
     });
-    expect(panelHitAt(screen, at, withPoints(0), true)).toEqual({
+    expect(heroPanelHitAt(screen, at, withPoints(0), true)).toEqual({
       button: null,
     });
-    expect(panelHitAt(screen, at, withPoints(1), false)).toBeNull();
+    expect(heroPanelHitAt(screen, at, withPoints(1), false)).toBeNull();
   });
 
   it("finds Energy's + button", () => {
     const at = centre(layout.raise.energy);
 
-    expect(panelHitAt(screen, at, withPoints(1), true)).toEqual({
+    expect(heroPanelHitAt(screen, at, withPoints(1), true)).toEqual({
       button: { type: "raise", attribute: "energy" },
     });
   });
@@ -391,7 +392,9 @@ describe("panelHitAt", () => {
     const w = withPoints(1);
     kill(w);
 
-    expect(panelHitAt(screen, centre(layout.raise.vitality), w, true)).toEqual({
+    expect(
+      heroPanelHitAt(screen, centre(layout.raise.vitality), w, true),
+    ).toEqual({
       button: null,
     });
   });
@@ -401,68 +404,76 @@ describe("panelHitAt", () => {
     const at = centre(closeButton);
 
     expect(closeButton.y + closeButton.h).toBeLessThanOrEqual(firstRowTop());
-    expect(panelHitAt(screen, at, withPoints(0), true)).toEqual({
+    expect(heroPanelHitAt(screen, at, withPoints(0), true)).toEqual({
       button: { type: "close", panel: "hero" },
     });
-    expect(panelHitAt(screen, at, withPoints(3), true)).toEqual({
+    expect(heroPanelHitAt(screen, at, withPoints(3), true)).toEqual({
       button: { type: "close", panel: "hero" },
     });
-    expect(panelHitAt(screen, at, withPoints(0), false)).toBeNull();
+    expect(heroPanelHitAt(screen, at, withPoints(0), false)).toBeNull();
   });
 
   it("finds the × while the Hero is dead", () => {
     const w = withPoints(0);
     kill(w);
 
-    expect(panelHitAt(screen, centre(layout.closeButton), w, true)).toEqual({
-      button: { type: "close", panel: "hero" },
-    });
+    expect(heroPanelHitAt(screen, centre(layout.closeButton), w, true)).toEqual(
+      {
+        button: { type: "close", panel: "hero" },
+      },
+    );
   });
 
   it("finds a − button only on an Attribute with Pending Attribute Points", () => {
     const at = centre(layout.lower.vitality);
     const w = withPoints(3);
 
-    expect(panelHitAt(screen, at, w, true, pending({ vitality: 1 }))).toEqual({
+    expect(
+      heroPanelHitAt(screen, at, w, true, pending({ vitality: 1 })),
+    ).toEqual({
       button: { type: "lower", attribute: "vitality" },
     });
-    expect(panelHitAt(screen, at, w, true, pending({ energy: 1 }))).toEqual({
-      button: null,
-    });
-    expect(panelHitAt(screen, at, w, true)).toEqual({ button: null });
+    expect(heroPanelHitAt(screen, at, w, true, pending({ energy: 1 }))).toEqual(
+      {
+        button: null,
+      },
+    );
+    expect(heroPanelHitAt(screen, at, w, true)).toEqual({ button: null });
   });
 
   it("finds Accept only while points are pending", () => {
     const at = centre(layout.accept);
     const w = withPoints(3);
 
-    expect(panelHitAt(screen, at, w, true, pending({ energy: 1 }))).toEqual({
-      button: { type: "accept" },
-    });
-    expect(panelHitAt(screen, at, w, true)).toEqual({ button: null });
+    expect(heroPanelHitAt(screen, at, w, true, pending({ energy: 1 }))).toEqual(
+      {
+        button: { type: "accept" },
+      },
+    );
+    expect(heroPanelHitAt(screen, at, w, true)).toEqual({ button: null });
   });
 
   it("finds no + once every unspent point is pending", () => {
     const at = centre(layout.raise.strength);
 
     expect(
-      panelHitAt(screen, at, withPoints(2), true, pending({ energy: 2 })),
+      heroPanelHitAt(screen, at, withPoints(2), true, pending({ energy: 2 })),
     ).toEqual({ button: null });
     expect(
-      panelHitAt(screen, at, withPoints(3), true, pending({ energy: 2 })),
+      heroPanelHitAt(screen, at, withPoints(3), true, pending({ energy: 2 })),
     ).toEqual({ button: { type: "raise", attribute: "strength" } });
   });
 
   it("keeps the Level Up button while every unspent point is pending", () => {
-    expect(
-      panelHitAt(
-        screen,
-        centre(layout.levelUp),
-        withPoints(2),
-        true,
-        pending({ strength: 2 }),
-      ),
-    ).toEqual({ button: { type: "levelUp" } });
+    const at = centre(layout.levelUp);
+    const w = withPoints(2);
+
+    expect(heroPanelHitAt(screen, at, w, true, pending({ strength: 2 }))).toBe(
+      null,
+    );
+    expect(levelUpHitAt(screen, at, w)).toEqual({
+      button: { type: "levelUp" },
+    });
   });
 
   it("lays −, + and Accept out apart from each other and the values", () => {
@@ -484,11 +495,11 @@ describe("panelHitAt", () => {
     const inside = { x: panel.x + 2, y: panel.y + panel.h - 2 };
     const outside = { x: panel.x + panel.w + 2, y: panel.y + 2 };
 
-    expect(panelHitAt(screen, inside, withPoints(0), true)).toEqual({
+    expect(heroPanelHitAt(screen, inside, withPoints(0), true)).toEqual({
       button: null,
     });
-    expect(panelHitAt(screen, inside, withPoints(0), false)).toBeNull();
-    expect(panelHitAt(screen, outside, withPoints(5), true)).toBeNull();
+    expect(heroPanelHitAt(screen, inside, withPoints(0), false)).toBeNull();
+    expect(heroPanelHitAt(screen, outside, withPoints(5), true)).toBeNull();
   });
 });
 

@@ -85,7 +85,7 @@ export function floatText(number: DamageNumber): string {
  */
 export function floatAt(
   ageMs: number,
-  uiScale = 1,
+  uiScale: number,
 ): { rise: number; alpha: number } | null {
   if (ageMs >= FLOAT_MS) return null;
   return {

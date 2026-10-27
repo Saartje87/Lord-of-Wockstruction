@@ -304,30 +304,9 @@ export type PanelButton =
 export type PanelHit = { button: PanelButton | null };
 
 /**
- * What a click at `point` hits, or null when it's on neither the panel nor
- * the Level Up button. The Level Up button is there only while Attribute or
- * Skill Points are unspent, pending or not; the panel only while `open`, its
- * × with it; its + buttons only while a point is left to place, each − only
- * on an Attribute with `pending` points, and Accept only while any are. The
- * open panel is drawn over the Level Up button, which it covers in the
- * Compact Layout.
- */
-export function panelHitAt(
-  screen: Viewport,
-  point: Vec,
-  world: World,
-  open: boolean,
-  pending: Readonly<PendingPoints> = NO_PENDING,
-): PanelHit | null {
-  return (
-    heroPanelHitAt(screen, point, world, open, pending) ??
-    levelUpHitAt(screen, point, world)
-  );
-}
-
-/**
  * What a click at `point` hits of the Level Up button, there only while
- * Attribute or Skill Points are unspent, or null off it.
+ * Attribute or Skill Points are unspent, pending or not, or null off it. The
+ * open Hero panel is drawn over it, and covers it in the Compact Layout.
  */
 export function levelUpHitAt(
   screen: Viewport,
@@ -340,8 +319,10 @@ export function levelUpHitAt(
 }
 
 /**
- * What a click at `point` hits of the Hero panel while `open`, as
- * `panelHitAt` has it but for the Level Up button, or null off the panel.
+ * What a click at `point` hits of the Hero panel, there only while `open`,
+ * or null off it: its ×; its + buttons only while a point is left to place,
+ * each − only on an Attribute with `pending` points, and Accept only while
+ * any are.
  */
 export function heroPanelHitAt(
   screen: Viewport,

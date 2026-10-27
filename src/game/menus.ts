@@ -133,11 +133,16 @@ function panelOfKey(letter: string): Panel | undefined {
   );
 }
 
+/** The flag on the menus that says whether each panel is open. */
+const OPEN_FLAGS = {
+  hero: "heroPanelOpen",
+  inventory: "inventoryOpen",
+  skillTree: "skillTreeOpen",
+} as const satisfies Record<Panel, keyof Menus>;
+
 /** Whether `panel` is open. */
 export function panelOpen(menus: Menus, panel: Panel): boolean {
-  if (panel === "hero") return menus.heroPanelOpen;
-  if (panel === "inventory") return menus.inventoryOpen;
-  return menus.skillTreeOpen;
+  return menus[OPEN_FLAGS[panel]];
 }
 
 /**
@@ -170,21 +175,16 @@ function openPanel(menus: Menus, panel: Panel) {
       shutPanel(menus, other);
     }
   }
-  if (panel === "hero") menus.heroPanelOpen = true;
-  if (panel === "inventory") menus.inventoryOpen = true;
-  if (panel === "skillTree") menus.skillTreeOpen = true;
+  menus[OPEN_FLAGS[panel]] = true;
   menus.lastOpened = panel;
 }
 
-/** The three panels. */
-const PANELS: readonly Panel[] = ["hero", "inventory", "skillTree"];
-
 /**
- * Whether panels `a` and `b` may be open together: only the Hero panel with
+ * Whether `panel` may be open with `other`: only the Hero panel with
  * another, and never in the Compact Layout.
  */
-function canShareScreen(menus: Menus, a: Panel, b: Panel): boolean {
-  return !menus.compact && (a === "hero" || b === "hero");
+function canShareScreen(menus: Menus, panel: Panel, other: Panel): boolean {
+  return !menus.compact && (panel === "hero" || other === "hero");
 }
 
 /**
@@ -251,6 +251,9 @@ export function clickLevelUp(
  */
 export type Panel = "hero" | "inventory" | "skillTree";
 
+/** The three panels, in their Panel buttons' order from left to right. */
+export const PANELS: readonly Panel[] = ["hero", "inventory", "skillTree"];
+
 /**
  * A click on a panel's × button, which shuts it as its key (C, I or T)
  * would, but never opens it.
@@ -261,15 +264,8 @@ export function clickClose(menus: Menus, panel: Panel) {
 
 /** Shuts `panel`, the Hero panel cancelling its Pending Attribute Points. */
 function shutPanel(menus: Menus, panel: Panel) {
-  if (panel === "hero") shutHeroPanel(menus);
-  if (panel === "inventory") menus.inventoryOpen = false;
-  if (panel === "skillTree") menus.skillTreeOpen = false;
-}
-
-/** Shuts the Hero panel, cancelling its Pending Attribute Points. */
-function shutHeroPanel(menus: Menus) {
-  menus.heroPanelOpen = false;
-  menus.pendingPoints = noPendingPoints();
+  menus[OPEN_FLAGS[panel]] = false;
+  if (panel === "hero") menus.pendingPoints = noPendingPoints();
 }
 
 /**
@@ -335,9 +331,7 @@ export function reactMenus(menus: Menus, events: readonly SimEvent[]) {
 
 /** Shuts the Hero, Inventory and Skill Tree panels. */
 function closePanels(menus: Menus) {
-  shutHeroPanel(menus);
-  menus.inventoryOpen = false;
-  menus.skillTreeOpen = false;
+  for (const panel of PANELS) shutPanel(menus, panel);
 }
 
 /**

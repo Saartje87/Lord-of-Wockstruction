@@ -102,20 +102,20 @@ describe("floatText", () => {
 
 describe("floatAt", () => {
   it("rises from where it appears, fully opaque", () => {
-    expect(floatAt(0)).toEqual({ rise: 0, alpha: 1 });
+    expect(floatAt(0, 1)).toEqual({ rise: 0, alpha: 1 });
   });
 
   it("fades over the second half of its life and then is gone", () => {
-    expect(floatAt(FLOAT_MS / 2)?.alpha).toBe(1);
-    expect(floatAt(FLOAT_MS * 0.75)?.alpha).toBeCloseTo(0.5);
-    expect(floatAt(FLOAT_MS * 0.75)?.rise).toBeGreaterThan(
-      floatAt(FLOAT_MS / 2)?.rise ?? Infinity,
+    expect(floatAt(FLOAT_MS / 2, 1)?.alpha).toBe(1);
+    expect(floatAt(FLOAT_MS * 0.75, 1)?.alpha).toBeCloseTo(0.5);
+    expect(floatAt(FLOAT_MS * 0.75, 1)?.rise).toBeGreaterThan(
+      floatAt(FLOAT_MS / 2, 1)?.rise ?? Infinity,
     );
-    expect(floatAt(FLOAT_MS)).toBeNull();
+    expect(floatAt(FLOAT_MS, 1)).toBeNull();
   });
 
   it("rises UI Scale times as far at the UI Scale", () => {
-    const native = floatAt(FLOAT_MS / 2)?.rise ?? 0;
+    const native = floatAt(FLOAT_MS / 2, 1)?.rise ?? 0;
 
     expect(native).toBeGreaterThan(0);
     expect(floatAt(FLOAT_MS / 2, 1.5)?.rise).toBeCloseTo(1.5 * native);

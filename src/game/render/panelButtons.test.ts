@@ -3,18 +3,23 @@ import {
   clickLevelUp,
   clickPanelButton,
   createMenus,
+  PANELS,
   pressKey,
 } from "../menus";
 import { overlaps } from "../sim/rect";
 import { viewportOf } from "../viewport";
 import { beltStripLayout } from "./beltStrip";
+import { heroPanelLayout } from "./heroPanel";
+import { inventoryPanelLayout } from "./inventoryPanel";
 import {
   hoveredPanelButton,
   panelButtonHitAt,
   panelButtonsLayout,
   panelButtonsSheet,
+  panelButtonTooltipRect,
 } from "./panelButtons";
 import { skillBarLayout } from "./skillBar";
+import { skillTreePanelLayout } from "./skillTreePanel";
 
 describe("the Panel buttons' layout", () => {
   it.each([
@@ -49,6 +54,50 @@ describe("the Panel buttons' layout", () => {
     expect(hero.x - (slots.right.x + slots.right.w)).toBe(
       slots.key1.x - (belt[3].x + belt[3].w),
     );
+  });
+});
+
+describe("a Panel button's tooltip", () => {
+  // "Skill Tree (T)" in the tooltip's look at the UI Scale 0.75.
+  const size = { w: 96, h: 26 };
+  const gap = 4.5;
+
+  it("sits over its button on the HUD", () => {
+    const screen = viewportOf({ width: 1280, height: 720 });
+    const { buttons } = panelButtonsLayout(screen);
+
+    for (const panel of PANELS) {
+      const tooltip = panelButtonTooltipRect(screen, panel, size, gap);
+      const button = buttons[panel];
+      expect(tooltip.y + tooltip.h).toBeLessThanOrEqual(button.y);
+      expect(tooltip.x + tooltip.w / 2).toBeCloseTo(button.x + button.w / 2);
+    }
+  });
+
+  it.each([
+    { width: 640, height: 360 },
+    { width: 844, height: 390 },
+  ])("covers no Panel button nor an open panel's × in the Compact Layout on $width×$height", (screenSize) => {
+    const screen = viewportOf(screenSize);
+    const { buttons } = panelButtonsLayout(screen);
+    const closes = [
+      heroPanelLayout(screen).closeButton,
+      skillTreePanelLayout(screen).closeButton,
+      inventoryPanelLayout(screen, 4).closeButton,
+    ];
+
+    for (const panel of PANELS) {
+      const tooltip = panelButtonTooltipRect(screen, panel, size, gap);
+      expect(tooltip.x).toBeGreaterThanOrEqual(0);
+      expect(tooltip.y).toBeGreaterThanOrEqual(0);
+      expect(tooltip.x + tooltip.w).toBeLessThanOrEqual(screen.width);
+      for (const other of PANELS) {
+        expect(overlaps(tooltip, buttons[other]), other).toBe(false);
+      }
+      for (const close of closes) {
+        expect(overlaps(tooltip, close), "×").toBe(false);
+      }
+    }
   });
 });
 

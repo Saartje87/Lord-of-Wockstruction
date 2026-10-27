@@ -74,24 +74,24 @@ export function nameplateLayout(screen: Viewport): {
   nameAt: Vec;
   nameSize: number;
 } {
-  const look = atUiScale(NAMEPLATE, screen.uiScale);
+  const sizes = atUiScale(NAMEPLATE, screen.uiScale);
   const centre = screen.width / 2;
   const panel = {
-    x: centre - look.width / 2,
-    y: look.top,
-    w: look.width,
-    h: look.height,
+    x: centre - sizes.width / 2,
+    y: sizes.top,
+    w: sizes.width,
+    h: sizes.height,
   };
   return {
     panel,
     bar: {
-      x: centre - look.bar / 2,
-      y: panel.y + panel.h - look.barHeight - look.barBottom,
-      w: look.bar,
-      h: look.barHeight,
+      x: centre - sizes.bar / 2,
+      y: panel.y + panel.h - sizes.barHeight - sizes.barBottom,
+      w: sizes.bar,
+      h: sizes.barHeight,
     },
-    nameAt: { x: centre, y: panel.y + look.nameTop },
-    nameSize: look.nameSize,
+    nameAt: { x: centre, y: panel.y + sizes.nameTop },
+    nameSize: sizes.nameSize,
   };
 }
 

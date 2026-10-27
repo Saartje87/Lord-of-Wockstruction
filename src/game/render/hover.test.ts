@@ -100,6 +100,7 @@ function world(monster: MonsterType = "skeleton") {
 const golem = (life: number): Minion => ({
   id: 1,
   type: "golem",
+  skill: "golem",
   skillLevel: 1,
   pos: { x: 1, y: 1 },
   prevPos: { x: 1, y: 1 },
@@ -207,5 +208,23 @@ describe("what is shown as hovered", () => {
 
   it("shows nothing with neither", () => {
     expect(hoveredOf(two(), null, null)).toBeNull();
+  });
+
+  it("shows the Minion under the pointer, of several, over the Target", () => {
+    const world = two();
+    const [, target] = world.monsters;
+    const pointed = { ...golem(5), id: 2 };
+    world.minions = [golem(5), pointed];
+
+    expect(hoveredOf(world, { minion: 2 }, target.id)).toEqual({
+      minion: pointed,
+    });
+  });
+
+  it("shows nothing for a pointed Minion that has since died", () => {
+    const world = two();
+    world.minions = [golem(5)];
+
+    expect(hoveredOf(world, { minion: 2 }, null)).toBeNull();
   });
 });

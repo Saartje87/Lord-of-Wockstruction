@@ -56,6 +56,7 @@ import {
   isInCombat,
   isRegenerating,
   type MinionId,
+  type MinionType,
   type MonsterId,
   type SimEvent,
   SWING_STEPS,
@@ -112,6 +113,7 @@ import {
 } from "./heroPanel";
 import { deathHint, panelCloseHint, resumeHint, skillTooltip } from "./hints";
 import {
+  type CharacterId,
   characterUnder,
   hoveredOf,
   nameplateLayout,
@@ -283,7 +285,7 @@ const MONSTER_BAR = { width: 30, height: 5, above: 8 };
 const NAMEPLATE_STYLE = { alpha: 0.6, nameColour: 0xe8e0c8 };
 /** A Life bar's fill, and its dark back with how opaque that is (0..1). */
 const LIFE_COLOUR = 0xc02020;
-/** The hovered Golem's nameplate: a green name and Life bar, on the Hero's side. */
+/** A hovered Minion's nameplate: a green name and Life bar, on the Hero's side. */
 const FRIENDLY = { name: 0x9ee08a, life: 0x3fa83a };
 const LIFE_BACK = { colour: 0x2a0606, alpha: 0.85 };
 /**
@@ -300,11 +302,17 @@ const NUMBER_COLOUR: Record<DamageNumber["kind"], number> = {
 };
 
 /**
- * The placeholder Golem: the Skeleton's art, `scale` times as big and
- * tinted clay. Replaced, it crumbles away: its `die` animation, fading out
- * over `crumbleMs`.
+ * How each Minion looks: the Skeleton's art, `scale` times as big and tinted
+ * `tint`, the placeholder Golem clay.
  */
-const GOLEM = { tint: 0xc0804a, scale: 1.3, crumbleMs: 900 };
+const MINION_LOOK: Record<MinionType, { tint: number; scale: number }> = {
+  golem: { tint: 0xc0804a, scale: 1.3 },
+};
+/**
+ * How long a Minion takes to crumble away, replaced or killed: its `die`
+ * animation, fading out (ms).
+ */
+const CRUMBLE_MS = 900;
 
 /**
  * The Skill Bar's look, in the HUD's colours; where things go is
@@ -686,24 +694,29 @@ export function createRenderer(
     }
     return view;
   };
-  /** The living Golem's view, made on first sight, and its facing as drawn. */
-  let golem: { id: MinionId; view: CharacterView; compass: Compass } | null =
-    null;
-  /** Replaced Golems crumbling away, each from when it began. */
+  /**
+   * Each living Minion's view, made on first sight, with its type and its
+   * facing as drawn.
+   */
+  const minionViews = new Map<
+    MinionId,
+    { view: CharacterView; type: MinionType; compass: Compass }
+  >();
+  /** Gone Minions crumbling away, each from when it began. */
   const crumbling: { view: CharacterView; atMs: number; compass: Compass }[] =
     [];
-  /** A Golem's view: the Skeleton's art, tinted clay and bigger. */
-  const golemView = (): CharacterView => {
-    const view = characterView(art.monsters.skeleton, minionTuning.golem.speed);
-    view.sprite.tint = GOLEM.tint;
-    view.sprite.scale.set(GOLEM.scale);
+  /** A Minion's view: the Skeleton's art, in its type's look. */
+  const minionView = (type: MinionType): CharacterView => {
+    const view = characterView(art.monsters.skeleton, minionTuning[type].speed);
+    view.sprite.tint = MINION_LOOK[type].tint;
+    view.sprite.scale.set(MINION_LOOK[type].scale);
     scene.addChild(view.sprite);
     return view;
   };
-  /** Drops the living Golem's view, if any. */
-  const dropGolem = () => {
-    golem?.view.sprite.destroy();
-    golem = null;
+  /** Drops the view of Minion `id`, if drawn. */
+  const dropMinionView = (id: MinionId) => {
+    minionViews.get(id)?.view.sprite.destroy();
+    minionViews.delete(id);
   };
   let hoveredTile: Vec | null = null;
   let markedAtMs: number | null = null;
@@ -754,7 +767,7 @@ export function createRenderer(
     }
     monsters.clear();
     // Minion ids start over too.
-    dropGolem();
+    for (const id of [...minionViews.keys()]) dropMinionView(id);
     // Item ids start over too.
     for (const text of labelTexts.values()) text.destroy();
     labelTexts.clear();
@@ -794,30 +807,31 @@ export function createRenderer(
   const screenToTile = (screen: Vec): Vec => toTile(onWorld(shot, screen));
 
   /**
-   * The living Monster or the Golem drawn under a point on the canvas (CSS
+   * The living Monster or Minion drawn under a point on the canvas (CSS
    * px), as last drawn: the one in front where they overlap.
    */
-  const characterAt = (screen: Vec): MonsterId | "golem" | null => {
-    const characters: Pickable<MonsterId | "golem">[] = [];
+  const characterAt = (screen: Vec): CharacterId | null => {
+    const characters: Pickable<CharacterId>[] = [];
     for (const [id, view] of monsters) {
       if (view.diedAtMs !== null) continue;
       const { position } = view.sprite;
       characters.push({ id, at: position, scale: MONSTER_SCALE[view.type] });
     }
-    if (golem) {
-      const { position } = golem.view.sprite;
-      characters.push({ id: "golem", at: position, scale: GOLEM.scale });
+    for (const [id, { view, type }] of minionViews) {
+      const { position } = view.sprite;
+      const { scale } = MINION_LOOK[type];
+      characters.push({ id: { minion: id }, at: position, scale });
     }
     return characterUnder(characters, onWorld(shot, screen));
   };
 
   /**
    * The Monster drawn under a point on the canvas (CSS px), as last drawn;
-   * none where the Golem stands in front, so a click there is a move.
+   * none where a Minion stands in front, so a click there is a move.
    */
   const monsterAt = (screen: Vec): MonsterId | null => {
     const id = characterAt(screen);
-    return id === "golem" ? null : id;
+    return typeof id === "number" ? id : null;
   };
 
   /** The Ground Item whose label is under a canvas point (CSS px). */
@@ -949,9 +963,9 @@ export function createRenderer(
         const sprite =
           number.on === "hero"
             ? hero.sprite
-            : number.on === "minion"
-              ? golem?.view.sprite
-              : monsters.get(number.on)?.sprite;
+            : typeof number.on === "number"
+              ? monsters.get(number.on)?.sprite
+              : minionViews.get(number.on.minion)?.view.sprite;
         if (!sprite) continue;
         const text = new Text({
           text: floatText(number),
@@ -976,9 +990,10 @@ export function createRenderer(
         // Killed, it crumbles away as when replaced.
         const gone =
           event.type === "MinionCrumbled" || event.type === "MinionDied";
-        if (gone && golem?.id === event.minion) {
-          crumbling.push({ ...golem, atMs: nowMs });
-          golem = null;
+        const drawn = gone && minionViews.get(event.minion);
+        if (drawn) {
+          crumbling.push({ ...drawn, atMs: nowMs });
+          minionViews.delete(event.minion);
         }
         if (event.type === "HeroHit") hurtAtMs = nowMs;
         if (event.type === "LevelReached") levelAtMs = nowMs;
@@ -1193,33 +1208,40 @@ export function createRenderer(
         flash(view, nowMs);
       }
 
-      const { minion } = world;
-      if (minion?.id !== golem?.id) dropGolem();
-      if (minion) {
-        golem ??= { id: minion.id, view: golemView(), compass: "s" };
+      const living = new Set(world.minions.map((minion) => minion.id));
+      for (const id of [...minionViews.keys()]) {
+        if (!living.has(id)) dropMinionView(id);
+      }
+      for (const minion of world.minions) {
+        let drawn = minionViews.get(minion.id);
+        if (!drawn) {
+          const { type } = minion;
+          drawn = { view: minionView(type), type, compass: "s" };
+          minionViews.set(minion.id, drawn);
+        }
         const minionAt = lerp(minion.prevPos, minion.pos, alpha);
-        place(golem.view, minionAt);
-        golem.compass = compassOf(minion.facing);
+        place(drawn.view, minionAt);
+        drawn.compass = compassOf(minion.facing);
         if (minion.state === "windup") {
-          const { frames } = golem.view.art.timing.swing;
+          const { frames } = drawn.view.art.timing.swing;
           const progress = minionWindUpProgress(minion);
           const frame = Math.min(frames - 1, Math.floor(progress * frames));
-          show(golem.view, "swing", golem.compass, frame);
+          show(drawn.view, "swing", drawn.compass, frame);
         } else {
-          walkOrStand(golem.view, minion, minionAt, golem.compass, nowMs);
+          walkOrStand(drawn.view, minion, minionAt, drawn.compass, nowMs);
         }
       }
       for (let i = crumbling.length - 1; i >= 0; i--) {
         const { view, atMs } = crumbling[i];
         const ms = nowMs - atMs;
-        if (ms >= GOLEM.crumbleMs) {
+        if (ms >= CRUMBLE_MS) {
           view.sprite.destroy();
           crumbling.splice(i, 1);
           continue;
         }
         const { compass } = crumbling[i];
         show(view, "die", compass, frameAt(view.art.timing.die, ms));
-        view.sprite.alpha = 1 - ms / GOLEM.crumbleMs;
+        view.sprite.alpha = 1 - ms / CRUMBLE_MS;
       }
 
       for (const [id, view] of monsters) {
@@ -1280,14 +1302,14 @@ export function createRenderer(
         world.monsters.find((monster) => monster.id === hoveredId) ?? null;
       // With the pointer over no one, the Target is shown as if hovered.
       const pointed =
-        typeof hoveredId === "number" || hoveredId === "golem"
+        typeof hoveredId === "number" || typeof hoveredId === "object"
           ? hoveredId
           : null;
       const hovered = hoveredOf(world, pointed, target);
       const hoveredView =
         hovered && "monster" in hovered
           ? monsters.get(hovered.monster.id)
-          : hovered && golem?.view;
+          : hovered && minionViews.get(hovered.minion.id)?.view;
       outline.show(hoveredView?.sprite ?? null);
       nameplate.clear();
       nameplateText.visible = hovered !== null;
@@ -1314,7 +1336,7 @@ export function createRenderer(
         nameplateText.position.set(layout.nameAt.x, layout.nameAt.y);
       }
 
-      // A click on the Golem is a move, so its tile is shown too.
+      // A click on a Minion is a move, so its tile is shown too.
       const tile =
         cursor && !hoveredMonster && isFloor(active, cursor)
           ? tileOf(cursor)

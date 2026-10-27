@@ -45,15 +45,15 @@ describe("damageNumbers", () => {
     ]);
   });
 
-  it("shows damage the Golem takes, and Misses on it, on the Golem", () => {
+  it("shows damage a Minion takes, and Misses on it, on that Minion", () => {
     expect(
       damageNumbers([
         { type: "MinionHit", minion: 3, damage: 7 },
         { type: "MinionMissed", minion: 3 },
       ]),
     ).toEqual([
-      { on: "minion", damage: 7, kind: "taken" },
-      { on: "minion", kind: "miss" },
+      { on: { minion: 3 }, damage: 7, kind: "taken" },
+      { on: { minion: 3 }, kind: "miss" },
     ]);
   });
 

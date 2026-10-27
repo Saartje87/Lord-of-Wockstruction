@@ -35,10 +35,10 @@ export type Projectile = AttackNumbers & {
 
 /**
  * Moves every Projectile one step along its line, in order, calling `land`
- * on each that touches the Hero, unless they are in Death, or their Minion,
- * the first of them it touches, with no wall between. Each lands before the
- * next moves, so one reaching the Hero on the step another kills them flies
- * on over them. A Projectile that lands, meets a blocking tile or has flown
+ * on each that touches the Hero, unless they are in Death, or one of their
+ * Minions, the first of them it touches, with no wall between. Each lands
+ * before the next moves, so one reaching the Hero on the step another kills
+ * them flies on over them. A Projectile that lands, meets a blocking tile or has flown
  * its range is removed. It flies through Monsters.
  */
 export function stepProjectiles(
@@ -68,8 +68,8 @@ export function stepProjectiles(
 }
 
 /**
- * Which of the living Hero and their Minion a Projectile flying from `a` to
- * `b` touches first, if either, and where along its flight it does.
+ * Which of the living Hero and their Minions a Projectile flying from `a` to
+ * `b` touches first, if any, and where along its flight it does.
  */
 function firstTouched(
   world: World,
@@ -84,10 +84,9 @@ function firstTouched(
       radius: heroTuning.radius,
     });
   }
-  const { minion } = world;
-  if (minion) {
+  for (const minion of world.minions) {
     targets.push({
-      target: "minion",
+      target: minion.id,
       pos: minion.pos,
       radius: minionTuning[minion.type].radius,
     });

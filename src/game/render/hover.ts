@@ -2,7 +2,7 @@ import { minionMaxLife } from "../sim/minions";
 import { monsterMaxLife } from "../sim/monsters";
 import type { Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
-import type { Minion, Monster, MonsterId, World } from "../sim/world";
+import type { Minion, MinionId, Monster, MonsterId, World } from "../sim/world";
 import { minionTuning } from "../tuning/minions";
 import { monsterTuning } from "../tuning/monsters";
 import { atUiScale, type Viewport } from "../viewport";
@@ -38,8 +38,11 @@ export function characterUnder<Id>(
   return front?.id ?? null;
 }
 
-/** A hovered Monster, or the Hero's hovered Minion. */
+/** A hovered Monster, or one of the Hero's Minions hovered. */
 export type Hovered = { monster: Monster } | { minion: Minion };
+
+/** A character the pointer can be over: a Monster, or one of the Minions. */
+export type CharacterId = MonsterId | { minion: MinionId };
 
 /**
  * What is outlined and named as hovered: the character `pointed` at by the
@@ -48,10 +51,13 @@ export type Hovered = { monster: Monster } | { minion: Minion };
  */
 export function hoveredOf(
   world: World,
-  pointed: MonsterId | "golem" | null,
+  pointed: CharacterId | null,
   target: MonsterId | null,
 ): Hovered | null {
-  if (pointed === "golem") return world.minion && { minion: world.minion };
+  if (typeof pointed === "object" && pointed !== null) {
+    const minion = world.minions.find((one) => one.id === pointed.minion);
+    return minion ? { minion } : null;
+  }
   const id = pointed ?? target;
   const monster = world.monsters.find((one) => one.id === id);
   return monster ? { monster } : null;

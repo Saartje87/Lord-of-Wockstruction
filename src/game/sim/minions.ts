@@ -3,6 +3,7 @@ import {
   type MinionType,
   minionTuning,
 } from "../tuning/minions";
+import type { Skill } from "../tuning/skills";
 import { type Area, isWalkable } from "./area";
 import { faceToward, lands } from "./melee";
 import { isClear } from "./path";
@@ -28,7 +29,9 @@ export type MinionState = "follow" | "chase" | "windup" | "recover";
 export type Minion = {
   id: MinionId;
   type: MinionType;
-  /** The Skill Level of the Skill that summoned it. */
+  /** The Skill that brought it. */
+  skill: Skill;
+  /** The Skill Level of the Skill that brought it. */
   skillLevel: number;
   pos: Vec;
   /** Where it was one step ago, for the renderer to interpolate from. */
@@ -140,11 +143,13 @@ export function minionWindUpProgress(minion: Minion): number {
 }
 
 /**
- * A fresh Minion of `type` at `pos`, facing `facing`, following the Hero.
+ * A fresh Minion of `type`, brought by `skill`, at `pos`, facing `facing`,
+ * following the Hero.
  */
 export function newMinion(
   id: MinionId,
   type: MinionType,
+  skill: Skill,
   skillLevel: number,
   pos: Vec,
   facing: number,
@@ -152,6 +157,7 @@ export function newMinion(
   return {
     id,
     type,
+    skill,
     skillLevel,
     pos: { ...pos },
     prevPos: { ...pos },
@@ -221,13 +227,26 @@ export function placeBesideHero(world: World, minion: Minion) {
 }
 
 /**
- * Moves the Hero's Minion, if any, one step: fighting the Monsters near the
- * Hero, or else following them. Returns the Monster its attack lands on this
- * step, if any, for the caller to roll the hit.
+ * Moves each of the Hero's Minions one step, in turn: fighting the Monsters
+ * near the Hero, or else following them. Calls `strike` on each attack that
+ * lands on a Monster, for the caller to roll the hit before the next Minion
+ * moves.
  */
-export function stepMinion(world: World): Monster | null {
-  const { minion } = world;
-  if (!minion) return null;
+export function stepMinions(
+  world: World,
+  strike: (minion: Minion, monster: Monster) => void,
+) {
+  for (const minion of [...world.minions]) {
+    const struck = stepMinion(world, minion);
+    if (struck) strike(minion, struck);
+  }
+}
+
+/**
+ * Moves a Minion one step. Returns the Monster its attack lands on this
+ * step, if any.
+ */
+function stepMinion(world: World, minion: Minion): Monster | null {
   if (minion.cooldown > 0) minion.cooldown -= 1;
   if (minion.state === "windup") return windUp(world, minion);
   if (minion.state === "recover") {

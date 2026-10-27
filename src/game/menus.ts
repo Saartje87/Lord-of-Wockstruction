@@ -5,11 +5,13 @@ import {
   type Order,
   type SimEvent,
 } from "./sim/world";
+import type { Viewport } from "./viewport";
 
 /**
  * What the player opens over the World, by key or by click: the pause menu,
  * the Hero panel, and the Inventory or Skill Tree panel, which share the
- * right of the screen, so one opening shuts the other.
+ * right of the screen, so one opening shuts the other. In the Compact
+ * Layout each panel fills the screen, so any one opening shuts the others.
  */
 export type Menus = {
   pause: Pause;
@@ -22,6 +24,20 @@ export type Menus = {
    * or the Save.
    */
   pendingPoints: PendingPoints;
+  /** Whether the screen takes the Compact Layout, as last fitted. */
+  compact: boolean;
+  /** The panel opened most recently, which a short screen keeps. */
+  lastOpened: Panel | null;
+  /**
+   * Whether the Rotate Notice shows instead of the game, as last fitted:
+   * the World is paused, and keys and clicks do nothing.
+   */
+  rotateNotice: boolean;
+  /**
+   * Whether the Rotate Notice paused the World, rather than finding the
+   * pause menu open, so its going away resumes it.
+   */
+  pausedForNotice: boolean;
 };
 
 /** A count of Pending Attribute Points on each Attribute. */
@@ -34,6 +50,10 @@ export function createMenus(): Menus {
     inventoryOpen: false,
     skillTreeOpen: false,
     pendingPoints: noPendingPoints(),
+    compact: false,
+    lastOpened: null,
+    rotateNotice: false,
+    pausedForNotice: false,
   };
 }
 
@@ -60,7 +80,8 @@ export type MenuChoice = "newHero" | "confirm" | "goBack";
  * A key pressed at real time `nowMs`, by `KeyboardEvent.key`. Esc opens and
  * closes the pause menu, and C the Hero panel, I the Inventory panel and T
  * the Skill Tree panel while the game runs; while `hero` lies dead, C, I and
- * T are taken but open nothing. In the menu, N asks to confirm a New Hero, and then Y confirms it while N or Esc
+ * T are taken but open nothing. While the Rotate Notice shows, every key
+ * is taken and does nothing. In the menu, N asks to confirm a New Hero, and then Y confirms it while N or Esc
  * goes back. Returns `"newHero"` once confirmed, for the caller to start
  * one, `"handled"` for any other key the menus took, and null for a key
  * they leave to the game.
@@ -72,6 +93,7 @@ export function pressKey(
   hero: HeroState,
 ): "newHero" | "handled" | null {
   const { pause } = menus;
+  if (menus.rotateNotice) return "handled";
   const letter = key.toLowerCase();
   if (pause.confirming) {
     if (letter === "y") return choose(menus, "confirm", nowMs) ?? "handled";
@@ -111,11 +133,16 @@ function panelOfKey(letter: string): Panel | undefined {
   );
 }
 
+/** The flag on the menus that says whether each panel is open. */
+const OPEN_FLAGS = {
+  hero: "heroPanelOpen",
+  inventory: "inventoryOpen",
+  skillTree: "skillTreeOpen",
+} as const satisfies Record<Panel, keyof Menus>;
+
 /** Whether `panel` is open. */
 export function panelOpen(menus: Menus, panel: Panel): boolean {
-  if (panel === "hero") return menus.heroPanelOpen;
-  if (panel === "inventory") return menus.inventoryOpen;
-  return menus.skillTreeOpen;
+  return menus[OPEN_FLAGS[panel]];
 }
 
 /**
@@ -132,37 +159,90 @@ export function clickPanelButton(menus: Menus, panel: Panel, hero: HeroState) {
  * `hero` lies dead.
  */
 function togglePanel(menus: Menus, panel: Panel, hero: HeroState) {
-  if (hero.heroDead) return;
+  if (hero.heroDead || menus.rotateNotice) return;
   if (panelOpen(menus, panel)) shutPanel(menus, panel);
-  else if (panel === "hero") menus.heroPanelOpen = true;
-  else if (panel === "inventory") openInventory(menus);
-  else openSkillTree(menus);
+  else openPanel(menus, panel);
 }
 
-/** Opens the Inventory panel, shutting the Skill Tree panel in its place. */
-function openInventory(menus: Menus) {
-  menus.inventoryOpen = true;
-  menus.skillTreeOpen = false;
+/**
+ * Opens `panel`, shutting the panels it can't be open with: the Inventory
+ * and Skill Tree panels shut each other, and in the Compact Layout any
+ * panel shuts the others.
+ */
+function openPanel(menus: Menus, panel: Panel) {
+  for (const other of PANELS) {
+    if (other !== panel && !canShareScreen(menus, panel, other)) {
+      shutPanel(menus, other);
+    }
+  }
+  menus[OPEN_FLAGS[panel]] = true;
+  menus.lastOpened = panel;
 }
 
-/** Opens the Skill Tree panel, shutting the Inventory panel in its place. */
-function openSkillTree(menus: Menus) {
-  menus.skillTreeOpen = true;
-  menus.inventoryOpen = false;
+/**
+ * Whether `panel` may be open with `other`: only the Hero panel with
+ * another, and never in the Compact Layout.
+ */
+function canShareScreen(menus: Menus, panel: Panel, other: Panel): boolean {
+  return !menus.compact && (panel === "hero" || other === "hero");
+}
+
+/**
+ * Fits the menus to the screen, as `viewport` lays it out at real time
+ * `nowMs`: the Rotate Notice showing pauses the World and going away
+ * resumes it, unless the pause menu was open before; crossing into the
+ * Compact Layout keeps the panel opened most recently and shuts any other,
+ * as shutting it by hand would.
+ */
+export function fitMenus(
+  menus: Menus,
+  viewport: Pick<Viewport, "compact" | "rotateNotice">,
+  nowMs: number,
+) {
+  fitRotateNotice(menus, viewport.rotateNotice !== null, nowMs);
+  menus.compact = viewport.compact;
+  if (!menus.compact) return;
+  const keep =
+    menus.lastOpened && panelOpen(menus, menus.lastOpened)
+      ? menus.lastOpened
+      : PANELS.find((panel) => panelOpen(menus, panel));
+  for (const panel of PANELS) {
+    if (panel !== keep && panelOpen(menus, panel)) shutPanel(menus, panel);
+  }
+}
+
+/**
+ * Shows the Rotate Notice, or takes it away, at real time `nowMs`: it
+ * pauses a running World, and resumes only a World it paused itself.
+ */
+function fitRotateNotice(menus: Menus, showing: boolean, nowMs: number) {
+  if (showing === menus.rotateNotice) return;
+  menus.rotateNotice = showing;
+  if (showing && !menus.pause.paused) {
+    togglePause(menus.pause, nowMs);
+    menus.pausedForNotice = true;
+  } else if (!showing && menus.pausedForNotice) {
+    togglePause(menus.pause, nowMs);
+    menus.pausedForNotice = false;
+  }
 }
 
 /**
  * A click on the Level Up button, which opens the Hero panel while
  * Attribute Points are unspent and the Skill Tree panel while Skill Points
- * are, but nothing while `hero` lies dead.
+ * are, but nothing while `hero` lies dead. In the Compact Layout, with both
+ * unspent, it opens only the Hero panel.
  */
 export function clickLevelUp(
   menus: Menus,
   hero: HeroState & { attributePoints: number; skillPoints: number },
 ) {
-  if (hero.heroDead) return;
-  if (hero.attributePoints > 0) menus.heroPanelOpen = true;
-  if (hero.skillPoints > 0) openSkillTree(menus);
+  if (hero.heroDead || menus.rotateNotice) return;
+  const attributes = hero.attributePoints > 0;
+  if (hero.skillPoints > 0 && !(attributes && menus.compact)) {
+    openPanel(menus, "skillTree");
+  }
+  if (attributes) openPanel(menus, "hero");
 }
 
 /**
@@ -170,6 +250,9 @@ export function clickLevelUp(
  * on the HUD.
  */
 export type Panel = "hero" | "inventory" | "skillTree";
+
+/** The three panels, in their Panel buttons' order from left to right. */
+export const PANELS: readonly Panel[] = ["hero", "inventory", "skillTree"];
 
 /**
  * A click on a panel's × button, which shuts it as its key (C, I or T)
@@ -181,15 +264,8 @@ export function clickClose(menus: Menus, panel: Panel) {
 
 /** Shuts `panel`, the Hero panel cancelling its Pending Attribute Points. */
 function shutPanel(menus: Menus, panel: Panel) {
-  if (panel === "hero") shutHeroPanel(menus);
-  if (panel === "inventory") menus.inventoryOpen = false;
-  if (panel === "skillTree") menus.skillTreeOpen = false;
-}
-
-/** Shuts the Hero panel, cancelling its Pending Attribute Points. */
-function shutHeroPanel(menus: Menus) {
-  menus.heroPanelOpen = false;
-  menus.pendingPoints = noPendingPoints();
+  menus[OPEN_FLAGS[panel]] = false;
+  if (panel === "hero") menus.pendingPoints = noPendingPoints();
 }
 
 /**
@@ -255,14 +331,13 @@ export function reactMenus(menus: Menus, events: readonly SimEvent[]) {
 
 /** Shuts the Hero, Inventory and Skill Tree panels. */
 function closePanels(menus: Menus) {
-  shutHeroPanel(menus);
-  menus.inventoryOpen = false;
-  menus.skillTreeOpen = false;
+  for (const panel of PANELS) shutPanel(menus, panel);
 }
 
 /**
  * A click at real time `nowMs` while paused, on one of the menu's buttons
- * or, for null, anywhere else, which resumes. Returns `"newHero"` once one
+ * or, for null, anywhere else, which resumes; nothing while the Rotate
+ * Notice shows. Returns `"newHero"` once one
  * is confirmed, for the caller to start it.
  */
 export function clickPaused(
@@ -270,6 +345,7 @@ export function clickPaused(
   choice: MenuChoice | null,
   nowMs: number,
 ): "newHero" | null {
+  if (menus.rotateNotice) return null;
   if (choice === null) {
     togglePause(menus.pause, nowMs);
     return null;

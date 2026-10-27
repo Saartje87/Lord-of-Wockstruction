@@ -1,9 +1,11 @@
 import { minionMaxLife } from "../sim/minions";
 import { monsterMaxLife } from "../sim/monsters";
+import type { Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
 import type { Minion, Monster } from "../sim/world";
 import { minionTuning } from "../tuning/minions";
 import { monsterTuning } from "../tuning/monsters";
+import { atUiScale, type Viewport } from "../viewport";
 
 /**
  * The box a character is picked by, around its feet at native scale (CSS
@@ -44,6 +46,54 @@ export type Hovered = { monster: Monster } | { minion: Minion };
  * full its Life bar is (0..1), and whether it is on the Hero's side.
  */
 export type Nameplate = { name: string; fraction: number; friendly: boolean };
+
+/**
+ * The top-centre nameplate (CSS px at native scale, drawn at the UI Scale):
+ * a panel `top` from the screen's top with the name `nameSize` tall
+ * `nameTop` below its top, and a Life bar `barHeight` tall `barBottom`
+ * above its bottom.
+ */
+export const NAMEPLATE = {
+  width: 220,
+  height: 46,
+  top: 10,
+  nameTop: 6,
+  nameSize: 16,
+  bar: 180,
+  barHeight: 8,
+  barBottom: 8,
+};
+
+/**
+ * Where the nameplate's panel and Life bar are drawn, where its name's top
+ * centre goes, and how big the name is.
+ */
+export function nameplateLayout(screen: Viewport): {
+  panel: Rect;
+  bar: Rect;
+  nameAt: Vec;
+  nameSize: number;
+} {
+  const sizes = atUiScale(NAMEPLATE, screen.uiScale);
+  const centre = screen.width / 2;
+  const panel = {
+    x: centre - sizes.width / 2,
+    y: sizes.top,
+    w: sizes.width,
+    h: sizes.height,
+  };
+  return {
+    panel,
+    bar: {
+      x: centre - sizes.bar / 2,
+      y: panel.y + panel.h - sizes.barHeight - sizes.barBottom,
+      w: sizes.bar,
+      h: sizes.barHeight,
+    },
+    nameAt: { x: centre, y: panel.y + sizes.nameTop },
+    nameSize: sizes.nameSize,
+  };
+}
 
 /** The nameplate of a hovered Monster or Minion. */
 export function nameplateOf(hovered: Hovered): Nameplate {

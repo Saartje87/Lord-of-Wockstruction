@@ -2,8 +2,14 @@ import type { CastFailure, MonsterId, SimEvent } from "../sim/world";
 
 /** How long a damage number floats (ms). */
 export const FLOAT_MS = 900;
-/** How fast it rises (CSS px/s). */
+/** How fast it rises (CSS px/s at native scale). */
 const RISE_SPEED = 30;
+/**
+ * A damage number's text (CSS px at native scale, drawn at the UI Scale):
+ * `size` tall in a black outline `stroke` wide, appearing `gap` over where
+ * a Monster's Life bar goes.
+ */
+export const DAMAGE_NUMBER = { size: 18, stroke: 3, gap: 2 };
 
 /**
  * A number to float up from whoever was hit: `hit` for the Hero's hits,
@@ -73,14 +79,17 @@ export function floatText(number: DamageNumber): string {
 }
 
 /**
- * How far a damage number has risen (CSS px) and how opaque it is (0..1),
- * `ageMs` after it appeared; null once it's gone. It fades out over the
- * second half of its life.
+ * How far a damage number has risen (CSS px) at the UI Scale `uiScale` and
+ * how opaque it is (0..1), `ageMs` after it appeared; null once it's gone.
+ * It fades out over the second half of its life.
  */
-export function floatAt(ageMs: number): { rise: number; alpha: number } | null {
+export function floatAt(
+  ageMs: number,
+  uiScale: number,
+): { rise: number; alpha: number } | null {
   if (ageMs >= FLOAT_MS) return null;
   return {
-    rise: (RISE_SPEED * ageMs) / 1000,
+    rise: (RISE_SPEED * uiScale * ageMs) / 1000,
     alpha: Math.min(1, 2 * (1 - ageMs / FLOAT_MS)),
   };
 }

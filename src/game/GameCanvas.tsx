@@ -25,6 +25,7 @@ import {
 import {
   clickPaused,
   createMenus,
+  fitMenus,
   type Menus,
   pressKey,
   reactMenus,
@@ -44,6 +45,7 @@ import {
 import { isFloor } from "./sim/area";
 import type { Vec } from "./sim/vec";
 import { createWorld, type Order, step } from "./sim/world";
+import { viewportOf } from "./viewport";
 
 /** Mounts the Pixi Application and runs the fixed-step loop. */
 export default function GameCanvas() {
@@ -124,6 +126,12 @@ export default function GameCanvas() {
       const tick = (realNow: number) => {
         const wasPaused = pause.paused;
         const inventoryWasOpen = menus.inventoryOpen;
+        // Read every frame, so a resize into the Compact Layout shuts all
+        // but the latest panel at once, the Inventory's Held Item going back
+        // as it would by hand, and the Rotate Notice pauses the World before
+        // any key or click this frame, which it then takes for nothing.
+        const viewport = viewportOf(app.screen);
+        fitMenus(menus, viewport, realNow);
         let pressed = clickedAt !== null;
         let newHero = false;
         for (const key of keys) {
@@ -163,7 +171,7 @@ export default function GameCanvas() {
         // Stands still while paused, so the clock owes no steps for it and
         // the World and every effect hold still.
         const now = gameTime(pause, realNow);
-        const scene = { world, screen: app.screen };
+        const scene = { world, screen: viewport };
         // Whether the Hero lies in Death, for the cursor; the World doesn't
         // step again until after it.
         const heroDead = world.death !== null;

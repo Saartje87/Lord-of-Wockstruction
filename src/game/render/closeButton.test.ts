@@ -5,12 +5,21 @@ const panel = { x: 100, y: 50, w: 300, h: 400 };
 
 describe("closeButtonRect", () => {
   it("puts the × in the panel's top-right corner, inside its edges", () => {
-    expect(closeButtonRect(panel)).toEqual({ x: 368, y: 60, w: 22, h: 22 });
+    expect(closeButtonRect(panel, 1)).toEqual({ x: 368, y: 60, w: 22, h: 22 });
+  });
+
+  it("draws it at the UI Scale", () => {
+    expect(closeButtonRect(panel, 1.5)).toEqual({
+      x: 352,
+      y: 65,
+      w: 33,
+      h: 33,
+    });
   });
 });
 
 describe("closeHitAt", () => {
-  const closeButton = closeButtonRect(panel);
+  const closeButton = closeButtonRect(panel, 1);
 
   it("finds the × of the named panel at a point on it", () => {
     expect(closeHitAt({ closeButton }, { x: 379, y: 71 }, "skillTree")).toEqual(

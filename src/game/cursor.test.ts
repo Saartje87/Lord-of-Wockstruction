@@ -21,8 +21,9 @@ import {
 import type { Vec } from "./sim/vec";
 import { createWorld, groundItemsOf, step, type World } from "./sim/world";
 import { beltTuning } from "./tuning/items";
+import { viewportOf } from "./viewport";
 
-const SCREEN = { width: 1280, height: 800 };
+const SCREEN = viewportOf({ width: 1280, height: 800 });
 
 /** A Town of one tile with the Hero's `start` on it. */
 const town = {

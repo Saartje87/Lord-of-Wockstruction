@@ -17,8 +17,23 @@ import {
   landingCell,
 } from "./inventoryPanel";
 
-const WIDE = { width: 1280, height: 800 };
-const NARROW = { width: 800, height: 600 };
+/** Screens at native scale, so the sizes worked out by hand hold. */
+const WIDE = {
+  width: 1280,
+  height: 800,
+  uiScale: 1,
+  worldZoom: 1,
+  compact: false,
+  rotateNotice: null,
+};
+const NARROW = {
+  width: 800,
+  height: 600,
+  uiScale: 1,
+  worldZoom: 1,
+  compact: false,
+  rotateNotice: null,
+};
 
 /** A Town of one tile with the Hero's `start` on it. */
 const town = {

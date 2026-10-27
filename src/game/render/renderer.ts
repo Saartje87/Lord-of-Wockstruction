@@ -64,19 +64,30 @@ import {
   monsterTuning,
 } from "../tuning/monsters";
 import { type Skill, skillTuning } from "../tuning/skills";
+import { atUiScale, type Viewport, viewportOf } from "../viewport";
 import { type Compass, compassOf, frameAt, swingFrame } from "./animation";
-import { arrivedInDisplayName, bannerOpacityAt } from "./areaBanner";
+import {
+  areaBannerLayout,
+  arrivedInDisplayName,
+  bannerOpacityAt,
+} from "./areaBanner";
 import { type Animation, type Art, type CharacterArt, frameOf } from "./art";
 import { beltStripLayout, beltStripSheet } from "./beltStrip";
+import { type Camera, cameraOn, onScreen, onWorld } from "./camera";
 import { CLOSE_BUTTON } from "./closeButton";
 import { cursorHitAt, type ShownPanels } from "./cursorHit";
 import {
+  DAMAGE_NUMBER,
   type DamageNumber,
   damageNumbers,
   floatAt,
   floatText,
 } from "./damageNumbers";
-import { experienceBar } from "./experienceBar";
+import {
+  EXPERIENCE_BAR,
+  experienceBar,
+  experienceBarLayout,
+} from "./experienceBar";
 import {
   GROUND_LABEL,
   type GroundLabel,
@@ -88,18 +99,21 @@ import {
   HERO_PANEL,
   hasUnspentPoints,
   heroPanelLayout,
+  heroPanelRow,
   heroSheet,
   PANEL_ROWS,
-  rowTop,
 } from "./heroPanel";
 import {
   characterUnder,
   type Hovered,
+  nameplateLayout,
   nameplateOf,
   type Pickable,
 } from "./hover";
 import {
+  heldItemRect,
   INVENTORY_PANEL,
+  type InventoryPanelLayout,
   inventoryPanelLayout,
   itemRect,
   itemTooltip,
@@ -107,22 +121,25 @@ import {
   landingCell,
 } from "./inventoryPanel";
 import { itemColour } from "./itemArt";
-import { type Orb, orbFill } from "./orbs";
+import { type Orb, orbFill, orbsLayout } from "./orbs";
 import {
   hoveredPanelButton,
   panelButtonsLayout,
   panelButtonsSheet,
+  panelButtonTooltipRect,
 } from "./panelButtons";
 import { menuChoiceAt, PAUSE_MENU_LAYOUT, pauseMenuLayout } from "./pauseMenu";
+import { rotateNoticeText } from "./rotateNotice";
 import { SKILL_BAR, skillBarLayout, skillBarSheet } from "./skillBar";
 import {
   SKILL_TREE_PANEL,
   SKILL_TREE_ROWS,
   skillRow,
   skillTreePanelLayout,
-  skillTreeRowTop,
+  skillTreeRow,
   skillTreeSheet,
 } from "./skillTreePanel";
+import { tooltipRect } from "./tooltip";
 
 const HOVER_LINE = 0xd8c48a;
 const MARKER_LINE = 0xe8d27a;
@@ -235,28 +252,15 @@ const HEAD_HEIGHT = 120;
 /** The Life bar over a damaged Monster's head (CSS px). */
 const MONSTER_BAR = { width: 30, height: 5, above: 8 };
 /**
- * The top-centre nameplate of a hovered Monster (CSS px): a dark panel with
- * the name `nameTop` below its top and a Life bar `barBottom` above its bottom.
+ * The top-centre nameplate's look: a dark panel `alpha` opaque (0..1); where
+ * things go is `nameplateLayout`.
  */
-const NAMEPLATE = {
-  width: 220,
-  height: 46,
-  top: 10,
-  alpha: 0.6,
-  nameTop: 6,
-  nameColour: 0xe8e0c8,
-  nameSize: 16,
-  bar: 180,
-  barHeight: 8,
-  barBottom: 8,
-};
+const NAMEPLATE_STYLE = { alpha: 0.6, nameColour: 0xe8e0c8 };
 /** A Life bar's fill, and its dark back with how opaque that is (0..1). */
 const LIFE_COLOUR = 0xc02020;
 /** The hovered Golem's nameplate: a green name and Life bar, on the Hero's side. */
 const FRIENDLY = { name: 0x9ee08a, life: 0x3fa83a };
 const LIFE_BACK = { colour: 0x2a0606, alpha: 0.85 };
-/** Damage numbers: their size and black outline (CSS px). */
-const NUMBER = { size: 18, stroke: 3, gap: 2 };
 /**
  * White for the Hero's hits, gold for a killing blow, red for damage taken
  * grey for a Miss and pale gold for No room.
@@ -295,29 +299,15 @@ const SKILL_BAR_STYLE = {
 };
 
 /**
- * The Area Banner (CSS px): pale gold with a black outline,
- * centred `top` of the way down the screen.
+ * The Area Banner's look: pale gold with a black outline; where it goes is
+ * `areaBannerLayout`.
  */
-const BANNER = { size: 34, stroke: 4, colour: 0xe8d27a, top: 0.22 };
+const BANNER_COLOUR = 0xe8d27a;
 
-/** The stone strip along the bottom of the screen (CSS px). */
-const STRIP = {
-  height: 34,
-  colour: 0x15120e,
-  alpha: 0.92,
-  edge: 2,
-  edgeColour: 0x4a4236,
-};
-/**
- * The Hero's orbs, Life at the bottom left and Mana mirroring it at the
- * bottom right (CSS px): `side` from the screen's side and `bottom` from its
- * bottom to the stone rim, which is `rim` wide.
- */
+/** The stone strip along the bottom of the screen; where it goes is `orbsLayout`. */
+const STRIP = { colour: 0x15120e, alpha: 0.92, edgeColour: 0x4a4236 };
+/** The Hero's orbs' look; where they go is `orbsLayout`. */
 const ORB = {
-  radius: 52,
-  rim: 8,
-  side: 24,
-  bottom: 10,
   rimColour: 0x2a241c,
   rimLine: 0x4a4236,
   glassLine: 0x6b6258,
@@ -339,11 +329,15 @@ const ORB_COLOURS: Record<
   },
   mana: { empty: 0x040414, fill: 0x0e1e8a, lighten: 0x30, lightenStep: 0x1 },
 };
-/** How far across an orb is from its rim to the far side of it (CSS px). */
-const ORB_SPAN = 2 * (ORB.rim + ORB.radius);
-/** How far the surface ripples either way (CSS px) and how fast (rad/s). */
+/**
+ * How far the surface ripples either way and how deep (CSS px at native
+ * scale) and how fast (rad/s).
+ */
 const RIPPLE = { calm: 1, combat: 2.5, speed: 5, depth: 3 };
-/** Bubbles rising through the Life orb while the Hero regenerates Life. */
+/**
+ * Bubbles rising through the Life orb while the Hero regenerates Life,
+ * `radius` CSS px at native scale.
+ */
 const BUBBLES = {
   count: 6,
   radius: 2,
@@ -353,15 +347,10 @@ const BUBBLES = {
   rate: 0.6,
 };
 /**
- * The Experience bar along the strip between the orbs (CSS px): `gap` from
- * each orb's rim, with `Lv N` before it and
- * `current / next` after it, each `textGap` from the bar.
+ * The Experience bar's look; where it goes is `experienceBarLayout`, and
+ * its sizes `EXPERIENCE_BAR`.
  */
-const EXPERIENCE_BAR = {
-  gap: 14,
-  height: 6,
-  textGap: 8,
-  textSize: 13,
+const EXPERIENCE_BAR_STYLE = {
   textColour: 0xd8c890,
   fill: 0xc8a040,
   back: 0x2a241c,
@@ -467,8 +456,9 @@ const PANEL_BUTTON_STYLE = {
 };
 /**
  * A Ground Item: a small diamond on the floor tinted as its type, `size`
- * across (CSS px), under a dark label with its name, gold while hovered.
- * A click within `grab` of the diamond's box picks it up too.
+ * across (CSS px), under a dark label with its name, gold while hovered
+ * (where the label goes and how big is `groundLabels`). A click within
+ * `grab` of the diamond's box picks it up too.
  */
 const GROUND_ITEM = {
   size: 14,
@@ -478,7 +468,6 @@ const GROUND_ITEM = {
   labelAlpha: 0.7,
   name: 0xe8e0c8,
   hoveredName: 0xe8d27a,
-  textSize: 13,
 };
 
 /** The name shown in each empty Equipment slot. */
@@ -491,7 +480,10 @@ const SLOT_NAMES: Record<EquipmentSlot, string> = {
   belt: "Belt",
 };
 
-/** The badge over the orb: its size, gap over the rim (CSS px) and colours. */
+/**
+ * The badge over the Life orb: its size and gap over the rim (CSS px at
+ * native scale) and colours.
+ */
 const BADGE = { size: 13, gap: 4, combat: 0xd84a3a, regen: 0x9cd89c };
 
 /** The frame of the Hero's `swing` where the blade connects. */
@@ -536,8 +528,15 @@ export function createRenderer(
   art: Art,
   areaDisplayNames: Readonly<Record<string, string>>,
 ) {
+  // The World, drawn at the World zoom.
   const camera = new Container();
   app.stage.addChild(camera);
+  /** Where the camera was last drawn. */
+  let shot: Camera = { x: 0, y: 0, zoom: 1 };
+  // Over the World, following it but drawn at the UI Scale, not the World
+  // zoom: damage numbers and Ground Item labels.
+  const overWorld = new Container();
+  app.stage.addChild(overWorld);
 
   // Filled by `showArea`.
   let area: Area | null = null;
@@ -576,22 +575,21 @@ export function createRenderer(
   camera.addChild(overheads);
   // Ground Items' name labels, always shown.
   const labelBacks = new Graphics();
-  camera.addChild(labelBacks);
+  overWorld.addChild(labelBacks);
   const labelTexts = new Map<ItemId, Text>();
-  /** Where each Ground Item's label was last drawn, in camera space. */
+  /** Where each Ground Item's label was last drawn on the screen. */
   let labels: GroundLabel[] = [];
   /** Where each Ground Item was last drawn on the floor, in camera space. */
   let lyingAt: { id: ItemId; at: Vec }[] = [];
   const numbers = new Container();
-  camera.addChild(numbers);
+  overWorld.addChild(numbers);
   const floating: { text: Text; bornMs: number; at: Vec }[] = [];
   const nameplate = new Graphics();
   app.stage.addChild(nameplate);
   const nameplateText = new Text({
     text: "",
     style: {
-      fill: NAMEPLATE.nameColour,
-      fontSize: NAMEPLATE.nameSize,
+      fill: NAMEPLATE_STYLE.nameColour,
       fontFamily: SERIF,
     },
   });
@@ -623,12 +621,7 @@ export function createRenderer(
   // Over the whole screen, stretched to it each frame.
   const banner = new Text({
     text: "",
-    style: {
-      fill: BANNER.colour,
-      fontSize: BANNER.size,
-      fontFamily: SERIF,
-      stroke: { color: 0x000000, width: BANNER.stroke },
-    },
+    style: { fill: BANNER_COLOUR, fontFamily: SERIF },
   });
   banner.anchor.set(0.5);
   banner.visible = false;
@@ -644,6 +637,9 @@ export function createRenderer(
   app.stage.addChild(fade);
   const menu = pauseMenuView();
   app.stage.addChild(menu.layer);
+  // Instead of the game, over everything.
+  const notice = rotateNoticeView();
+  app.stage.addChild(notice.layer);
 
   /** Living Monsters and Corpses by id. */
   const monsters = new Map<MonsterId, MonsterView>();
@@ -702,7 +698,8 @@ export function createRenderer(
    * last drawn, or null when it's for the World.
    */
   const panelAt = (screen: Vec): CursorHit | null =>
-    drawnWorld && cursorHitAt(app.screen, screen, drawnWorld, shownPanels);
+    drawnWorld &&
+    cursorHitAt(viewportOf(app.screen), screen, drawnWorld, shownPanels);
 
   /**
    * Starts afresh for another World, whose Monster ids start over: drops
@@ -754,11 +751,7 @@ export function createRenderer(
   };
 
   /** Maps a point on the canvas (CSS px) to tile units, as last drawn. */
-  const screenToTile = (screen: Vec): Vec =>
-    toTile({
-      x: screen.x - camera.position.x,
-      y: screen.y - camera.position.y,
-    });
+  const screenToTile = (screen: Vec): Vec => toTile(onWorld(shot, screen));
 
   /**
    * The living Monster or the Golem drawn under a point on the canvas (CSS
@@ -775,10 +768,7 @@ export function createRenderer(
       const { position } = golem.view.sprite;
       characters.push({ id: "golem", at: position, scale: GOLEM.scale });
     }
-    return characterUnder(characters, {
-      x: screen.x - camera.position.x,
-      y: screen.y - camera.position.y,
-    });
+    return characterUnder(characters, onWorld(shot, screen));
   };
 
   /**
@@ -792,16 +782,13 @@ export function createRenderer(
 
   /** The Ground Item whose label is under a canvas point (CSS px). */
   const groundLabelUnder = (screen: Vec): ItemId | null =>
-    groundLabelAt(labels, {
-      x: screen.x - camera.position.x,
-      y: screen.y - camera.position.y,
-    });
+    groundLabelAt(labels, screen);
 
   /** The Ground Item drawn on the floor under a canvas point (CSS px). */
   const groundItemAt = (screen: Vec): ItemId | null =>
     groundItemUnder(
       lyingAt,
-      { x: screen.x - camera.position.x, y: screen.y - camera.position.y },
+      onWorld(shot, screen),
       GROUND_ITEM.size / 2 + GROUND_ITEM.grab,
     );
 
@@ -809,7 +796,11 @@ export function createRenderer(
    * Draws each Ground Item on the floor with its name label over it, gold
    * for `hovered`, and drops the labels of Items no longer lying there.
    */
-  const drawGroundItems = (world: World, hovered: ItemId | null) => {
+  const drawGroundItems = (
+    world: World,
+    hovered: ItemId | null,
+    uiScale: number,
+  ) => {
     const lying = groundItemsOf(world);
     groundItems.clear();
     labelBacks.clear();
@@ -833,16 +824,21 @@ export function createRenderer(
       if (!text) {
         text = new Text({
           text: itemOf(item.type).name,
-          style: { fontSize: GROUND_ITEM.textSize, fontFamily: SERIF },
+          style: { fontFamily: SERIF },
         });
         text.anchor.set(0.5, 0.5);
         labelTexts.set(item.id, text);
-        camera.addChild(text);
+        overWorld.addChild(text);
       }
-      const width = text.width + 2 * GROUND_LABEL.padding;
+      sizeText(text, GROUND_LABEL.textSize * uiScale);
+      const width = text.width + 2 * GROUND_LABEL.padding * uiScale;
       return { id: item.id, at, width };
     });
-    labels = groundLabels(sized);
+    // Labels are laid out on the screen, at the UI Scale.
+    labels = groundLabels(
+      sized.map(({ id, at, width }) => ({ id, at: onScreen(shot, at), width })),
+      uiScale,
+    );
     lyingAt = sized.map(({ id, at }) => ({ id, at }));
     for (const { id, rect } of labels) {
       labelBacks
@@ -874,7 +870,7 @@ export function createRenderer(
      * off them all; `confirming` while asking to confirm a New Hero.
      */
     menuChoiceAt(screen: Vec, confirming: boolean): MenuChoice | null {
-      return menuChoiceAt(app.screen, screen, confirming);
+      return menuChoiceAt(viewportOf(app.screen), screen, confirming);
     },
 
     /** Turns a step's events into effects. */
@@ -891,17 +887,13 @@ export function createRenderer(
         if (!sprite) continue;
         const text = new Text({
           text: floatText(number),
-          style: {
-            fill: NUMBER_COLOUR[number.kind],
-            fontSize: NUMBER.size,
-            fontFamily: SERIF,
-            stroke: { color: 0x000000, width: NUMBER.stroke },
-          },
+          style: { fill: NUMBER_COLOUR[number.kind], fontFamily: SERIF },
         });
         text.anchor.set(0.5, 1);
         numbers.addChild(text);
-        // Just over where a Monster's Life bar goes.
-        const at = { x: sprite.position.x, y: barTop(sprite) - NUMBER.gap };
+        // Over where a Monster's Life bar goes; `gap` more at the UI Scale
+        // as it's drawn.
+        const at = { x: sprite.position.x, y: barTop(sprite) };
         floating.push({ text, bornMs: nowMs, at });
       }
       for (const event of events) {
@@ -952,6 +944,9 @@ export function createRenderer(
       heldSkillSlot: SkillBarSlot | null = null,
     ) {
       const active = world.areas[world.areaName];
+      // Read afresh each frame, so a resized window re-lays the HUD at once.
+      const viewport = viewportOf(app.screen);
+      const { uiScale } = viewport;
       shownPanels = {
         heroPanelOpen: menus.heroPanelOpen,
         inventoryOpen: menus.inventoryOpen,
@@ -968,10 +963,15 @@ export function createRenderer(
 
       // Snap the camera and sprites to device pixels so the art stays
       // crisp, with the Hero at the centre of the screen.
-      const centre = { x: app.screen.width / 2, y: app.screen.height / 2 };
-      const snap = (v: number) =>
-        Math.round(v * app.renderer.resolution) / app.renderer.resolution;
-      camera.position.set(snap(centre.x - at.x), snap(centre.y - at.y));
+      const { resolution } = app.renderer;
+      shot = cameraOn(viewport, at, resolution);
+      camera.position.set(shot.x, shot.y);
+      camera.scale.set(shot.zoom);
+      // A device pixel, in the World's own pixels.
+      const pixel = shot.zoom * resolution;
+      const snap = (value: number) => Math.round(value * pixel) / pixel;
+      const snapOnScreen = (value: number) =>
+        Math.round(value * resolution) / resolution;
       const place = (view: CharacterView, at: Vec, depth = 0) => {
         const screen = toScreen(at);
         view.sprite.position.set(snap(screen.x), snap(screen.y));
@@ -1172,13 +1172,19 @@ export function createRenderer(
 
       for (let i = floating.length - 1; i >= 0; i--) {
         const { text, bornMs, at } = floating[i];
-        const float = floatAt(nowMs - bornMs);
+        const float = floatAt(nowMs - bornMs, uiScale);
         if (!float) {
           text.destroy();
           floating.splice(i, 1);
           continue;
         }
-        text.position.set(snap(at.x), snap(at.y - float.rise));
+        const sizes = atUiScale(DAMAGE_NUMBER, uiScale);
+        sizeText(text, sizes.size, sizes.stroke);
+        const over = onScreen(shot, at);
+        text.position.set(
+          snapOnScreen(over.x),
+          snapOnScreen(over.y - sizes.gap - float.rise),
+        );
         text.alpha = float.alpha;
       }
 
@@ -1196,7 +1202,7 @@ export function createRenderer(
         (onWorld && typeof hoveredId !== "number"
           ? groundItemAt(onWorld)
           : null);
-      drawGroundItems(world, hoveredItem);
+      drawGroundItems(world, hoveredItem, uiScale);
       const hoveredMonster =
         world.monsters.find((monster) => monster.id === hoveredId) ?? null;
       const hovered: Hovered | null = hoveredMonster
@@ -1212,32 +1218,25 @@ export function createRenderer(
       nameplateText.visible = hovered !== null;
       if (hovered) {
         const { name, fraction, friendly } = nameplateOf(hovered);
-        const centre = app.screen.width / 2;
+        const layout = nameplateLayout(viewport);
+        const { panel, bar } = layout;
         nameplate
-          .rect(
-            centre - NAMEPLATE.width / 2,
-            NAMEPLATE.top,
-            NAMEPLATE.width,
-            NAMEPLATE.height,
-          )
-          .fill({ color: 0x000000, alpha: NAMEPLATE.alpha });
+          .rect(panel.x, panel.y, panel.w, panel.h)
+          .fill({ color: 0x000000, alpha: NAMEPLATE_STYLE.alpha });
         lifeBar(nameplate, {
-          x: centre - NAMEPLATE.bar / 2,
-          y:
-            NAMEPLATE.top +
-            NAMEPLATE.height -
-            NAMEPLATE.barHeight -
-            NAMEPLATE.barBottom,
-          width: NAMEPLATE.bar,
-          height: NAMEPLATE.barHeight,
+          x: bar.x,
+          y: bar.y,
+          width: bar.w,
+          height: bar.h,
           fraction,
           colour: friendly ? FRIENDLY.life : LIFE_COLOUR,
         });
         nameplateText.text = name;
         nameplateText.style.fill = friendly
           ? FRIENDLY.name
-          : NAMEPLATE.nameColour;
-        nameplateText.position.set(centre, NAMEPLATE.top + NAMEPLATE.nameTop);
+          : NAMEPLATE_STYLE.nameColour;
+        sizeText(nameplateText, layout.nameSize);
+        nameplateText.position.set(layout.nameAt.x, layout.nameAt.y);
       }
 
       // A click on the Golem is a move, so its tile is shown too.
@@ -1257,33 +1256,22 @@ export function createRenderer(
         }
       }
 
-      orb.draw(app.screen, world, nowMs);
-      skillBar.draw(app.screen, world, heldSkillSlot);
-      beltStrip.draw(app.screen, world);
+      orb.draw(viewport, world, nowMs);
+      skillBar.draw(viewport, world, heldSkillSlot);
+      beltStrip.draw(viewport, world);
       panelButtons.draw(
-        app.screen,
+        viewport,
         menus,
         { heroDead: world.death !== null },
         hoveredPanelButton(onPanel),
       );
-      experience.draw(app.screen, world);
-      levelUp.draw(app.screen, world, nowMs);
-      heroPanel.draw(
-        app.screen,
-        world,
-        menus.heroPanelOpen,
-        menus.pendingPoints,
-      );
-      skillTreePanel.draw(app.screen, world, menus.skillTreeOpen);
-      heldSkillView.draw(heldSkill, pointer);
+      experience.draw(viewport, world);
+      levelUp.draw(viewport, world, nowMs);
+      heroPanel.draw(viewport, world, menus.heroPanelOpen, menus.pendingPoints);
+      skillTreePanel.draw(viewport, world, menus.skillTreeOpen);
+      heldSkillView.draw(heldSkill, pointer, uiScale);
       const spot = onPanel && "inventory" in onPanel ? onPanel.inventory : null;
-      inventoryPanel.draw(
-        app.screen,
-        world,
-        menus.inventoryOpen,
-        spot,
-        pointer,
-      );
+      inventoryPanel.draw(viewport, world, menus.inventoryOpen, spot, pointer);
 
       const hurtLeft = hurtAtMs === null ? 0 : 1 - (nowMs - hurtAtMs) / HURT_MS;
       hurt.visible = hurtLeft > 0;
@@ -1296,11 +1284,10 @@ export function createRenderer(
         arrivedAtMs === null ? null : bannerOpacityAt(nowMs - arrivedAtMs);
       banner.visible = bannerAlpha !== null;
       if (bannerAlpha !== null) {
+        const layout = areaBannerLayout(viewport);
         banner.alpha = bannerAlpha;
-        banner.position.set(
-          app.screen.width / 2,
-          Math.round(app.screen.height * BANNER.top),
-        );
+        sizeText(banner, layout.size, layout.stroke);
+        banner.position.set(layout.at.x, layout.at.y);
       } else arrivedAtMs = null;
 
       death.draw(app.screen, world, nowMs);
@@ -1312,7 +1299,8 @@ export function createRenderer(
         fade.scale.set(app.screen.width, app.screen.height);
       }
 
-      menu.draw(app.screen, menus.pause, world.hero.progress.level);
+      menu.draw(viewport, menus.pause, world.hero.progress.level);
+      notice.draw(viewport);
 
       const markerProgress =
         markedAtMs === null
@@ -1548,50 +1536,45 @@ function orbsView() {
   const graphics = new Graphics();
   const badge = new Text({
     text: "",
-    style: { fill: BADGE.combat, fontSize: BADGE.size, fontFamily: SERIF },
+    style: { fill: BADGE.combat, fontFamily: SERIF },
   });
   badge.anchor.set(0.5, 1);
   layer.addChild(graphics, badge);
 
   return {
     layer,
-    draw(
-      screen: { width: number; height: number },
-      world: World,
-      nowMs: number,
-    ) {
-      const { radius: r } = ORB;
-      const cy = screen.height - ORB.bottom - ORB.rim - r;
-      const lifeX = ORB.side + ORB.rim + r;
-      const manaX = screen.width - lifeX;
+    draw(screen: Viewport, world: World, nowMs: number) {
+      const { uiScale } = screen;
+      const { strip, edge, life: lifeOrb, mana: manaOrb } = orbsLayout(screen);
+      const { radius: r, rim, y: cy } = lifeOrb;
+      const lifeX = lifeOrb.x;
+      const manaX = manaOrb.x;
       const seconds = nowMs / 1000;
       const inCombat = isInCombat(world);
       const regenerating = isRegenerating(world);
 
       graphics.clear();
       graphics
-        .rect(0, screen.height - STRIP.height, screen.width, STRIP.height)
+        .rect(strip.x, strip.y, strip.w, strip.h)
         .fill({ color: STRIP.colour, alpha: STRIP.alpha });
-      graphics
-        .rect(0, screen.height - STRIP.height, screen.width, STRIP.edge)
-        .fill(STRIP.edgeColour);
+      graphics.rect(strip.x, strip.y, strip.w, edge).fill(STRIP.edgeColour);
 
       /** Draws an orb's rim, its fill up to `fraction` and its glass. */
       const drawOrb = (orb: Orb, cx: number, fraction: number) => {
         const colours = ORB_COLOURS[orb];
         graphics
-          .circle(cx, cy, r + ORB.rim)
+          .circle(cx, cy, r + rim)
           .fill(ORB.rimColour)
           .stroke({ width: 2, color: ORB.rimLine });
         graphics.circle(cx, cy, r).fill(colours.empty);
 
         // One 1 px row at a time, so the surface can ripple.
         const surface = cy + r - fraction * r * 2;
-        const ripple = inCombat ? RIPPLE.combat : RIPPLE.calm;
+        const ripple = (inCombat ? RIPPLE.combat : RIPPLE.calm) * uiScale;
         for (let y = Math.floor(surface); y < cy + r; y++) {
           const half = Math.sqrt(Math.max(0, r * r - (y - cy) ** 2));
           const wave =
-            y < surface + RIPPLE.depth
+            y < surface + RIPPLE.depth * uiScale
               ? Math.sin(seconds * RIPPLE.speed + y) * ripple
               : 0;
           const height = (cy + r - y) / (r * 2);
@@ -1615,7 +1598,7 @@ function orbsView() {
           const x = lifeX + Math.sin(i * 2.3 + seconds * 2) * r * 0.5;
           const y = cy + r - rise * life * r * 2;
           graphics
-            .circle(x, y, BUBBLES.radius)
+            .circle(x, y, BUBBLES.radius * uiScale)
             .fill({ color: BUBBLES.colour, alpha: BUBBLES.alpha * (1 - rise) });
         }
       }
@@ -1633,7 +1616,8 @@ function orbsView() {
         ? "⚔ In Combat"
         : `+${heroTuning.regenPerSecond} Life/s`;
       badge.style.fill = inCombat ? BADGE.combat : BADGE.regen;
-      badge.position.set(lifeX, cy - r - ORB.rim - BADGE.gap);
+      sizeText(badge, BADGE.size * uiScale);
+      badge.position.set(lifeX, cy - r - rim - BADGE.gap * uiScale);
     },
   };
 }
@@ -1648,11 +1632,8 @@ function skillBarView() {
   const layer = new Container();
   const graphics = new Graphics();
   layer.addChild(graphics);
-  const text = (fill: number, size: number) => {
-    const t = new Text({
-      text: "",
-      style: { fill, fontSize: size, fontFamily: SERIF },
-    });
+  const text = (fill: number) => {
+    const t = new Text({ text: "", style: { fill, fontFamily: SERIF } });
     layer.addChild(t);
     return t;
   };
@@ -1661,40 +1642,45 @@ function skillBarView() {
 
   return {
     layer,
-    draw(
-      screen: { width: number; height: number },
-      world: World,
-      heldFrom: SkillBarSlot | null,
-    ) {
+    draw(screen: Viewport, world: World, heldFrom: SkillBarSlot | null) {
       const { slots } = skillBarLayout(screen);
+      const scale = screen.uiScale;
       graphics.clear();
       skillBarSheet(world, heldFrom).forEach((shown, index) => {
         if (!labels[index]) {
-          const key = text(style.key, style.keySize);
+          const key = text(style.key);
           key.anchor.set(1, 0);
-          const name = text(style.name, style.nameSize);
+          const name = text(style.name);
           name.anchor.set(0.5);
           labels[index] = { key, name };
         }
         const { key, name } = labels[index];
         const rect = slots[shown.slot];
         const alpha = shown.dimmed ? style.dimmed : 1;
+        const inset = 3 * scale;
         graphics
           .rect(rect.x, rect.y, rect.w, rect.h)
           .fill(style.fill)
           .stroke({ color: style.edge, width: 1.5 });
         if (shown.name !== null) {
           graphics
-            .rect(rect.x + 3, rect.y + 3, rect.w - 6, rect.h - 6)
+            .rect(
+              rect.x + inset,
+              rect.y + inset,
+              rect.w - 2 * inset,
+              rect.h - 2 * inset,
+            )
             .fill({ color: style.skill, alpha })
             .stroke({ color: style.skillEdge, width: 1, alpha });
         }
         name.visible = shown.name !== null;
         name.text = shown.name ?? "";
         name.alpha = alpha;
-        name.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2 + 4);
+        sizeText(name, style.nameSize * scale);
+        name.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2 + 4 * scale);
         key.text = shown.key;
-        key.position.set(rect.x + rect.w - 3, rect.y + 2);
+        sizeText(key, style.keySize * scale);
+        key.position.set(rect.x + rect.w - inset, rect.y + 2 * scale);
       });
     },
   };
@@ -1710,11 +1696,8 @@ function beltStripView() {
   const layer = new Container();
   const graphics = new Graphics();
   layer.addChild(graphics);
-  const text = (fill: number, size: number) => {
-    const label = new Text({
-      text: "",
-      style: { fill, fontSize: size, fontFamily: SERIF },
-    });
+  const text = (fill: number) => {
+    const label = new Text({ text: "", style: { fill, fontFamily: SERIF } });
     layer.addChild(label);
     return label;
   };
@@ -1723,14 +1706,15 @@ function beltStripView() {
 
   return {
     layer,
-    draw(screen: { width: number; height: number }, world: World) {
+    draw(screen: Viewport, world: World) {
       const { columns } = beltStripLayout(screen);
+      const scale = screen.uiScale;
       graphics.clear();
       beltStripSheet(world).forEach((shown, index) => {
         if (!labels[index]) {
-          const key = text(style.key, style.keySize);
+          const key = text(style.key);
           key.anchor.set(1, 0);
-          const count = text(style.name, style.nameSize);
+          const count = text(style.name);
           count.anchor.set(0, 1);
           labels[index] = { key, count };
         }
@@ -1744,21 +1728,28 @@ function beltStripView() {
           // A placeholder Potion: a round body under a narrow neck.
           const colour = itemColour(shown.type);
           const centreX = rect.x + rect.w / 2;
-          const centreY = rect.y + rect.h / 2 + 3;
+          const centreY = rect.y + rect.h / 2 + 3 * scale;
           graphics
-            .rect(centreX - 3, centreY - 15, 6, 7)
+            .rect(
+              centreX - 3 * scale,
+              centreY - 15 * scale,
+              6 * scale,
+              7 * scale,
+            )
             .fill(colour)
             .stroke({ color: style.skillEdge, width: 1 });
           graphics
-            .circle(centreX, centreY, 10)
+            .circle(centreX, centreY, 10 * scale)
             .fill(colour)
             .stroke({ color: style.skillEdge, width: 1 });
         }
         count.visible = shown.count > 0;
         count.text = String(shown.count);
-        count.position.set(rect.x + 3, rect.y + rect.h - 2);
+        sizeText(count, style.nameSize * scale);
+        count.position.set(rect.x + 3 * scale, rect.y + rect.h - 2 * scale);
         key.text = shown.key;
-        key.position.set(rect.x + rect.w - 3, rect.y + 2);
+        sizeText(key, style.keySize * scale);
+        key.position.set(rect.x + rect.w - 3 * scale, rect.y + 2 * scale);
       });
     },
   };
@@ -1796,12 +1787,13 @@ function panelButtonsView() {
     tooltipLayer,
     /** `hovered` is the Panel button under the cursor, if any. */
     draw(
-      screen: { width: number; height: number },
+      screen: Viewport,
       menus: Menus,
       hero: HeroState,
       hovered: Panel | null,
     ) {
       const { buttons } = panelButtonsLayout(screen);
+      const scale = screen.uiScale;
       graphics.clear();
       tooltipBox.clear();
       tooltipText.visible = false;
@@ -1814,7 +1806,7 @@ function panelButtonsView() {
           .fill({ color: shown.lit ? style.skill : style.fill, alpha })
           .stroke({ color: edge, width: look.frame, alpha });
         // The stone frame's inner bevel, deeper when pressed in.
-        const bevel = shown.lit ? look.litBevel : look.bevel;
+        const bevel = (shown.lit ? look.litBevel : look.bevel) * scale;
         graphics
           .rect(
             rect.x + bevel,
@@ -1827,14 +1819,18 @@ function panelButtonsView() {
           graphics,
           shown.panel,
           // Pressed in: the icon sits lower.
-          shown.lit ? { ...rect, y: rect.y + look.pressOffset } : rect,
+          shown.lit ? { ...rect, y: rect.y + look.pressOffset * scale } : rect,
           shown.lit ? style.name : style.key,
           alpha,
+          scale,
         );
         if (shown.panel === hovered) {
           tooltipText.text = shown.tooltip;
           tooltipText.visible = true;
-          drawTooltip(tooltipBox, [tooltipText], rect, screen);
+          sizeText(tooltipText, INVENTORY_STYLE.tooltipSize * scale);
+          drawTooltip(tooltipBox, [tooltipText], screen, (size, gap) =>
+            panelButtonTooltipRect(screen, shown.panel, size, gap),
+          );
         }
       }
     },
@@ -1843,39 +1839,48 @@ function panelButtonsView() {
 
 /**
  * Draws a tooltip's box behind `lines`, already holding their words and
- * anchored at their top centre, and puts the lines in it: over `under`, or
- * under it where there's no room above, and kept on the screen. In the
- * Item tooltip's look.
+ * anchored at their top centre, and puts the lines in it: where `place`
+ * puts a box its size, `gap` from what it's about. In the Item tooltip's
+ * look.
  */
 function drawTooltip(
   box: Graphics,
   lines: readonly Text[],
-  under: Rect,
-  screen: { width: number },
+  screen: Viewport,
+  place: (size: { w: number; h: number }, gap: number) => Rect,
 ) {
-  const look = INVENTORY_STYLE;
-  const pad = look.tooltipPadding;
-  const w = Math.max(...lines.map((line) => line.width)) + 2 * pad;
-  const h = lines.length * look.tooltipLineHeight + 2 * pad;
-  const above = under.y - look.tooltipGap - h;
-  const y = above >= 0 ? above : under.y + under.h + look.tooltipGap;
-  const x = Math.min(
-    screen.width - w,
-    Math.max(0, under.x + under.w / 2 - w / 2),
+  const sizes = atUiScale(
+    {
+      padding: INVENTORY_STYLE.tooltipPadding,
+      lineHeight: INVENTORY_STYLE.tooltipLineHeight,
+      gap: INVENTORY_STYLE.tooltipGap,
+    },
+    screen.uiScale,
+  );
+  const pad = sizes.padding;
+  const { x, y, w, h } = place(
+    {
+      w: Math.max(...lines.map((line) => line.width)) + 2 * pad,
+      h: lines.length * sizes.lineHeight + 2 * pad,
+    },
+    sizes.gap,
   );
   box
     .rect(x, y, w, h)
-    .fill({ color: look.tooltip, alpha: look.tooltipAlpha })
+    .fill({
+      color: INVENTORY_STYLE.tooltip,
+      alpha: INVENTORY_STYLE.tooltipAlpha,
+    })
     .stroke({ color: HERO_PANEL_STYLE.edge, width: 1 });
   lines.forEach((line, i) => {
-    line.position.set(x + w / 2, y + pad + i * look.tooltipLineHeight);
+    line.position.set(x + w / 2, y + pad + i * sizes.lineHeight);
   });
 }
 
 /**
- * Draws a Panel button's icon centred in `rect`: a figure for the Hero
- * panel, a bag for the Inventory panel, and linked nodes for the Skill Tree
- * panel.
+ * Draws a Panel button's icon centred in `rect` at the UI Scale `scale`: a
+ * figure for the Hero panel, a bag for the Inventory panel, and linked
+ * nodes for the Skill Tree panel.
  */
 function panelIcon(
   graphics: Graphics,
@@ -1883,14 +1888,18 @@ function panelIcon(
   rect: Rect,
   colour: number,
   alpha: number,
+  scale: number,
 ) {
   const { icon, iconStroke } = PANEL_BUTTON_STYLE;
   const fill = { color: colour, alpha };
-  const line = { color: colour, width: iconStroke, alpha };
+  const line = { color: colour, width: iconStroke * scale, alpha };
   const x = rect.x + rect.w / 2;
   const y = rect.y + rect.h / 2;
   if (panel === "hero") {
-    const { headY, head, shoulders, shouldersY, feet, feetY } = icon.hero;
+    const { headY, head, shoulders, shouldersY, feet, feetY } = atUiScale(
+      icon.hero,
+      scale,
+    );
     graphics.circle(x, y + headY, head).fill(fill);
     graphics
       .poly([
@@ -1906,7 +1915,7 @@ function panelIcon(
       .fill(fill);
   }
   if (panel === "inventory") {
-    const bag = icon.inventory;
+    const bag = atUiScale(icon.inventory, scale);
     graphics
       .roundRect(x - bag.w / 2, y + bag.y, bag.w, bag.h, bag.corner)
       .fill(fill)
@@ -1914,7 +1923,7 @@ function panelIcon(
       .stroke(line);
   }
   if (panel === "skillTree") {
-    const { rootY, leafX, leafY, node } = icon.skillTree;
+    const { rootY, leafX, leafY, node } = atUiScale(icon.skillTree, scale);
     graphics
       .moveTo(x, y + rootY)
       .lineTo(x - leafX, y + leafY)
@@ -1937,7 +1946,7 @@ function createHeldSkillView() {
   const graphics = new Graphics();
   const name = new Text({
     text: "",
-    style: { fill: style.name, fontSize: style.nameSize, fontFamily: SERIF },
+    style: { fill: style.name, fontFamily: SERIF },
   });
   name.anchor.set(0.5);
   layer.addChild(graphics, name);
@@ -1945,10 +1954,12 @@ function createHeldSkillView() {
 
   return {
     layer,
-    draw(skill: Skill | null, pointer: Vec | null) {
+    /** `uiScale` is the UI Scale the Skill Bar is drawn at. */
+    draw(skill: Skill | null, pointer: Vec | null, uiScale: number) {
       layer.visible = skill !== null && pointer !== null;
       if (!skill || !pointer) return;
-      const { slot } = SKILL_BAR;
+      const slot = SKILL_BAR.slot * uiScale;
+      sizeText(name, style.nameSize * uiScale);
       graphics.clear();
       graphics
         .rect(-slot / 2, -slot / 2, slot, slot)
@@ -1967,11 +1978,7 @@ function createHeldSkillView() {
 function experienceBarView() {
   const layer = new Container();
   const graphics = new Graphics();
-  const style = {
-    fill: EXPERIENCE_BAR.textColour,
-    fontSize: EXPERIENCE_BAR.textSize,
-    fontFamily: SERIF,
-  };
+  const style = { fill: EXPERIENCE_BAR_STYLE.textColour, fontFamily: SERIF };
   const level = new Text({ text: "", style });
   level.anchor.set(0, 0.5);
   const amount = new Text({ text: "", style });
@@ -1980,34 +1987,36 @@ function experienceBarView() {
 
   return {
     layer,
-    draw(screen: { width: number; height: number }, world: World) {
+    draw(screen: Viewport, world: World) {
       const bar = experienceBar(
         world.hero.progress.level,
         world.hero.progress.experience,
       );
-      const y = screen.height - (STRIP.height - STRIP.edge) / 2;
-      const left = ORB.side + ORB_SPAN + EXPERIENCE_BAR.gap;
-      const right = screen.width - ORB.side - ORB_SPAN - EXPERIENCE_BAR.gap;
+      const span = experienceBarLayout(screen);
+      const sizes = atUiScale(EXPERIENCE_BAR, screen.uiScale);
+      const y = span.y + span.h / 2;
+      const left = span.x;
+      const right = span.x + span.w;
       level.text = bar.level;
+      sizeText(level, sizes.textSize);
       level.position.set(left, y);
       amount.text = bar.experience;
+      sizeText(amount, sizes.textSize);
       amount.position.set(right, y);
 
-      const from = left + level.width + EXPERIENCE_BAR.textGap;
-      const width = Math.max(
-        0,
-        right - amount.width - EXPERIENCE_BAR.textGap - from,
-      );
-      const top = y - EXPERIENCE_BAR.height / 2;
+      const from = left + level.width + sizes.textGap;
+      const width = Math.max(0, right - amount.width - sizes.textGap - from);
+      const top = y - sizes.height / 2;
+      const look = EXPERIENCE_BAR_STYLE;
       graphics.clear();
       graphics
-        .rect(from, top, width, EXPERIENCE_BAR.height)
-        .fill(EXPERIENCE_BAR.back)
-        .stroke({ width: 1, color: EXPERIENCE_BAR.edge });
+        .rect(from, top, width, sizes.height)
+        .fill(look.back)
+        .stroke({ width: 1, color: look.edge });
       if (bar.fill > 0) {
         graphics
-          .rect(from, top, width * bar.fill, EXPERIENCE_BAR.height)
-          .fill(EXPERIENCE_BAR.fill);
+          .rect(from, top, width * bar.fill, sizes.height)
+          .fill(look.fill);
       }
     },
   };
@@ -2023,11 +2032,7 @@ function levelUpButtonView() {
   const graphics = new Graphics();
   const label = new Text({
     text: "Level Up",
-    style: {
-      fill: HUD_BUTTON.text,
-      fontSize: HUD_BUTTON.textSize,
-      fontFamily: SERIF,
-    },
+    style: { fill: HUD_BUTTON.text, fontFamily: SERIF },
   });
   label.anchor.set(0.5);
   layer.addChild(graphics, label);
@@ -2035,14 +2040,11 @@ function levelUpButtonView() {
 
   return {
     layer,
-    draw(
-      screen: { width: number; height: number },
-      world: World,
-      nowMs: number,
-    ) {
+    draw(screen: Viewport, world: World, nowMs: number) {
       layer.visible = !world.death && hasUnspentPoints(world);
       if (!layer.visible) return;
       const rect = heroPanelLayout(screen).levelUp;
+      sizeText(label, HUD_BUTTON.textSize * screen.uiScale);
       const { pulsesPerSecond, edgeFaint } = HUD_BUTTON;
       const pulse =
         (Math.sin((nowMs / 1000) * pulsesPerSecond * 2 * Math.PI) + 1) / 2;
@@ -2063,11 +2065,11 @@ function button(graphics: Graphics, rect: Rect, edgeAlpha = 1) {
 
 /**
  * Draws a panel's × close button at `rect`, a HUD button with an × across
- * it, `CLOSE_BUTTON.cross` in from its edges.
+ * it, `CLOSE_BUTTON.cross` in from its edges at the UI Scale `scale`.
  */
-function closeButton(graphics: Graphics, rect: Rect) {
+function closeButton(graphics: Graphics, rect: Rect, scale: number) {
   button(graphics, rect);
-  const crossInset = CLOSE_BUTTON.cross;
+  const crossInset = CLOSE_BUTTON.cross * scale;
   const left = rect.x + crossInset;
   const right = rect.x + rect.w - crossInset;
   const top = rect.y + crossInset;
@@ -2077,7 +2079,26 @@ function closeButton(graphics: Graphics, rect: Rect) {
     .lineTo(right, bottom)
     .moveTo(right, top)
     .lineTo(left, bottom)
-    .stroke({ color: HUD_BUTTON.text, width: 2 });
+    .stroke({ color: HUD_BUTTON.text, width: 2 * scale });
+}
+
+/**
+ * A panel's texts with their sizes at native scale, so each draw can size
+ * them at the UI Scale.
+ */
+function scaledTexts() {
+  const sizes = new Map<Text, number>();
+  return {
+    /** Keeps `text`, `size` at native scale. */
+    add(text: Text, size: number) {
+      sizes.set(text, size);
+      return text;
+    },
+    /** Sizes every text kept at the UI Scale `scale`. */
+    size(scale: number) {
+      for (const [text, size] of sizes) sizeText(text, size * scale);
+    },
+  };
 }
 
 /**
@@ -2092,13 +2113,14 @@ function heroPanelView() {
   const graphics = new Graphics();
   layer.addChild(graphics);
   layer.visible = false;
+  const texts = scaledTexts();
   const text = (fill: number, size = style.textSize) => {
     const t = new Text({
       text: "",
       style: { fill, fontSize: size, fontFamily: SERIF },
     });
     layer.addChild(t);
-    return t;
+    return texts.add(t, size);
   };
 
   const title = text(style.title, style.titleSize);
@@ -2137,7 +2159,7 @@ function heroPanelView() {
   return {
     layer,
     draw(
-      screen: { width: number; height: number },
+      screen: Viewport,
       world: World,
       open: boolean,
       pending: PendingPoints,
@@ -2147,35 +2169,33 @@ function heroPanelView() {
       const sheet = heroSheet(world, pending);
       const layout = heroPanelLayout(screen);
       const { panel } = layout;
-      const left = panel.x + HERO_PANEL.padding;
-      const right = panel.x + panel.w - HERO_PANEL.padding;
+      const scale = screen.uiScale;
+      const { padding, rowHeight } = atUiScale(HERO_PANEL, scale);
       // Attribute values leave room for their − and + buttons.
-      const beforeButtons = layout.accept.x - style.plusGap;
+      const beforeButtons = layout.accept.x - style.plusGap * scale;
 
       graphics.clear();
       graphics
         .rect(panel.x, panel.y, panel.w, panel.h)
         .fill({ color: style.fill, alpha: style.alpha })
         .stroke({ color: style.edge, width: 2 });
-      closeButton(graphics, layout.closeButton);
-      title.position.set(panel.x + panel.w / 2, panel.y + HERO_PANEL.padding);
-      hint.position.set(
-        panel.x + panel.w / 2,
-        panel.y + panel.h - HERO_PANEL.padding,
-      );
+      closeButton(graphics, layout.closeButton, scale);
+      title.position.set(panel.x + panel.w / 2, panel.y + padding);
+      hint.position.set(panel.x + panel.w / 2, panel.y + panel.h - padding);
 
       const place = (
         shown: Row,
         at: number,
         name: string,
         value: string,
-        valueRight = right,
+        valueRight?: number,
       ) => {
-        const y = rowTop(at) + HERO_PANEL.rowHeight / 2;
+        const row = heroPanelRow(screen, at);
+        const y = row.y + rowHeight / 2;
         shown.name.text = name;
-        shown.name.position.set(left, y);
+        shown.name.position.set(row.x, y);
         shown.value.text = value;
-        shown.value.position.set(valueRight, y);
+        shown.value.position.set(valueRight ?? row.x + row.w, y);
         shown.value.style.fill = style.value;
       };
       /** Draws a HUD button at `rect` with `label` centred on it. */
@@ -2219,9 +2239,12 @@ function heroPanelView() {
         if (value.changed) derived[i].value.style.fill = style.changed;
       });
       for (const at of [PANEL_ROWS.attributes, PANEL_ROWS.derived]) {
-        const y = rowTop(at) - style.ruleGap;
-        graphics.rect(left, y, right - left, 1).fill(style.edge);
+        const row = heroPanelRow(screen, at);
+        const y = row.y - style.ruleGap * scale;
+        graphics.rect(row.x, y, row.w, 1).fill(style.edge);
       }
+      // Rows made this draw too.
+      texts.size(scale);
     },
   };
 }
@@ -2237,13 +2260,14 @@ function skillTreePanelView() {
   const graphics = new Graphics();
   layer.addChild(graphics);
   layer.visible = false;
+  const texts = scaledTexts();
   const text = (fill: number, size = style.textSize) => {
     const t = new Text({
       text: "",
       style: { fill, fontSize: size, fontFamily: SERIF },
     });
     layer.addChild(t);
-    return t;
+    return texts.add(t, size);
   };
 
   const title = text(style.title, style.titleSize);
@@ -2273,31 +2297,31 @@ function skillTreePanelView() {
 
   return {
     layer,
-    draw(screen: { width: number }, world: World, open: boolean) {
+    draw(screen: Viewport, world: World, open: boolean) {
       layer.visible = open;
       if (!open) return;
       const sheet = skillTreeSheet(world);
       const layout = skillTreePanelLayout(screen);
       const { panel } = layout;
-      const { padding, rowHeight, plus } = SKILL_TREE_PANEL;
-      const left = panel.x + padding;
-      const right = panel.x + panel.w - padding;
+      const scale = screen.uiScale;
+      const { padding, rowHeight } = atUiScale(SKILL_TREE_PANEL, scale);
 
       graphics.clear();
       graphics
         .rect(panel.x, panel.y, panel.w, panel.h)
         .fill({ color: style.fill, alpha: style.alpha })
         .stroke({ color: style.edge, width: 2 });
-      closeButton(graphics, layout.closeButton);
+      closeButton(graphics, layout.closeButton, scale);
       title.position.set(panel.x + panel.w / 2, panel.y + padding);
       hint.position.set(panel.x + panel.w / 2, panel.y + panel.h - padding);
 
       const place = (shown: Row, at: number, name: string, value: string) => {
-        const y = skillTreeRowTop(at) + rowHeight / 2;
+        const row = skillTreeRow(screen, at);
+        const y = row.y + rowHeight / 2;
         shown.name.text = name;
-        shown.name.position.set(left, y);
+        shown.name.position.set(row.x, y);
         shown.value.text = value;
-        shown.value.position.set(right, y);
+        shown.value.position.set(row.x + row.w, y);
       };
       const anyRaisable = sheet.skills.some((skill) => skill.canRaise);
       place(
@@ -2346,11 +2370,14 @@ function skillTreePanelView() {
         shown.plus.visible = skill.canRaise;
         if (skill.canRaise) {
           button(graphics, rect);
-          shown.plus.position.set(rect.x + plus / 2, rect.y + plus / 2);
+          shown.plus.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
         }
-        const y = skillTreeRowTop(at(SKILL_TREE_ROWS.name)) - style.ruleGap;
-        graphics.rect(left, y, right - left, 1).fill(style.edge);
+        const rule = skillTreeRow(screen, at(SKILL_TREE_ROWS.name));
+        const y = rule.y - style.ruleGap * scale;
+        graphics.rect(rule.x, y, rule.w, 1).fill(style.edge);
       });
+      // Rows made this draw too.
+      texts.size(scale);
     },
   };
 }
@@ -2366,13 +2393,14 @@ function inventoryPanelView() {
   const graphics = new Graphics();
   layer.addChild(graphics);
   layer.visible = false;
+  const texts = scaledTexts();
   const text = (fill: number, size: number) => {
     const t = new Text({
       text: "",
       style: { fill, fontSize: size, fontFamily: SERIF },
     });
     layer.addChild(t);
-    return t;
+    return texts.add(t, size);
   };
 
   const title = text(style.title, style.titleSize);
@@ -2410,6 +2438,7 @@ function inventoryPanelView() {
     },
   });
   heldLayer.addChild(heldBox, heldName);
+  texts.add(heldName, look.itemTextSize);
 
   /** Draws an Item's box, tinted as its type, with its name in `name`. */
   const drawItem = (
@@ -2432,20 +2461,21 @@ function inventoryPanelView() {
     name.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
   };
 
-  /** Draws the Held Item, if any, centred on `pointer`, cells `cell` big. */
-  const drawHeld = (world: World, pointer: Vec | null, cell: number) => {
+  /**
+   * Draws the Held Item, if any, centred on `pointer`, at the size of the
+   * grid laid out as `layout`.
+   */
+  const drawHeld = (
+    world: World,
+    pointer: Vec | null,
+    layout: InventoryPanelLayout,
+  ) => {
     heldBox.clear();
     heldName.visible = false;
     const held = cursorItemOf(world);
     if (!held || !pointer) return;
     const { type } = held.item;
-    const { columns, rows } = itemOf(type).size;
-    const rect = {
-      x: pointer.x - (columns * cell) / 2,
-      y: pointer.y - (rows * cell) / 2,
-      w: columns * cell,
-      h: rows * cell,
-    };
+    const rect = heldItemRect(layout, pointer, type);
     drawItem(heldBox, heldName, rect, type, look.heldAlpha);
   };
 
@@ -2457,7 +2487,7 @@ function inventoryPanelView() {
      * px), if it's on the panel.
      */
     draw(
-      screen: { width: number; height: number },
+      screen: Viewport,
       world: World,
       open: boolean,
       hovered: ItemSpot | null,
@@ -2465,7 +2495,12 @@ function inventoryPanelView() {
     ) {
       const layout = inventoryPanelLayout(screen, beltRows(world));
       const { panel, grid, cell, slots } = layout;
-      drawHeld(world, pointer, cell);
+      const scale = screen.uiScale;
+      const { padding } = atUiScale(INVENTORY_PANEL, scale);
+      // Before any return: the Held Item's name, drawn with the panel shut.
+      // Names and tooltip lines made this draw are sized as they're made.
+      texts.size(scale);
+      drawHeld(world, pointer, layout);
       layer.visible = open;
       if (!open) return;
 
@@ -2474,15 +2509,9 @@ function inventoryPanelView() {
         .rect(panel.x, panel.y, panel.w, panel.h)
         .fill({ color: style.fill, alpha: style.alpha })
         .stroke({ color: style.edge, width: 2 });
-      closeButton(graphics, layout.closeButton);
-      title.position.set(
-        panel.x + panel.w / 2,
-        panel.y + INVENTORY_PANEL.padding,
-      );
-      hint.position.set(
-        panel.x + panel.w / 2,
-        panel.y + panel.h - INVENTORY_PANEL.padding,
-      );
+      closeButton(graphics, layout.closeButton, scale);
+      title.position.set(panel.x + panel.w / 2, panel.y + padding);
+      hint.position.set(panel.x + panel.w / 2, panel.y + panel.h - padding);
 
       const box = (rect: Rect) =>
         graphics
@@ -2522,7 +2551,10 @@ function inventoryPanelView() {
         });
       });
       items.forEach(({ rect, type }, i) => {
-        names[i] ??= text(look.itemText, look.itemTextSize);
+        if (!names[i]) {
+          names[i] = text(look.itemText, look.itemTextSize);
+          sizeText(names[i], look.itemTextSize * scale);
+        }
         drawItem(graphics, names[i], rect, type);
       });
       for (const name of names.slice(items.length)) name.visible = false;
@@ -2585,7 +2617,10 @@ function inventoryPanelView() {
             );
       const lines = itemTooltip(item.type);
       lines.forEach((line, i) => {
-        tooltipLines[i] ??= text(look.tooltipLine, look.tooltipSize);
+        if (!tooltipLines[i]) {
+          tooltipLines[i] = text(look.tooltipLine, look.tooltipSize);
+          sizeText(tooltipLines[i], look.tooltipSize * scale);
+        }
         const shown = tooltipLines[i];
         // Over the box, which is made before any line.
         layer.setChildIndex(shown, layer.children.length - 1);
@@ -2598,8 +2633,8 @@ function inventoryPanelView() {
       drawTooltip(
         tooltipBox,
         tooltipLines.slice(0, lines.length),
-        under,
         screen,
+        (size, gap) => tooltipRect(under, size, screen, gap),
       );
     },
   };
@@ -2680,7 +2715,6 @@ function pauseMenuView() {
     style: { fill: title.colour, fontSize: title.size, fontFamily: SERIF },
   });
   heading.anchor.set(0.5, 0);
-  heading.position.set(width / 2, title.top);
   const credits = new Text({
     text: [
       "Art from Flare: Empyrean Campaign",
@@ -2697,7 +2731,6 @@ function pauseMenuView() {
     },
   });
   credits.anchor.set(0.5, 0);
-  credits.position.set(width / 2, credit.top);
   const confirm = new Text({
     text: "",
     style: {
@@ -2709,13 +2742,21 @@ function pauseMenuView() {
     },
   });
   confirm.anchor.set(0.5, 0);
-  confirm.position.set(width / 2, question.top);
   const resume = new Text({
     text: "",
     style: { fill: hint.colour, fontSize: hint.size, fontFamily: SERIF },
   });
   resume.anchor.set(0.5, 1);
-  resume.position.set(width / 2, height - hint.bottom);
+  /**
+   * Each text with where it goes in the panel and its size, at native
+   * scale: sized afresh rather than scaled, so it stays crisp.
+   */
+  const placed = [
+    { text: heading, y: title.top, size: title.size },
+    { text: credits, y: credit.top, size: credit.size, line: credit },
+    { text: confirm, y: question.top, size: question.size, line: question },
+    { text: resume, y: height - hint.bottom, size: hint.size },
+  ];
   const content = new Container();
   content.addChild(box, heading, credits, confirm, resume);
   // On the screen, where `pauseMenuLayout` puts them.
@@ -2731,11 +2772,7 @@ function pauseMenuView() {
      * While confirming, asks whether to give up the Level `level` Hero for a
      * New Hero.
      */
-    draw(
-      screen: { width: number; height: number },
-      pause: Pause,
-      level: number,
-    ) {
+    draw(screen: Viewport, pause: Pause, level: number) {
       layer.visible = pause.paused;
       if (!pause.paused) return;
       const { confirming } = pause;
@@ -2753,7 +2790,14 @@ function pauseMenuView() {
         : "Click elsewhere or press Esc to resume";
       dark.scale.set(screen.width, screen.height);
       const layout = pauseMenuLayout(screen, confirming);
+      const scale = screen.uiScale;
       content.position.set(layout.panel.x, layout.panel.y);
+      box.scale.set(scale);
+      for (const { text, y, size, line } of placed) {
+        sizeText(text, size * scale);
+        if (line) text.style.lineHeight = line.lineHeight * scale;
+        text.position.set((width / 2) * scale, y * scale);
+      }
 
       buttons.clear();
       for (const label of labels) label.visible = false;
@@ -2763,8 +2807,81 @@ function pauseMenuView() {
         const label = labels[i];
         label.text = name;
         label.visible = true;
+        sizeText(label, PAUSE_MENU.button.size * screen.uiScale);
         label.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
       });
+    },
+  };
+}
+
+/**
+ * The Rotate Notice's look: the pause menu's colours on a screen blacked
+ * out, its title and text centred, sizes at native scale.
+ */
+const ROTATE_NOTICE = {
+  title: { colour: PAUSE_MENU.title.colour, size: 30 },
+  body: { colour: PAUSE_MENU.credit.colour, size: 17, lineHeight: 24 },
+  gap: 16,
+  margin: 16,
+};
+
+/**
+ * The Rotate Notice, hiding the game while the viewport says it shows:
+ * asking to turn the screen sideways or to enlarge it.
+ */
+function rotateNoticeView() {
+  const { title, body, gap, margin } = ROTATE_NOTICE;
+  const layer = new Container();
+  const black = new Graphics().rect(0, 0, 1, 1).fill(0x000000);
+  const heading = new Text({
+    text: "",
+    style: {
+      fill: title.colour,
+      fontSize: title.size,
+      fontFamily: SERIF,
+      align: "center",
+      wordWrap: true,
+    },
+  });
+  heading.anchor.set(0.5, 1);
+  const message = new Text({
+    text: "",
+    style: {
+      fill: body.colour,
+      fontSize: body.size,
+      fontFamily: SERIF,
+      align: "center",
+      lineHeight: body.lineHeight,
+      wordWrap: true,
+    },
+  });
+  message.anchor.set(0.5, 0);
+  layer.addChild(black, heading, message);
+  layer.visible = false;
+
+  return {
+    layer,
+    draw(screen: Viewport) {
+      layer.visible = screen.rotateNotice !== null;
+      if (screen.rotateNotice === null) return;
+      const text = rotateNoticeText(screen.rotateNotice);
+      heading.text = text.title;
+      message.text = text.body;
+      black.scale.set(screen.width, screen.height);
+      const scale = screen.uiScale;
+      const wrap = Math.max(1, screen.width - 2 * margin * scale);
+      for (const t of [heading, message]) {
+        if (t.style.wordWrapWidth !== wrap) t.style.wordWrapWidth = wrap;
+      }
+      sizeText(heading, title.size * scale);
+      sizeText(message, body.size * scale);
+      const lineHeight = body.lineHeight * scale;
+      if (message.style.lineHeight !== lineHeight) {
+        message.style.lineHeight = lineHeight;
+      }
+      const middle = Math.round(screen.height / 2);
+      heading.position.set(screen.width / 2, middle - (gap / 2) * scale);
+      message.position.set(screen.width / 2, middle + (gap / 2) * scale);
     },
   };
 }
@@ -2785,6 +2902,21 @@ function menuLabel(layer: Container): Text {
 }
 
 /** The point `alpha` (0..1) of the way from `from` to `to`. */
+/** The width of the black outline `sizeText` last gave each text. */
+const strokeWidths = new WeakMap<Text, number>();
+
+/**
+ * Sets `text`'s font size, and its black outline's width if given, only
+ * when they change, as each change renders the text afresh.
+ */
+function sizeText(text: Text, size: number, stroke?: number) {
+  if (text.style.fontSize !== size) text.style.fontSize = size;
+  if (stroke !== undefined && strokeWidths.get(text) !== stroke) {
+    text.style.stroke = { color: 0x000000, width: stroke };
+    strokeWidths.set(text, stroke);
+  }
+}
+
 function lerp(from: Vec, to: Vec, alpha: number): Vec {
   return {
     x: from.x + (to.x - from.x) * alpha,

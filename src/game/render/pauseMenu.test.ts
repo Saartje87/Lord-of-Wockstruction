@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { Rect } from "../sim/rect";
+import { viewportOf } from "../viewport";
 import { menuChoiceAt, pauseMenuLayout } from "./pauseMenu";
 
-const screen = { width: 1280, height: 720 };
+const screen = viewportOf({ width: 1280, height: 720 });
 
 const centre = (rect: Rect) => ({
   x: rect.x + rect.w / 2,

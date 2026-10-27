@@ -23,10 +23,13 @@ import {
   type PotionEffectTuning,
   type PotionResource,
 } from "../tuning/items";
+import { atUiScale, type Viewport } from "../viewport";
 import { type CloseButton, closeButtonRect, closeHitAt } from "./closeButton";
+import { compactPanelRect } from "./compactLayout";
 
 /**
- * The Inventory panel at the top right (CSS px): `right` and `top` from the
+ * The Inventory panel at the top right (CSS px at native scale, drawn at
+ * the UI Scale): `right` and `top` from the
  * screen's corner, `titleHeight` for its title, the Equipment slots under
  * it and the grid `gridGap` under them, then `hintHeight` for its hint.
  * Cells are `maxCell` square, smaller where half the screen can't fit ten.
@@ -44,6 +47,9 @@ export const INVENTORY_PANEL = {
 
 /** How many cells tall the Equipment slots' area is, above the grid. */
 const EQUIPMENT_ROWS = 5;
+
+/** How many cells wide the Equipment slots' area is. */
+const EQUIPMENT_COLUMNS = 8;
 
 /**
  * Where each Equipment slot sits in its area and how big it is, in cells
@@ -85,17 +91,17 @@ export type InventoryPanelLayout = {
  * and the panel grows to fit their rows.
  */
 export function inventoryPanelLayout(
-  screen: { width: number; height: number },
+  screen: Viewport,
   beltRows: number,
 ): InventoryPanelLayout {
-  const { right, top, padding, titleHeight, gridGap, hintHeight } =
-    INVENTORY_PANEL;
-  const { columns, rows } = inventoryTuning;
-  const fits = Math.floor((screen.width / 2 - right - 2 * padding) / columns);
-  const cell = Math.max(
-    INVENTORY_PANEL.minCell,
-    Math.min(INVENTORY_PANEL.maxCell, fits),
+  if (screen.compact) return compactInventoryLayout(screen, beltRows);
+  const { right, top, padding, titleHeight, gridGap, hintHeight } = atUiScale(
+    INVENTORY_PANEL,
+    screen.uiScale,
   );
+  const { columns, rows } = inventoryTuning;
+  const fits = (screen.width / 2 - right - 2 * padding) / columns;
+  const cell = cellSize(screen, INVENTORY_PANEL.maxCell * screen.uiScale, fits);
   const width = columns * cell + 2 * padding;
   const x = screen.width - right - width;
   const inner = x + padding;
@@ -116,17 +122,7 @@ export function inventoryPanelLayout(
     w: columns * cell,
     h: rows * cell,
   };
-  const slots = Object.fromEntries(
-    Object.entries(SLOT_CELLS).map(([slot, at]) => [
-      slot,
-      {
-        x: inner + at.x * cell,
-        y: slotsTop + at.y * cell,
-        w: at.w * cell,
-        h: at.h * cell,
-      },
-    ]),
-  ) as Record<EquipmentSlot, Rect>;
+  const slots = slotRects(inner, slotsTop, cell);
   const panel = {
     x,
     y: top,
@@ -135,12 +131,120 @@ export function inventoryPanelLayout(
   };
   return {
     panel,
-    closeButton: closeButtonRect(panel),
+    closeButton: closeButtonRect(panel, screen.uiScale),
     slots,
     belt,
     grid,
     cell,
   };
+}
+
+/**
+ * The Inventory panel in the Compact Layout, filling the screen: too short
+ * for them all one above the other, the Equipment slots sit on the left and
+ * the grid on the right, `gridGap` apart, with the Belt Columns either
+ * between them or centred above the grid, whichever gives bigger cells.
+ * Cells are as big as fit, up to `maxCell` at native scale.
+ */
+function compactInventoryLayout(
+  screen: Viewport,
+  beltRows: number,
+): InventoryPanelLayout {
+  const { padding, titleHeight, gridGap, hintHeight } = atUiScale(
+    INVENTORY_PANEL,
+    screen.uiScale,
+  );
+  const { columns, rows } = inventoryTuning;
+  const panel = compactPanelRect(screen);
+  const room = {
+    w: panel.w - 2 * padding,
+    h: panel.h - 2 * padding - titleHeight - hintHeight,
+  };
+  const largest = INVENTORY_PANEL.maxCell;
+  // The Belt Columns between the Equipment slots and the grid.
+  const beside = cellSize(
+    screen,
+    largest,
+    (room.w - 2 * gridGap) / (EQUIPMENT_COLUMNS + beltTuning.columns + columns),
+    room.h / Math.max(EQUIPMENT_ROWS, beltRows, rows),
+  );
+  // The Belt Columns above the grid.
+  const above = cellSize(
+    screen,
+    largest,
+    (room.w - gridGap) / (EQUIPMENT_COLUMNS + columns),
+    room.h / EQUIPMENT_ROWS,
+    (room.h - gridGap) / (beltRows + rows),
+  );
+  const cell = Math.max(beside, above);
+  const beltAbove = above > beside;
+  const across = beltAbove
+    ? (EQUIPMENT_COLUMNS + columns) * cell + gridGap
+    : (EQUIPMENT_COLUMNS + beltTuning.columns + columns) * cell + 2 * gridGap;
+  const left = panel.x + (panel.w - across) / 2;
+  const top = panel.y + padding + titleHeight;
+  const gridLeft = left + across - columns * cell;
+  const beltLeft = beltAbove
+    ? gridLeft + ((columns - beltTuning.columns) / 2) * cell
+    : left + EQUIPMENT_COLUMNS * cell + gridGap;
+  const belt = Array.from({ length: beltTuning.columns }, (_, column) =>
+    Array.from({ length: beltRows }, (_, row) => ({
+      x: beltLeft + column * cell,
+      y: top + (beltRows - 1 - row) * cell,
+      w: cell,
+      h: cell,
+    })),
+  );
+  const grid = {
+    x: gridLeft,
+    y: beltAbove ? top + beltRows * cell + gridGap : top,
+    w: columns * cell,
+    h: rows * cell,
+  };
+  return {
+    panel,
+    closeButton: closeButtonRect(panel, screen.uiScale),
+    slots: slotRects(left, top, cell),
+    belt,
+    grid,
+    cell,
+  };
+}
+
+/**
+ * A grid cell's side on `screen`: as big as each of the room's `fits`
+ * allows, up to `largest`, and never under `minCell` at the UI Scale. Whole
+ * pixels, so the grid's lines stay crisp.
+ */
+function cellSize(screen: Viewport, largest: number, ...fits: number[]) {
+  return Math.floor(
+    Math.max(
+      INVENTORY_PANEL.minCell * screen.uiScale,
+      Math.min(largest, ...fits),
+    ),
+  );
+}
+
+/**
+ * Where each Equipment slot goes, its area's top-left at `x`, `y` and its
+ * cells `cell` square.
+ */
+function slotRects(
+  x: number,
+  y: number,
+  cell: number,
+): Record<EquipmentSlot, Rect> {
+  return Object.fromEntries(
+    Object.entries(SLOT_CELLS).map(([slot, at]) => [
+      slot,
+      {
+        x: x + at.x * cell,
+        y: y + at.y * cell,
+        w: at.w * cell,
+        h: at.h * cell,
+      },
+    ]),
+  ) as Record<EquipmentSlot, Rect>;
 }
 
 /** Where an Item of `type` with its top-left at `at` is drawn on the grid. */
@@ -154,6 +258,25 @@ export function itemRect(
   return {
     x: grid.x + at.column * cell,
     y: grid.y + at.row * cell,
+    w: columns * cell,
+    h: rows * cell,
+  };
+}
+
+/**
+ * Where a Held Item of `type` is drawn: centred on `pointer`, at the size
+ * of the grid's cells, so it covers the cells it would land on.
+ */
+export function heldItemRect(
+  layout: InventoryPanelLayout,
+  pointer: Vec,
+  type: ItemType,
+): Rect {
+  const { cell } = layout;
+  const { columns, rows } = itemOf(type).size;
+  return {
+    x: pointer.x - (columns * cell) / 2,
+    y: pointer.y - (rows * cell) / 2,
     w: columns * cell,
     h: rows * cell,
   };
@@ -186,7 +309,7 @@ export type DropHit = { drop: true };
  * `beltRows` rows.
  */
 export function inventoryHitAt(
-  screen: { width: number; height: number },
+  screen: Viewport,
   point: Vec,
   open: boolean,
   holding: boolean,
@@ -246,7 +369,7 @@ export function landingCell(
  */
 export function inventoryOrder(
   world: World,
-  screen: { width: number; height: number },
+  screen: Viewport,
   point: Vec,
   hit: InventoryHit | DropHit,
 ): Order | null {
@@ -267,7 +390,7 @@ export function inventoryOrder(
  */
 export function putDownOrder(
   world: World,
-  screen: { width: number; height: number },
+  screen: Viewport,
   point: Vec,
   spot: ItemSpot,
   type: ItemType,

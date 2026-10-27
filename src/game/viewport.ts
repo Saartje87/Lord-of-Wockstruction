@@ -1,0 +1,85 @@
+import { viewportTuning } from "./tuning/viewport";
+
+/** The screen's size in CSS px, as the renderer reads it each frame. */
+export type Screen = { width: number; height: number };
+
+/**
+ * What the screen's size decides for everything drawn: the screen itself
+ * (CSS px), the UI Scale the HUD is drawn at, the World zoom and whether
+ * the Compact Layout applies or the Rotate Notice shows. Layout
+ * functions take this rather than the bare screen.
+ */
+export type Viewport = Screen & {
+  /** How many times native size the HUD and panels are drawn. */
+  uiScale: number;
+  /**
+   * How many times native size the World is drawn, so about as many tiles
+   * show top to bottom as at the reference height.
+   */
+  worldZoom: number;
+  /**
+   * Whether the screen is short enough for the Compact Layout: one panel
+   * at a time, filling the screen.
+   */
+  compact: boolean;
+  /**
+   * Whether the Rotate Notice shows instead of the game, and what it asks:
+   * to turn a screen held upright, or to enlarge one too small to play on.
+   */
+  rotateNotice: RotateNotice | null;
+};
+
+/** What the Rotate Notice asks the player to do with the screen. */
+export type RotateNotice = "turn" | "enlarge";
+
+/**
+ * The viewport for a screen `screen` CSS px: the UI Scale and the World
+ * zoom follow its height against the reference height, each held within
+ * its tuned limits, and below the tuned height it takes the Compact Layout.
+ */
+export function viewportOf(screen: Screen): Viewport {
+  const {
+    referenceHeight,
+    minUiScale,
+    maxUiScale,
+    minWorldZoom,
+    maxWorldZoom,
+    compactBelowHeight,
+  } = viewportTuning;
+  const byHeight = screen.height / referenceHeight;
+  return {
+    width: screen.width,
+    height: screen.height,
+    uiScale: clamp(byHeight, minUiScale, maxUiScale),
+    worldZoom: clamp(byHeight, minWorldZoom, maxWorldZoom),
+    compact: screen.height < compactBelowHeight,
+    rotateNotice: rotateNoticeOf(screen),
+  };
+}
+
+/**
+ * The Rotate Notice for `screen`: turn it when it's taller than wide, else
+ * enlarge it when it's below the tuned smallest screen, else none.
+ */
+function rotateNoticeOf(screen: Screen): RotateNotice | null {
+  const { minPlayWidth, minPlayHeight } = viewportTuning;
+  if (screen.height > screen.width) return "turn";
+  if (screen.width < minPlayWidth || screen.height < minPlayHeight) {
+    return "enlarge";
+  }
+  return null;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+/** Every size in `sizes`, given at native scale, at the UI Scale `uiScale`. */
+export function atUiScale<Sizes extends Record<string, number>>(
+  sizes: Sizes,
+  uiScale: number,
+): Sizes {
+  return Object.fromEntries(
+    Object.entries(sizes).map(([name, size]) => [name, size * uiScale]),
+  ) as Sizes;
+}

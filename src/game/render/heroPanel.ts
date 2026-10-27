@@ -20,11 +20,15 @@ import {
   type World,
   withAttributePointsSpent,
 } from "../sim/world";
+import { atUiScale, type Viewport } from "../viewport";
 import { type CloseButton, closeButtonRect, closeHitAt } from "./closeButton";
+import { compactPanelRect } from "./compactLayout";
 import { experienceBar } from "./experienceBar";
+import { orbsLayout } from "./orbs";
 
 /**
- * The Hero panel at the top left (CSS px): `left` and `top` from the
+ * The Hero panel at the top left (CSS px at native scale, drawn at the UI
+ * Scale): `left` and `top` from the
  * screen's corner, its rows `rowHeight` apart from `firstRow` down, and each
  * Attribute's + button `plus` square at the right of its row, its − button
  * the same size `buttonGap` to the left. Accept spans both on the unspent
@@ -56,15 +60,11 @@ export const PANEL_ROWS = {
 } as const;
 
 /**
- * The Level Up button over the strip, just right of the Life orb (CSS px):
- * `left` and `bottom` from the screen's corner.
+ * The Level Up button centred over the Life orb (CSS px at native scale,
+ * drawn at the UI Scale like the rest of the HUD): `overOrb` above its rim,
+ * leaving room for the orb's In Combat badge between them.
  */
-export const LEVEL_UP_BUTTON = {
-  left: 160,
-  bottom: 44,
-  width: 96,
-  height: 26,
-};
+export const LEVEL_UP_BUTTON = { width: 96, height: 26, overOrb: 22 };
 
 const ATTRIBUTE_NAMES: Record<Attribute, string> = {
   strength: "Strength",
@@ -194,7 +194,7 @@ export function hasUnspentPoints(world: World): boolean {
  * Where the panel, its × close button, its + and − buttons, Accept and the
  * Level Up button are drawn.
  */
-export function heroPanelLayout(screen: { width: number; height: number }): {
+export function heroPanelLayout(screen: Viewport): {
   panel: Rect;
   closeButton: Rect;
   raise: Record<Attribute, Rect>;
@@ -202,20 +202,18 @@ export function heroPanelLayout(screen: { width: number; height: number }): {
   accept: Rect;
   levelUp: Rect;
 } {
-  const panel = {
-    x: HERO_PANEL.left,
-    y: HERO_PANEL.top,
-    w: HERO_PANEL.width,
-    h: HERO_PANEL.height,
-  };
-  const plusX = panel.x + panel.w - HERO_PANEL.padding - HERO_PANEL.plus;
-  const minusX = plusX - HERO_PANEL.buttonGap - HERO_PANEL.plus;
+  const { plus, buttonGap, rowHeight } = atUiScale(HERO_PANEL, screen.uiScale);
+  const panel = heroPanelRect(screen);
+  // The Attributes' rows all share one column.
+  const column = heroPanelRow(screen, PANEL_ROWS.attributes);
+  const plusX = column.x + column.w - plus;
+  const minusX = plusX - buttonGap - plus;
   /** A button `x` across on row `row`, centred in it. */
-  const buttonAt = (x: number, row: number, w = HERO_PANEL.plus): Rect => ({
+  const buttonAt = (x: number, row: number, w = plus): Rect => ({
     x,
-    y: rowTop(row) + (HERO_PANEL.rowHeight - HERO_PANEL.plus) / 2,
+    y: heroPanelRow(screen, row).y + (rowHeight - plus) / 2,
     w,
-    h: HERO_PANEL.plus,
+    h: plus,
   });
   const perAttribute = (x: number) =>
     Object.fromEntries(
@@ -226,26 +224,66 @@ export function heroPanelLayout(screen: { width: number; height: number }): {
     ) as Record<Attribute, Rect>;
   return {
     panel,
-    closeButton: closeButtonRect(panel),
+    closeButton: closeButtonRect(panel, screen.uiScale),
     raise: perAttribute(plusX),
     lower: perAttribute(minusX),
-    accept: buttonAt(
-      minusX,
-      PANEL_ROWS.attributePoints,
-      plusX + HERO_PANEL.plus - minusX,
-    ),
-    levelUp: {
-      x: LEVEL_UP_BUTTON.left,
-      y: screen.height - LEVEL_UP_BUTTON.bottom - LEVEL_UP_BUTTON.height,
-      w: LEVEL_UP_BUTTON.width,
-      h: LEVEL_UP_BUTTON.height,
-    },
+    accept: buttonAt(minusX, PANEL_ROWS.attributePoints, plusX + plus - minusX),
+    levelUp: levelUpRect(screen),
   };
 }
 
-/** The top of the panel's row `row` (CSS px). */
-export function rowTop(row: number): number {
-  return HERO_PANEL.top + HERO_PANEL.firstRow + row * HERO_PANEL.rowHeight;
+/** Where the Level Up button is drawn, at the UI Scale. */
+function levelUpRect(screen: Viewport): Rect {
+  const { width, height, overOrb } = atUiScale(LEVEL_UP_BUTTON, screen.uiScale);
+  const { life } = orbsLayout(screen);
+  const top = life.y - life.radius - life.rim - overOrb - height;
+  return { x: life.x - width / 2, y: top, w: width, h: height };
+}
+
+/**
+ * Where the Hero panel itself is drawn, at the UI Scale: at the top left,
+ * or in the Compact Layout filling the screen.
+ */
+function heroPanelRect(screen: Viewport): Rect {
+  if (screen.compact) return compactPanelRect(screen);
+  const { left, top, width, height } = atUiScale(HERO_PANEL, screen.uiScale);
+  return { x: left, y: top, w: width, h: height };
+}
+
+/**
+ * Where the panel's row `row` is drawn (CSS px), at the UI Scale: its name
+ * goes at its left and its value at its right. The rows run down the panel
+ * inside its padding; in the Compact Layout, too short for them all, what
+ * the Attributes add up to goes in a second column beside the Attributes.
+ */
+export function heroPanelRow(screen: Viewport, row: number): Rect {
+  const { width, padding, firstRow, rowHeight } = atUiScale(
+    HERO_PANEL,
+    screen.uiScale,
+  );
+  const panel = heroPanelRect(screen);
+  const top = (at: number) => panel.y + firstRow + at * rowHeight;
+  if (!screen.compact) {
+    return {
+      x: panel.x + padding,
+      y: top(row),
+      w: width - 2 * padding,
+      h: rowHeight,
+    };
+  }
+  // Two columns as wide as the panel's own, centred, a padding apart.
+  const column = width - 2 * padding;
+  const left = panel.x + (panel.w - 2 * column - padding) / 2;
+  if (row < PANEL_ROWS.derived) {
+    return { x: left, y: top(row), w: column, h: rowHeight };
+  }
+  const beside = row - PANEL_ROWS.derived + PANEL_ROWS.attributes;
+  return {
+    x: left + column + padding,
+    y: top(beside),
+    w: column,
+    h: rowHeight,
+  };
 }
 
 /**
@@ -266,23 +304,34 @@ export type PanelButton =
 export type PanelHit = { button: PanelButton | null };
 
 /**
- * What a click at `point` hits, or null when it's on neither the panel nor
- * the Level Up button. The Level Up button is there only while Attribute or
- * Skill Points are unspent, pending or not; the panel only while `open`, its
- * × with it; its + buttons only while a point is left to place, each − only
- * on an Attribute with `pending` points, and Accept only while any are.
+ * What a click at `point` hits of the Level Up button, there only while
+ * Attribute or Skill Points are unspent, pending or not, or null off it. The
+ * open Hero panel is drawn over it, and covers it in the Compact Layout.
  */
-export function panelHitAt(
-  screen: { width: number; height: number },
+export function levelUpHitAt(
+  screen: Viewport,
+  point: Vec,
+  world: World,
+): PanelHit | null {
+  const { levelUp } = heroPanelLayout(screen);
+  if (!hasUnspentPoints(world) || !inside(levelUp, point)) return null;
+  return { button: { type: "levelUp" } };
+}
+
+/**
+ * What a click at `point` hits of the Hero panel, there only while `open`,
+ * or null off it: its ×; its + buttons only while a point is left to place,
+ * each − only on an Attribute with `pending` points, and Accept only while
+ * any are.
+ */
+export function heroPanelHitAt(
+  screen: Viewport,
   point: Vec,
   world: World,
   open: boolean,
   pending: Readonly<PendingPoints> = NO_PENDING,
 ): PanelHit | null {
   const layout = heroPanelLayout(screen);
-  if (hasUnspentPoints(world) && inside(layout.levelUp, point)) {
-    return { button: { type: "levelUp" } };
-  }
   if (!open || !inside(layout.panel, point)) return null;
   const closeHit = closeHitAt(layout, point, "hero");
   if (closeHit) return closeHit;

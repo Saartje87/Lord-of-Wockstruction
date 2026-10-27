@@ -7,6 +7,7 @@ import {
   type World,
 } from "../sim/world";
 import { skillTuning } from "../tuning/skills";
+import { viewportOf } from "../viewport";
 import { inventoryPanelLayout } from "./inventoryPanel";
 import {
   skillTreeHitAt,
@@ -134,7 +135,7 @@ describe("skillTreeSheet", () => {
 });
 
 describe("skillTreeHitAt", () => {
-  const screen = { width: 1280, height: 720 };
+  const screen = viewportOf({ width: 1280, height: 720 });
   const layout = skillTreePanelLayout(screen);
   const centre = (rect: { x: number; y: number; w: number; h: number }) => ({
     x: rect.x + rect.w / 2,

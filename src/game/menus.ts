@@ -399,6 +399,22 @@ export function clickPaused(
 }
 
 /**
+ * A tap while the Rotate Notice shows, on its Fullscreen button (`choice`)
+ * or, for null, anywhere else: the one input the notice lets through.
+ * Returns `"fullscreen"` on the button where the browser allows it, for the
+ * caller to take the game fullscreen, and otherwise null, taking the tap
+ * for nothing. The pause stays as it was: the notice going away resumes the
+ * World only if it paused it.
+ */
+export function tapRotateNotice(
+  menus: Menus,
+  choice: "fullscreen" | null,
+): MenuRequest | null {
+  if (!menus.rotateNotice || !menus.fullscreen.available) return null;
+  return choice;
+}
+
+/**
  * A controller button pressed at real time `nowMs`, as `pollPad` hands it
  * over. Menu opens and shuts the pause menu, picking New Hero; in it, the
  * D-pad (or the stick) moves between its buttons, A presses the one picked,

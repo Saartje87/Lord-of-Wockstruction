@@ -57,6 +57,7 @@ import {
   pressKey,
   pressPad,
   reactMenus,
+  tapRotateNotice,
 } from "./menus";
 import { gameTime, togglePause } from "./pause";
 import { loadArt } from "./render/art";
@@ -298,6 +299,15 @@ export default function GameCanvas() {
             menus.fullscreen,
           );
           const asked = clickPaused(menus, choice, realNow);
+          if (asked !== null) requests.add(asked);
+        }
+        if (clickedAt && menus.rotateNotice) {
+          // Only a tap on the notice's Fullscreen button gets through.
+          const choice = renderer.rotateNoticeChoiceAt(
+            clickedAt,
+            menus.fullscreen,
+          );
+          const asked = tapRotateNotice(menus, choice);
           if (asked !== null) requests.add(asked);
         }
         if (requests.has("fullscreen")) {

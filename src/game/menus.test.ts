@@ -14,6 +14,7 @@ import {
   pressPad,
   reactMenus,
   removePendingPoint,
+  tapRotateNotice,
   unplacedPoints,
 } from "./menus";
 import { gameTime, togglePause } from "./pause";
@@ -939,6 +940,86 @@ describe("the Rotate Notice", () => {
 
     expect(menus.pause.paused).toBe(true);
     expect(menus.pause.confirming).toBe(false);
+  });
+
+  describe("on a touch screen too small, where fullscreen is allowed", () => {
+    const tooSmall = { compact: true, rotateNotice: "enlarge" } as const;
+    /** Menus with the notice showing, paused by it at 1000. */
+    const showing = () => {
+      const menus = createMenus();
+      menus.fullscreen = { available: true, on: false };
+      fitMenus(menus, tooSmall, 1000);
+      return menus;
+    };
+
+    it("asks for fullscreen on a tap on its Fullscreen button", () => {
+      const menus = showing();
+
+      expect(tapRotateNotice(menus, "fullscreen")).toBe("fullscreen");
+
+      expect(menus.pause.paused).toBe(true);
+      expect(menus.pause.confirming).toBe(false);
+    });
+
+    it("takes a tap anywhere else and does nothing", () => {
+      const menus = showing();
+
+      expect(tapRotateNotice(menus, null)).toBeNull();
+
+      expect(menus.pause.paused).toBe(true);
+      fitMenus(menus, sideways, 3000);
+      expect(menus.pause.paused).toBe(false);
+    });
+
+    it("still takes every other input for nothing", () => {
+      const menus = showing();
+
+      expect(clickPaused(menus, "fullscreen", 2000)).toBeNull();
+      expect(clickPaused(menus, null, 2000)).toBeNull();
+      expect(pressKey(menus, "Escape", 2000, alive)).toBe("handled");
+      expect(pressPad(menus, "a", 2000, alive)).toBe("handled");
+      expect(pressPad(menus, "menu", 2000, alive)).toBe("handled");
+
+      expect(menus.pause.paused).toBe(true);
+      expect(menus.pause.confirming).toBe(false);
+    });
+
+    it("asks for nothing where the browser doesn't allow fullscreen", () => {
+      const menus = showing();
+      menus.fullscreen = { available: false, on: false };
+
+      expect(tapRotateNotice(menus, "fullscreen")).toBeNull();
+    });
+
+    it("asks for nothing once the notice has gone", () => {
+      const menus = showing();
+      fitMenus(menus, sideways, 2000);
+
+      expect(tapRotateNotice(menus, "fullscreen")).toBeNull();
+    });
+
+    it("resumes the World it paused once fullscreen gives room", () => {
+      const menus = showing();
+      tapRotateNotice(menus, "fullscreen");
+      menus.fullscreen = { available: true, on: true };
+
+      fitMenus(menus, sideways, 61_000);
+
+      expect(menus.pause.paused).toBe(false);
+      expect(gameTime(menus.pause, 61_016)).toBe(1016);
+    });
+
+    it("leaves the pause menu open once fullscreen gives room, if it was open before", () => {
+      const menus = createMenus();
+      menus.fullscreen = { available: true, on: false };
+      pressKey(menus, "Escape", 500, alive);
+      fitMenus(menus, tooSmall, 1000);
+      tapRotateNotice(menus, "fullscreen");
+
+      fitMenus(menus, sideways, 2000);
+
+      expect(menus.pause.paused).toBe(true);
+    });
   });
 
   it("opens no panel from a Panel button or the Level Up button", () => {

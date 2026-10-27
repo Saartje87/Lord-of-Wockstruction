@@ -19,8 +19,11 @@ export const PAUSE_MENU_LAYOUT = {
   gap: 20,
 };
 
-/** Each pause-menu button's size (CSS px at native scale). */
-const PAUSE_MENU_BUTTON = { width: 160, height: 32 };
+/**
+ * Each pause-menu button's size (CSS px at native scale), and the Rotate
+ * Notice's Fullscreen button's.
+ */
+export const PAUSE_MENU_BUTTON = { width: 160, height: 32 };
 
 /** A pause-menu button: what it picks, its label and where it is. */
 export type MenuButton = { choice: MenuChoice; label: string; rect: Rect };

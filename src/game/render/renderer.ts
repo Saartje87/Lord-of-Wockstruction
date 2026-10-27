@@ -134,7 +134,12 @@ import {
   panelButtonTooltipRect,
 } from "./panelButtons";
 import { menuChoiceAt, PAUSE_MENU_LAYOUT, pauseMenuLayout } from "./pauseMenu";
-import { rotateNoticeText } from "./rotateNotice";
+import {
+  ROTATE_NOTICE_LAYOUT,
+  rotateNoticeChoiceAt,
+  rotateNoticeLayout,
+  rotateNoticeText,
+} from "./rotateNotice";
 import { SKILL_BAR, skillBarLayout, skillBarSheet } from "./skillBar";
 import {
   SKILL_TREE_PANEL,
@@ -659,7 +664,7 @@ export function createRenderer(
   const menu = pauseMenuView(activeInput);
   app.stage.addChild(menu.layer);
   // Instead of the game, over everything.
-  const notice = rotateNoticeView();
+  const notice = rotateNoticeView(activeInput);
   app.stage.addChild(notice.layer);
 
   /** Living Monsters and Corpses by id. */
@@ -900,6 +905,23 @@ export function createRenderer(
         viewportOf(app.screen),
         screen,
         confirming,
+        fullscreen,
+      );
+    },
+
+    /**
+     * The Rotate Notice's Fullscreen button under a tap on the canvas (CSS
+     * px), or null: shown only for touch on a screen too small, where
+     * `fullscreen` says it's allowed.
+     */
+    rotateNoticeChoiceAt(
+      screen: Vec,
+      fullscreen: Fullscreen,
+    ): "fullscreen" | null {
+      return rotateNoticeChoiceAt(
+        viewportOf(app.screen),
+        screen,
+        activeInput.way,
         fullscreen,
       );
     },
@@ -1357,7 +1379,7 @@ export function createRenderer(
         activeInput.way === "controller" ? menus.menuFocus : null,
         menus.fullscreen,
       );
-      notice.draw(viewport);
+      notice.draw(viewport, menus.fullscreen);
 
       const markerProgress =
         markedAtMs === null
@@ -3075,28 +3097,28 @@ function pauseMenuView(activeInput: Readonly<ActiveInput>) {
 
 /**
  * The Rotate Notice's look: the pause menu's colours on a screen blacked
- * out, its title and text centred, sizes at native scale.
+ * out, its title and text centred. Its sizes are `ROTATE_NOTICE_LAYOUT`'s.
  */
 const ROTATE_NOTICE = {
-  title: { colour: PAUSE_MENU.title.colour, size: 30 },
-  body: { colour: PAUSE_MENU.credit.colour, size: 17, lineHeight: 24 },
-  gap: 16,
-  margin: 16,
+  title: { colour: PAUSE_MENU.title.colour },
+  body: { colour: PAUSE_MENU.credit.colour },
 };
 
 /**
  * The Rotate Notice, hiding the game while the viewport says it shows:
- * asking to turn the screen sideways or to enlarge it.
+ * asking to turn the screen sideways, or saying it's too small, in the
+ * Active Input's words, with the Fullscreen button for touch where the
+ * browser allows fullscreen.
  */
-function rotateNoticeView() {
-  const { title, body, gap, margin } = ROTATE_NOTICE;
+function rotateNoticeView(activeInput: Readonly<ActiveInput>) {
+  const { titleSize, bodySize, lineHeight, margin } = ROTATE_NOTICE_LAYOUT;
   const layer = new Container();
   const black = new Graphics().rect(0, 0, 1, 1).fill(0x000000);
   const heading = new Text({
     text: "",
     style: {
-      fill: title.colour,
-      fontSize: title.size,
+      fill: ROTATE_NOTICE.title.colour,
+      fontSize: titleSize,
       fontFamily: SERIF,
       align: "center",
       wordWrap: true,
@@ -3106,24 +3128,27 @@ function rotateNoticeView() {
   const message = new Text({
     text: "",
     style: {
-      fill: body.colour,
-      fontSize: body.size,
+      fill: ROTATE_NOTICE.body.colour,
+      fontSize: bodySize,
       fontFamily: SERIF,
       align: "center",
-      lineHeight: body.lineHeight,
+      lineHeight,
       wordWrap: true,
     },
   });
   message.anchor.set(0.5, 0);
-  layer.addChild(black, heading, message);
+  const buttons = new Graphics();
+  layer.addChild(black, heading, message, buttons);
+  const label = menuLabel(layer);
   layer.visible = false;
 
   return {
     layer,
-    draw(screen: Viewport) {
+    /** The Fullscreen button shows, and reads, as `fullscreen` says. */
+    draw(screen: Viewport, fullscreen: Fullscreen) {
       layer.visible = screen.rotateNotice !== null;
       if (screen.rotateNotice === null) return;
-      const text = rotateNoticeText(screen.rotateNotice);
+      const text = rotateNoticeText(screen.rotateNotice, activeInput.way);
       heading.text = text.title;
       message.text = text.body;
       black.scale.set(screen.width, screen.height);
@@ -3132,15 +3157,23 @@ function rotateNoticeView() {
       for (const t of [heading, message]) {
         if (t.style.wordWrapWidth !== wrap) t.style.wordWrapWidth = wrap;
       }
-      sizeText(heading, title.size * scale);
-      sizeText(message, body.size * scale);
-      const lineHeight = body.lineHeight * scale;
-      if (message.style.lineHeight !== lineHeight) {
-        message.style.lineHeight = lineHeight;
+      sizeText(heading, titleSize * scale);
+      sizeText(message, bodySize * scale);
+      if (message.style.lineHeight !== lineHeight * scale) {
+        message.style.lineHeight = lineHeight * scale;
       }
-      const middle = Math.round(screen.height / 2);
-      heading.position.set(screen.width / 2, middle - (gap / 2) * scale);
-      message.position.set(screen.width / 2, middle + (gap / 2) * scale);
+      const layout = rotateNoticeLayout(screen, activeInput.way, fullscreen);
+      heading.position.set(screen.width / 2, layout.title.bottom);
+      message.position.set(screen.width / 2, layout.body.top);
+      buttons.clear();
+      label.visible = layout.button !== null;
+      if (layout.button) {
+        const { rect, label: name } = layout.button;
+        button(buttons, rect);
+        label.text = name;
+        sizeText(label, PAUSE_MENU.button.size * scale);
+        label.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
+      }
     },
   };
 }

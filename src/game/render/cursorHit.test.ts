@@ -3,7 +3,13 @@ import { createMenus, noPendingPoints, PANELS } from "../menus";
 import { beltRows, emptyBelt } from "../sim/belt";
 import { middleOf, overlaps, type Rect } from "../sim/rect";
 import { emptySkillBar } from "../sim/skillBar";
-import { ATTRIBUTES, type Attribute, createWorld, step } from "../sim/world";
+import {
+  ATTRIBUTES,
+  type Attribute,
+  createWorld,
+  FRESH_PROGRESS,
+  step,
+} from "../sim/world";
 import type { ItemType } from "../tuning/items";
 import { type Viewport, viewportOf } from "../viewport";
 import { beltStripLayout } from "./beltStrip";
@@ -343,6 +349,125 @@ describe.each(PHONES)("with touch at $width×$height", (size) => {
           const hit = cursorHitAt(screen, point, world("sash"), open);
           expect(hoveredPanelButton(hit)).toBeNull();
         }
+      }
+    }
+  });
+});
+
+/** A Level 3 Hero with the Golem at `golem` and `skillPoints` unspent. */
+function withGolem(golem: number, skillPoints: number) {
+  return createWorld({
+    areas: { town },
+    seed: 1,
+    progress: {
+      ...FRESH_PROGRESS,
+      level: 3,
+      experience: 1_500,
+      skillPoints,
+      skillLevels: { golem },
+    },
+  });
+}
+
+/** How far `point` is off `rect`, along the axis it's furthest off along. */
+function distanceOff(rect: Rect, point: { x: number; y: number }): number {
+  return Math.max(
+    rect.x - point.x,
+    point.x - (rect.x + rect.w),
+    rect.y - point.y,
+    point.y - (rect.y + rect.h),
+    0,
+  );
+}
+
+describe.each([
+  ...PHONES,
+  { width: 1280, height: 720 },
+])("with the Skill Tree open at $width×$height", (size) => {
+  const screen = viewportOf(size);
+  const treeOpen = { ...createMenus(), skillTreeOpen: true };
+  const { raise, skills, closeButton } = skillTreePanelLayout(screen);
+  const plus = raise.golem;
+  const learn = { button: { type: "learn", skill: "golem" } };
+  const pickUp = { button: { type: "pickUpSkill", skill: "golem" } };
+  const close = { button: { type: "close", panel: "skillTree" } };
+  const isEqual = (a: unknown, b: unknown) =>
+    JSON.stringify(a) === JSON.stringify(b);
+  /** Points just off each side of the +, 3 px out, by its middle. */
+  const nearMisses = () => {
+    const { x, y } = middleOf(plus);
+    return [
+      { x: plus.x - 3, y },
+      { x: plus.x + plus.w + 3, y },
+      { x, y: plus.y - 3 },
+      { x, y: plus.y + plus.h + 3 },
+    ];
+  };
+
+  it.each([
+    0, 1,
+  ])("a touch's near miss on a Skill's + spends a Skill Point on it, at Skill Level %i", (golem) => {
+    const w = withGolem(golem, 1);
+    for (const point of nearMisses()) {
+      expect(cursorHitAt(screen, point, w, treeOpen, true)).toEqual(learn);
+    }
+  });
+
+  it("a touch's near miss on the + picks a learned Skill up while no Skill Point can be spent", () => {
+    const w = withGolem(1, 0);
+    const point = { x: plus.x - 3, y: middleOf(plus).y };
+    expect(cursorHitAt(screen, point, w, treeOpen, true)).toEqual(pickUp);
+  });
+
+  it("the + hit area reaches no further than 44 px square", () => {
+    const w = withGolem(1, 1);
+    const reach = (44 - plus.w) / 2;
+    const { x, y } = middleOf(plus);
+    for (const point of [
+      { x: plus.x - reach - 1, y },
+      { x, y: plus.y + plus.h + reach + 1 },
+    ]) {
+      expect(cursorHitAt(screen, point, w, treeOpen, true)).toEqual(pickUp);
+    }
+  });
+
+  it("a touch on a learned Skill's rows away from the + picks it up", () => {
+    const w = withGolem(1, 1);
+    const rows = skills.golem;
+    for (const point of [
+      { x: rows.x + 1, y: rows.y + 1 },
+      middleOf(rows),
+      { x: rows.x + rows.w - 1, y: rows.y + rows.h - 1 },
+    ]) {
+      expect(cursorHitAt(screen, point, w, treeOpen, true)).toEqual(pickUp);
+    }
+  });
+
+  it("a point between the + and the × hits the nearer", () => {
+    const w = withGolem(1, 1);
+    const from = middleOf(plus);
+    const to = middleOf(closeButton);
+    for (let i = 0; i <= 100; i++) {
+      const point = {
+        x: from.x + ((to.x - from.x) * i) / 100,
+        y: from.y + ((to.y - from.y) * i) / 100,
+      };
+      const hit = cursorHitAt(screen, point, w, treeOpen, true);
+      const offPlus = distanceOff(plus, point);
+      const offClose = distanceOff(closeButton, point);
+      if (i === 0) expect(hit).toEqual(learn);
+      if (i === 100) expect(hit).toEqual(close);
+      if (isEqual(hit, learn)) expect(offPlus).toBeLessThanOrEqual(offClose);
+      if (isEqual(hit, close)) expect(offClose).toBeLessThanOrEqual(offPlus);
+    }
+  });
+
+  it("a mouse's near miss on the + doesn't spend a Skill Point", () => {
+    for (const golem of [0, 1]) {
+      const w = withGolem(golem, 1);
+      for (const point of nearMisses()) {
+        const hit = cursorHitAt(screen, point, w, treeOpen, false);
+        expect(hit).not.toEqual(learn);
       }
     }
   });

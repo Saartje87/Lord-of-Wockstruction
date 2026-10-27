@@ -292,6 +292,22 @@ describe.each(PHONES)("with touch at $width×$height", (size) => {
 
   it.each([
     shut,
+    heroOpen,
+    inventoryOpen,
+  ])("leaves the pause button's touch hit area to the touch controls", (open) => {
+    const { pause, pauseHit } = touchControlsLayout(screen, open);
+    expect(pauseHit.w).toBeGreaterThan(pause.w);
+    const w = world("sash");
+    // Off the halfway lines themselves, which the Panel buttons share.
+    for (let x = pauseHit.x + 0.5; x < pauseHit.x + pauseHit.w; x += 1) {
+      for (let y = pauseHit.y + 0.5; y < pauseHit.y + pauseHit.h; y += 1) {
+        expect(cursorHitAt(screen, { x, y }, w, open, true)).toBeNull();
+      }
+    }
+  });
+
+  it.each([
+    shut,
     inventoryOpen,
   ])("points on the Skill Bar, the Belt strip and the Inventory hit what a mouse does", (open) => {
     const w = world("sash");

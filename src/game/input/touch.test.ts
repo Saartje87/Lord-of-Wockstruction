@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createMenus } from "../menus";
-import { touchControlsLayout } from "../render/touchControls";
+import { createMenus, PANELS } from "../menus";
+import { panelButtonsLayout } from "../render/panelButtons";
+import {
+  type TouchControlsLayout,
+  touchControlsLayout,
+} from "../render/touchControls";
 import type { Rect } from "../sim/rect";
 import { SKILL_BAR_SLOTS, type SkillBarSlot } from "../sim/skillBar";
 import type { Vec } from "../sim/vec";
@@ -228,3 +232,84 @@ const CONTROLLER_BUTTON: Record<SkillBarSlot, PadButton> = {
   key4: "rb",
   right: "rt",
 };
+
+/** The phones held sideways the touch hit areas are for: the Compact Layout at a UI Scale of 0.75. */
+const PHONES = [
+  viewportOf({ width: 640, height: 320 }),
+  viewportOf({ width: 915, height: 330 }),
+];
+
+/** Whether a lone finger coming down at `at` presses the pause button. */
+function pauses(at: Vec, on: TouchControlsLayout): boolean {
+  const touch = createTouchControls();
+  return touchDown(touch, 1, at, on) && readTouch(touch).pressed[0] === "menu";
+}
+
+describe("the pause button's touch hit area", () => {
+  const panelOpen = { ...createMenus(), inventoryOpen: true };
+  const cases = PHONES.flatMap((screen) =>
+    [undefined, panelOpen].map(
+      (open) =>
+        [
+          `${screen.width}×${screen.height}`,
+          open ? "a panel" : "no panel",
+          touchControlsLayout(screen, open),
+        ] as const,
+    ),
+  );
+
+  it.each(
+    cases,
+  )("takes a touch just outside the drawn button at %s with %s open", (_, __, on) => {
+    const { pause } = on;
+    const middle = centre(pause);
+    // Drawn 33 px square: 5 px out is still within 44 px square.
+    expect(pause.w).toBe(33);
+    expect(pauses({ x: pause.x - 5, y: middle.y }, on)).toBe(true);
+    expect(pauses({ x: middle.x, y: pause.y + pause.h + 5 }, on)).toBe(true);
+    // Beyond 44 px square it takes nothing.
+    expect(pauses({ x: pause.x - 6, y: middle.y }, on)).toBe(false);
+  });
+
+  it.each(
+    PHONES,
+  )("meets the Panel button beside it halfway with no panel open at %o", (screen) => {
+    const on = touchControlsLayout(screen);
+    const { pause } = on;
+    const top = panelButtonsLayout(screen).buttons[PANELS[0]];
+    const halfway = (pause.x + pause.w + top.x) / 2;
+    const { y } = centre(pause);
+    expect(pauses({ x: halfway - 0.5, y }, on)).toBe(true);
+    expect(pauses({ x: halfway + 0.5, y }, on)).toBe(false);
+  });
+
+  it.each(
+    PHONES,
+  )("meets the Panel button above it halfway while a panel is open at %o", (screen) => {
+    const on = touchControlsLayout(screen, panelOpen);
+    const { pause } = on;
+    const last = panelButtonsLayout(screen).buttons[PANELS[PANELS.length - 1]];
+    const halfway = (last.y + last.h + pause.y) / 2;
+    const { x } = centre(pause);
+    expect(pauses({ x, y: halfway + 0.5 }, on)).toBe(true);
+    expect(pauses({ x, y: halfway - 0.5 }, on)).toBe(false);
+  });
+
+  it.each(
+    PHONES,
+  )("leaves the Virtual Stick zone, the attack and the Skill buttons as they were at %o", (screen) => {
+    const on = touchControlsLayout(screen);
+    const pressedAt = (at: Vec) => {
+      const touch = createTouchControls();
+      expect(touchDown(touch, 1, at, on)).toBe(true);
+      return readTouch(touch).pressed;
+    };
+    expect(pressedAt(centre(on.attack))).toEqual(["a"]);
+    for (const slot of SKILL_BAR_SLOTS) {
+      expect(pressedAt(centre(on.skills[slot]))).toEqual([
+        CONTROLLER_BUTTON[slot],
+      ]);
+    }
+    expect(pressedAt(centre(on.stickZone))).toEqual([]);
+  });
+});

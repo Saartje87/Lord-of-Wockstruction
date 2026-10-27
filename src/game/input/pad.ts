@@ -181,10 +181,11 @@ export function hideFocus(input: PadInput) {
  * for as long as it is pushed past the dead zone; nothing once let go, which
  * stops the Hero. The Target is the nearest Monster within reach ahead of
  * the stick (inside the cone) while it is pushed, and with it at rest the
- * nearest within reach whichever way it lies (`pickTarget`). A attacks the Target; with none it
- * picks up the nearest Ground Item within `groundItemReach`; with neither it
- * does nothing. Held, A acts again every `retargetMs`, picking the Target
- * afresh, and the stick keeps walking, so the Hero walks between swings.
+ * nearest within reach whichever way it lies (`pickTarget`). A attacks the
+ * Target; with none it picks up the nearest Ground Item within
+ * `groundItemReach`; with neither it does nothing. Held, A acts again every
+ * `retargetMs`, picking the Target afresh, and the stick keeps walking, so
+ * the Hero walks between swings.
  *
  * X, Y, B and RB cast the Skills in the four keyed Skill Bar slots and RT
  * the right-click slot's, at the Target, or with none at a point

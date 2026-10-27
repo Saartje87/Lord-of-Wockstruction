@@ -1,3 +1,4 @@
+import type { InputWay } from "./input/activeInput";
 import type { BeltStripHit } from "./render/beltStrip";
 import type { PanelHit } from "./render/heroPanel";
 import {
@@ -62,9 +63,10 @@ export type CursorRelease = CursorPoint<Vec | null>;
 
 /**
  * What the cursor works with: the World and the viewport as last drawn, so a
- * Held Item lands where the panels were laid out.
+ * Held Item lands where the panels were laid out, and the Active Input
+ * `way`, mouse and keyboard when not given.
  */
-export type CursorScene = { world: World; screen: Viewport };
+export type CursorScene = { world: World; screen: Viewport; way?: InputWay };
 
 /**
  * What a press or release did with the cursor: the orders to send, the
@@ -89,6 +91,8 @@ export function createCursor(): Cursor {
  *   the strip), for its release to put down if it's dragged off that spot;
  *   with one held, it puts it down there (on the strip, at the column's
  *   lowest free row).
+ * - On touch, a tap on a Belt strip square only ever drinks from its Belt
+ *   Column; Potions go in and out of the Belt on the Inventory panel.
  * - Off the panels with an Item held, it drops it, and orders nothing else,
  *   whether or not the Inventory panel is open.
  * - On a learned Skill in the Skill Tree, or a filled Skill Bar slot, with
@@ -105,7 +109,7 @@ export function createCursor(): Cursor {
 export function pressCursor(
   cursor: Cursor,
   press: CursorPoint,
-  { world, screen }: CursorScene,
+  { world, screen, way }: CursorScene,
 ): CursorOutcome {
   const { at } = press;
   const hit = asItemSpot(press.hit);
@@ -115,6 +119,10 @@ export function pressCursor(
     return { cursor, orders: [], taken: true };
   }
   if (heldSkill !== null) return landHeldSkill(cursor, heldSkill, hit);
+  if (way === "touch" && press.hit && "beltColumn" in press.hit) {
+    const column = press.hit.beltColumn;
+    return { cursor, orders: [{ type: "DrinkFromBelt", column }], taken: true };
+  }
   if (hit === null) {
     // Over the World with an Item held, even with the Inventory panel shut
     // after a lift from the Belt strip, the press drops it, and only that.

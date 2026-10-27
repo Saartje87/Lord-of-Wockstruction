@@ -114,6 +114,14 @@ describe("the touch buttons", () => {
     });
   });
 
+  it("press Menu with the pause button, so it pauses as Menu does", () => {
+    const touch = createTouchControls();
+
+    expect(touchDown(touch, 1, centre(layout.pause), layout)).toBe(true);
+
+    expect(readTouch(touch)).toMatchObject({ pressed: ["menu"] });
+  });
+
   it("hold the button while the finger stays down, even sliding off", () => {
     const touch = createTouchControls();
     touchDown(touch, 1, centre(layout.attack), layout);

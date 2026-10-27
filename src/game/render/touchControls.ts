@@ -6,11 +6,14 @@ import type { Vec } from "../sim/vec";
 import { atUiScale, type Viewport } from "../viewport";
 import { heroPanelLayout } from "./heroPanel";
 import { orbsLayout } from "./orbs";
+import { panelButtonsLayout } from "./panelButtons";
 
 /**
  * The touch controls (CSS px at native scale, drawn at the UI Scale): an
  * attack button `attack` wide over the Mana orb, the Skill buttons `skill`
- * wide in a row over it, everything `gap` apart, and a Virtual Stick that
+ * wide in a row over it, a pause button `pause` wide in the top-right
+ * corner, everything `gap` apart and from the screen's edges, and a Virtual
+ * Stick that
  * reaches full push `stickReach` from where the thumb landed. The Virtual
  * Stick's zone starts `zoneTop` of the way down the screen and runs
  * `zoneWidth` of the way across it.
@@ -18,6 +21,7 @@ import { orbsLayout } from "./orbs";
 export const TOUCH_CONTROLS = {
   attack: 72,
   skill: 48,
+  pause: 44,
   gap: 8,
   stickReach: 56,
 };
@@ -40,16 +44,19 @@ export type TouchControlsLayout = {
   stick: { rest: Vec; reach: number };
   attack: Rect;
   skills: Record<SkillBarSlot, Rect>;
+  pause: Rect;
 };
 
 /**
  * Where the touch controls go: the Virtual Stick zone at the bottom left,
  * over the Life orb and its Level Up button, the Virtual Stick resting low
  * in it over the orb; the attack button over the Mana orb and the five
- * Skill buttons in a row over that, ending at the orb's right.
+ * Skill buttons in a row over that, ending at the orb's right; the pause
+ * button in the top-right corner, or in the Compact Layout, where the Panel
+ * buttons stack down that corner, left of the top one.
  */
 export function touchControlsLayout(screen: Viewport): TouchControlsLayout {
-  const { attack, skill, gap, stickReach } = atUiScale(
+  const { attack, skill, pause, gap, stickReach } = atUiScale(
     TOUCH_CONTROLS,
     screen.uiScale,
   );
@@ -73,6 +80,9 @@ export function touchControlsLayout(screen: Viewport): TouchControlsLayout {
   };
   const rowY = attackRect.y - gap - skill;
   const rowLeft = right - SHOWN_ORDER.length * (skill + gap) + gap;
+  const cornerRight = screen.compact
+    ? panelButtonsLayout(screen).buttons[PANELS[0]].x - gap
+    : screen.width - gap;
   return {
     stickZone,
     stick: { rest: { x: life.x, y: bottom - stickReach }, reach: stickReach },
@@ -83,6 +93,7 @@ export function touchControlsLayout(screen: Viewport): TouchControlsLayout {
         { x: rowLeft + index * (skill + gap), y: rowY, w: skill, h: skill },
       ]),
     ) as Record<SkillBarSlot, Rect>,
+    pause: { x: cornerRight - pause, y: gap, w: pause, h: pause },
   };
 }
 

@@ -6,6 +6,7 @@ import { viewportOf } from "../viewport";
 import { beltStripLayout } from "./beltStrip";
 import { experienceBarLayout } from "./experienceBar";
 import { heroPanelLayout } from "./heroPanel";
+import { nameplateLayout } from "./hover";
 import { type OrbCircle, orbsLayout } from "./orbs";
 import { panelButtonsLayout } from "./panelButtons";
 import { skillBarLayout } from "./skillBar";
@@ -39,15 +40,17 @@ function hudParts(viewport: ReturnType<typeof viewportOf>) {
     ["Mana orb", orbBox(orbs.mana)],
     ["Experience bar", experienceBarLayout(viewport)],
     ["Level Up button", heroPanelLayout(viewport).levelUp],
+    ["nameplate", nameplateLayout(viewport).panel],
   ] as [string, Rect][];
 }
 
 /** Every touch control as laid out on `viewport`, by name. */
 function touchParts(viewport: ReturnType<typeof viewportOf>) {
-  const { stickZone, attack, skills } = touchControlsLayout(viewport);
+  const { stickZone, attack, skills, pause } = touchControlsLayout(viewport);
   return [
     ["Virtual Stick zone", stickZone],
     ["attack button", attack],
+    ["pause button", pause],
     ...SKILL_BAR_SLOTS.map((slot) => [`Skill button ${slot}`, skills[slot]]),
   ] as [string, Rect][];
 }
@@ -102,6 +105,17 @@ describe("the touch controls at the UI Scale", () => {
     expect(stick.rest.y + stick.reach).toBeCloseTo(stickZone.y + stickZone.h);
     expect(attack.x).toBeGreaterThan(size.width / 2);
     expect(attack.y).toBeGreaterThan(size.height / 2);
+  });
+
+  it.each(
+    SCREENS,
+  )("puts the pause button top right on $width×$height", (size) => {
+    const viewport = viewportOf(size);
+    const { pause } = touchControlsLayout(viewport);
+
+    expect(pause.x).toBeGreaterThan(size.width * 0.75);
+    expect(pause.y + pause.h).toBeLessThan(size.height / 4);
+    expect(pause.w).toBeCloseTo(44 * viewport.uiScale);
   });
 });
 

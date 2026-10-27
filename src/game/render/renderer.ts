@@ -1292,9 +1292,10 @@ export function createRenderer(
       levelUp.draw(viewport, world, nowMs);
       touchControls.draw(viewport, world, menus);
       heroPanel.draw(viewport, world, menus.heroPanelOpen, menus.pendingPoints);
-      // The focused Skill shows its tooltip; the mouse's pointer, as before,
-      // none, and nor does a Held Skill.
-      const skillTooltipAt = focus && !heldSkill ? pointer : null;
+      // The focused or long-pressed Skill shows its tooltip; the mouse's
+      // pointer, as before, none, and nor does a Held Skill.
+      const touching = activeInput.way === "touch";
+      const skillTooltipAt = (focus || touching) && !heldSkill ? pointer : null;
       skillTreePanel.draw(viewport, world, menus.skillTreeOpen, skillTooltipAt);
       heldSkillView.draw(heldSkill, pointer, uiScale);
       const spot = onPanel && "inventory" in onPanel ? onPanel.inventory : null;
@@ -1337,7 +1338,8 @@ export function createRenderer(
         viewport,
         menus.pause,
         world.hero.progress.level,
-        menus.menuFocus,
+        // Only a controller picks with the menu's focus.
+        activeInput.way === "controller" ? menus.menuFocus : null,
       );
       notice.draw(viewport);
 
@@ -1807,6 +1809,8 @@ const TOUCH_STYLE = {
   stickAlpha: 0.3,
   knob: 0.42,
   attackSize: 14,
+  /** The pause button's two bars, as parts of its side. */
+  pauseBar: { w: 0.14, h: 0.44, apart: 0.14 },
 };
 
 /**
@@ -1814,7 +1818,8 @@ const TOUCH_STYLE = {
  * with no panel open: the Virtual Stick's ring where it rests or where the
  * thumb landed, its knob following the thumb, and the round attack and
  * Skill buttons, each Skill button naming its slot's Skill, dimmed when it
- * has none or lacks the Mana. A held button shows pressed in.
+ * has none or lacks the Mana, and the pause button's two bars. A held
+ * button shows pressed in.
  */
 function touchControlsView(
   activeInput: Readonly<ActiveInput>,
@@ -1891,6 +1896,21 @@ function touchControlsView(
         label.alpha = shown.dimmed ? SKILL_BAR_STYLE.dimmed : 1;
         sizeText(label, SKILL_BAR_STYLE.nameSize * scale);
         label.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
+      }
+
+      const { pause } = layout;
+      const middle = { x: pause.x + pause.w / 2, y: pause.y + pause.h / 2 };
+      ring(middle.x, middle.y, pause.w / 2, held.includes("menu"));
+      const bar = style.pauseBar;
+      for (const side of [-1, 1]) {
+        graphics
+          .rect(
+            middle.x + side * bar.apart * pause.w - (bar.w * pause.w) / 2,
+            middle.y - (bar.h * pause.h) / 2,
+            bar.w * pause.w,
+            bar.h * pause.h,
+          )
+          .fill({ color: style.edge, alpha: style.edgeAlpha });
       }
     },
   };

@@ -31,7 +31,7 @@ export function createTouchControls(): TouchControls {
 /**
  * A finger `id` coming down at `at` (CSS px): in the Virtual Stick zone it
  * starts the stick there; on the attack button it holds A; on a Skill
- * button, that slot's controller button. Returns whether the touch controls
+ * button, that slot's controller button; on the pause button, Menu. Returns whether the touch controls
  * take it; one they don't is for the pointer.
  */
 export function touchDown(
@@ -191,6 +191,7 @@ export function attachTouch(
 /** The pad button of the touch button at `at`, if any. */
 function buttonAt(layout: TouchControlsLayout, at: Vec): PadButton | null {
   if (inside(layout.attack, at)) return "a";
+  if (inside(layout.pause, at)) return "menu";
   const slot = SKILL_BAR_SLOTS.find((slot) => inside(layout.skills[slot], at));
   return slot ? castButton(slot) : null;
 }

@@ -9,6 +9,7 @@ import {
   releaseCursor,
   settleCursor,
 } from "./cursor";
+import type { InputWay } from "./input/activeInput";
 import { createMenus } from "./menus";
 import { beltStripLayout } from "./render/beltStrip";
 import {
@@ -913,6 +914,45 @@ describe("the cursor on the Belt strip", () => {
 
     expect(orders).toEqual([{ type: "DropItem" }]);
     expect(taken).toBe(true);
+  });
+});
+
+describe("a tap on the Belt strip", () => {
+  const tapped = (way: InputWay) => ({
+    world: beltedWorld(),
+    screen: SCREEN,
+    way,
+  });
+
+  it("drinks from the Belt Column tapped, lifting nothing", () => {
+    const scene = tapped("touch");
+
+    const { orders, taken } = clickCursor(createCursor(), onStrip(0), scene);
+    step(scene.world, orders);
+
+    expect(orders).toEqual([{ type: "DrinkFromBelt", column: 0 }]);
+    expect(taken).toBe(true);
+    expect(heldType(scene.world)).toBeUndefined();
+    expect(beltTypes(scene.world)[0]).toEqual(["manaPotion"]);
+  });
+
+  it("only ever drinks, even with an Item held", () => {
+    const scene = tapped("touch");
+    step(scene.world, [{ type: "LiftItem", from: { beltColumn: 2, row: 0 } }]);
+
+    const { orders } = clickCursor(createCursor(), onStrip(1), scene);
+
+    expect(orders).toEqual([{ type: "DrinkFromBelt", column: 1 }]);
+  });
+
+  it("still lifts with the mouse", () => {
+    const scene = tapped("mouseAndKeyboard");
+
+    const { orders } = clickCursor(createCursor(), onStrip(0), scene);
+
+    expect(orders).toEqual([
+      { type: "LiftItem", from: { beltColumn: 0, row: 0 } },
+    ]);
   });
 });
 

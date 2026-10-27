@@ -26,6 +26,11 @@ export type InputTuning = {
    * Target (tiles).
    */
   castDistance: number;
+  /**
+   * How long a touch on an Item or Skill must stay down to show its tooltip
+   * instead of tapping it (ms).
+   */
+  longPressMs: number;
 };
 
 export const inputTuning: InputTuning = {
@@ -36,4 +41,5 @@ export const inputTuning: InputTuning = {
   targetRange: 6,
   groundItemReach: 1.5,
   castDistance: 3,
+  longPressMs: 450,
 };

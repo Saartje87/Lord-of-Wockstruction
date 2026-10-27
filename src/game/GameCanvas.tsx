@@ -6,6 +6,7 @@ import { pressButton } from "./buttonPress";
 import { advance, createClock } from "./clock";
 import { areaDisplayNames, areas, tilesets } from "./content";
 import {
+  type CursorPoint,
   clickCursor,
   createCursor,
   forTheWorld,
@@ -37,6 +38,13 @@ import {
   takeRelease,
   takeRightClick,
 } from "./input/pointer";
+import {
+  cancelTap,
+  createTapInput,
+  tapDown,
+  tapPointer,
+  tapUp,
+} from "./input/tap";
 import { attachTouch, createTouchControls, readTouch } from "./input/touch";
 import {
   clickPaused,
@@ -66,6 +74,7 @@ import {
   writeSave,
 } from "./save";
 import { isFloor } from "./sim/area";
+import { cursorItemOf } from "./sim/inventory";
 import type { Vec } from "./sim/vec";
 import { createWorld, type Order, step } from "./sim/world";
 import { viewportOf } from "./viewport";
@@ -136,6 +145,8 @@ export default function GameCanvas() {
       let last = performance.now();
       /** What the cursor holds besides the Held Item. */
       let cursor = createCursor();
+      /** A touch on the panels and the HUD, acted on as it lifts. */
+      const tap = createTapInput();
 
       // Each input event tells the Active Input the way it came by, first,
       // so the touch that makes it touch can already be the touch
@@ -153,13 +164,15 @@ export default function GameCanvas() {
           { capture: true, signal: listeners.signal },
         );
       }
-      // A touch on the touch controls, shown and not under a panel or the
-      // HUD, is theirs and never the pointer's.
+      // A touch on the touch controls, shown and not under a panel, the HUD
+      // or a Ground Item's label, is theirs and never the pointer's.
       attachTouch(
         app.canvas,
         touch,
         (at) =>
-          touchControlsShown(activeInput.way, menus) && !renderer.panelAt(at)
+          touchControlsShown(activeInput.way, menus) &&
+          !renderer.panelAt(at) &&
+          renderer.groundLabelAt(at) === null
             ? touchControlsLayout(viewportOf(app.screen))
             : null,
         listeners.signal,
@@ -280,6 +293,7 @@ export default function GameCanvas() {
           // Neither a click on the menu nor a hold from before the pause
           // orders the Hero about.
           cancel(input);
+          cancelTap(tap);
           pressed = false;
         }
         clickedAt = null;
@@ -294,7 +308,7 @@ export default function GameCanvas() {
         // Stands still while paused, so the clock owes no steps for it and
         // the World and every effect hold still.
         const now = gameTime(pause, realNow);
-        const scene = { world, screen: viewport };
+        const scene = { world, screen: viewport, way: activeInput.way };
         // Whether the Hero lies in Death, for the cursor; the World doesn't
         // step again until after it.
         const heroDead = world.death !== null;
@@ -304,7 +318,15 @@ export default function GameCanvas() {
         const panel = pressedAt && renderer.panelAt(pressedAt);
         // A press that puts down or lets go of a Held Skill does only that.
         const heldSkillAtPress = cursor.heldSkill;
-        if (pressedAt) {
+        // On touch, a touch on the panels and the HUD acts only as it lifts:
+        // a tap clicks there, a long press shows the tooltip.
+        const tapping =
+          pressedAt !== null && panel !== null && activeInput.way === "touch";
+        if (pressedAt && tapping) {
+          tapDown(tap, { at: pressedAt, hit: panel }, realNow);
+          claimPress(input);
+          pressed = false;
+        } else if (pressedAt) {
           const press = { at: pressedAt, hit: panel };
           const outcome = pressCursor(cursor, press, scene);
           cursor = outcome.cursor;
@@ -333,15 +355,32 @@ export default function GameCanvas() {
         // of that; one on a Panel button keeps it held, as the key would.
         const landedSkill =
           heldSkillAtPress !== null && cursor.heldSkill === null;
-        if (panel && "button" in panel && !landedSkill) {
+        if (panel && "button" in panel && !landedSkill && !tapping) {
           orders.push(...pressButton(menus, world, panel.button));
         }
         // A pause or the Hero's Death lets go of a Held Skill, before its
         // release could land it.
         cursor = settleCursor(cursor, { paused: pause.paused, heroDead });
-        // Where the left button went up, even off the canvas.
+        // Clicks the cursor at `point`, as a tap or the Focus pressed does,
+        // pressing the button there unless it lands a Held Skill.
+        const clickAt = (point: CursorPoint) => {
+          const landing = cursor.heldSkill;
+          const outcome = clickCursor(cursor, point, scene);
+          cursor = outcome.cursor;
+          orders.push(...outcome.orders);
+          const { hit } = point;
+          const landed = landing !== null && cursor.heldSkill === null;
+          if (hit && "button" in hit && !landed) {
+            orders.push(...pressButton(menus, world, hit.button));
+          }
+        };
+        // Where the left button went up, even off the canvas; a touch on
+        // the panels, lifting, taps there unless it was a long press.
         const released = takeRelease(input);
-        if (released) {
+        if (released && tap.down) {
+          const tapped = tapUp(tap, realNow);
+          if (tapped) clickAt(tapped);
+        } else if (released) {
           const hit = released.at && renderer.panelAt(released.at);
           const release = { ...released, hit };
           const outcome = releaseCursor(cursor, release, scene);
@@ -360,17 +399,7 @@ export default function GameCanvas() {
         // The Focus pressed clicks or right-clicks its spot, as the mouse
         // would there; nothing while paused.
         const focusClick = pause.paused || wasPaused ? null : polled.click;
-        if (focusClick) {
-          const landing = cursor.heldSkill;
-          const outcome = clickCursor(cursor, focusClick, scene);
-          cursor = outcome.cursor;
-          orders.push(...outcome.orders);
-          const { hit } = focusClick;
-          const landed = landing !== null && cursor.heldSkill === null;
-          if (hit && "button" in hit && !landed) {
-            orders.push(...pressButton(menus, world, hit.button));
-          }
-        }
+        if (focusClick) clickAt(focusClick);
         const focusRight = pause.paused || wasPaused ? null : polled.rightClick;
         if (focusRight?.hit && !("button" in focusRight.hit)) {
           const order = inventoryRightClickOrder(world, focusRight.hit);
@@ -411,7 +440,16 @@ export default function GameCanvas() {
         // and the Held Item show there.
         const focus =
           pause.paused || currentPanel(menus) === null ? null : polled.focus;
-        const pointer = pause.paused ? null : (focus?.at ?? input.screen);
+        // On touch, a long press shows the tooltip, and a Held Item or Held
+        // Skill stays where it was tapped up once the finger lifts.
+        const holding =
+          cursorItemOf(world) !== null || cursor.heldSkill !== null;
+        const touched = tapPointer(tap, realNow, {
+          holding,
+          screen: input.screen,
+        });
+        const pointing = activeInput.way === "touch" ? touched : input.screen;
+        const pointer = pause.paused ? null : (focus?.at ?? pointing);
         renderer.draw(
           world,
           alpha,

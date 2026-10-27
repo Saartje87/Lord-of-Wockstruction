@@ -62,6 +62,7 @@ import {
   OPENING_STEPS,
   type SimEvent,
   SWING_STEPS,
+  townPortalFlash,
   townPortalIn,
   type World,
 } from "../sim/world";
@@ -75,7 +76,7 @@ import {
   monsterTuning,
 } from "../tuning/monsters";
 import { type Skill, skillTuning } from "../tuning/skills";
-import { townPortalTuning } from "../tuning/townPortal";
+import { townPortalLook } from "../tuning/townPortalLook";
 import { atUiScale, type Viewport, viewportOf } from "../viewport";
 import { type Compass, compassOf, frameAt, swingFrame } from "./animation";
 import {
@@ -167,6 +168,13 @@ import {
 } from "./skillTreePanel";
 import { tooltipRect } from "./tooltip";
 import { touchControlsLayout, touchControlsShown } from "./touchControls";
+import {
+  townPortalCloseScale,
+  townPortalGlow,
+  townPortalOpenScale,
+  townPortalPixels,
+  townPortalSparks,
+} from "./townPortalLook";
 
 const HOVER_LINE = 0xd8c48a;
 const MARKER_LINE = 0xe8d27a;
@@ -319,13 +327,6 @@ const MINION_LOOK: Record<MinionType, { tint: number; scale: number }> = {
  * animation, fading out (ms).
  */
 const CRUMBLE_MS = 900;
-
-/**
- * The placeholder Town Portal: an upright green oval as wide as the Town
- * Portal's radius across, `tallness` times as tall as wide, standing on the
- * floor.
- */
-const TOWN_PORTAL = { colour: 0x3fe060, alpha: 0.85, tallness: 1.6 };
 
 /**
  * The Skill Bar's look, in the HUD's colours; where things go is
@@ -506,7 +507,7 @@ const PANEL_BUTTON_STYLE = {
     w: 14,
     h: 22,
     core: 0.5,
-    colour: TOWN_PORTAL.colour,
+    colour: townPortalLook.colours.glow,
     coreColour: 0xb8ffc8,
     greyed: 0x8a8070,
   },
@@ -622,13 +623,16 @@ export function createRenderer(
   camera.addChild(scene);
   const hero = characterView(art.hero, heroTuning.walkSpeed);
   scene.addChild(hero.sprite);
-  const townPortal = new Graphics();
-  scene.addChild(townPortal);
+  /** A view for each Town Portal end drawn, made as more are needed. */
+  const townPortals: Graphics[] = [];
   /** A sprite for each Projectile in flight, in the World's order. */
   const projectiles: Sprite[] = [];
   // Under the scene, so the ring spreads at the Hero's feet.
   const levelRing = new Graphics();
   camera.addChildAt(levelRing, camera.getChildIndex(scene));
+  // On the floor, under everyone standing.
+  const townPortalGlows = new Graphics();
+  camera.addChildAt(townPortalGlows, camera.getChildIndex(scene));
   const levelFlash = new ColorMatrixFilter({ resolution: "inherit" });
   levelFlash.matrix = washTo(LEVEL_UP.colour);
   const outline = outlineView();
@@ -703,6 +707,12 @@ export function createRenderer(
   const fade = new Graphics().rect(0, 0, 1, 1).fill(0x000000);
   fade.visible = false;
   app.stage.addChild(fade);
+  // Going through a Town Portal's green flash instead.
+  const greenFlash = new Graphics()
+    .rect(0, 0, 1, 1)
+    .fill(townPortalLook.colours.flash);
+  greenFlash.visible = false;
+  app.stage.addChild(greenFlash);
   const menu = pauseMenuView(activeInput);
   app.stage.addChild(menu.layer);
   // Instead of the game, over everything.
@@ -749,6 +759,10 @@ export function createRenderer(
   let markedAtMs: number | null = null;
   let hurtAtMs: number | null = null;
   let levelAtMs: number | null = null;
+  /** When the Hero's Town Portal last opened, for its burst. */
+  let townPortalOpenedAtMs: number | null = null;
+  /** Town Portal ends shrinking away, each in its Area from when it closed. */
+  const closingTownPortals: { area: string; pos: Vec; atMs: number }[] = [];
   /** When the Hero last arrived in an Area, for the Area Banner. */
   let arrivedAtMs: number | null = null;
   /** Starts the Area Banner showing `displayName`, as of `nowMs`. */
@@ -799,6 +813,8 @@ export function createRenderer(
     for (const text of labelTexts.values()) text.destroy();
     labelTexts.clear();
     hurtAtMs = levelAtMs = null;
+    townPortalOpenedAtMs = null;
+    closingTownPortals.length = 0;
     showArea(next.areas[next.areaName]);
   };
 
@@ -1024,6 +1040,14 @@ export function createRenderer(
         }
         if (event.type === "HeroHit") hurtAtMs = nowMs;
         if (event.type === "LevelReached") levelAtMs = nowMs;
+        if (event.type === "TownPortalOpened") townPortalOpenedAtMs = nowMs;
+        if (event.type === "TownPortalClosed") {
+          closingTownPortals.push({
+            area: event.area,
+            pos: event.pos,
+            atMs: nowMs,
+          });
+        }
       }
     },
 
@@ -1164,17 +1188,52 @@ export function createRenderer(
         hero.sprite.filters = null;
       }
 
-      townPortal.clear();
+      // The open end bursting open or standing, then any shrinking away.
+      const shownTownPortals: { pos: Vec; scale: number; msOpen: number }[] =
+        [];
       const townPortalEnd = townPortalIn(world);
       if (townPortalEnd) {
-        const foot = toScreen(townPortalEnd);
-        const width = townPortalTuning.radius * 2 * TILE_WIDTH;
-        const height = width * TOWN_PORTAL.tallness;
-        townPortal
-          .ellipse(foot.x, foot.y - height / 2, width / 2, height / 2)
-          .fill({ color: TOWN_PORTAL.colour, alpha: TOWN_PORTAL.alpha });
-        townPortal.zIndex = foot.y;
+        const msOpen =
+          townPortalOpenedAtMs === null
+            ? Number.POSITIVE_INFINITY
+            : nowMs - townPortalOpenedAtMs;
+        shownTownPortals.push({
+          pos: townPortalEnd,
+          scale: townPortalOpenScale(msOpen),
+          msOpen,
+        });
       }
+      for (let i = closingTownPortals.length - 1; i >= 0; i--) {
+        const closing = closingTownPortals[i];
+        const scale = townPortalCloseScale(nowMs - closing.atMs);
+        if (scale === 0) closingTownPortals.splice(i, 1);
+        else if (closing.area === world.areaName) {
+          shownTownPortals.push({
+            pos: closing.pos,
+            scale,
+            msOpen: Number.POSITIVE_INFINITY,
+          });
+        }
+      }
+      while (townPortals.length < shownTownPortals.length) {
+        const view = new Graphics();
+        scene.addChild(view);
+        townPortals.push(view);
+      }
+      townPortalGlows.clear();
+      townPortals.forEach((view, i) => {
+        view.clear();
+        const shown = shownTownPortals[i];
+        if (!shown) return;
+        const foot = toScreen(shown.pos);
+        drawTownPortal(view, foot, shown.scale, shown.msOpen, nowMs);
+        view.zIndex = foot.y;
+        for (const ring of townPortalGlow(shown.scale)) {
+          townPortalGlows
+            .ellipse(foot.x, foot.y, ring.radiusX, ring.radiusY)
+            .fill({ color: townPortalLook.colours.glow, alpha: ring.alpha });
+        }
+      });
 
       const seen = new Set<MonsterId>();
       telegraphs.clear();
@@ -1448,6 +1507,12 @@ export function createRenderer(
         fade.alpha = darkness;
         fade.scale.set(app.screen.width, app.screen.height);
       }
+      const flashed = townPortalFlash(world);
+      greenFlash.visible = flashed > 0;
+      if (greenFlash.visible) {
+        greenFlash.alpha = flashed;
+        greenFlash.scale.set(app.screen.width, app.screen.height);
+      }
 
       menu.draw(
         viewport,
@@ -1538,6 +1603,39 @@ function walkOrStand(
     show(view, "run", compass, frameAt(view.art.timing.run, view.runMs));
   } else {
     show(view, "stance", compass, frameAt(view.art.timing.stance, nowMs));
+  }
+}
+
+/**
+ * Draws a Town Portal end standing on `foot` into `view`: its oval in square
+ * pixels at `scale` of its full size, and its sparks, with the splash while
+ * it bursts open, `msOpen` after it opened.
+ */
+function drawTownPortal(
+  view: Graphics,
+  foot: Vec,
+  scale: number,
+  msOpen: number,
+  nowMs: number,
+) {
+  const { pixel, sparkSize, colours } = townPortalLook;
+  // One fill per colour, not per pixel.
+  const byColour = new Map<number, Vec[]>();
+  for (const { x, y, colour } of townPortalPixels(scale, nowMs)) {
+    const pixels = byColour.get(colour) ?? [];
+    pixels.push({ x, y });
+    byColour.set(colour, pixels);
+  }
+  for (const [colour, pixels] of byColour) {
+    for (const { x, y } of pixels) {
+      view.rect(foot.x + x, foot.y + y, pixel, pixel);
+    }
+    view.fill(colour);
+  }
+  for (const spark of townPortalSparks(scale, nowMs, msOpen)) {
+    view
+      .rect(foot.x + spark.x, foot.y + spark.y, sparkSize, sparkSize)
+      .fill({ color: colours.spark, alpha: spark.alpha });
   }
 }
 

@@ -5,6 +5,7 @@ import { emptySkillBar } from "./skillBar";
 import { combatArea } from "./testAreas";
 import { distance, type Vec } from "./vec";
 import {
+  areaFade,
   createWorld,
   DEATH_STEPS,
   FRESH_PROGRESS,
@@ -12,6 +13,7 @@ import {
   OPENING_STEPS,
   type SimEvent,
   step,
+  townPortalFlash,
   townPortalIn,
   type World,
 } from "./world";
@@ -492,6 +494,30 @@ describe("going through a Town Portal", () => {
     expect(w.areaName).toBe("town");
     expect(w.monsters).toEqual([]);
     expect(w.projectiles).toEqual([]);
+  });
+
+  // 350 ms is 21 steps: 10 flashing up, the swap, 10 dying away.
+  it("flashes green over 350 ms instead of fading to black", () => {
+    const w = inCave();
+    open(w);
+    step(w, [{ type: "MoveTo", target: { x: 2.5, y: 2.5 } }]);
+    while (w.areaChange === null) step(w, []);
+
+    const flashes: number[] = [];
+    let arrivedAt = -1;
+    for (let i = 1; w.areaChange !== null; i++) {
+      const events = step(w, []);
+      if (events.some((event) => event.type === "AreaChanged")) arrivedAt = i;
+      flashes.push(townPortalFlash(w));
+      expect(areaFade(w)).toBe(0);
+    }
+
+    expect(flashes).toHaveLength(21);
+    expect(arrivedAt).toBe(10);
+    expect(flashes[9]).toBe(1);
+    expect(flashes.slice(0, 10)).toEqual([...flashes.slice(0, 10)].sort());
+    expect(flashes.slice(9)).toEqual([...flashes.slice(9)].sort().reverse());
+    expect(flashes[20]).toBe(0);
   });
 });
 

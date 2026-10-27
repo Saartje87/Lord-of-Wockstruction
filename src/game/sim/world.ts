@@ -10,6 +10,7 @@ import { minionTuning } from "../tuning/minions";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import { type Skill, skillTuning } from "../tuning/skills";
 import { townPortalTuning } from "../tuning/townPortal";
+import { townPortalLook } from "../tuning/townPortalLook";
 import {
   type Area,
   exitAt,
@@ -114,8 +115,8 @@ const MANA_REGEN_PER_STEP = perStep(heroTuning.manaRegenPerSecond);
 export const DEATH_STEPS = msToSteps(heroTuning.deathMs);
 /** How many steps walking through an Exit takes. */
 export const AREA_CHANGE_STEPS = msToSteps(areaTuning.changeMs);
-/** The step of an Area change on which the Areas swap. */
-const ARRIVE_STEP = Math.floor(AREA_CHANGE_STEPS / 2);
+/** How many steps going through a Town Portal takes. */
+const TOWN_PORTAL_CHANGE_STEPS = msToSteps(townPortalLook.flashMs);
 /** How many steps each Monster type flinches for. */
 export const FLINCH_STEPS = Object.fromEntries(
   Object.entries(monsterTuning).map(([type, tuning]) => [
@@ -694,7 +695,8 @@ export function createWorld(options: {
     Object.hasOwn(areas, at.area) &&
     Object.hasOwn(areas[at.area].entries, at.entry)
   ) {
-    arrive(world, { ...at, elapsed: ARRIVE_STEP }, []);
+    const change = { ...at, elapsed: 0 };
+    arrive(world, { ...change, elapsed: arriveStep(change) }, []);
   }
   return world;
 }
@@ -901,8 +903,44 @@ export function chanceToHit(attackRating: number, defense: number): number {
  */
 export function areaFade(world: World): number {
   const change = world.areaChange;
-  if (!change) return 0;
-  return 1 - Math.abs(change.elapsed - ARRIVE_STEP) / ARRIVE_STEP;
+  if (!change || throughTownPortal(change)) return 0;
+  return changeCover(change);
+}
+
+/**
+ * How bright the green flash of going through a Town Portal is, 0..1:
+ * flashing up until the Areas swap, then dying away.
+ */
+export function townPortalFlash(world: World): number {
+  const change = world.areaChange;
+  if (!change || !throughTownPortal(change)) return 0;
+  return changeCover(change);
+}
+
+/** Whether an Area change is through a Town Portal, not an Exit. */
+function throughTownPortal(change: AreaChange): boolean {
+  return change.entry === null;
+}
+
+/** How many steps an Area change takes. */
+function changeSteps(change: AreaChange): number {
+  return throughTownPortal(change)
+    ? TOWN_PORTAL_CHANGE_STEPS
+    : AREA_CHANGE_STEPS;
+}
+
+/** The step of an Area change on which the Areas swap: halfway. */
+function arriveStep(change: AreaChange): number {
+  return Math.floor(changeSteps(change) / 2);
+}
+
+/**
+ * How fully an Area change covers the screen, 0..1: rising until the Areas
+ * swap, then falling.
+ */
+function changeCover(change: AreaChange): number {
+  const arrive = arriveStep(change);
+  return 1 - Math.abs(change.elapsed - arrive) / arrive;
 }
 
 /**
@@ -938,8 +976,8 @@ function stopHero(hero: Hero) {
 /** Advances an Area change, swapping the Areas halfway through. */
 function stepAreaChange(world: World, change: AreaChange, events: SimEvent[]) {
   change.elapsed += 1;
-  if (change.elapsed === ARRIVE_STEP) arrive(world, change, events);
-  if (change.elapsed >= AREA_CHANGE_STEPS) world.areaChange = null;
+  if (change.elapsed === arriveStep(change)) arrive(world, change, events);
+  if (change.elapsed >= changeSteps(change)) world.areaChange = null;
 }
 
 /**

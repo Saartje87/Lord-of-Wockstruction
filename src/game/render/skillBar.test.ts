@@ -96,6 +96,12 @@ describe("the Skill Bar's sheet", () => {
     ]);
   });
 
+  it("shows each slot's controller button while the controller is the Active Input", () => {
+    const sheet = skillBarSheet(world(GOLEM_IN_KEY2), null, "controller");
+
+    expect(sheet.map(({ key }) => key)).toEqual(["X", "Y", "B", "RB", "RT"]);
+  });
+
   it("dims a Skill the Hero lacks the Mana for", () => {
     const w = world(GOLEM_IN_KEY2);
 

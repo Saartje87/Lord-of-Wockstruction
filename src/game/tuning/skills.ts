@@ -18,9 +18,13 @@ export type SkillTuning = {
 
 /**
  * What a Skill's cast does: summon a Minion at the cast point, the Hero
- * having one of it; or raise one from a Corpse (see `RaiseEffect`).
+ * having one of it; raise one from a Corpse (see `RaiseEffect`); or burst a
+ * Corpse (see `ExplodeEffect`).
  */
-export type SkillEffect = { type: "summon"; minion: MinionType } | RaiseEffect;
+export type SkillEffect =
+  | { type: "summon"; minion: MinionType }
+  | RaiseEffect
+  | ExplodeEffect;
 
 /**
  * Raise a Minion from the Corpse nearest the cast point, using the Corpse
@@ -34,6 +38,19 @@ export type RaiseEffect = {
   countEvery: number;
 };
 
+/**
+ * Burst the Corpse nearest the cast point, using it up. Every Monster within
+ * `radius` of it, and `radiusPerSkillLevel` more each Skill Level past the
+ * first (tiles), takes a roll of `share` (least and most) of the dead
+ * Monster's max Life at its Monster Level.
+ */
+export type ExplodeEffect = {
+  type: "explode";
+  radius: number;
+  radiusPerSkillLevel: number;
+  share: [number, number];
+};
+
 /** Skills that use a Corpse up. */
 export const corpseTuning = {
   /** How near the cast point a Corpse must lie to be used (tiles). */
@@ -41,7 +58,7 @@ export const corpseTuning = {
 };
 
 /** One of the Skills, by the name the sim and the Save know it by. */
-export type Skill = "golem" | "raiseSkeleton";
+export type Skill = "golem" | "raiseSkeleton" | "corpseExplosion";
 
 /** Every Skill's tuning. */
 export const skillTuning: Record<Skill, SkillTuning> = {
@@ -66,6 +83,20 @@ export const skillTuning: Record<Skill, SkillTuning> = {
       minion: "raisedSkeleton",
       count: 2,
       countEvery: 3,
+    },
+  },
+  // Diablo 2's Corpse Explosion: 60–100% of the dead Monster's max Life.
+  corpseExplosion: {
+    name: "Corpse Explosion",
+    requiredLevel: 4,
+    manaCost: 15,
+    manaCostPerSkillLevel: 1,
+    castMs: 400,
+    effect: {
+      type: "explode",
+      radius: 2,
+      radiusPerSkillLevel: 0.25,
+      share: [0.6, 1],
     },
   },
 };

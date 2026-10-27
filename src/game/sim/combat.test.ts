@@ -399,7 +399,7 @@ describe("hit Skeletons", () => {
     expect(events).toContainEqual({ type: "MonsterDied", id: 1 });
     expect(world.monsters.map((m) => m.id)).toEqual([2]);
     expect(world.corpses).toEqual([
-      { id: 1, type: "skeleton", pos: { x: 2.5, y: 1.5 } },
+      { id: 1, type: "skeleton", monsterLevel: 1, pos: { x: 2.5, y: 1.5 } },
     ]);
   });
 

@@ -157,7 +157,7 @@ function inField(
 
 /** Lays a Skeleton's Corpse at `pos`, as a kill there would. */
 function corpseAt(w: World, pos: Vec, type: Corpse["type"] = "skeleton") {
-  const corpse = { id: w.nextMonsterId++, type, pos };
+  const corpse = { id: w.nextMonsterId++, type, monsterLevel: 1, pos };
   w.corpses.push(corpse);
   return corpse;
 }

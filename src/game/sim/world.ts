@@ -10,6 +10,7 @@ import { minionTuning } from "../tuning/minions";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import {
   corpseTuning,
+  type ExplodeEffect,
   type RaiseEffect,
   type Skill,
   skillTuning,
@@ -322,8 +323,16 @@ export type KeptArea = Pick<
   "monsters" | "projectiles" | "corpses" | "groundItems"
 >;
 
-/** What remains of a dead Monster: inert, not clickable, not blocking. */
-export type Corpse = { id: MonsterId; type: MonsterType; pos: Vec };
+/**
+ * What remains of a dead Monster: inert, not clickable, not blocking. It
+ * keeps the Monster's type and Monster Level, for a Skill that bursts it.
+ */
+export type Corpse = {
+  id: MonsterId;
+  type: MonsterType;
+  monsterLevel: number;
+  pos: Vec;
+};
 
 /**
  * An Item lying in the active Area, until picked up or the Hero leaves, but
@@ -475,10 +484,12 @@ export type CastFailure = "town" | "mana" | "corpse";
 
 /** What happened during a step. */
 export type SimEvent =
-  /** The Hero's swing or their Minion's attack hit a Monster. */
+  /**
+   * The Hero's swing, their Minion's attack or their Skill hit a Monster.
+   */
   | {
       type: "HitLanded";
-      attacker: "hero" | "minion";
+      attacker: "hero" | "minion" | "skill";
       target: MonsterId;
       damage: number;
     }
@@ -517,6 +528,11 @@ export type SimEvent =
   | { type: "SkillBarChanged" }
   /** The Hero started casting `skill` at `target`, its Mana spent. */
   | { type: "SkillCast"; skill: Skill; target: Vec }
+  /**
+   * The Corpse `corpse` at `pos` burst, hurting every Monster within
+   * `radius` (tiles).
+   */
+  | { type: "CorpseExploded"; corpse: MonsterId; pos: Vec; radius: number }
   /** A cast did nothing, spending no Mana. */
   | { type: "CastFailed"; reason: CastFailure }
   /** Minion `minion` appeared at `pos`. */
@@ -729,7 +745,8 @@ export function canRaiseSkill(world: World, skill: Skill): boolean {
 
 /** Whether `skill` uses a Corpse up, so a cast needs one near its point. */
 export function usesCorpse(skill: Skill): boolean {
-  return skillTuning[skill].effect.type === "raise";
+  const { type } = skillTuning[skill].effect;
+  return type === "raise" || type === "explode";
 }
 
 /** The Mana a cast of `skill` costs at Skill Level `skillLevel` (1 and up). */
@@ -1614,6 +1631,9 @@ function castFrom(
     case "raise":
       if (corpse) raise(world, skill, effect, skillLevel, corpse, events);
       break;
+    case "explode":
+      if (corpse) explode(world, effect, skillLevel, corpse, events);
+      break;
   }
 }
 
@@ -1674,6 +1694,49 @@ function raise(
     crumbleMinion(world, minion, events);
   }
   bringMinion(world, skill, effect.minion, skillLevel, corpse.pos, events);
+}
+
+/** How far `effect` reaches from its Corpse at `skillLevel` (tiles). */
+export function explodeRadius(
+  effect: ExplodeEffect,
+  skillLevel: number,
+): number {
+  return effect.radius + effect.radiusPerSkillLevel * (skillLevel - 1);
+}
+
+/**
+ * Bursts `corpse`, using it up: each Monster within the radius `effect` has
+ * at `skillLevel` takes a roll of its share of the dead Monster's max Life.
+ * The Hero and their Minions are never hurt, and no other Corpse bursts.
+ */
+function explode(
+  world: World,
+  effect: ExplodeEffect,
+  skillLevel: number,
+  corpse: Corpse,
+  events: SimEvent[],
+) {
+  world.corpses = world.corpses.filter((one) => one !== corpse);
+  const radius = explodeRadius(effect, skillLevel);
+  events.push({
+    type: "CorpseExploded",
+    corpse: corpse.id,
+    pos: { ...corpse.pos },
+    radius,
+  });
+  const life = monsterMaxLife(corpse);
+  const [least, most] = effect.share;
+  const range: [number, number] = [
+    Math.ceil(life * least),
+    Math.floor(life * most),
+  ];
+  const victims = world.monsters.filter(
+    (monster) => distance(monster.pos, corpse.pos) <= radius,
+  );
+  // A Skill's damage always hits: no roll against Defense, and no hitstop.
+  for (const monster of victims) {
+    heroHurts(world, monster, randomInt(world.rng, range), "skill", events);
+  }
 }
 
 /** Adds a fresh Minion at full Life at `pos` to the Hero's Minions. */
@@ -1856,15 +1919,23 @@ function miss(world: World, monster: Monster, events: SimEvent[]) {
 
 function hit(world: World, monster: Monster, events: SimEvent[]) {
   const damage = heroDamage(world, random(world.rng));
+  heroHurts(world, monster, damage, "hero", events);
+}
+
+/**
+ * Lands `damage` from the Hero's swing or Skill on a Monster, keeping the
+ * Hero In Combat.
+ */
+function heroHurts(
+  world: World,
+  monster: Monster,
+  damage: number,
+  attacker: "hero" | "skill",
+  events: SimEvent[],
+) {
   monster.life = Math.max(0, monster.life - damage);
   world.hero.combat = COMBAT_STEPS;
-  events.push({
-    type: "HitLanded",
-    attacker: "hero",
-    target: monster.id,
-    damage,
-  });
-
+  events.push({ type: "HitLanded", attacker, target: monster.id, damage });
   hurt(world, monster, events);
 }
 
@@ -1878,6 +1949,7 @@ function hurt(world: World, monster: Monster, events: SimEvent[]) {
     world.corpses.push({
       id: monster.id,
       type: monster.type,
+      monsterLevel: monster.monsterLevel,
       pos: monster.pos,
     });
     events.push({ type: "MonsterDied", id: monster.id });

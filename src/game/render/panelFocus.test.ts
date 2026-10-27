@@ -14,7 +14,9 @@ import {
   step,
   type World,
 } from "../sim/world";
+import { heroTuning } from "../tuning/hero";
 import { inventoryTuning } from "../tuning/items";
+import { skillTuning } from "../tuning/skills";
 import { type Viewport, viewportOf } from "../viewport";
 import { cursorHitAt } from "./cursorHit";
 import {
@@ -323,8 +325,20 @@ describe("the Skill Tree panel's Focus spots", () => {
     (typeof SKILLS)[number],
     number
   >;
+  /** The Level from which a Skill Point can be spent on every Skill. */
+  const everySkillOpen = Math.max(
+    ...SKILLS.map((skill) => skillTuning[skill].requiredLevel),
+  );
   const worlds: [string, () => World][] = [
-    ["Skill Points to spend", () => world(undefined, { skillPoints: 1 })],
+    [
+      "Skill Points to spend",
+      () =>
+        world(undefined, {
+          level: everySkillOpen,
+          experience: heroTuning.experienceTable[everySkillOpen - 1],
+          skillPoints: 1,
+        }),
+    ],
     ["learned Skills", () => world(undefined, { skillLevels: learnedSkills })],
   ];
   const cases = SCREENS.flatMap(([name, screen]) =>

@@ -198,7 +198,12 @@ describe("the Target", () => {
       { x: 5, y: 10 },
     ]);
     world.monsters[0].life = 0;
-    world.corpses.push({ id: 99, type: "skeleton", pos: { x: 10, y: 9 } });
+    world.corpses.push({
+      id: 99,
+      type: "skeleton",
+      monsterLevel: 1,
+      pos: { x: 10, y: 9 },
+    });
 
     expect(targetOf(world, rest)).toBe(world.monsters[1].id);
   });

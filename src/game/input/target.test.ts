@@ -59,7 +59,12 @@ describe("picking the Target", () => {
       { x: 15, y: 10 },
     ]);
     world.monsters[0].life = 0;
-    world.corpses.push({ id: 99, type: "skeleton", pos: { x: 11, y: 10 } });
+    world.corpses.push({
+      id: 99,
+      type: "skeleton",
+      monsterLevel: 1,
+      pos: { x: 11, y: 10 },
+    });
 
     expect(pickTarget(world, east)).toBe(idAt(world, 1));
   });
@@ -107,7 +112,12 @@ describe("picking the Target", () => {
         { x: 10, y: 14 },
       ]);
       world.monsters[0].life = 0;
-      world.corpses.push({ id: 99, type: "skeleton", pos: { x: 10, y: 9 } });
+      world.corpses.push({
+        id: 99,
+        type: "skeleton",
+        monsterLevel: 1,
+        pos: { x: 10, y: 9 },
+      });
 
       expect(pickTarget(world, null)).toBe(idAt(world, 1));
     });

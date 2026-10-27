@@ -109,6 +109,14 @@ describe("skillTreeSheet", () => {
           requiredLevel: null,
           canRaise: false,
         },
+        {
+          skill: "corpseExplosion",
+          name: "Corpse Explosion",
+          skillLevel: "0",
+          manaCost: "15",
+          requiredLevel: "4",
+          canRaise: false,
+        },
       ],
     });
   });

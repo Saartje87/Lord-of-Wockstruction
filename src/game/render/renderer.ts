@@ -88,6 +88,7 @@ import { type Animation, type Art, type CharacterArt, frameOf } from "./art";
 import { beltStripLayout, beltStripSheet } from "./beltStrip";
 import { type Camera, cameraOn, onScreen, onWorld } from "./camera";
 import { CLOSE_BUTTON } from "./closeButton";
+import { CORPSE_BURST, corpseBurst } from "./corpseBurst";
 import { cursorHitAt, type ShownPanels } from "./cursorHit";
 import {
   DAMAGE_NUMBER,
@@ -635,6 +636,9 @@ export function createRenderer(
   // On the floor, under everyone standing.
   const townPortalGlows = new Graphics();
   camera.addChildAt(townPortalGlows, camera.getChildIndex(scene));
+  // On the floor too, spreading under the Monsters it hurts.
+  const corpseBursts = new Graphics();
+  camera.addChildAt(corpseBursts, camera.getChildIndex(scene));
   const levelFlash = new ColorMatrixFilter({ resolution: "inherit" });
   levelFlash.matrix = washTo(LEVEL_UP.colour);
   const outline = outlineView();
@@ -765,6 +769,8 @@ export function createRenderer(
   let townPortalOpenedAtMs: number | null = null;
   /** Town Portal ends shrinking away, each in its Area from when it closed. */
   const closingTownPortals: { area: string; pos: Vec; atMs: number }[] = [];
+  /** Corpses bursting in the active Area, each over its radius (tiles). */
+  const bursts: { pos: Vec; radius: number; atMs: number }[] = [];
   /** When the Hero last arrived in an Area, for the Area Banner. */
   let arrivedAtMs: number | null = null;
   /** Starts the Area Banner showing `displayName`, as of `nowMs`. */
@@ -843,6 +849,7 @@ export function createRenderer(
     if (npcs.length > 0) scene.addChild(...npcs.map((npc) => npc.sprite));
     for (const { text } of floating.splice(0)) text.destroy();
     for (const { view } of crumbling.splice(0)) view.sprite.destroy();
+    bursts.length = 0;
     markedAtMs = null;
     hoveredTile = null;
     hover.clear();
@@ -1043,6 +1050,9 @@ export function createRenderer(
         if (event.type === "HeroHit") hurtAtMs = nowMs;
         if (event.type === "LevelReached") levelAtMs = nowMs;
         if (event.type === "TownPortalOpened") townPortalOpenedAtMs = nowMs;
+        if (event.type === "CorpseExploded") {
+          bursts.push({ pos: event.pos, radius: event.radius, atMs: nowMs });
+        }
         if (event.type === "TownPortalClosed") {
           closingTownPortals.push({
             area: event.area,
@@ -1236,6 +1246,27 @@ export function createRenderer(
             .fill({ color: townPortalLook.colours.glow, alpha: ring.alpha });
         }
       });
+
+      corpseBursts.clear();
+      for (let i = bursts.length - 1; i >= 0; i--) {
+        const { pos, radius, atMs } = bursts[i];
+        const burst = corpseBurst(nowMs - atMs, radius);
+        if (!burst) {
+          bursts.splice(i, 1);
+          continue;
+        }
+        const foot = toScreen(pos);
+        const { flash, ring } = burst;
+        corpseBursts
+          .ellipse(foot.x, foot.y, flash.radiusX, flash.radiusY)
+          .fill({ color: CORPSE_BURST.flashColour, alpha: flash.alpha })
+          .ellipse(foot.x, foot.y, ring.radiusX, ring.radiusY)
+          .stroke({
+            color: CORPSE_BURST.ringColour,
+            width: CORPSE_BURST.ringWidth,
+            alpha: ring.alpha,
+          });
+      }
 
       const seen = new Set<MonsterId>();
       telegraphs.clear();

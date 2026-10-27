@@ -1,14 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { createMenus } from "../menus";
+import { createMenus, noPendingPoints, PANELS } from "../menus";
 import { beltRows, emptyBelt } from "../sim/belt";
-import { overlaps, type Rect } from "../sim/rect";
-import { createWorld, step } from "../sim/world";
+import { inside, middleOf, overlaps, type Rect } from "../sim/rect";
+import { emptySkillBar } from "../sim/skillBar";
+import {
+  ATTRIBUTES,
+  type Attribute,
+  createWorld,
+  FRESH_PROGRESS,
+  step,
+} from "../sim/world";
 import type { ItemType } from "../tuning/items";
-import { viewportOf } from "../viewport";
+import { type Viewport, viewportOf } from "../viewport";
+import { beltStripLayout } from "./beltStrip";
 import { cursorHitAt } from "./cursorHit";
+import { heroPanelLayout, heroPanelRow, PANEL_ROWS } from "./heroPanel";
 import { inventoryPanelLayout } from "./inventoryPanel";
-import { panelButtonsLayout } from "./panelButtons";
+import { hoveredPanelButton, panelButtonsLayout } from "./panelButtons";
 import { skillBarLayout } from "./skillBar";
+import { skillTreePanelLayout } from "./skillTreePanel";
+import { touchControlsLayout } from "./touchControls";
 
 /** A Town of one tile with the Hero's `start` on it. */
 const town = {
@@ -120,5 +131,616 @@ describe("a press where the open Inventory panel covers the HUD", () => {
     expect(cursorHitAt(screen, centre, w, inventoryOpen)).toEqual({
       button: { type: "panelButton", panel: "inventory" },
     });
+  });
+});
+
+describe("with touch at a large UI Scale", () => {
+  const screen = { ...SMALL, width: 2560, height: 1440, uiScale: 2 };
+
+  it("a × drawn 44 px square takes no touch off it", () => {
+    const { closeButton } = heroPanelLayout(screen);
+    expect(closeButton.w).toBe(44);
+    const point = { x: closeButton.x - 2, y: middleOf(closeButton).y };
+    expect(
+      cursorHitAt(
+        screen,
+        point,
+        world("sash"),
+        { ...createMenus(), heroPanelOpen: true },
+        true,
+      ),
+    ).toEqual({ button: null });
+  });
+});
+
+/** The two phone sizes, held sideways, in the Compact Layout. */
+const PHONES = [
+  { width: 640, height: 320 },
+  { width: 915, height: 330 },
+];
+const heroOpen = { ...createMenus(), heroPanelOpen: true };
+
+describe("with touch, a near miss on a panel's ×", () => {
+  it.each(
+    PHONES,
+  )("left of the Hero panel's × closes it at $width×$height", (size) => {
+    const screen = viewportOf(size);
+    const { closeButton } = heroPanelLayout(screen);
+    const point = { x: closeButton.x - 5, y: middleOf(closeButton).y };
+
+    expect(cursorHitAt(screen, point, world("sash"), heroOpen, true)).toEqual({
+      button: { type: "close", panel: "hero" },
+    });
+  });
+
+  /** Each panel open on its own, with where its × is drawn. */
+  const panels = [
+    { panel: "hero", open: heroOpen, layout: heroPanelLayout },
+    {
+      panel: "inventory",
+      open: inventoryOpen,
+      layout: (screen: Viewport) => inventoryPanelLayout(screen, 1),
+    },
+    {
+      panel: "skillTree",
+      open: { ...createMenus(), skillTreeOpen: true },
+      layout: skillTreePanelLayout,
+    },
+  ] as const;
+  /** Points just off each side of `rect`, 3 px out, by its middle. */
+  const nearMisses = (rect: Rect) => {
+    const { x, y } = middleOf(rect);
+    return [
+      { x: rect.x - 3, y },
+      { x: rect.x + rect.w + 3, y },
+      { x, y: rect.y - 3 },
+      { x, y: rect.y + rect.h + 3 },
+    ];
+  };
+
+  describe.each([
+    ...PHONES,
+    { width: 1280, height: 720 },
+  ])("at $width×$height", (size) => {
+    const screen = viewportOf(size);
+
+    it.each(panels)("closes the $panel panel from any side", ({
+      panel,
+      open,
+      layout,
+    }) => {
+      const { closeButton } = layout(screen);
+      for (const point of nearMisses(closeButton)) {
+        expect(cursorHitAt(screen, point, world("sash"), open, true)).toEqual({
+          button: { type: "close", panel },
+        });
+      }
+    });
+
+    it.each(panels)("but a mouse there doesn't close the $panel panel", ({
+      open,
+      layout,
+    }) => {
+      const { closeButton } = layout(screen);
+      for (const point of nearMisses(closeButton)) {
+        const hit = cursorHitAt(screen, point, world("sash"), open, false);
+        expect(hit).not.toHaveProperty("button.type", "close");
+      }
+    });
+  });
+});
+
+describe.each(PHONES)("with touch at $width×$height", (size) => {
+  const screen = viewportOf(size);
+  const { buttons } = panelButtonsLayout(screen);
+  const shut = createMenus();
+  const panelButton = (panel: string) => ({
+    button: { type: "panelButton", panel },
+  });
+
+  it.each([
+    shut,
+    heroOpen,
+  ])("a near miss left or right of a Panel button opens or shuts its panel", (open) => {
+    for (const panel of PANELS) {
+      const rect = buttons[panel];
+      const { y } = middleOf(rect);
+      for (const x of [rect.x - 2, rect.x + rect.w + 2]) {
+        expect(
+          cursorHitAt(screen, { x, y }, world("sash"), open, true),
+        ).toEqual(panelButton(panel));
+      }
+    }
+  });
+
+  it("a point between the × and the Panel button beside it hits the nearer", () => {
+    const { closeButton } = heroPanelLayout(screen);
+    const { hero } = buttons;
+    const y = middleOf(closeButton).y;
+    const w = world("sash");
+    expect(
+      cursorHitAt(
+        screen,
+        { x: closeButton.x + closeButton.w + 2, y },
+        w,
+        heroOpen,
+        true,
+      ),
+    ).toEqual({ button: { type: "close", panel: "hero" } });
+    expect(
+      cursorHitAt(screen, { x: hero.x - 2, y }, w, heroOpen, true),
+    ).toEqual(panelButton("hero"));
+  });
+
+  it("a point between two Panel buttons hits the nearer", () => {
+    const { hero, inventory } = buttons;
+    const { x } = middleOf(hero);
+    const w = world("sash");
+    expect(
+      cursorHitAt(screen, { x, y: hero.y + hero.h + 1 }, w, shut, true),
+    ).toEqual(panelButton("hero"));
+    expect(
+      cursorHitAt(screen, { x, y: inventory.y - 1 }, w, shut, true),
+    ).toEqual(panelButton("inventory"));
+  });
+
+  it("a near miss on a Panel button leaves the pause button beside it its own", () => {
+    const { pause } = touchControlsLayout(screen);
+    const point = { x: pause.x + pause.w + 1, y: middleOf(pause).y };
+    expect(cursorHitAt(screen, point, world("sash"), shut, true)).toBeNull();
+  });
+
+  it.each([
+    shut,
+    heroOpen,
+    inventoryOpen,
+  ])("leaves the pause button's touch hit area to the touch controls", (open) => {
+    const { pause, pauseHit } = touchControlsLayout(screen, open);
+    expect(pauseHit.w).toBeGreaterThan(pause.w);
+    const w = world("sash");
+    // Off the halfway lines themselves, which the Panel buttons share.
+    for (let x = pauseHit.x + 0.5; x < pauseHit.x + pauseHit.w; x += 1) {
+      for (let y = pauseHit.y + 0.5; y < pauseHit.y + pauseHit.h; y += 1) {
+        expect(cursorHitAt(screen, { x, y }, w, open, true)).toBeNull();
+      }
+    }
+  });
+
+  it.each([
+    shut,
+    inventoryOpen,
+  ])("points on the Skill Bar, the Belt strip and the Inventory hit what a mouse does", (open) => {
+    const w = world("sash");
+    const inventory = inventoryPanelLayout(screen, beltRows(w));
+    const rects = [
+      ...Object.values(skillBarLayout(screen).slots),
+      ...beltStripLayout(screen).columns,
+      ...(open.inventoryOpen
+        ? [
+            ...Object.values(inventory.slots),
+            ...inventory.belt.flat(),
+            inventory.grid,
+          ]
+        : []),
+    ];
+    for (const rect of rects) {
+      // Its middle and just inside each corner.
+      for (const point of [
+        middleOf(rect),
+        { x: rect.x + 1, y: rect.y + 1 },
+        { x: rect.x + rect.w - 1, y: rect.y + 1 },
+        { x: rect.x + 1, y: rect.y + rect.h - 1 },
+        { x: rect.x + rect.w - 1, y: rect.y + rect.h - 1 },
+      ]) {
+        expect(cursorHitAt(screen, point, w, open, true)).toEqual(
+          cursorHitAt(screen, point, w, open, false),
+        );
+      }
+    }
+  });
+
+  it("the ×'s hit area reaches no further than 44 px square", () => {
+    const { closeButton } = heroPanelLayout(screen);
+    const reach = (44 - closeButton.w) / 2;
+    const { x, y } = middleOf(closeButton);
+    for (const point of [
+      { x: closeButton.x - reach - 1, y },
+      { x, y: closeButton.y + closeButton.h + reach + 1 },
+    ]) {
+      expect(cursorHitAt(screen, point, world("sash"), heroOpen, true)).toEqual(
+        { button: null },
+      );
+    }
+  });
+
+  it("a mouse's near miss on a Panel button hits no Panel button", () => {
+    for (const open of [shut, heroOpen]) {
+      for (const panel of PANELS) {
+        const rect = buttons[panel];
+        for (const point of [
+          { x: rect.x - 2, y: middleOf(rect).y },
+          { x: rect.x + rect.w + 2, y: middleOf(rect).y },
+          { x: middleOf(rect).x, y: rect.y + rect.h + 1 },
+        ]) {
+          const hit = cursorHitAt(screen, point, world("sash"), open);
+          expect(hoveredPanelButton(hit)).toBeNull();
+        }
+      }
+    }
+  });
+});
+
+describe.each([
+  ...PHONES.map((size) => ({
+    at: `${size.width}×${size.height}`,
+    screen: viewportOf(size),
+  })),
+  // Drawn small enough that a Panel button's hit area reaches into the
+  // panel beside it.
+  {
+    at: "640×320 at a UI Scale of 0.5",
+    screen: { ...viewportOf(PHONES[0]), uiScale: 0.5 },
+  },
+])("with touch at $at, the Compact Layout's open panel", ({ screen }) => {
+  const { buttons } = panelButtonsLayout(screen);
+  const w = world("sash");
+  const panels = [
+    { name: "hero", open: heroOpen, panel: heroPanelLayout(screen).panel },
+    {
+      name: "inventory",
+      open: inventoryOpen,
+      panel: inventoryPanelLayout(screen, beltRows(w)).panel,
+    },
+    {
+      name: "skillTree",
+      open: { ...createMenus(), skillTreeOpen: true },
+      panel: skillTreePanelLayout(screen).panel,
+    },
+  ];
+
+  it.each(
+    panels,
+  )("$name keeps a touch on it from the Panel buttons beside it", ({
+    open,
+    panel,
+  }) => {
+    expect(screen.compact).toBe(true);
+    // Every point a Panel button's 44 px square hit area could reach.
+    for (const rect of Object.values(buttons)) {
+      const { x: midX, y: midY } = middleOf(rect);
+      for (let x = midX - 22.5; x < midX + 23; x += 1) {
+        for (let y = midY - 22.5; y < midY + 23; y += 1) {
+          const point = { x, y };
+          if (!inside(panel, point)) continue;
+          const hit = cursorHitAt(screen, point, w, open, true);
+          const button = hoveredPanelButton(hit);
+          if (button) expect(inside(buttons[button], point)).toBe(true);
+        }
+      }
+    }
+  });
+});
+
+/** A Level 3 Hero with the Golem at `golem` and `skillPoints` unspent. */
+function withGolem(golem: number, skillPoints: number) {
+  return createWorld({
+    areas: { town },
+    seed: 1,
+    progress: {
+      ...FRESH_PROGRESS,
+      level: 3,
+      experience: 1_500,
+      skillPoints,
+      skillLevels: { golem },
+    },
+  });
+}
+
+/** How far `point` is off `rect`, along the axis it's furthest off along. */
+function distanceOff(rect: Rect, point: { x: number; y: number }): number {
+  return Math.max(
+    rect.x - point.x,
+    point.x - (rect.x + rect.w),
+    rect.y - point.y,
+    point.y - (rect.y + rect.h),
+    0,
+  );
+}
+
+describe.each([
+  ...PHONES,
+  { width: 1280, height: 720 },
+])("with the Skill Tree open at $width×$height", (size) => {
+  const screen = viewportOf(size);
+  const treeOpen = { ...createMenus(), skillTreeOpen: true };
+  const { raise, skills, closeButton } = skillTreePanelLayout(screen);
+  const plus = raise.golem;
+  const learn = { button: { type: "learn", skill: "golem" } };
+  const pickUp = { button: { type: "pickUpSkill", skill: "golem" } };
+  const close = { button: { type: "close", panel: "skillTree" } };
+  const isEqual = (a: unknown, b: unknown) =>
+    JSON.stringify(a) === JSON.stringify(b);
+  /** Points just off each side of the +, 3 px out, by its middle. */
+  const nearMisses = () => {
+    const { x, y } = middleOf(plus);
+    return [
+      { x: plus.x - 3, y },
+      { x: plus.x + plus.w + 3, y },
+      { x, y: plus.y - 3 },
+      { x, y: plus.y + plus.h + 3 },
+    ];
+  };
+
+  it.each([
+    0, 1,
+  ])("a touch's near miss on a Skill's + spends a Skill Point on it, at Skill Level %i", (golem) => {
+    const w = withGolem(golem, 1);
+    for (const point of nearMisses()) {
+      expect(cursorHitAt(screen, point, w, treeOpen, true)).toEqual(learn);
+    }
+  });
+
+  it("a touch's near miss on the + picks a learned Skill up while no Skill Point can be spent", () => {
+    const w = withGolem(1, 0);
+    const point = { x: plus.x - 3, y: middleOf(plus).y };
+    expect(cursorHitAt(screen, point, w, treeOpen, true)).toEqual(pickUp);
+  });
+
+  it("the + hit area reaches no further than 44 px square", () => {
+    const w = withGolem(1, 1);
+    const reach = (44 - plus.w) / 2;
+    const { x, y } = middleOf(plus);
+    for (const point of [
+      { x: plus.x - reach - 1, y },
+      { x, y: plus.y + plus.h + reach + 1 },
+    ]) {
+      expect(cursorHitAt(screen, point, w, treeOpen, true)).toEqual(pickUp);
+    }
+  });
+
+  it("a touch on a learned Skill's rows away from the + picks it up", () => {
+    const w = withGolem(1, 1);
+    const rows = skills.golem;
+    for (const point of [
+      { x: rows.x + 1, y: rows.y + 1 },
+      middleOf(rows),
+      { x: rows.x + rows.w - 1, y: rows.y + rows.h - 1 },
+    ]) {
+      expect(cursorHitAt(screen, point, w, treeOpen, true)).toEqual(pickUp);
+    }
+  });
+
+  it("a point between the + and the × hits the nearer", () => {
+    const w = withGolem(1, 1);
+    const from = middleOf(plus);
+    const to = middleOf(closeButton);
+    for (let i = 0; i <= 100; i++) {
+      const point = {
+        x: from.x + ((to.x - from.x) * i) / 100,
+        y: from.y + ((to.y - from.y) * i) / 100,
+      };
+      const hit = cursorHitAt(screen, point, w, treeOpen, true);
+      const offPlus = distanceOff(plus, point);
+      const offClose = distanceOff(closeButton, point);
+      if (i === 0) expect(hit).toEqual(learn);
+      if (i === 100) expect(hit).toEqual(close);
+      if (isEqual(hit, learn)) expect(offPlus).toBeLessThanOrEqual(offClose);
+      if (isEqual(hit, close)) expect(offClose).toBeLessThanOrEqual(offPlus);
+    }
+  });
+
+  it("a mouse's near miss on the + doesn't spend a Skill Point", () => {
+    for (const golem of [0, 1]) {
+      const w = withGolem(golem, 1);
+      for (const point of nearMisses()) {
+        const hit = cursorHitAt(screen, point, w, treeOpen, false);
+        expect(hit).not.toEqual(learn);
+      }
+    }
+  });
+});
+
+describe.each([
+  { at: "1280×720", screen: viewportOf({ width: 1280, height: 720 }) },
+  // Drawn small enough that its panel's padding is narrower than the +
+  // hit area's reach.
+  {
+    at: "1280×720 at a UI Scale of 0.5",
+    screen: { ...viewportOf({ width: 1280, height: 720 }), uiScale: 0.5 },
+  },
+])("with touch on the Skill Tree at $at", ({ screen }) => {
+  it("a + hit area never reaches off its panel", () => {
+    const w = withGolem(1, 1);
+    const { panel, raise } = skillTreePanelLayout(screen);
+    const treeOpen = { ...createMenus(), skillTreeOpen: true };
+    const { x: midX, y: midY } = middleOf(raise.golem);
+    // Every point its 44 px square hit area could reach.
+    for (let x = midX - 22.5; x < midX + 23; x += 1) {
+      for (let y = midY - 22.5; y < midY + 23; y += 1) {
+        const point = { x, y };
+        if (inside(panel, point)) continue;
+        expect(cursorHitAt(screen, point, w, treeOpen, true)).not.toEqual({
+          button: { type: "learn", skill: "golem" },
+        });
+      }
+    }
+  });
+});
+
+/** A Level 2 Hero with 5 Attribute Points unspent, holding an Axe. */
+function withPoints() {
+  return createWorld({
+    areas: { town },
+    seed: 1,
+    progress: {
+      level: 2,
+      experience: 500,
+      strength: 20,
+      dexterity: 20,
+      vitality: 20,
+      energy: 20,
+      attributePoints: 5,
+      skillPoints: 0,
+      skillLevels: { golem: 1 },
+      skillBar: emptySkillBar(),
+    },
+  });
+}
+
+/** The Hero panel open with `pending` Pending Attribute Points. */
+function heroPending(pending: Partial<Record<Attribute, number>>) {
+  return {
+    ...heroOpen,
+    pendingPoints: { ...noPendingPoints(), ...pending },
+  };
+}
+/** One Pending Attribute Point on each Attribute: every + and − shown. */
+const allPending = heroPending({
+  strength: 1,
+  dexterity: 1,
+  vitality: 1,
+  energy: 1,
+});
+
+describe.each(
+  PHONES,
+)("with touch on the Hero panel at $width×$height", (size) => {
+  const screen = viewportOf(size);
+  const layout = heroPanelLayout(screen);
+  const raise = (attribute: Attribute) => ({
+    button: { type: "raise", attribute },
+  });
+  const lower = (attribute: Attribute) => ({
+    button: { type: "lower", attribute },
+  });
+  const accept = { button: { type: "accept" } };
+
+  it("a point on an Attribute's row left of its + raises that Attribute", () => {
+    for (const attribute of ATTRIBUTES) {
+      const plus = layout.raise[attribute];
+      // Inside the 44 px wide hit area centred on the +.
+      const point = { x: plus.x - (44 - plus.w) / 2 + 1, y: middleOf(plus).y };
+      expect(cursorHitAt(screen, point, withPoints(), heroOpen, true)).toEqual(
+        raise(attribute),
+      );
+    }
+  });
+
+  it("but no further left than a 44 px wide hit area", () => {
+    const plus = layout.raise.strength;
+    const point = { x: plus.x - (44 - plus.w) / 2 - 1, y: middleOf(plus).y };
+    expect(cursorHitAt(screen, point, withPoints(), heroOpen, true)).toEqual({
+      button: null,
+    });
+  });
+
+  it("a − on the row below doesn't stop a + reaching left along its own row", () => {
+    const plus = layout.raise.strength;
+    const point = { x: plus.x - 10, y: middleOf(plus).y };
+    const shown = heroPending({ dexterity: 1 });
+    expect(cursorHitAt(screen, point, withPoints(), shown, true)).toEqual(
+      raise("strength"),
+    );
+  });
+
+  it("a point between a row's − and + hits the nearer", () => {
+    for (const attribute of ATTRIBUTES) {
+      const minus = layout.lower[attribute];
+      const plus = layout.raise[attribute];
+      const { y } = middleOf(plus);
+      const gap = plus.x - (minus.x + minus.w);
+      expect(gap).toBeGreaterThan(2);
+      const w = withPoints();
+      expect(
+        cursorHitAt(screen, { x: plus.x - 1, y }, w, allPending, true),
+      ).toEqual(raise(attribute));
+      expect(
+        cursorHitAt(
+          screen,
+          { x: minus.x + minus.w + 1, y },
+          w,
+          allPending,
+          true,
+        ),
+      ).toEqual(lower(attribute));
+      // And left of the −, along its row.
+      expect(
+        cursorHitAt(screen, { x: minus.x - 5, y }, w, allPending, true),
+      ).toEqual(lower(attribute));
+    }
+  });
+
+  it("no + or − hit area reaches into the row above or below", () => {
+    ATTRIBUTES.forEach((attribute, i) => {
+      const row = heroPanelRow(screen, PANEL_ROWS.attributes + i);
+      expect(row.h).toBeCloseTo((21 * screen.uiScale) / 0.75);
+      for (const [rect, hit] of [
+        [layout.raise[attribute], raise(attribute)],
+        [layout.lower[attribute], lower(attribute)],
+      ] as const) {
+        const { x } = middleOf(rect);
+        const w = withPoints();
+        const at = (y: number) =>
+          cursorHitAt(screen, { x, y }, w, allPending, true);
+        // Its whole row's height is its own...
+        expect(at(row.y + 0.5)).toEqual(hit);
+        expect(at(row.y + row.h - 0.5)).toEqual(hit);
+        // ...and no more.
+        expect(at(row.y - 0.5)).not.toEqual(hit);
+        expect(at(row.y + row.h + 0.5)).not.toEqual(hit);
+      }
+    });
+  });
+
+  it("a point just beside Accept accepts the Pending Attribute Points", () => {
+    const rect = layout.accept;
+    const { x, y } = middleOf(rect);
+    const row = heroPanelRow(screen, PANEL_ROWS.attributePoints);
+    for (const point of [
+      { x: rect.x - 2, y },
+      { x: rect.x + rect.w + 2, y },
+      { x, y: row.y + 0.5 },
+      { x, y: row.y + row.h - 0.5 },
+    ]) {
+      expect(
+        cursorHitAt(screen, point, withPoints(), allPending, true),
+      ).toEqual(accept);
+    }
+    // Not into the Energy row above it.
+    expect(
+      cursorHitAt(
+        screen,
+        { x, y: row.y - 0.5 },
+        withPoints(),
+        allPending,
+        true,
+      ),
+    ).not.toEqual(accept);
+  });
+
+  it("a mouse at the same near misses hits no button", () => {
+    const w = withPoints();
+    const near: { x: number; y: number }[] = [];
+    for (const attribute of ATTRIBUTES) {
+      const minus = layout.lower[attribute];
+      const plus = layout.raise[attribute];
+      const { y } = middleOf(plus);
+      near.push(
+        { x: plus.x - 1, y },
+        { x: minus.x + minus.w + 1, y },
+        { x: minus.x - 5, y },
+        { x: middleOf(plus).x, y: plus.y - 1 },
+      );
+    }
+    const rect = layout.accept;
+    near.push(
+      { x: rect.x - 2, y: middleOf(rect).y },
+      { x: rect.x + rect.w + 2, y: middleOf(rect).y },
+    );
+    for (const point of near) {
+      expect(cursorHitAt(screen, point, w, allPending, false)).toEqual({
+        button: null,
+      });
+    }
   });
 });

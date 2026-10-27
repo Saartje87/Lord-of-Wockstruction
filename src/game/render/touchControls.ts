@@ -8,6 +8,7 @@ import { heroPanelLayout } from "./heroPanel";
 import { orbsLayout } from "./orbs";
 import { panelButtonsLayout } from "./panelButtons";
 import { SHOWN_ORDER } from "./skillBar";
+import { touchHitRect } from "./touchHitArea";
 
 /**
  * The touch controls (CSS px at native scale, drawn at the UI Scale): an
@@ -37,6 +38,11 @@ export type TouchControlsLayout = {
   attack: Rect;
   skills: Record<SkillBarSlot, Rect>;
   pause: Rect;
+  /**
+   * Where a touch presses the pause button: its touch hit area, meeting the
+   * Panel buttons' and the other touch buttons' halfway.
+   */
+  pauseHit: Rect;
   /** Whether only the pause button shows and takes touches: a panel is open. */
   pauseOnly: boolean;
 };
@@ -100,17 +106,26 @@ export function touchControlsLayout(
       ? { ...pauseRect, x: last.x, y: last.y + last.h + gap }
       : { ...pauseRect, x: last.x + last.w + gap, y: last.y };
   }
+  const skillRects = Object.fromEntries(
+    SHOWN_ORDER.map((slot, index) => [
+      slot,
+      { x: rowLeft + index * (skill + gap), y: rowY, w: skill, h: skill },
+    ]),
+  ) as Record<SkillBarSlot, Rect>;
+  // The panels and the rest of the HUD take a touch before the touch
+  // controls do, and their hit areas stop halfway to the drawn pause button.
+  // That relies on GameCanvas asking `panelAt` before `touchDown`.
+  const neighbours = [
+    ...Object.values(buttons),
+    ...(pauseOnly ? [] : [attackRect, ...Object.values(skillRects)]),
+  ];
   return {
     stickZone,
     stick: { rest: { x: life.x, y: bottom - stickReach }, reach: stickReach },
     attack: attackRect,
-    skills: Object.fromEntries(
-      SHOWN_ORDER.map((slot, index) => [
-        slot,
-        { x: rowLeft + index * (skill + gap), y: rowY, w: skill, h: skill },
-      ]),
-    ) as Record<SkillBarSlot, Rect>,
+    skills: skillRects,
     pause: pauseRect,
+    pauseHit: touchHitRect(pauseRect, neighbours),
     pauseOnly,
   };
 }

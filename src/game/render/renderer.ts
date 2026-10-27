@@ -1,10 +1,12 @@
 import {
   type Application,
+  CanvasTextMetrics,
   ColorMatrixFilter,
   Container,
   Graphics,
   Sprite,
   Text,
+  TextStyle,
 } from "pixi.js";
 import type { CursorHit } from "../cursor";
 import type { Fullscreen } from "../fullscreen";
@@ -126,7 +128,7 @@ import {
   itemUnder,
   landingCell,
 } from "./inventoryPanel";
-import { itemColour } from "./itemArt";
+import { itemColour, itemLabel } from "./itemArt";
 import { type Orb, orbFill, orbsLayout } from "./orbs";
 import {
   hoveredPanelButton,
@@ -436,7 +438,6 @@ const INVENTORY_STYLE = {
   /** A held Item's, so the highlight under it shows through. */
   heldAlpha: 0.55,
   itemText: 0xe8e0c8,
-  itemTextSize: 11,
   tooltip: 0x000000,
   tooltipAlpha: 0.85,
   tooltipName: 0xe8d27a,
@@ -727,11 +728,18 @@ export function createRenderer(
 
   /**
    * What a point on the canvas (CSS px) hits of the panels and the HUD, as
-   * last drawn, or null when it's for the World.
+   * last drawn, or null when it's for the World. While touch is the Active
+   * Input, the point is a touch.
    */
   const panelAt = (screen: Vec): CursorHit | null =>
     drawnWorld &&
-    cursorHitAt(viewportOf(app.screen), screen, drawnWorld, shownPanels);
+    cursorHitAt(
+      viewportOf(app.screen),
+      screen,
+      drawnWorld,
+      shownPanels,
+      activeInput.way === "touch",
+    );
 
   /**
    * Starts afresh for another World, whose Monster ids start over: drops
@@ -1789,7 +1797,7 @@ function beltStripView(activeInput: Readonly<ActiveInput>) {
     return label;
   };
   /** Made as the sheet first lists them. */
-  const labels: { key: Text; count: Text }[] = [];
+  const labels: { key: Text; count: Text; name: Text }[] = [];
 
   return {
     layer,
@@ -1804,9 +1812,11 @@ function beltStripView(activeInput: Readonly<ActiveInput>) {
           key.anchor.set(1, 0);
           const count = text(style.name);
           count.anchor.set(0, 1);
-          labels[index] = { key, count };
+          const name = text(INVENTORY_STYLE.itemText);
+          name.anchor.set(0.5);
+          labels[index] = { key, count, name };
         }
-        const { key, count } = labels[index];
+        const { key, count, name } = labels[index];
         const rect = columns[shown.column];
         graphics
           .rect(rect.x, rect.y, rect.w, rect.h)
@@ -1830,7 +1840,11 @@ function beltStripView(activeInput: Readonly<ActiveInput>) {
             .circle(centreX, centreY, 10 * scale)
             .fill(colour)
             .stroke({ color: style.skillEdge, width: 1 });
+          // Outlined to read over the Potion it names.
+          labelItem(name, shown.type, rect.w, scale, 2);
+          name.position.set(centreX, centreY);
         }
+        name.visible = shown.type !== null;
         count.visible = shown.count > 0;
         count.text = String(shown.count);
         sizeText(count, style.nameSize * scale);
@@ -2682,8 +2696,19 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
       return [slot, label];
     }),
   ) as Record<EquipmentSlot, Text>;
-  /** Item names, one per Item drawn, made as more are needed. */
+  /**
+   * Item names, one per Item drawn, made as more are needed, each sized by
+   * its label rather than with the panel's texts.
+   */
   const names: Text[] = [];
+  const itemName = () => {
+    const name = new Text({
+      text: "",
+      style: { fill: look.itemText, fontFamily: SERIF },
+    });
+    layer.addChild(name);
+    return name;
+  };
   const tooltipBox = new Graphics();
   layer.addChild(tooltipBox);
   /** Tooltip lines, made as more are needed, over its box. */
@@ -2696,32 +2721,27 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
   const heldBox = new Graphics();
   const heldName = new Text({
     text: "",
-    style: {
-      fill: look.itemText,
-      fontSize: look.itemTextSize,
-      fontFamily: SERIF,
-    },
+    style: { fill: look.itemText, fontFamily: SERIF },
   });
   heldLayer.addChild(heldBox, heldName);
-  texts.add(heldName, look.itemTextSize);
 
-  /** Draws an Item's box, tinted as its type, with its name in `name`. */
+  /**
+   * Draws an Item's box, tinted as its type, with its label in `name` at
+   * the UI Scale `scale`.
+   */
   const drawItem = (
     to: Graphics,
     name: Text,
     rect: Rect,
     type: ItemType,
+    scale: number,
     alpha = look.itemAlpha,
   ) => {
-    const tuning = itemOf(type);
     to.rect(rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2)
       .fill({ color: itemColour(type), alpha })
       .stroke({ color: look.itemEdge, width: 1 });
     name.visible = true;
-    name.text = tuning.name;
-    name.style.wordWrap = true;
-    name.style.wordWrapWidth = rect.w - 4;
-    name.style.align = "center";
+    labelItem(name, type, rect.w, scale);
     name.anchor.set(0.5);
     name.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
   };
@@ -2734,6 +2754,7 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
     world: World,
     pointer: Vec | null,
     layout: InventoryPanelLayout,
+    scale: number,
   ) => {
     heldBox.clear();
     heldName.visible = false;
@@ -2741,7 +2762,7 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
     if (!held || !pointer) return;
     const { type } = held.item;
     const rect = heldItemRect(layout, pointer, type);
-    drawItem(heldBox, heldName, rect, type, look.heldAlpha);
+    drawItem(heldBox, heldName, rect, type, scale, look.heldAlpha);
   };
 
   return {
@@ -2765,7 +2786,7 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
       // Before any return: the Held Item's name, drawn with the panel shut.
       // Names and tooltip lines made this draw are sized as they're made.
       texts.size(scale);
-      drawHeld(world, pointer, layout);
+      drawHeld(world, pointer, layout, scale);
       layer.visible = open;
       if (!open) return;
       hint.text = panelCloseHint("inventory", activeInput.way);
@@ -2817,11 +2838,8 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
         });
       });
       items.forEach(({ rect, type }, i) => {
-        if (!names[i]) {
-          names[i] = text(look.itemText, look.itemTextSize);
-          sizeText(names[i], look.itemTextSize * scale);
-        }
-        drawItem(graphics, names[i], rect, type);
+        names[i] ??= itemName();
+        drawItem(graphics, names[i], rect, type, scale);
       });
       for (const name of names.slice(items.length)) name.visible = false;
 
@@ -3212,7 +3230,46 @@ function menuLabel(layer: Container): Text {
   return label;
 }
 
-/** The point `alpha` (0..1) of the way from `from` to `to`. */
+/** The style Item labels are measured in, made on first use. */
+let itemLabelStyle: TextStyle | null = null;
+
+/** How wide `text` is in the Item labels' font at `size` (CSS px). */
+function measureItemText(text: string, size: number): number {
+  itemLabelStyle ??= new TextStyle({ fontFamily: SERIF });
+  itemLabelStyle.fontSize = size;
+  return CanvasTextMetrics.measureText(text, itemLabelStyle).width;
+}
+
+/** How far an Item's label keeps in from each side of its box (CSS px). */
+const ITEM_LABEL_INSET = 2;
+
+/**
+ * Sets `text` to an Item type's label for a box `width` CSS px wide, on one
+ * line inside its inset, at the UI Scale `scale`, with a black outline
+ * `stroke` wide if given: the full name, or the Short name where it won't
+ * fit. Names grow with a UI Scale over 1, never shrink below their normal
+ * size with one under it.
+ */
+function labelItem(
+  text: Text,
+  type: ItemType,
+  width: number,
+  scale: number,
+  stroke?: number,
+) {
+  const { name, shortName } = itemOf(type);
+  const label = itemLabel({
+    name,
+    shortName,
+    width: width - 2 * ITEM_LABEL_INSET,
+    measure: measureItemText,
+    uiScale: scale,
+  });
+  text.text = label.text;
+  text.style.wordWrap = false;
+  sizeText(text, label.size, stroke);
+}
+
 /** The width of the black outline `sizeText` last gave each text. */
 const strokeWidths = new WeakMap<Text, number>();
 
@@ -3228,6 +3285,7 @@ function sizeText(text: Text, size: number, stroke?: number) {
   }
 }
 
+/** The point `alpha` (0..1) of the way from `from` to `to`. */
 function lerp(from: Vec, to: Vec, alpha: number): Vec {
   return {
     x: from.x + (to.x - from.x) * alpha,

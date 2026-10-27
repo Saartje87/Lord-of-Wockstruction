@@ -24,3 +24,56 @@ const TYPE_COLOUR: Partial<Record<ItemType, number>> = {
 export function itemColour(type: ItemType): number {
   return TYPE_COLOUR[type] ?? KIND_COLOUR[itemOf(type).kind];
 }
+
+/**
+ * The size of an Item's name in its box (CSS px), and the least it shrinks
+ * to so a Short name fits, at a UI Scale of 1: they grow with a larger UI
+ * Scale but never shrink with a smaller one.
+ */
+export const ITEM_TEXT = { size: 11, minSize: 10 };
+
+/** The text an Item's box shows, and its size (CSS px). */
+export type ItemLabel = { text: string; size: number };
+
+/**
+ * The label inside an Item's box, `width` CSS px wide inside, on one line,
+ * at the UI Scale `uiScale`: the full `name` at the `ITEM_TEXT` size if it
+ * fits, else the Short name at that size if it fits, else the Short name at
+ * the largest size down to the `ITEM_TEXT` floor that fits, else at the
+ * floor anyway. `measure` gives a text's width at a size.
+ */
+export function itemLabel({
+  name,
+  shortName,
+  width,
+  measure,
+  uiScale = 1,
+}: {
+  name: string;
+  shortName: string;
+  width: number;
+  measure: (text: string, size: number) => number;
+  uiScale?: number;
+}): ItemLabel {
+  const grown = Math.max(1, uiScale);
+  const size = ITEM_TEXT.size * grown;
+  if (measure(name, size) <= width) return { text: name, size };
+  const fits = (at: number) => measure(shortName, at) <= width;
+  if (fits(size)) return { text: shortName, size };
+  const minSize = ITEM_TEXT.minSize * grown;
+  // Were its width in step with its size, it would just fit here.
+  const inStep = (size * width) / measure(shortName, size);
+  if (inStep <= minSize || !fits(minSize)) {
+    return { text: shortName, size: minSize };
+  }
+  if (fits(inStep)) return { text: shortName, size: inStep };
+  // It doesn't narrow in step, so close in on the largest size that fits.
+  let fitting = minSize;
+  let tooBig = inStep;
+  for (let step = 0; step < 12; step++) {
+    const between = (fitting + tooBig) / 2;
+    if (fits(between)) fitting = between;
+    else tooBig = between;
+  }
+  return { text: shortName, size: fitting };
+}

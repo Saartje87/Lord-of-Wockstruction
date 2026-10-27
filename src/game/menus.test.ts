@@ -319,7 +319,7 @@ describe("the Fullscreen button", () => {
 
   it("does nothing while the Rotate Notice shows", () => {
     const menus = pausedWithFullscreen();
-    fitMenus(menus, { compact: true, rotateNotice: "enlarge" }, 2000);
+    fitMenus(menus, { compact: true, rotateNotice: "tooSmall" }, 2000);
 
     expect(clickPaused(menus, "fullscreen", 3000)).toBeNull();
     expect(pressPad(menus, "a", 3000, alive)).toBe("handled");
@@ -943,7 +943,7 @@ describe("the Rotate Notice", () => {
   });
 
   describe("on a touch screen too small, where fullscreen is allowed", () => {
-    const tooSmall = { compact: true, rotateNotice: "enlarge" } as const;
+    const tooSmall = { compact: true, rotateNotice: "tooSmall" } as const;
     /** Menus with the notice showing, paused by it at 1000. */
     const showing = () => {
       const menus = createMenus();

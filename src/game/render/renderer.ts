@@ -13,6 +13,7 @@ import { castButton } from "../input/pad";
 import { buttonsHeld, stickHeld, type TouchControls } from "../input/touch";
 import { toScreen, toTile } from "../iso";
 import {
+  type FullscreenChoice,
   type HeroState,
   type MenuChoice,
   type Menus,
@@ -133,7 +134,12 @@ import {
   panelButtonsSheet,
   panelButtonTooltipRect,
 } from "./panelButtons";
-import { menuChoiceAt, PAUSE_MENU_LAYOUT, pauseMenuLayout } from "./pauseMenu";
+import {
+  type MenuButton,
+  menuChoiceAt,
+  PAUSE_MENU_LAYOUT,
+  pauseMenuLayout,
+} from "./pauseMenu";
 import {
   ROTATE_NOTICE_LAYOUT,
   rotateNoticeChoiceAt,
@@ -905,6 +911,7 @@ export function createRenderer(
         viewportOf(app.screen),
         screen,
         confirming,
+        activeInput.way,
         fullscreen,
       );
     },
@@ -917,7 +924,7 @@ export function createRenderer(
     rotateNoticeChoiceAt(
       screen: Vec,
       fullscreen: Fullscreen,
-    ): "fullscreen" | null {
+    ): FullscreenChoice | null {
       return rotateNoticeChoiceAt(
         viewportOf(app.screen),
         screen,
@@ -3019,11 +3026,9 @@ function pauseMenuView(activeInput: Readonly<ActiveInput>) {
   ];
   const content = new Container();
   content.addChild(box, heading, credits, confirm, resume);
+  layer.addChild(dark, content);
   // On the screen, where `pauseMenuLayout` puts them.
-  const buttons = new Graphics();
-  /** Made as the layout first lists them. */
-  const labels: Text[] = [];
-  layer.addChild(dark, content, buttons);
+  const buttons = menuButtonsView(layer);
   layer.visible = false;
 
   return {
@@ -3067,30 +3072,7 @@ function pauseMenuView(activeInput: Readonly<ActiveInput>) {
         if (line) text.style.lineHeight = line.lineHeight * scale;
         text.position.set((width / 2) * scale, y * scale);
       }
-
-      buttons.clear();
-      for (const label of labels) label.visible = false;
-      layout.buttons.forEach(({ choice, label: name, rect }, i) => {
-        button(buttons, rect);
-        if (choice === focus) {
-          const { colour, width } = FOCUS_RING;
-          const ring = (width * scale) / 2 + 1;
-          buttons
-            .rect(
-              rect.x - ring,
-              rect.y - ring,
-              rect.w + 2 * ring,
-              rect.h + 2 * ring,
-            )
-            .stroke({ color: colour, width: width * scale });
-        }
-        labels[i] ??= menuLabel(layer);
-        const label = labels[i];
-        label.text = name;
-        label.visible = true;
-        sizeText(label, PAUSE_MENU.button.size * screen.uiScale);
-        label.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
-      });
+      buttons.draw(layout.buttons, scale, focus);
     },
   };
 }
@@ -3137,9 +3119,8 @@ function rotateNoticeView(activeInput: Readonly<ActiveInput>) {
     },
   });
   message.anchor.set(0.5, 0);
-  const buttons = new Graphics();
-  layer.addChild(black, heading, message, buttons);
-  const label = menuLabel(layer);
+  layer.addChild(black, heading, message);
+  const buttons = menuButtonsView(layer);
   layer.visible = false;
 
   return {
@@ -3165,20 +3146,58 @@ function rotateNoticeView(activeInput: Readonly<ActiveInput>) {
       const layout = rotateNoticeLayout(screen, activeInput.way, fullscreen);
       heading.position.set(screen.width / 2, layout.title.bottom);
       message.position.set(screen.width / 2, layout.body.top);
-      buttons.clear();
-      label.visible = layout.button !== null;
-      if (layout.button) {
-        const { rect, label: name } = layout.button;
-        button(buttons, rect);
-        label.text = name;
-        sizeText(label, PAUSE_MENU.button.size * scale);
-        label.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
-      }
+      buttons.draw(layout.button ? [layout.button] : [], scale, null);
     },
   };
 }
 
-/** A pause-menu button's label, centred where it's put, added to `layer`. */
+/**
+ * Menu buttons with their labels, added to `layer`: the pause menu's, and
+ * the Rotate Notice's Fullscreen button.
+ */
+function menuButtonsView(layer: Container) {
+  const graphics = new Graphics();
+  layer.addChild(graphics);
+  /** Made as the buttons are first drawn. */
+  const labels: Text[] = [];
+  return {
+    /**
+     * Draws `buttons` where they are laid out, at the UI Scale `scale`,
+     * ringing the one `focus` names for a controller.
+     */
+    draw(
+      buttons: readonly MenuButton[],
+      scale: number,
+      focus: MenuChoice | null,
+    ) {
+      graphics.clear();
+      for (const label of labels) label.visible = false;
+      buttons.forEach(({ choice, label: name, rect }, i) => {
+        button(graphics, rect);
+        if (choice === focus) {
+          const { colour, width } = FOCUS_RING;
+          const ring = (width * scale) / 2 + 1;
+          graphics
+            .rect(
+              rect.x - ring,
+              rect.y - ring,
+              rect.w + 2 * ring,
+              rect.h + 2 * ring,
+            )
+            .stroke({ color: colour, width: width * scale });
+        }
+        labels[i] ??= menuLabel(layer);
+        const label = labels[i];
+        label.text = name;
+        label.visible = true;
+        sizeText(label, PAUSE_MENU.button.size * scale);
+        label.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
+      });
+    },
+  };
+}
+
+/** A menu button's label, centred where it's put, added to `layer`. */
 function menuLabel(layer: Container): Text {
   const label = new Text({
     text: "",

@@ -113,7 +113,7 @@ export function fullscreenLabel(on: boolean): string {
 export function menuChoiceLabel(
   choice: MenuChoice,
   way: InputWay,
-  fullscreenOn = false,
+  fullscreenOn: boolean,
 ): string {
   if (choice === "fullscreen") return fullscreenLabel(fullscreenOn);
   const label = MENU_LABELS[choice];

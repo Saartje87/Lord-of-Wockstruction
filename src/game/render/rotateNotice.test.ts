@@ -11,7 +11,7 @@ describe("the Rotate Notice's text", () => {
   it("asks to turn a phone held upright sideways", () => {
     const { rotateNotice } = viewportOf({ width: 390, height: 844 });
 
-    const text = rotateNoticeText(rotateNotice ?? "enlarge", "touch");
+    const text = rotateNoticeText(rotateNotice ?? "tooSmall", "touch");
 
     expect(text.title).toMatch(/turn/i);
     expect(text.body).toMatch(/sideways/i);

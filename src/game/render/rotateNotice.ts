@@ -1,11 +1,12 @@
 import type { Fullscreen } from "../fullscreen";
 import type { InputWay } from "../input/activeInput";
+import type { FullscreenChoice } from "../menus";
 import { inside } from "../sim/rect";
 import type { Vec } from "../sim/vec";
 import { viewportTuning } from "../tuning/viewport";
 import { atUiScale, type RotateNotice, type Viewport } from "../viewport";
 import { fullscreenLabel } from "./hints";
-import { type MenuButton, PAUSE_MENU_BUTTON } from "./pauseMenu";
+import { MENU_BUTTON, type MenuButton } from "./pauseMenu";
 
 /**
  * What the Rotate Notice says with the Active Input `way`, drawn over
@@ -74,9 +75,9 @@ export function rotateNoticeLayout(
     ROTATE_NOTICE_LAYOUT,
     screen.uiScale,
   );
-  const size = atUiScale(PAUSE_MENU_BUTTON, screen.uiScale);
+  const size = atUiScale(MENU_BUTTON, screen.uiScale);
   const shown =
-    screen.rotateNotice === "enlarge" &&
+    screen.rotateNotice === "tooSmall" &&
     way === "touch" &&
     fullscreen.available;
   const middle = Math.round(screen.height / 2);
@@ -118,7 +119,7 @@ export function rotateNoticeChoiceAt(
   point: Vec,
   way: InputWay,
   fullscreen: Fullscreen,
-): "fullscreen" | null {
+): FullscreenChoice | null {
   const { button } = rotateNoticeLayout(screen, way, fullscreen);
   return button && inside(button.rect, point) ? "fullscreen" : null;
 }

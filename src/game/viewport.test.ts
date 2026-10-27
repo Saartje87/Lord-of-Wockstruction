@@ -91,9 +91,14 @@ describe("the viewport's Rotate Notice", () => {
     { screen: "a phone held upright", width: 390, height: 844, notice: "turn" },
     { screen: "a tablet upright", width: 820, height: 1180, notice: "turn" },
     { screen: "a 700×701 window", width: 700, height: 701, notice: "turn" },
-    { screen: "a 639×320 window", width: 639, height: 320, notice: "enlarge" },
-    { screen: "a 640×319 window", width: 640, height: 319, notice: "enlarge" },
-    { screen: "below the minimum", width: 500, height: 300, notice: "enlarge" },
+    { screen: "a 639×320 window", width: 639, height: 320, notice: "tooSmall" },
+    { screen: "a 640×319 window", width: 640, height: 319, notice: "tooSmall" },
+    {
+      screen: "below the minimum",
+      width: 500,
+      height: 300,
+      notice: "tooSmall",
+    },
     // Upright and small too: turning it sideways is what helps first.
     { screen: "a 300×500 window", width: 300, height: 500, notice: "turn" },
   ])("on $screen: $notice", ({ width, height, notice }) => {

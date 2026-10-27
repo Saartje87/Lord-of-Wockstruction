@@ -20,6 +20,18 @@ export type FullscreenAdapter = {
 };
 
 /**
+ * The pointer event whose handler may ask for fullscreen, by
+ * `PointerEvent.pointerType`: browsers let the page go fullscreen only from
+ * the player's own action, and count a mouse's press as one but, for a
+ * finger or pen, only the lift.
+ */
+export function fullscreenPointerEvent(
+  pointerType: string,
+): "pointerdown" | "pointerup" {
+  return pointerType === "mouse" ? "pointerdown" : "pointerup";
+}
+
+/**
  * The page's fullscreen through the browser: entering puts the whole page
  * fullscreen and locks the screen sideways where the browser allows that;
  * leaving, by the Fullscreen button or the browser's own way (Esc, the back
@@ -48,6 +60,7 @@ export function browserFullscreen(signal: AbortSignal): FullscreenAdapter {
   };
 }
 
+/** Puts the whole page fullscreen, then locks it sideways where allowed. */
 async function enter() {
   try {
     await document.documentElement.requestFullscreen({ navigationUI: "hide" });
@@ -57,6 +70,7 @@ async function enter() {
   await lockSideways();
 }
 
+/** Releases the sideways lock and leaves fullscreen. */
 async function leave() {
   unlockOrientation();
   try {
@@ -80,6 +94,7 @@ function orientation(): LockableOrientation | undefined {
   return screen.orientation as LockableOrientation | undefined;
 }
 
+/** Locks the screen sideways, where the browser allows it. */
 async function lockSideways() {
   try {
     await orientation()?.lock?.("landscape");
@@ -88,6 +103,7 @@ async function lockSideways() {
   }
 }
 
+/** Lets the screen turn freely again, as before fullscreen. */
 function unlockOrientation() {
   try {
     orientation()?.unlock?.();

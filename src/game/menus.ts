@@ -91,6 +91,9 @@ export type HeroState = { heroDead: boolean };
  */
 export type MenuChoice = "newHero" | "confirm" | "goBack" | "fullscreen";
 
+/** The Fullscreen button, the Rotate Notice's one choice. */
+export type FullscreenChoice = Extract<MenuChoice, "fullscreen">;
+
 /**
  * What the menus ask the game loop to carry out: start a New Hero, or take
  * the game in or out of fullscreen.
@@ -104,7 +107,7 @@ export type MenuRequest = "newHero" | "fullscreen";
  */
 export function menuChoices(
   confirming: boolean,
-  fullscreen: Fullscreen = NO_FULLSCREEN,
+  fullscreen: Fullscreen,
 ): MenuChoice[] {
   if (confirming) return ["confirm", "goBack"];
   return fullscreen.available ? ["newHero", "fullscreen"] : ["newHero"];
@@ -408,7 +411,7 @@ export function clickPaused(
  */
 export function tapRotateNotice(
   menus: Menus,
-  choice: "fullscreen" | null,
+  choice: FullscreenChoice | null,
 ): MenuRequest | null {
   if (!menus.rotateNotice || !menus.fullscreen.available) return null;
   return choice;

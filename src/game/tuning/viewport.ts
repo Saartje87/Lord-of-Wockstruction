@@ -26,12 +26,12 @@ export type ViewportTuning = {
   compactBelowHeight: number;
   /**
    * The narrowest screen the game is played on (CSS px); a narrower one
-   * shows the Rotate Notice asking to enlarge it.
+   * shows the Rotate Notice as too small.
    */
   minPlayWidth: number;
   /**
    * The shortest screen the game is played on (CSS px); a shorter one shows
-   * the Rotate Notice asking to enlarge it.
+   * the Rotate Notice as too small.
    */
   minPlayHeight: number;
 };

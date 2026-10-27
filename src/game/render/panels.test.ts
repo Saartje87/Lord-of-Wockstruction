@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { NO_FULLSCREEN } from "../fullscreen";
 import { EQUIPMENT_SLOTS } from "../sim/inventory";
 import { overlaps, type Rect } from "../sim/rect";
 import { emptySkillBar } from "../sim/skillBar";
@@ -210,7 +211,12 @@ describe("the panels at the UI Scale", () => {
     const viewport = viewportOf(size);
     const { uiScale } = viewport;
     for (const confirming of [false, true]) {
-      const { panel, buttons } = pauseMenuLayout(viewport, confirming);
+      const { panel, buttons } = pauseMenuLayout(
+        viewport,
+        confirming,
+        "mouseAndKeyboard",
+        NO_FULLSCREEN,
+      );
 
       // At native scale: a 460×290 panel with 160×32 buttons.
       expect(panel.w).toBeCloseTo(460 * uiScale);
@@ -219,7 +225,15 @@ describe("the panels at the UI Scale", () => {
       for (const { choice, rect } of buttons) {
         expect(rect.w).toBeCloseTo(160 * uiScale);
         expect(rect.h).toBeCloseTo(32 * uiScale);
-        expect(menuChoiceAt(viewport, centre(rect), confirming)).toBe(choice);
+        expect(
+          menuChoiceAt(
+            viewport,
+            centre(rect),
+            confirming,
+            "mouseAndKeyboard",
+            NO_FULLSCREEN,
+          ),
+        ).toBe(choice);
       }
     }
   });

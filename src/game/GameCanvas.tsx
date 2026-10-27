@@ -14,7 +14,7 @@ import {
   releaseCursor,
   settleCursor,
 } from "./cursor";
-import { browserFullscreen } from "./fullscreen";
+import { browserFullscreen, fullscreenPointerEvent } from "./fullscreen";
 import {
   createActiveInput,
   padTouched,
@@ -188,10 +188,59 @@ export default function GameCanvas() {
       // button.
       let clickedAt: Vec | null = null;
       let keys: string[] = [];
+      /**
+       * Whether `at` is on the Fullscreen button, of the Rotate Notice or
+       * the pause menu, as last drawn.
+       */
+      const onFullscreenButton = (at: Vec): boolean =>
+        menus.rotateNotice
+          ? renderer.rotateNoticeChoiceAt(at, menus.fullscreen) === "fullscreen"
+          : pause.paused &&
+            renderer.menuChoiceAt(at, pause.confirming, menus.fullscreen) ===
+              "fullscreen";
+      /**
+       * Presses the Fullscreen button and carries out the menus' request at
+       * once, inside the event handler: browsers allow fullscreen only
+       * there.
+       */
+      const pressFullscreen = () => {
+        const asked = menus.rotateNotice
+          ? tapRotateNotice(menus, "fullscreen")
+          : clickPaused(menus, "fullscreen", performance.now());
+        if (asked === "fullscreen") fullscreen.toggle();
+      };
+      /** The finger or pen pressed on the Fullscreen button, till it lifts. */
+      let fullscreenPointer: number | null = null;
       app.canvas.addEventListener(
         "pointerdown",
         (e) => {
-          clickedAt = { x: e.offsetX, y: e.offsetY };
+          const at = { x: e.offsetX, y: e.offsetY };
+          if (!onFullscreenButton(at)) {
+            clickedAt = at;
+          } else if (fullscreenPointerEvent(e.pointerType) === "pointerdown") {
+            pressFullscreen();
+          } else {
+            fullscreenPointer = e.pointerId;
+          }
+        },
+        { signal: listeners.signal },
+      );
+      // A finger or pen presses the Fullscreen button as it lifts there.
+      app.canvas.addEventListener(
+        "pointerup",
+        (e) => {
+          if (e.pointerId !== fullscreenPointer) return;
+          fullscreenPointer = null;
+          if (onFullscreenButton({ x: e.offsetX, y: e.offsetY })) {
+            pressFullscreen();
+          }
+        },
+        { signal: listeners.signal },
+      );
+      app.canvas.addEventListener(
+        "pointercancel",
+        (e) => {
+          if (e.pointerId === fullscreenPointer) fullscreenPointer = null;
         },
         { signal: listeners.signal },
       );
@@ -258,7 +307,7 @@ export default function GameCanvas() {
             const drink = drinkKeyOrder(key);
             if (drink) orders.push(drink);
           }
-          if (used === "newHero") requests.add(used);
+          if (used !== null && used !== "handled") requests.add(used);
         }
         // The controller, read every frame so its buttons' presses and
         // releases are seen, and polled with the panels as the keys left
@@ -301,18 +350,12 @@ export default function GameCanvas() {
           const asked = clickPaused(menus, choice, realNow);
           if (asked !== null) requests.add(asked);
         }
-        if (clickedAt && menus.rotateNotice) {
-          // Only a tap on the notice's Fullscreen button gets through.
-          const choice = renderer.rotateNoticeChoiceAt(
-            clickedAt,
-            menus.fullscreen,
-          );
-          const asked = tapRotateNotice(menus, choice);
-          if (asked !== null) requests.add(asked);
-        }
+        // A click or tap on the Fullscreen button never gets here: its
+        // event handler carried it out, as the browser asks. The Rotate
+        // Notice takes every other click for nothing.
         if (requests.has("fullscreen")) {
-          // Only ever from the player's own click, tap or press, which the
-          // browser asks of fullscreen; it may still refuse.
+          // Only from the controller's A, which browsers don't count as the
+          // player's own action, so one may refuse it.
           fullscreen.toggle();
         }
         if (wasPaused || pause.paused) {

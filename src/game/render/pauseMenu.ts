@@ -1,4 +1,4 @@
-import { type Fullscreen, NO_FULLSCREEN } from "../fullscreen";
+import type { Fullscreen } from "../fullscreen";
 import type { InputWay } from "../input/activeInput";
 import { type MenuChoice, menuChoices } from "../menus";
 import { inside, type Rect } from "../sim/rect";
@@ -20,10 +20,10 @@ export const PAUSE_MENU_LAYOUT = {
 };
 
 /**
- * Each pause-menu button's size (CSS px at native scale), and the Rotate
- * Notice's Fullscreen button's.
+ * A menu button's size (CSS px at native scale): each of the pause menu's,
+ * and the Rotate Notice's Fullscreen button.
  */
-export const PAUSE_MENU_BUTTON = { width: 160, height: 32 };
+export const MENU_BUTTON = { width: 160, height: 32 };
 
 /** A pause-menu button: what it picks, its label and where it is. */
 export type MenuButton = { choice: MenuChoice; label: string; rect: Rect };
@@ -36,14 +36,14 @@ export type MenuButton = { choice: MenuChoice; label: string; rect: Rect };
 export function pauseMenuLayout(
   screen: Viewport,
   confirming: boolean,
-  way: InputWay = "mouseAndKeyboard",
-  fullscreen: Fullscreen = NO_FULLSCREEN,
+  way: InputWay,
+  fullscreen: Fullscreen,
 ): { panel: Rect; buttons: MenuButton[] } {
   const { width, height, buttonsTop, gap } = atUiScale(
     PAUSE_MENU_LAYOUT,
     screen.uiScale,
   );
-  const button = atUiScale(PAUSE_MENU_BUTTON, screen.uiScale);
+  const button = atUiScale(MENU_BUTTON, screen.uiScale);
   const panel = {
     x: Math.round((screen.width - width) / 2),
     y: Math.round((screen.height - height) / 2),
@@ -71,20 +71,17 @@ export function pauseMenuLayout(
 }
 
 /**
- * The pause-menu button under `point`, or null off them all; the
- * Fullscreen button only where `fullscreen` says the browser allows it.
+ * The pause-menu button under `point`, as laid out with the Active Input
+ * `way`, or null off them all; the Fullscreen button only where
+ * `fullscreen` says the browser allows it.
  */
 export function menuChoiceAt(
   screen: Viewport,
   point: Vec,
   confirming: boolean,
-  fullscreen: Fullscreen = NO_FULLSCREEN,
+  way: InputWay,
+  fullscreen: Fullscreen,
 ): MenuChoice | null {
-  const { buttons } = pauseMenuLayout(
-    screen,
-    confirming,
-    undefined,
-    fullscreen,
-  );
+  const { buttons } = pauseMenuLayout(screen, confirming, way, fullscreen);
   return buttons.find((button) => inside(button.rect, point))?.choice ?? null;
 }

@@ -8,6 +8,7 @@ import {
   createWorld,
   DEATH_STEPS,
   FRESH_PROGRESS,
+  type KeptArea,
   OPENING_STEPS,
   type SimEvent,
   step,
@@ -165,6 +166,34 @@ const walled = combatArea(
   ),
 );
 
+// The cave with two Skeletons, wired up the same way.
+const lair = combatArea(
+  map(
+    [
+      "..........", //
+      "..........",
+      ".H......S.",
+      "..........",
+      ".....S....",
+    ],
+    [
+      exit(0, 0, "town", "from-cave"),
+      entry("from-town", 1, 2),
+      exit(0, 4, "den", "from-cave"),
+      entry("from-den", 1, 4),
+    ],
+  ),
+);
+
+/** Where the cave's Exit to the den is, and the den's Exit back. */
+const TO_DEN = { x: 0.5, y: 4.5 };
+const BACK_FROM_DEN = { x: 4.5, y: 2.5 };
+/** The cave's two Skeletons as they are on a fresh arrival. */
+const FRESH_LAIR = [
+  { pos: { x: 8.5, y: 2.5 }, life: 60 },
+  { pos: { x: 5.5, y: 4.5 }, life: 60 },
+];
+
 /** A World with the Hero just arrived in the cave, facing east along +x. */
 function inCave(areas: Record<string, unknown> = { town, cave, den }): World {
   return createWorld({
@@ -195,6 +224,45 @@ function walkTo(world: World, target: Vec, limit = 600): SimEvent[] {
     if (arrived && !world.areaChange) break;
   }
   return events;
+}
+
+/**
+ * Walks the Hero to `target`, into an Exit or a Town Portal, and on through
+ * the Area change. Returns what the Area they left held as they walked out.
+ */
+function leave(world: World, target: Vec): KeptArea {
+  step(world, [{ type: "MoveTo", target }]);
+  for (let i = 0; i < 600 && !world.areaChange; i++) step(world, []);
+  const { monsters, corpses, groundItems, projectiles } = world;
+  const left = structuredClone({ monsters, corpses, groundItems, projectiles });
+  while (world.areaChange) step(world, []);
+  return left;
+}
+
+/** The end of the Town Portal in the active Area; throws when there is none. */
+function townPortalEnd(world: World): Vec {
+  const end = townPortalIn(world);
+  if (!end) throw new Error("no Town Portal here");
+  return end;
+}
+
+/**
+ * A World with the Hero in the cave with two Skeletons, the first of them
+ * hit once; the Hero has Life to spare and never flinches.
+ */
+function inLairWithOneHurt(): World {
+  heroTuning.flinchChance = 0;
+  const w = inCave({ town, cave: lair, den });
+  w.hero.life = 1000;
+  const [first] = w.monsters;
+  for (let i = 0; i < 600; i++) {
+    const events = step(w, [{ type: "Attack", monster: first.id }]);
+    if (events.some((event) => event.type === "HitLanded")) break;
+  }
+  expect(first.life).toBeLessThan(60);
+  // Let the swing end, so an order isn't held back behind it.
+  while (w.hero.swing) step(w, []);
+  return w;
 }
 
 /** Steps with no orders `count` times, collecting every event. */
@@ -312,7 +380,10 @@ describe("opening a Town Portal", () => {
 
     expect(events.map((event) => event.type)).toContain("HeroHit");
     expect(events.map((event) => event.type)).not.toContain("TownPortalOpened");
-    expect(w.townPortal).toEqual({ area: "cave", pos: { x: 2.5, y: 2.5 } });
+    expect(w.townPortal).toMatchObject({
+      area: "cave",
+      pos: { x: 2.5, y: 2.5 },
+    });
   });
 
   it("closes the old Town Portal when another opens", () => {
@@ -434,7 +505,10 @@ describe("the Town Portal stays open", () => {
     expect(w.areaName).toBe("den");
     expect(events.map((event) => event.type)).not.toContain("TownPortalClosed");
     expect(townPortalIn(w)).toBeNull();
-    expect(w.townPortal).toEqual({ area: "cave", pos: { x: 2.5, y: 2.5 } });
+    expect(w.townPortal).toMatchObject({
+      area: "cave",
+      pos: { x: 2.5, y: 2.5 },
+    });
   });
 
   it("after Death's way back to Town", () => {
@@ -467,5 +541,157 @@ describe("a World built from the Save", () => {
     expect(w.areaName).toBe("town");
     expect(w.townPortal).toBeNull();
     expect(townPortalIn(w)).toBeNull();
+  });
+});
+
+describe("the Kept Area", () => {
+  it("is just as the Hero left it, back through the Town Portal, however long they were away", () => {
+    const w = inLairWithOneHurt();
+    open(w);
+    const left = leave(w, townPortalEnd(w));
+    expect(w.areaName).toBe("town");
+    stepFor(w, 600);
+
+    walkTo(w, TOWN_SPOT);
+
+    expect(w.areaName).toBe("cave");
+    expect(w.monsters).toEqual(left.monsters);
+    expect(w.projectiles).toEqual(left.projectiles);
+  });
+
+  it("has a Monster that was chasing the Hero carry on chasing when they come back", () => {
+    const w = inLairWithOneHurt();
+    open(w);
+    const left = leave(w, townPortalEnd(w));
+    const chaser = left.monsters.find(({ state }) => state === "chase");
+    if (!chaser) throw new Error("no Skeleton was chasing the Hero");
+
+    walkTo(w, TOWN_SPOT);
+    step(w, []);
+
+    expect(w.monsters.find(({ id }) => id === chaser.id)?.state).toBe("chase");
+  });
+
+  it("still has its Corpses and Ground Items when the Hero comes back", () => {
+    const w = inLairWithOneHurt();
+    const [first] = w.monsters;
+    for (let i = 0; i < 3000 && w.monsters.includes(first); i++) {
+      step(w, [{ type: "Attack", monster: first.id }]);
+    }
+    while (w.hero.swing) step(w, []);
+    step(w, [{ type: "LiftItem", from: "weapon" }, { type: "DropItem" }]);
+    open(w);
+    const left = leave(w, townPortalEnd(w));
+    expect(left.corpses).toHaveLength(1);
+    expect(left.groundItems.map(({ item }) => item.type)).toContain(
+      "shortSword",
+    );
+
+    walkTo(w, TOWN_SPOT);
+
+    expect(w.corpses).toEqual(left.corpses);
+    expect(w.groundItems).toEqual(left.groundItems);
+  });
+
+  it("is kept when the Hero comes back by an Exit from another Combat Area", () => {
+    const w = inLairWithOneHurt();
+    open(w);
+    const left = leave(w, TO_DEN);
+    expect(w.areaName).toBe("den");
+
+    walkTo(w, BACK_FROM_DEN);
+
+    expect(w.areaName).toBe("cave");
+    expect(w.monsters).toEqual(left.monsters);
+  });
+
+  it("is kept when the Hero comes back from Town by its Exit", () => {
+    const w = inLairWithOneHurt();
+    open(w);
+    const left = leave(w, townPortalEnd(w));
+
+    walkTo(w, { x: 7.5, y: 1.5 });
+
+    expect(w.areaName).toBe("cave");
+    expect(w.monsters).toEqual(left.monsters);
+  });
+
+  it("lets Monsters that were Returning after a Death finish Returning and heal at home", () => {
+    const w = inLairWithOneHurt();
+    open(w);
+    // Lure the Skeletons far from home, so they're still Returning by the
+    // time the Hero is sent back to Town.
+    step(w, [{ type: "MoveTo", target: { x: 0.5, y: 2.5 } }]);
+    stepFor(w, 120);
+    w.hero.life = 1;
+    let died = false;
+    for (let i = 0; i < 1200 && !died; i++) {
+      died = step(w, []).some((event) => event.type === "HeroDied");
+    }
+    expect(died).toBe(true);
+    stepFor(w, DEATH_STEPS);
+    step(w, [{ type: "Continue" }]);
+    const returning = w.monsters.map(({ state, life }) => ({ state, life }));
+    while (w.areaChange) step(w, []);
+    expect(w.areaName).toBe("town");
+    expect(returning.every(({ state }) => state === "return")).toBe(true);
+    expect(returning.some(({ life }) => life < 60)).toBe(true);
+
+    walkTo(w, TOWN_SPOT);
+    expect(w.monsters.map(({ state }) => state)).toEqual(["return", "return"]);
+    for (let i = 0; i < 1200; i++) {
+      if (w.monsters.every(({ state }) => state !== "return")) break;
+      step(w, []);
+    }
+
+    expect(w.monsters.map(({ state }) => state)).not.toContain("return");
+    expect(w.monsters.map(({ life }) => life)).toEqual([60, 60]);
+  });
+
+  it("is fresh again on the next arrival once the Town Portal has closed", () => {
+    const w = inLairWithOneHurt();
+    open(w);
+    leave(w, townPortalEnd(w));
+    walkTo(w, TOWN_SPOT);
+    expect(w.townPortal).toBeNull();
+
+    leave(w, TO_DEN);
+    walkTo(w, BACK_FROM_DEN);
+
+    expect(w.areaName).toBe("cave");
+    expect(w.monsters.map(({ pos, life }) => ({ pos, life }))).toEqual(
+      FRESH_LAIR,
+    );
+  });
+
+  it("is fresh again on the next arrival once a Town Portal opens in another Area", () => {
+    const w = inLairWithOneHurt();
+    open(w);
+    leave(w, TO_DEN);
+    expect(open(w)).toContainEqual(
+      expect.objectContaining({ type: "TownPortalOpened", area: "den" }),
+    );
+    // Walk round the den's Town Portal, a step east of the Hero.
+    step(w, [{ type: "MoveTo", target: { x: 1.5, y: 2.5 } }]);
+    stepFor(w, 30);
+
+    walkTo(w, BACK_FROM_DEN);
+
+    expect(w.areaName).toBe("cave");
+    expect(w.monsters.map(({ pos, life }) => ({ pos, life }))).toEqual(
+      FRESH_LAIR,
+    );
+  });
+
+  it("is never an Area without the Town Portal, which stays fresh on every arrival", () => {
+    const w = inLairWithOneHurt();
+
+    leave(w, TO_DEN);
+    walkTo(w, BACK_FROM_DEN);
+
+    expect(w.areaName).toBe("cave");
+    expect(w.monsters.map(({ pos, life }) => ({ pos, life }))).toEqual(
+      FRESH_LAIR,
+    );
   });
 });

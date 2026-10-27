@@ -1,9 +1,16 @@
+import type { CursorPoint } from "../cursor";
 import { type Menus, PANELS, panelOpen } from "../menus";
 import type { ItemId } from "../sim/inventory";
 import { type SkillBarSlot, skillInSlot } from "../sim/skillBar";
 import { distance, type Vec } from "../sim/vec";
 import type { MonsterId, Order, World } from "../sim/world";
 import { inputTuning } from "../tuning/input";
+import {
+  type FocusDirection,
+  type FocusSpot,
+  moveFocus,
+  sameSpot,
+} from "./focus";
 import { pickTarget } from "./target";
 
 /**
@@ -56,10 +63,15 @@ export type PadInput = {
   lastOrderMs: Partial<Record<PadButton, number>>;
   /** Whether the stick was pushed past the dead zone last frame. */
   stickPushed: boolean;
+  /** The spot the Focus last rested on, if it has. */
+  focus: FocusSpot | null;
+  /** Whether the Focus shows: from a press of the pad until `hideFocus`. */
+  focusShown: boolean;
 };
 
 /** The D-pad directions, which a push of the stick stands in for in menus. */
-type PadDirection = "up" | "down" | "left" | "right";
+const DIRECTIONS = ["up", "down", "left", "right"] as const;
+type PadDirection = (typeof DIRECTIONS)[number] & FocusDirection;
 
 /** The Skill Bar slot each Skill button casts. */
 const SKILL_BUTTONS = [
@@ -84,10 +96,40 @@ export type PadView = {
   world: World;
   /** Which panels are open: while any is, the Hero stands still. */
   menus: Pick<Menus, "heroPanelOpen" | "inventoryOpen" | "skillTreeOpen">;
+  /** The Focus spots of the panel that has the Focus, as last drawn. */
+  focusSpots: readonly FocusSpot[];
+};
+
+/** What the pad asks of this frame. */
+export type PadPoll = {
+  orders: Order[];
+  /** The Target, for the renderer to show. */
+  target: MonsterId | null;
+  /** The buttons pressed this frame, for the menus. */
+  presses: PadButton[];
+  /** The spot the Focus rests on, while it shows in an open panel. */
+  focus: FocusSpot | null;
+  /** A click to give, as the left button's press and release would. */
+  click: CursorPoint | null;
+  /** A right-click to give, as the right button would. */
+  rightClick: CursorPoint | null;
 };
 
 export function createPadInput(): PadInput {
-  return { lastOrderMs: {}, stickPushed: false };
+  return {
+    lastOrderMs: {},
+    stickPushed: false,
+    focus: null,
+    focusShown: false,
+  };
+}
+
+/**
+ * Hides the Focus, as input other than the pad is used, until the pad is
+ * pressed again. It stays on its spot meanwhile.
+ */
+export function hideFocus(input: PadInput) {
+  input.focusShown = false;
 }
 
 /**
@@ -110,9 +152,15 @@ export function createPadInput(): PadInput {
  * stick aims rather than walks. An empty slot casts nothing. The D-pad's
  * left, up, right and down drink from Belt Columns 1 to 4, once a press.
  *
- * While a panel is open the Hero stands still and nothing is ordered; during
- * Death, A sends the Hero back to Town, once a press, and nothing else is
- * ordered. Neither shows a Target.
+ * While a panel is open the Hero stands still and nothing is ordered.
+ * Instead, once the pad has been pressed, the Focus shows on a spot of
+ * `focusSpots`, where it last rested or else the first; the press that
+ * shows it does nothing more. The D-pad and a push of the stick move it
+ * (`moveFocus`); A clicks the spot (lifting, putting down or pressing), X
+ * right-clicks it (Equipping or drinking) and Y clicks off the panel there,
+ * dropping a Held Item, each once a press. During Death, A sends the Hero
+ * back to Town, once a press, and nothing else is ordered. Neither shows a
+ * Target.
  *
  * `presses` are the buttons pressed this frame, for the menus (`pressPad`),
  * with a push of the stick past the dead zone counted, once until it comes
@@ -123,19 +171,20 @@ export function pollPad(
   snapshot: PadSnapshot,
   nowMs: number,
   view: PadView,
-): { orders: Order[]; target: MonsterId | null; presses: PadButton[] } {
+): PadPoll {
   const presses = [...snapshot.pressed, ...stickPress(input, snapshot.stick)];
+  const wasShown = input.focusShown;
+  if (presses.length > 0) input.focusShown = true;
   const { world } = view;
+  const none = { target: null, focus: null, click: null, rightClick: null };
   if (PANELS.some((panel) => panelOpen(view.menus, panel))) {
-    return { orders: [], target: null, presses };
+    const focus = steerFocus(input, presses, view.focusSpots, wasShown);
+    return { ...none, ...focus, orders: [], presses };
   }
   if (world.death) {
     const back = snapshot.pressed.includes("a");
-    return {
-      orders: back ? [{ type: "Continue" }] : [],
-      target: null,
-      presses,
-    };
+    const orders: Order[] = back ? [{ type: "Continue" }] : [];
+    return { ...none, orders, presses };
   }
   const walk = walkDirection(snapshot.stick, view);
   const facing = {
@@ -161,7 +210,42 @@ export function pollPad(
     }
   });
   if (walk && !aiming) orders.push({ type: "Walk", direction: walk });
-  return { orders, target, presses };
+  return { ...none, orders, target, presses };
+}
+
+/**
+ * Moves the Focus over `spots` for this frame's `presses` and gives the
+ * clicks they ask for, as `pollPad` describes: nothing while it doesn't
+ * show, nor unless it already showed before this frame (`wasShown`).
+ */
+function steerFocus(
+  input: PadInput,
+  presses: readonly PadButton[],
+  spots: readonly FocusSpot[],
+  wasShown: boolean,
+): Pick<PadPoll, "focus" | "click" | "rightClick"> {
+  const { focus: last } = input;
+  let focus =
+    (last && spots.find((spot) => sameSpot(spot, last))) ?? spots[0] ?? null;
+  input.focus = focus ?? last;
+  if (!focus || !input.focusShown) {
+    return { focus: null, click: null, rightClick: null };
+  }
+  if (!wasShown) return { focus, click: null, rightClick: null };
+  for (const press of presses) {
+    const direction = DIRECTIONS.find((one) => one === press);
+    if (direction) focus = moveFocus(spots, focus, direction);
+  }
+  input.focus = focus;
+  const { at, hit } = focus;
+  const drop = { at, hit: { drop: true } } as const;
+  const click = presses.includes("a")
+    ? { at, hit }
+    : presses.includes("y")
+      ? drop
+      : null;
+  const rightClick = presses.includes("x") ? { at, hit } : null;
+  return { focus, click, rightClick };
 }
 
 /**

@@ -188,6 +188,25 @@ export function releaseCursor(
 }
 
 /**
+ * A press and release at the same point, as a click there, or the Focus
+ * pressed there, gives: lifting, putting down, dropping, or picking up and
+ * landing a Held Skill, never dragging.
+ */
+export function clickCursor(
+  cursor: Cursor,
+  point: CursorPoint,
+  scene: CursorScene,
+): CursorOutcome {
+  const pressed = pressCursor(cursor, point, scene);
+  const released = releaseCursor(pressed.cursor, point, scene);
+  return {
+    cursor: released.cursor,
+    orders: [...pressed.orders, ...released.orders],
+    taken: pressed.taken || released.taken,
+  };
+}
+
+/**
  * Puts the Held Skill into the Skill Bar slot `hit`, by the Skill Bar's
  * swap rule, or anywhere else lets go of it, changing nothing. Either way
  * the cursor holds no Skill after, and the press or release is not for the

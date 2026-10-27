@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   type CursorHit,
+  clickCursor,
   createCursor,
   forTheWorld,
   pressCursor,
@@ -8,7 +9,12 @@ import {
   settleCursor,
 } from "./cursor";
 import { beltStripLayout } from "./render/beltStrip";
-import { inventoryPanelLayout } from "./render/inventoryPanel";
+import {
+  type InventoryHit,
+  inventoryFocusSpots,
+  inventoryPanelLayout,
+  inventoryRightClickOrder,
+} from "./render/inventoryPanel";
 import { beltOf, emptyBelt } from "./sim/belt";
 import {
   type Belongings,
@@ -904,5 +910,93 @@ describe("the cursor on the Belt strip", () => {
 
     expect(orders).toEqual([{ type: "DropItem" }]);
     expect(taken).toBe(true);
+  });
+});
+
+describe("a click at the Focus", () => {
+  /** The Inventory panel's Focus spot `hit` names, as laid out for `world`. */
+  const focusOn = (world: World, hit: CursorHit) => {
+    const spot = inventoryFocusSpots(world, SCREEN).find(
+      (one) => JSON.stringify(one.hit) === JSON.stringify(hit),
+    );
+    if (!spot) throw new Error("no such spot");
+    return { at: spot.at, hit: spot.hit };
+  };
+
+  it("lifts the focused Item, from any cell it covers", () => {
+    const { world, screen } = scene();
+
+    const { orders, cursor } = clickCursor(
+      createCursor(),
+      focusOn(world, onCell(5, 3)),
+      { world, screen },
+    );
+
+    expect(orders).toEqual([{ type: "LiftItem", from: { column: 5, row: 3 } }]);
+    expect(cursor).toEqual(createCursor());
+  });
+
+  it("puts the Held Item down with its top-left on the focused cell", () => {
+    const { world, screen } = scene();
+    step(world, [{ type: "LiftItem", from: { column: 4, row: 1 } }]);
+
+    const { orders } = clickCursor(
+      createCursor(),
+      focusOn(world, onCell(0, 0)),
+      { world, screen },
+    );
+    step(world, orders);
+
+    expect(orders).toEqual([{ type: "PlaceItem", to: { column: 0, row: 0 } }]);
+    expect(inventoryItemAt(world, { column: 0, row: 0 })?.item.type).toBe(
+      "axe",
+    );
+  });
+
+  it("Equips the Held Item into the focused slot", () => {
+    const { world, screen } = scene();
+    step(world, [{ type: "LiftItem", from: { column: 4, row: 1 } }]);
+
+    const { orders } = clickCursor(
+      createCursor(),
+      focusOn(world, { inventory: "weapon" }),
+      { world, screen },
+    );
+    step(world, orders);
+
+    expect(equipmentOf(world).weapon?.type).toBe("axe");
+  });
+
+  it("drops the Held Item clicked off the panel at the Focus", () => {
+    const { world, screen } = scene();
+    step(world, [{ type: "LiftItem", from: { column: 4, row: 1 } }]);
+    const { at } = focusOn(world, onCell(0, 0));
+
+    const { orders } = clickCursor(
+      createCursor(),
+      { at, hit: { drop: true } },
+      { world, screen },
+    );
+
+    expect(orders).toEqual([{ type: "DropItem" }]);
+  });
+
+  it("right-clicked, Equips or drinks the focused Item", () => {
+    const world = createWorld({
+      areas: { town },
+      seed: 1,
+      belongings: {
+        ...belongings,
+        inventory: [
+          ...belongings.inventory,
+          { type: "lifePotion", cell: { column: 0, row: 0 } },
+        ],
+      },
+    });
+    const right = (hit: CursorHit) =>
+      inventoryRightClickOrder(world, focusOn(world, hit).hit as InventoryHit);
+
+    expect(right(onCell(4, 2))).toMatchObject({ type: "EquipItem" });
+    expect(right(onCell(0, 0))).toMatchObject({ type: "DrinkItem" });
   });
 });

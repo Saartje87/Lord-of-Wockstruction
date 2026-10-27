@@ -595,6 +595,22 @@ describe("the D-pad", () => {
   });
 });
 
+describe("LB", () => {
+  it("opens a Town Portal", () => {
+    const { orders } = pollPad(createPadInput(), press("lb"), 0, asTiles);
+
+    expect(orders).toEqual([{ type: "OpenTownPortal" }]);
+  });
+
+  it("opens one once a press, however long it is held", () => {
+    const input = createPadInput();
+    pollPad(input, press("lb"), 0, asTiles);
+
+    const later = 10 * inputTuning.retargetMs;
+    expect(pollPad(input, hold("lb"), later, asTiles).orders).toEqual([]);
+  });
+});
+
 /** Menus with the Inventory panel open. */
 function inventoryOpen(): Menus {
   const menus = createMenus();
@@ -627,6 +643,7 @@ describe("with a panel open", () => {
     "y",
     "rb",
     "rt",
+    "lb",
   ] as const)("%s orders nothing in the World", (button) => {
     const world = golemEverywhere(facingEast([{ x: 13, y: 10 }]));
     const view = tilesOver(world, inventoryOpen());
@@ -845,6 +862,7 @@ describe("during Death", () => {
     "x",
     "rt",
     "left",
+    "lb",
   ] as const)("%s and the stick order nothing", (button) => {
     const pushed = { ...press(button), stick: { x: 1, y: 0 } };
 

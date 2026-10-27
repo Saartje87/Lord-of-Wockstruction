@@ -58,8 +58,10 @@ import {
   type MinionId,
   type MinionType,
   type MonsterId,
+  OPENING_STEPS,
   type SimEvent,
   SWING_STEPS,
+  townPortalIn,
   type World,
 } from "../sim/world";
 import { heroTuning } from "../tuning/hero";
@@ -72,6 +74,7 @@ import {
   monsterTuning,
 } from "../tuning/monsters";
 import { type Skill, skillTuning } from "../tuning/skills";
+import { townPortalTuning } from "../tuning/townPortal";
 import { atUiScale, type Viewport, viewportOf } from "../viewport";
 import { type Compass, compassOf, frameAt, swingFrame } from "./animation";
 import {
@@ -313,6 +316,13 @@ const MINION_LOOK: Record<MinionType, { tint: number; scale: number }> = {
  * animation, fading out (ms).
  */
 const CRUMBLE_MS = 900;
+
+/**
+ * The placeholder Town Portal: an upright green oval as wide as the Town
+ * Portal's radius across, `tallness` times as tall as wide, standing on the
+ * floor.
+ */
+const TOWN_PORTAL = { colour: 0x3fe060, alpha: 0.85, tallness: 1.6 };
 
 /**
  * The Skill Bar's look, in the HUD's colours; where things go is
@@ -597,6 +607,8 @@ export function createRenderer(
   camera.addChild(scene);
   const hero = characterView(art.hero, heroTuning.walkSpeed);
   scene.addChild(hero.sprite);
+  const townPortal = new Graphics();
+  scene.addChild(townPortal);
   /** A sprite for each Projectile in flight, in the World's order. */
   const projectiles: Sprite[] = [];
   // Under the scene, so the ring spreads at the Hero's feet.
@@ -1089,11 +1101,13 @@ export function createRenderer(
           swing.elapsed * STEP_MS,
         );
         show(hero, "swing", heroCompass, frame);
-      } else if (world.hero.cast) {
-        // A placeholder: the swing, slowed to the cast time.
-        const { skill, elapsed } = world.hero.cast;
+      } else if (world.hero.cast || world.hero.opening) {
+        // A placeholder: the swing, slowed to the cast or opening time.
+        const { cast, opening } = world.hero;
+        const progress = cast
+          ? cast.elapsed / CAST_STEPS[cast.skill]
+          : (opening?.elapsed ?? 0) / OPENING_STEPS;
         const { frames } = art.hero.timing.swing;
-        const progress = elapsed / CAST_STEPS[skill];
         show(
           hero,
           "swing",
@@ -1133,6 +1147,18 @@ export function createRenderer(
           });
       } else if (hero.sprite.filters) {
         hero.sprite.filters = null;
+      }
+
+      townPortal.clear();
+      const townPortalEnd = townPortalIn(world);
+      if (townPortalEnd) {
+        const foot = toScreen(townPortalEnd);
+        const width = townPortalTuning.radius * 2 * TILE_WIDTH;
+        const height = width * TOWN_PORTAL.tallness;
+        townPortal
+          .ellipse(foot.x, foot.y - height / 2, width / 2, height / 2)
+          .fill({ color: TOWN_PORTAL.colour, alpha: TOWN_PORTAL.alpha });
+        townPortal.zIndex = foot.y;
       }
 
       const seen = new Set<MonsterId>();

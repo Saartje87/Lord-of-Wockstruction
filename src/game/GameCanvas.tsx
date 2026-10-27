@@ -24,7 +24,7 @@ import {
   reportInput,
 } from "./input/activeInput";
 import { readGamepad } from "./input/gamepad";
-import { castKeyOrder, drinkKeyOrder } from "./input/keys";
+import { castKeyOrder, drinkKeyOrder, townPortalKeyOrder } from "./input/keys";
 import {
   bothPads,
   createPadInput,
@@ -320,6 +320,9 @@ export default function GameCanvas() {
             // Keys 1–4 drink from the Belt Columns.
             const drink = drinkKeyOrder(key);
             if (drink) orders.push(drink);
+            // Key P opens a Town Portal.
+            const townPortal = townPortalKeyOrder(key);
+            if (townPortal) orders.push(townPortal);
           }
           if (used !== null && used !== "handled") requests.add(used);
         }

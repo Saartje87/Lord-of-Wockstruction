@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { arenaWith } from "../input/testArena";
 import { combatArea } from "../sim/testAreas";
 import {
   createWorld,
@@ -11,6 +12,7 @@ import type { MonsterType } from "../tuning/monsters";
 import { viewportOf } from "../viewport";
 import {
   characterUnder,
+  hoveredOf,
   nameplateLayout,
   nameplateOf,
   type Pickable,
@@ -169,5 +171,41 @@ describe("nameplateOf", () => {
     const plate = nameplateOf({ minion: golem(max / 4) });
 
     expect(plate).toEqual({ name: "Golem", fraction: 0.25, friendly: true });
+  });
+});
+
+describe("what is shown as hovered", () => {
+  const two = () =>
+    arenaWith([
+      { x: 12, y: 10 },
+      { x: 14, y: 10 },
+    ]);
+
+  it("shows the Target with the pointer over no one", () => {
+    const world = two();
+    const [, target] = world.monsters;
+
+    expect(hoveredOf(world, null, target.id)).toEqual({ monster: target });
+  });
+
+  it("shows the Monster under the pointer over the Target", () => {
+    const world = two();
+    const [pointed, target] = world.monsters;
+
+    expect(hoveredOf(world, pointed.id, target.id)).toEqual({
+      monster: pointed,
+    });
+  });
+
+  it("shows nothing for a Target that has since died", () => {
+    const world = two();
+    const [, target] = world.monsters;
+    world.monsters.splice(1, 1);
+
+    expect(hoveredOf(world, null, target.id)).toBeNull();
+  });
+
+  it("shows nothing with neither", () => {
+    expect(hoveredOf(two(), null, null)).toBeNull();
   });
 });

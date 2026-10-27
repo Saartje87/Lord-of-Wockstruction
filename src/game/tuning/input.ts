@@ -9,10 +9,25 @@ export type InputTuning = {
    * walks the Hero, so a worn stick doesn't drift.
    */
   stickDeadZone: number;
+  /**
+   * How wide the cone ahead of the Hero is that auto-aim picks the Target
+   * in, from one edge to the other (degrees).
+   */
+  targetConeDegrees: number;
+  /** How far ahead of the Hero auto-aim picks the Target (tiles). */
+  targetRange: number;
+  /**
+   * How near the Hero a Ground Item must lie for A, with no Target, to pick
+   * it up (tiles).
+   */
+  groundItemReach: number;
 };
 
 export const inputTuning: InputTuning = {
   retargetMs: 120,
   clickMarkerMs: 400,
   stickDeadZone: 0.2,
+  targetConeDegrees: 90,
+  targetRange: 6,
+  groundItemReach: 1.5,
 };

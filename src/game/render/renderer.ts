@@ -105,7 +105,7 @@ import {
 } from "./heroPanel";
 import {
   characterUnder,
-  type Hovered,
+  hoveredOf,
   nameplateLayout,
   nameplateOf,
   type Pickable,
@@ -932,7 +932,9 @@ export function createRenderer(
      * Inventory panels while they're open, and the pause menu over
      * everything while paused. `heldSkill` is the Held Skill, if any, drawn
      * at the pointer, and `heldSkillSlot` the Skill Bar slot it was picked
-     * up from, drawn dimmed.
+     * up from, drawn dimmed. `target` is the Target auto-aim picked, if any,
+     * outlined and named as a hovered Monster is when the pointer is over no
+     * one.
      */
     draw(
       world: World,
@@ -942,6 +944,7 @@ export function createRenderer(
       menus: Menus,
       heldSkill: Skill | null = null,
       heldSkillSlot: SkillBarSlot | null = null,
+      target: MonsterId | null = null,
     ) {
       const active = world.areas[world.areaName];
       // Read afresh each frame, so a resized window re-lays the HUD at once.
@@ -1205,14 +1208,16 @@ export function createRenderer(
       drawGroundItems(world, hoveredItem, uiScale);
       const hoveredMonster =
         world.monsters.find((monster) => monster.id === hoveredId) ?? null;
-      const hovered: Hovered | null = hoveredMonster
-        ? { monster: hoveredMonster }
-        : hoveredId === "golem" && world.minion
-          ? { minion: world.minion }
+      // With the pointer over no one, the Target is shown as if hovered.
+      const pointed =
+        typeof hoveredId === "number" || hoveredId === "golem"
+          ? hoveredId
           : null;
-      const hoveredView = hoveredMonster
-        ? monsters.get(hoveredMonster.id)
-        : hovered && golem?.view;
+      const hovered = hoveredOf(world, pointed, target);
+      const hoveredView =
+        hovered && "monster" in hovered
+          ? monsters.get(hovered.monster.id)
+          : hovered && golem?.view;
       outline.show(hoveredView?.sprite ?? null);
       nameplate.clear();
       nameplateText.visible = hovered !== null;

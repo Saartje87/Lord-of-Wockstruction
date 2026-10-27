@@ -206,17 +206,17 @@ export default function GameCanvas() {
         orders.push(...newOrders);
         // The controller, read every frame so its buttons' presses and
         // releases are seen. A walk in a direction is for the steps of this
-        // frame only, each of them, so it goes apart from the other orders;
-        // none while paused, nor for the Rotate Notice.
+        // frame only, each of them, so it goes apart from the other orders.
+        // It orders nothing while paused, nor for the Rotate Notice, and
+        // auto-aims from the World as last stepped (ADR 0002).
         const pad = readGamepad(padHeld);
         padHeld = pad.held;
-        const padOrders = pollPad(padInput, pad, now, {
+        const polled = pollPad(padInput, pad, now, {
           toTile: renderer.screenToTile,
-        }).orders;
-        const walking =
-          wasPaused || pause.paused
-            ? []
-            : padOrders.filter((order) => order.type === "Walk");
+          world,
+        });
+        const padOrders = wasPaused || pause.paused ? [] : polled.orders;
+        const walking = padOrders.filter((order) => order.type === "Walk");
         orders.push(...padOrders.filter((order) => order.type !== "Walk"));
         // A press on a button on a panel or the HUD changes the menus or
         // orders a point spent. A press that put down or let go of a Held Skill does none
@@ -287,6 +287,7 @@ export default function GameCanvas() {
           menus,
           cursor.heldSkill,
           cursor.heldSkillSlot,
+          pause.paused ? null : polled.target,
         );
         app.render();
         frame = requestAnimationFrame(tick);

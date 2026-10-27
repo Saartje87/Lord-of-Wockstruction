@@ -14,6 +14,7 @@ import {
   releaseCursor,
   settleCursor,
 } from "./cursor";
+import { devStartOf } from "./devStart";
 import { browserFullscreen, fullscreenPointerEvent } from "./fullscreen";
 import {
   createActiveInput,
@@ -115,6 +116,11 @@ export default function GameCanvas() {
         seed: Date.now(),
         progress: save?.progress,
         belongings: save?.belongings,
+        // Playtests can skip the walk from Town. Production builds ignore it.
+        start:
+          process.env.NODE_ENV === "development"
+            ? devStartOf(window.location.search)
+            : null,
       });
       const usedTilesets = Object.values(world.areas).map(
         (area) => area.tileset,

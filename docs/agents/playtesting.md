@@ -43,6 +43,10 @@ location.reload();
 
 A Save at 450 Experience levels up on the next Skeleton kill. For fights, use Level 30 or more with Vitality raised: Monster Level comes from the Combat Area, not the Hero, so a Level 1 to 10 Hero dies to the first Skeleton group while you take screenshots. **New Hero** in the Esc menu, or `localStorage.removeItem("wiablo.save")`, puts things back. A Save written on a port belongs to that port only.
 
+### Start in an Area
+
+In dev builds, `?area=<Area>&entry=<Entry>` starts at that Entry instead of in Town, with the Area's Monsters fresh: http://localhost:3000/?area=catacombs&entry=from-town. Areas are the `.tmj` files in `content/areas/`, and Entries their `entry` objects (`start`, `from-town`, …). An unknown Area or Entry starts in Town. Production builds ignore the query. It applies on every load, so drop it to go back to Town.
+
 ## Touch screen
 
 Chrome stands in for a phone: touch controls read `PointerEvent`s with `pointerType: "touch"` on the canvas (`src/game/input/touch.ts`), so dispatched events drive them.
@@ -62,7 +66,7 @@ const touch = (type, id, x, y) => canvas.dispatchEvent(new PointerEvent(type, {
 - **Buttons**: `pointerdown` on the button holds it until `pointerup`.
 - **Run timed sequences in one `javascript_exec`** (await a timeout between events), then screenshot. A tool round trip lasts seconds, and Monsters keep hitting meanwhile.
 - **A `setPointerCapture` error in the dev overlay** comes from dispatched touches outside the controls, which have no real pointer. It is no game bug.
-- **From Town to Monsters**: Town's Exit to the Catacombs lies down-right of the start. The nearest Skeletons (3) are about 23 tiles east of the Catacombs entry.
+- **From Town to Monsters**: start there with `?area=catacombs&entry=from-town` (see Start in an Area). The nearest Skeletons (3) are about 23 tiles east of the Catacombs' `from-town` Entry.
 
 ## Deploys
 

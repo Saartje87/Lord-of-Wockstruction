@@ -241,7 +241,7 @@ How the HUD and panels are arranged on a short screen, such as a phone held side
 _Avoid_: Mobile layout, small mode
 
 **Target**:
-The Monster that auto-aim has picked for the Hero when there is no cursor, with a controller or touch: the nearest one ahead of the Hero within reach. Attacks go to it and Skills are cast at it; it is shown as a hovered Monster is.
+The Monster that auto-aim has picked for the Hero when there is no cursor, with a controller or touch: the nearest one within reach, and while the stick walks the Hero, the nearest one within reach ahead of where it walks. Attacks go to it and Skills are cast at it; it is shown as a hovered Monster is.
 _Avoid_: Lock-on, focus (that's in panels), aim
 
 **Focus**:

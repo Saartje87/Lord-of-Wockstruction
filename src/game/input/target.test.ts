@@ -73,7 +73,48 @@ describe("picking the Target", () => {
     expect(pickTarget(world, { x: -1, y: -1 })).toBe(idAt(world, 1));
   });
 
+  describe("with no direction", () => {
+    it("picks a Monster behind or to the side", () => {
+      const behind = arenaWith([{ x: 8, y: 10 }]);
+      expect(pickTarget(behind, null)).toBe(idAt(behind, 0));
+
+      const beside = arenaWith([{ x: 10, y: 12 }]);
+      expect(pickTarget(beside, null)).toBe(idAt(beside, 0));
+    });
+
+    it("picks the nearest of the Monsters around, whichever way each lies", () => {
+      const world = arenaWith([
+        { x: 14, y: 10 },
+        { x: 10, y: 7 },
+        { x: 8.5, y: 10 },
+      ]);
+
+      expect(pickTarget(world, null)).toBe(idAt(world, 2));
+    });
+
+    it("picks none out of range", () => {
+      inputTuning.targetRange = 5;
+      const world = arenaWith([{ x: 5.1, y: 10 }]);
+      expect(pickTarget(world, null)).toBe(idAt(world, 0));
+
+      world.monsters[0].pos = { x: 4.9, y: 9.9 };
+      expect(pickTarget(world, null)).toBeNull();
+    });
+
+    it("passes over a dead Monster and a Corpse", () => {
+      const world = arenaWith([
+        { x: 9, y: 10 },
+        { x: 10, y: 14 },
+      ]);
+      world.monsters[0].life = 0;
+      world.corpses.push({ id: 99, type: "skeleton", pos: { x: 10, y: 9 } });
+
+      expect(pickTarget(world, null)).toBe(idAt(world, 1));
+    });
+  });
+
   it("picks none from an empty Area", () => {
     expect(pickTarget(arenaWith([]), east)).toBeNull();
+    expect(pickTarget(arenaWith([]), null)).toBeNull();
   });
 });

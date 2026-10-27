@@ -10,11 +10,13 @@ export type InputTuning = {
    */
   stickDeadZone: number;
   /**
-   * How wide the cone ahead of the Hero is that auto-aim picks the Target
-   * in, from one edge to the other (degrees).
+   * How wide the cone ahead of the stick is that auto-aim picks the Target
+   * in while the stick walks the Hero, from one edge to the other (degrees).
+   * With the stick at rest there is no cone: the Target is the nearest
+   * Monster within reach, whichever way it lies.
    */
   targetConeDegrees: number;
-  /** How far ahead of the Hero auto-aim picks the Target (tiles). */
+  /** How far from the Hero auto-aim picks the Target (tiles). */
   targetRange: number;
   /**
    * How near the Hero a Ground Item must lie for A, with no Target, to pick

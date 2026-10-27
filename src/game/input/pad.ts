@@ -179,8 +179,9 @@ export function hideFocus(input: PadInput) {
  *
  * The stick walks the Hero in the direction it points on screen, in tiles,
  * for as long as it is pushed past the dead zone; nothing once let go, which
- * stops the Hero. The Target is picked ahead of the stick while pushed,
- * otherwise ahead of the Hero's facing. A attacks the Target; with none it
+ * stops the Hero. The Target is the nearest Monster within reach ahead of
+ * the stick (inside the cone) while it is pushed, and with it at rest the
+ * nearest within reach whichever way it lies (`pickTarget`). A attacks the Target; with none it
  * picks up the nearest Ground Item within `groundItemReach`; with neither it
  * does nothing. Held, A acts again every `retargetMs`, picking the Target
  * afresh, and the stick keeps walking, so the Hero walks between swings.
@@ -233,15 +234,14 @@ export function pollPad(
     x: Math.cos(world.hero.facing),
     y: Math.sin(world.hero.facing),
   };
-  const ahead = walk ?? facing;
-  const target = pickTarget(world, ahead);
+  const target = pickTarget(world, walk);
   const action = target !== null ? attack(target) : pickUpNear(world);
   // The walk goes first, so an Attack or Cast after it in the same step
   // isn't cancelled by it; while a swing or cast roots the Hero, the sim
   // holds the walk back until it ends, so the Hero kites between them.
   const orders: Order[] = walk ? [{ type: "Walk", direction: walk }] : [];
   if (actsNow(input, snapshot, "a", nowMs) && action) orders.push(action);
-  const aim = castPoint(world, target, ahead);
+  const aim = castPoint(world, target, walk ?? facing);
   for (const [button, slot] of SKILL_BUTTONS) {
     const acts = actsNow(input, snapshot, button, nowMs);
     if (acts && skillInSlot(world, slot)) {

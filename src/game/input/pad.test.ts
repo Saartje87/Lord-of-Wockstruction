@@ -135,37 +135,76 @@ function lay(world: World, id: number, pos: Vec) {
 }
 
 describe("the Target", () => {
-  it("is the Monster ahead of the Hero's facing, with the stick at rest", () => {
-    const world = facingEast([
-      { x: 8, y: 10 },
-      { x: 13, y: 10 },
-    ]);
-    const rest = stickAt({ x: 0, y: 0 });
+  const rest = stickAt({ x: 0, y: 0 });
+  const targetOf = (world: World, snapshot: PadSnapshot) =>
+    pollPad(createPadInput(), snapshot, 0, tilesOver(world)).target;
 
-    const { target } = pollPad(createPadInput(), rest, 0, tilesOver(world));
-
-    expect(target).toBe(world.monsters[1].id);
-  });
-
-  it("is the Monster ahead of the stick while it is pushed", () => {
-    const world = facingEast([
-      { x: 8, y: 10 },
-      { x: 13, y: 10 },
-    ]);
-    const west = stickAt({ x: -1, y: 0 });
-
-    const { target } = pollPad(createPadInput(), west, 0, tilesOver(world));
-
-    expect(target).toBe(world.monsters[0].id);
-  });
-
-  it("is none with no Monster ahead", () => {
+  it("is a Monster behind the Hero, with the stick at rest", () => {
     const world = facingEast([{ x: 8, y: 10 }]);
-    const rest = stickAt({ x: 0, y: 0 });
 
-    const { target } = pollPad(createPadInput(), rest, 0, tilesOver(world));
+    expect(targetOf(world, rest)).toBe(world.monsters[0].id);
+  });
 
-    expect(target).toBeNull();
+  it("is a Monster beside the Hero, with the stick at rest", () => {
+    const world = facingEast([{ x: 10, y: 12 }]);
+
+    expect(targetOf(world, rest)).toBe(world.monsters[0].id);
+  });
+
+  it("is the nearest of the Monsters around the Hero, with the stick at rest", () => {
+    const world = facingEast([
+      { x: 14, y: 10 },
+      { x: 8, y: 10 },
+      { x: 10, y: 5 },
+    ]);
+
+    expect(targetOf(world, rest)).toBe(world.monsters[1].id);
+  });
+
+  it("is the nearest Monster ahead of the stick while it is pushed, even with a nearer one behind", () => {
+    const world = facingEast([
+      { x: 8, y: 10 },
+      { x: 13, y: 10 },
+    ]);
+
+    expect(targetOf(world, stickAt({ x: 1, y: 0 }))).toBe(world.monsters[1].id);
+    expect(targetOf(world, stickAt({ x: -1, y: 0 }))).toBe(
+      world.monsters[0].id,
+    );
+  });
+
+  it("counts a stick inside the dead zone as at rest", () => {
+    inputTuning.stickDeadZone = 0.2;
+    const world = facingEast([
+      { x: 8, y: 10 },
+      { x: 13, y: 10 },
+    ]);
+
+    expect(targetOf(world, stickAt({ x: 0.1, y: 0 }))).toBe(
+      world.monsters[0].id,
+    );
+  });
+
+  it("is none beyond reach, with the stick at rest", () => {
+    inputTuning.targetRange = 6;
+    const world = facingEast([{ x: 3.9, y: 10 }]);
+
+    expect(targetOf(world, rest)).toBeNull();
+  });
+
+  it("is never a dead Monster or a Corpse, with the stick at rest", () => {
+    const world = facingEast([
+      { x: 9, y: 10 },
+      { x: 5, y: 10 },
+    ]);
+    world.monsters[0].life = 0;
+    world.corpses.push({ id: 99, type: "skeleton", pos: { x: 10, y: 9 } });
+
+    expect(targetOf(world, rest)).toBe(world.monsters[1].id);
+  });
+
+  it("is none with no Monster in reach", () => {
+    expect(targetOf(facingEast([]), rest)).toBeNull();
   });
 });
 
@@ -183,9 +222,36 @@ describe("A", () => {
     expect(orders).toEqual([{ type: "Attack", monster: world.monsters[0].id }]);
   });
 
+  it("attacks a Monster behind the Hero, with the stick at rest", () => {
+    const world = facingEast([{ x: 8, y: 10 }]);
+
+    const { orders } = pollPad(
+      createPadInput(),
+      press("a"),
+      0,
+      tilesOver(world),
+    );
+
+    expect(orders).toEqual([{ type: "Attack", monster: world.monsters[0].id }]);
+  });
+
+  it("attacks a Monster in reach rather than picking up a Ground Item at the Hero's feet", () => {
+    const world = facingEast([{ x: 8, y: 10 }]);
+    lay(world, 1, { x: 10, y: 10 });
+
+    const { orders } = pollPad(
+      createPadInput(),
+      press("a"),
+      0,
+      tilesOver(world),
+    );
+
+    expect(orders).toEqual([{ type: "Attack", monster: world.monsters[0].id }]);
+  });
+
   it("with no Target picks up the nearest Ground Item within reach", () => {
     inputTuning.groundItemReach = 1.5;
-    const world = facingEast([{ x: 8, y: 10 }]);
+    const world = facingEast([{ x: 3, y: 10 }]);
     lay(world, 1, { x: 11.2, y: 10 });
     lay(world, 2, { x: 10, y: 9 });
     lay(world, 3, { x: 9.5, y: 10 });
@@ -285,6 +351,21 @@ describe("holding A", () => {
     expect(orders).toEqual([{ type: "Attack", monster: next }]);
   });
 
+  it("moves on to the nearest Monster in any direction when one dies, with the stick at rest", () => {
+    const world = facingEast([
+      { x: 8, y: 10 },
+      { x: 10, y: 14 },
+    ]);
+    const input = pressedAt1000(world);
+    const next = world.monsters[1].id;
+    world.monsters.splice(0, 1);
+
+    const later = 1000 + inputTuning.retargetMs;
+    const { orders } = pollPad(input, hold("a"), later, tilesOver(world));
+
+    expect(orders).toEqual([{ type: "Attack", monster: next }]);
+  });
+
   it("stops once let go", () => {
     const world = facingEast([{ x: 13, y: 10 }]);
     const input = pressedAt1000(world);
@@ -333,9 +414,24 @@ describe("the Skill buttons", () => {
     expect(orders).toEqual([{ type: "Cast", slot, target: { x: 13, y: 10 } }]);
   });
 
+  it("casts at a Monster behind the Hero, with the stick at rest", () => {
+    const world = golemEverywhere(facingEast([{ x: 8, y: 10 }]));
+
+    const { orders } = pollPad(
+      createPadInput(),
+      press("x"),
+      0,
+      tilesOver(world),
+    );
+
+    expect(orders).toEqual([
+      { type: "Cast", slot: "key1", target: { x: 8, y: 10 } },
+    ]);
+  });
+
   it("with no Target casts the tuned distance ahead of the Hero's facing", () => {
     inputTuning.castDistance = 3;
-    const world = golemEverywhere(facingEast([{ x: 8, y: 10 }]));
+    const world = golemEverywhere(facingEast([{ x: 3, y: 10 }]));
     world.hero.facing = Math.PI / 2;
 
     const { orders } = pollPad(

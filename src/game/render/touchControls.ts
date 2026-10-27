@@ -1,5 +1,5 @@
 import type { InputWay } from "../input/activeInput";
-import { type Menus, PANELS, panelOpen } from "../menus";
+import { anyPanelOpen, type Menus, type OpenPanels, PANELS } from "../menus";
 import type { Rect } from "../sim/rect";
 import type { SkillBarSlot } from "../sim/skillBar";
 import type { Vec } from "../sim/vec";
@@ -7,6 +7,7 @@ import { atUiScale, type Viewport } from "../viewport";
 import { heroPanelLayout } from "./heroPanel";
 import { orbsLayout } from "./orbs";
 import { panelButtonsLayout } from "./panelButtons";
+import { SHOWN_ORDER } from "./skillBar";
 
 /**
  * The touch controls (CSS px at native scale, drawn at the UI Scale): an
@@ -26,17 +27,8 @@ export const TOUCH_CONTROLS = {
   stickReach: 56,
 };
 
-/** The Virtual Stick zone's top and right, as parts of the screen. */
+/** The Virtual Stick zone's top and width, as parts of the screen. */
 const STICK_ZONE = { top: 0.25, width: 0.4 };
-
-/** The Skill buttons from left to right, as on the Skill Bar. */
-const SHOWN_ORDER: readonly SkillBarSlot[] = [
-  "key1",
-  "key2",
-  "key3",
-  "key4",
-  "right",
-];
 
 /** Where the touch controls go, as `touchControlsLayout` lays them out. */
 export type TouchControlsLayout = {
@@ -45,6 +37,15 @@ export type TouchControlsLayout = {
   attack: Rect;
   skills: Record<SkillBarSlot, Rect>;
   pause: Rect;
+  /** Whether only the pause button shows and takes touches: a panel is open. */
+  pauseOnly: boolean;
+};
+
+/** The menus with every panel shut. */
+const NO_PANEL_OPEN: OpenPanels = {
+  heroPanelOpen: false,
+  inventoryOpen: false,
+  skillTreeOpen: false,
 };
 
 /**
@@ -53,9 +54,15 @@ export type TouchControlsLayout = {
  * in it over the orb; the attack button over the Mana orb and the five
  * Skill buttons in a row over that, ending at the orb's right; the pause
  * button in the top-right corner, or in the Compact Layout, where the Panel
- * buttons stack down that corner, left of the top one.
+ * buttons stack down that corner, left of the top one. While a panel is
+ * open only the pause button shows, moved clear of the panels and their ×,
+ * after the last Panel button: right of it, or in the Compact Layout, below
+ * it.
  */
-export function touchControlsLayout(screen: Viewport): TouchControlsLayout {
+export function touchControlsLayout(
+  screen: Viewport,
+  open: OpenPanels = NO_PANEL_OPEN,
+): TouchControlsLayout {
   const { attack, skill, pause, gap, stickReach } = atUiScale(
     TOUCH_CONTROLS,
     screen.uiScale,
@@ -80,9 +87,19 @@ export function touchControlsLayout(screen: Viewport): TouchControlsLayout {
   };
   const rowY = attackRect.y - gap - skill;
   const rowLeft = right - SHOWN_ORDER.length * (skill + gap) + gap;
+  const { buttons } = panelButtonsLayout(screen);
   const cornerRight = screen.compact
-    ? panelButtonsLayout(screen).buttons[PANELS[0]].x - gap
+    ? buttons[PANELS[0]].x - gap
     : screen.width - gap;
+  const pauseOnly = anyPanelOpen(open);
+  let pauseRect = { x: cornerRight - pause, y: gap, w: pause, h: pause };
+  if (pauseOnly) {
+    // After the last Panel button: below its column, or right along its row.
+    const last = buttons[PANELS[PANELS.length - 1]];
+    pauseRect = screen.compact
+      ? { ...pauseRect, x: last.x, y: last.y + last.h + gap }
+      : { ...pauseRect, x: last.x + last.w + gap, y: last.y };
+  }
   return {
     stickZone,
     stick: { rest: { x: life.x, y: bottom - stickReach }, reach: stickReach },
@@ -93,29 +110,19 @@ export function touchControlsLayout(screen: Viewport): TouchControlsLayout {
         { x: rowLeft + index * (skill + gap), y: rowY, w: skill, h: skill },
       ]),
     ) as Record<SkillBarSlot, Rect>,
-    pause: { x: cornerRight - pause, y: gap, w: pause, h: pause },
+    pause: pauseRect,
+    pauseOnly,
   };
 }
 
 /**
  * Whether the touch controls show, and take touches: while touch is the
- * Active Input, the game runs and no panel is open.
+ * Active Input and the game runs. With a panel open only the pause button
+ * does (`pauseOnly`).
  */
 export function touchControlsShown(
   way: InputWay,
-  menus: Pick<
-    Menus,
-    | "pause"
-    | "rotateNotice"
-    | "heroPanelOpen"
-    | "inventoryOpen"
-    | "skillTreeOpen"
-  >,
+  menus: Pick<Menus, "pause" | "rotateNotice">,
 ): boolean {
-  return (
-    way === "touch" &&
-    !menus.pause.paused &&
-    !menus.rotateNotice &&
-    !PANELS.some((panel) => panelOpen(menus, panel))
-  );
+  return way === "touch" && !menus.pause.paused && !menus.rotateNotice;
 }

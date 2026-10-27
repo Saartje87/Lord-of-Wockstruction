@@ -36,7 +36,7 @@ import {
 } from "../sim/inventory";
 import { minionWindUpProgress } from "../sim/minions";
 import { monsterMaxLife, windUpProgress } from "../sim/monsters";
-import { inside, type Rect } from "../sim/rect";
+import { inside, middleOf, type Rect } from "../sim/rect";
 import type { SkillBarSlot } from "../sim/skillBar";
 import { STEP_MS } from "../sim/units";
 import { tileOf, type Vec } from "../sim/vec";
@@ -188,6 +188,12 @@ const DEATH_SCREEN = {
 };
 
 /**
+ * The ring round the Focus in a panel, and round the pause-menu button a
+ * controller has picked (CSS px at native scale).
+ */
+const FOCUS_RING = { colour: 0xfff4c0, width: 3 };
+
+/**
  * The pause menu's look: a dark panel in the middle of a darkened screen,
  * with the art's credit, the New Hero button and a hint to resume. Asking to
  * confirm a New Hero, the question takes the place of the credit, and Yes
@@ -199,8 +205,6 @@ const PAUSE_MENU = {
   title: { colour: 0xe8d27a, size: 40, top: 28 },
   credit: { colour: 0xd8d0b8, size: 15, top: 96, lineHeight: 22 },
   button: { size: 17 },
-  /** The ring round the button a controller has picked (CSS px at native scale). */
-  focus: { colour: 0xfff4c0, width: 3 },
   question: { colour: 0xd8d0b8, size: 17, top: 110, lineHeight: 28 },
   hint: { colour: 0x9a9080, size: 14, bottom: 26 },
 };
@@ -1302,7 +1306,7 @@ export function createRenderer(
       inventoryPanel.draw(viewport, world, menus.inventoryOpen, spot, pointer);
       focusRing.clear();
       if (focus) {
-        const { colour, width } = PAUSE_MENU.focus;
+        const { colour, width } = FOCUS_RING;
         focusRing
           .rect(focus.x, focus.y, focus.w, focus.h)
           .stroke({ color: colour, width: width * uiScale });
@@ -1815,7 +1819,7 @@ const TOUCH_STYLE = {
 
 /**
  * The touch controls, while touch is the Active Input and the World runs
- * with no panel open: the Virtual Stick's ring where it rests or where the
+ * (with a panel open, the pause button alone): the Virtual Stick's ring where it rests or where the
  * thumb landed, its knob following the thumb, and the round attack and
  * Skill buttons, each Skill button naming its slot's Skill, dimmed when it
  * has none or lacks the Mana, and the pause button's two bars. A held
@@ -1830,13 +1834,13 @@ function touchControlsView(
   const graphics = new Graphics();
   layer.addChild(graphics);
   const text = () => {
-    const t = new Text({
+    const label = new Text({
       text: "",
       style: { fill: SKILL_BAR_STYLE.name, fontFamily: SERIF },
     });
-    t.anchor.set(0.5);
-    layer.addChild(t);
-    return t;
+    label.anchor.set(0.5);
+    layer.addChild(label);
+    return label;
   };
   const attackLabel = text();
   attackLabel.text = "Attack";
@@ -1847,60 +1851,28 @@ function touchControlsView(
     draw(screen: Viewport, world: World, menus: Menus) {
       layer.visible = touchControlsShown(activeInput.way, menus);
       if (!layer.visible) return;
-      const layout = touchControlsLayout(screen);
+      const layout = touchControlsLayout(screen, menus);
       const scale = screen.uiScale;
       const held = buttonsHeld(touch);
       graphics.clear();
-      const ring = (x: number, y: number, radius: number, down: boolean) =>
+      const ring = (middle: Vec, radius: number, down: boolean) =>
         graphics
-          .circle(x, y, radius)
+          .circle(middle.x, middle.y, radius)
           .fill({
             color: down ? style.pressed : style.fill,
             alpha: down ? style.pressedAlpha : style.fillAlpha,
           })
           .stroke({ color: style.edge, width: 1.5, alpha: style.edgeAlpha });
+      /** Rings the round button in `rect`, returning its middle. */
+      const button = (rect: Rect, down: boolean) => {
+        const middle = middleOf(rect);
+        ring(middle, rect.w / 2, down);
+        return middle;
+      };
 
-      const { reach, rest } = layout.stick;
-      const stick = stickHeld(touch);
-      const from = stick?.from ?? rest;
-      graphics
-        .circle(from.x, from.y, reach)
-        .fill({ color: style.fill, alpha: style.stickAlpha })
-        .stroke({ color: style.edge, width: 1.5, alpha: style.edgeAlpha });
-      const pushed = stick ? clampedTo(stick.from, stick.at, reach) : from;
-      ring(pushed.x, pushed.y, reach * style.knob, stick !== null);
-
-      const { attack } = layout;
-      ring(
-        attack.x + attack.w / 2,
-        attack.y + attack.h / 2,
-        attack.w / 2,
-        held.includes("a"),
-      );
-      sizeText(attackLabel, style.attackSize * scale);
-      attackLabel.position.set(
-        attack.x + attack.w / 2,
-        attack.y + attack.h / 2,
-      );
-
-      for (const shown of skillBarSheet(world, null, "touch")) {
-        const rect = layout.skills[shown.slot];
-        const down = held.includes(castButton(shown.slot));
-        ring(rect.x + rect.w / 2, rect.y + rect.h / 2, rect.w / 2, down);
-        let label = skillLabels.get(shown.slot);
-        if (!label) {
-          label = text();
-          skillLabels.set(shown.slot, label);
-        }
-        label.text = shown.name ?? "";
-        label.alpha = shown.dimmed ? SKILL_BAR_STYLE.dimmed : 1;
-        sizeText(label, SKILL_BAR_STYLE.nameSize * scale);
-        label.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
-      }
-
+      // The pause button shows even while a panel is open.
       const { pause } = layout;
-      const middle = { x: pause.x + pause.w / 2, y: pause.y + pause.h / 2 };
-      ring(middle.x, middle.y, pause.w / 2, held.includes("menu"));
+      const middle = button(pause, held.includes("menu"));
       const bar = style.pauseBar;
       for (const side of [-1, 1]) {
         graphics
@@ -1911,6 +1883,40 @@ function touchControlsView(
             bar.h * pause.h,
           )
           .fill({ color: style.edge, alpha: style.edgeAlpha });
+      }
+      attackLabel.visible = !layout.pauseOnly;
+      for (const label of skillLabels.values()) {
+        label.visible = !layout.pauseOnly;
+      }
+      if (layout.pauseOnly) return;
+
+      const { reach, rest } = layout.stick;
+      const stick = stickHeld(touch);
+      const from = stick?.from ?? rest;
+      graphics
+        .circle(from.x, from.y, reach)
+        .fill({ color: style.fill, alpha: style.stickAlpha })
+        .stroke({ color: style.edge, width: 1.5, alpha: style.edgeAlpha });
+      const pushed = stick ? clampedTo(stick.from, stick.at, reach) : from;
+      ring(pushed, reach * style.knob, stick !== null);
+
+      const attackMiddle = button(layout.attack, held.includes("a"));
+      sizeText(attackLabel, style.attackSize * scale);
+      attackLabel.position.set(attackMiddle.x, attackMiddle.y);
+
+      for (const shown of skillBarSheet(world, null, "touch")) {
+        const rect = layout.skills[shown.slot];
+        const down = held.includes(castButton(shown.slot));
+        const skillMiddle = button(rect, down);
+        let label = skillLabels.get(shown.slot);
+        if (!label) {
+          label = text();
+          skillLabels.set(shown.slot, label);
+        }
+        label.text = shown.name ?? "";
+        label.alpha = shown.dimmed ? SKILL_BAR_STYLE.dimmed : 1;
+        sizeText(label, SKILL_BAR_STYLE.nameSize * scale);
+        label.position.set(skillMiddle.x, skillMiddle.y);
       }
     },
   };
@@ -3022,7 +3028,7 @@ function pauseMenuView(activeInput: Readonly<ActiveInput>) {
       layout.buttons.forEach(({ choice, label: name, rect }, i) => {
         button(buttons, rect);
         if (choice === focus) {
-          const { colour, width } = PAUSE_MENU.focus;
+          const { colour, width } = FOCUS_RING;
           const ring = (width * scale) / 2 + 1;
           buttons
             .rect(

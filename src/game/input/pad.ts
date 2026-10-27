@@ -1,5 +1,5 @@
 import type { CursorPoint } from "../cursor";
-import { type Menus, PANELS, panelOpen } from "../menus";
+import { anyPanelOpen, type OpenPanels } from "../menus";
 import type { ItemId } from "../sim/inventory";
 import { type SkillBarSlot, skillInSlot } from "../sim/skillBar";
 import { distance, type Vec } from "../sim/vec";
@@ -58,17 +58,23 @@ export const restingPad: PadSnapshot = {
  * The controller and the touch controls read as one pad: the stick pushed
  * further, and the buttons of either, let go only once neither holds them.
  */
-export function bothPads(a: PadSnapshot, b: PadSnapshot): PadSnapshot {
-  const union = (x: readonly PadButton[], y: readonly PadButton[]) => [
-    ...new Set([...x, ...y]),
+export function bothPads(
+  controller: PadSnapshot,
+  touch: PadSnapshot,
+): PadSnapshot {
+  const union = (first: readonly PadButton[], second: readonly PadButton[]) => [
+    ...new Set([...first, ...second]),
   ];
-  const held = union(a.held, b.held);
+  const held = union(controller.held, touch.held);
   const further = (stick: Vec) => Math.hypot(stick.x, stick.y);
   return {
-    stick: further(b.stick) > further(a.stick) ? b.stick : a.stick,
-    pressed: union(a.pressed, b.pressed),
+    stick:
+      further(touch.stick) > further(controller.stick)
+        ? touch.stick
+        : controller.stick,
+    pressed: union(controller.pressed, touch.pressed),
     held,
-    released: union(a.released, b.released).filter(
+    released: union(controller.released, touch.released).filter(
       (button) => !held.includes(button),
     ),
   };
@@ -90,7 +96,7 @@ export type PadInput = {
 };
 
 /** The D-pad directions, which a push of the stick stands in for in menus. */
-const DIRECTIONS = ["up", "down", "left", "right"] as const;
+export const DIRECTIONS = ["up", "down", "left", "right"] as const;
 type PadDirection = (typeof DIRECTIONS)[number] & FocusDirection;
 
 /** The Skill Bar slot each Skill button casts. */
@@ -112,6 +118,13 @@ export function castButton(slot: SkillBarSlot): PadButton {
 /** The D-pad directions that drink from Belt Columns 1 to 4, in turn. */
 const DRINK_BUTTONS = ["left", "up", "right", "down"] as const;
 
+/** The D-pad direction that drinks from Belt Column `column` (from 0). */
+export function drinkButton(column: number): PadButton {
+  const button = DRINK_BUTTONS[column];
+  if (!button) throw new Error(`No pad button drinks from column ${column}`);
+  return button;
+}
+
 /**
  * How the pad sees the screen, as last drawn, the World, as last stepped,
  * and the menus, as this frame found them.
@@ -122,7 +135,7 @@ export type PadView = {
   /** The World as last stepped, which auto-aim picks the Target from. */
   world: World;
   /** Which panels are open: while any is, the Hero stands still. */
-  menus: Pick<Menus, "heroPanelOpen" | "inventoryOpen" | "skillTreeOpen">;
+  menus: OpenPanels;
   /** The Focus spots of the panel that has the Focus, as last drawn. */
   focusSpots: readonly FocusSpot[];
 };
@@ -142,6 +155,7 @@ export type PadPoll = {
   rightClick: CursorPoint | null;
 };
 
+/** Pad state before any frame: nothing held, the Focus nowhere yet. */
 export function createPadInput(): PadInput {
   return {
     lastOrderMs: {},
@@ -169,14 +183,13 @@ export function hideFocus(input: PadInput) {
  * otherwise ahead of the Hero's facing. A attacks the Target; with none it
  * picks up the nearest Ground Item within `groundItemReach`; with neither it
  * does nothing. Held, A acts again every `retargetMs`, picking the Target
- * afresh, and while it has something to act on, the stick aims rather than
- * walks.
+ * afresh, and the stick keeps walking, so the Hero walks between swings.
  *
  * X, Y, B and RB cast the Skills in the four keyed Skill Bar slots and RT
  * the right-click slot's, at the Target, or with none at a point
  * `castDistance` ahead (of the stick while pushed, else of the Hero's
- * facing). Held, they cast again every `retargetMs`, and while one casts, the
- * stick aims rather than walks. An empty slot casts nothing. The D-pad's
+ * facing). Held, they cast again every `retargetMs`, and the stick keeps
+ * walking between casts, for kiting. An empty slot casts nothing. The D-pad's
  * left, up, right and down drink from Belt Columns 1 to 4, once a press.
  *
  * While a panel is open the Hero stands still and nothing is ordered.
@@ -206,7 +219,7 @@ export function pollPad(
   if (presses.length > 0) input.focusShown = true;
   const { world } = view;
   const none = { target: null, focus: null, click: null, rightClick: null };
-  if (PANELS.some((panel) => panelOpen(view.menus, panel))) {
+  if (anyPanelOpen(view.menus)) {
     const focus = steerFocus(input, presses, view.focusSpots, wasShown);
     return { ...none, ...focus, orders: [], presses };
   }
@@ -223,22 +236,23 @@ export function pollPad(
   const ahead = walk ?? facing;
   const target = pickTarget(world, ahead);
   const action = target !== null ? attack(target) : pickUpNear(world);
-  const orders: Order[] = [];
+  // The walk goes first, so an Attack or Cast after it in the same step
+  // isn't cancelled by it; while a swing or cast roots the Hero, the sim
+  // holds the walk back until it ends, so the Hero kites between them.
+  const orders: Order[] = walk ? [{ type: "Walk", direction: walk }] : [];
   if (actsNow(input, snapshot, "a", nowMs) && action) orders.push(action);
-  let aiming = snapshot.held.includes("a") && action !== null;
   const aim = castPoint(world, target, ahead);
   for (const [button, slot] of SKILL_BUTTONS) {
     const acts = actsNow(input, snapshot, button, nowMs);
-    if (!skillInSlot(world, slot)) continue;
-    if (snapshot.held.includes(button)) aiming = true;
-    if (acts) orders.push({ type: "Cast", slot, target: { ...aim } });
+    if (acts && skillInSlot(world, slot)) {
+      orders.push({ type: "Cast", slot, target: { ...aim } });
+    }
   }
   DRINK_BUTTONS.forEach((button, column) => {
     if (snapshot.pressed.includes(button)) {
       orders.push({ type: "DrinkFromBelt", column });
     }
   });
-  if (walk && !aiming) orders.push({ type: "Walk", direction: walk });
   return { ...none, orders, target, presses };
 }
 

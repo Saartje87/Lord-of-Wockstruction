@@ -14,6 +14,7 @@ export type TapInput = {
   lastAt: Vec | null;
 };
 
+/** Tap input with no touch down yet. */
 export function createTapInput(): TapInput {
   return { down: null, lastAt: null };
 }

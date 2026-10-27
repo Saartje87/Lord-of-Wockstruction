@@ -1,5 +1,5 @@
 import type { CursorHit, CursorPoint } from "../cursor";
-import type { Rect } from "../sim/rect";
+import { middleOf, type Rect } from "../sim/rect";
 
 /** A way the Focus moves: the D-pad's directions, or the stick pushed one. */
 export type FocusDirection = "up" | "down" | "left" | "right";
@@ -31,8 +31,8 @@ export function refocus<Spot extends FocusSpot>(
   let best: { spot: Spot; distance: number } | null = null;
   for (const spot of same.length > 0 ? same : spots) {
     const distance = Math.hypot(
-      middle(spot.rect, "x") - middle(last.rect, "x"),
-      middle(spot.rect, "y") - middle(last.rect, "y"),
+      middleOf(spot.rect).x - middleOf(last.rect).x,
+      middleOf(spot.rect).y - middleOf(last.rect).y,
     );
     if (best === null || distance < best.distance) best = { spot, distance };
   }
@@ -59,18 +59,13 @@ export function moveFocus<Spot extends Focusable>(
   let best: { spot: Spot; score: number } | null = null;
   for (const spot of spots) {
     const along =
-      sign * (middle(spot.rect, across) - middle(from.rect, across));
+      sign * (middleOf(spot.rect)[across] - middleOf(from.rect)[across]);
     if (along <= half(from.rect, across)) continue;
-    const offset = middle(spot.rect, aside) - middle(from.rect, aside);
+    const offset = middleOf(spot.rect)[aside] - middleOf(from.rect)[aside];
     const score = along + ASIDE_WEIGHT * Math.abs(offset);
     if (best === null || score < best.score) best = { spot, score };
   }
   return best?.spot ?? from;
-}
-
-/** The middle of `rect` along `axis`. */
-function middle(rect: Rect, axis: "x" | "y"): number {
-  return rect[axis] + half(rect, axis);
 }
 
 /** Half of `rect`'s size along `axis`. */

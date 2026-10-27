@@ -118,12 +118,7 @@ describe("the hints and labels that name buttons", () => {
       "learned, a point to spend",
       { ...golem, skillLevel: "1", canRaise: true },
       "touch",
-      [
-        "Golem",
-        "Skill Level 1",
-        "Tap + to spend a Skill Point",
-        "Tap to put on the Skill Bar",
-      ],
+      ["Golem", "Skill Level 1"],
     ],
   ] as const)("give a Skill's tooltip, %s, with %s", (_, sheet, way, lines) => {
     expect(skillTooltip(sheet, way)).toEqual(lines);

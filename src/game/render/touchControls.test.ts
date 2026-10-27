@@ -7,9 +7,11 @@ import { beltStripLayout } from "./beltStrip";
 import { experienceBarLayout } from "./experienceBar";
 import { heroPanelLayout } from "./heroPanel";
 import { nameplateLayout } from "./hover";
+import { inventoryPanelLayout } from "./inventoryPanel";
 import { type OrbCircle, orbsLayout } from "./orbs";
 import { panelButtonsLayout } from "./panelButtons";
 import { skillBarLayout } from "./skillBar";
+import { skillTreePanelLayout } from "./skillTreePanel";
 import { touchControlsLayout, touchControlsShown } from "./touchControls";
 
 /** Desktops, a tablet, and phones held sideways in the Compact Layout. */
@@ -43,6 +45,13 @@ function hudParts(viewport: ReturnType<typeof viewportOf>) {
     ["nameplate", nameplateLayout(viewport).panel],
   ] as [string, Rect][];
 }
+
+/** The menus' flag that opens each panel. */
+const OPEN = {
+  hero: "heroPanelOpen",
+  inventory: "inventoryOpen",
+  skillTree: "skillTreeOpen",
+} as const;
 
 /** Every touch control as laid out on `viewport`, by name. */
 function touchParts(viewport: ReturnType<typeof viewportOf>) {
@@ -119,6 +128,45 @@ describe("the touch controls at the UI Scale", () => {
   });
 });
 
+describe("the touch controls with a panel open", () => {
+  /** Every panel's rect, as laid out on `viewport`. */
+  function panelRects(viewport: ReturnType<typeof viewportOf>) {
+    return [
+      ["Hero panel", heroPanelLayout(viewport).panel],
+      ["Inventory panel", inventoryPanelLayout(viewport, 1).panel],
+      ["Skill Tree panel", skillTreePanelLayout(viewport).panel],
+    ] as [string, Rect][];
+  }
+
+  it.each(
+    SCREENS,
+  )("keeps the pause button clear of every panel and the HUD on $width×$height", (size) => {
+    const viewport = viewportOf(size);
+    for (const panel of PANELS) {
+      const menus = { ...createMenus(), [OPEN[panel]]: true };
+      const { pause, pauseOnly } = touchControlsLayout(viewport, menus);
+
+      expect(pauseOnly).toBe(true);
+      expect(pause.x + pause.w).toBeLessThanOrEqual(size.width);
+      expect(pause.y).toBeGreaterThanOrEqual(0);
+      for (const [name, rect] of [
+        ...panelRects(viewport),
+        ...hudParts(viewport),
+      ]) {
+        expect(overlaps(pause, rect), `pause button and ${name}`).toBe(false);
+      }
+    }
+  });
+
+  it("leaves the pause button in its corner with no panel open", () => {
+    const viewport = viewportOf({ width: 1280, height: 720 });
+    const shut = touchControlsLayout(viewport, createMenus());
+
+    expect(shut.pauseOnly).toBe(false);
+    expect(shut.pause).toEqual(touchControlsLayout(viewport).pause);
+  });
+});
+
 describe("whether the touch controls show", () => {
   it("shows them while touch is the Active Input", () => {
     expect(touchControlsShown("touch", createMenus())).toBe(true);
@@ -131,10 +179,10 @@ describe("whether the touch controls show", () => {
     expect(touchControlsShown(way, createMenus())).toBe(false);
   });
 
-  it("hides them while a panel is open, as the Hero stands still", () => {
+  it("shows them while a panel is open, for its pause button", () => {
     const menus = { ...createMenus(), inventoryOpen: true };
 
-    expect(touchControlsShown("touch", menus)).toBe(false);
+    expect(touchControlsShown("touch", menus)).toBe(true);
   });
 
   it("hides them while paused", () => {

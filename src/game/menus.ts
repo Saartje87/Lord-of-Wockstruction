@@ -1,4 +1,4 @@
-import type { PadButton } from "./input/pad";
+import { DIRECTIONS, type PadButton } from "./input/pad";
 import { createPause, type Pause, togglePause } from "./pause";
 import {
   ATTRIBUTES,
@@ -156,12 +156,17 @@ const OPEN_FLAGS = {
   skillTree: "skillTreeOpen",
 } as const satisfies Record<Panel, keyof Menus>;
 
+/** The menus' flags for which panels are open. */
+export type OpenPanels = Pick<Menus, (typeof OPEN_FLAGS)[Panel]>;
+
 /** Whether `panel` is open. */
-export function panelOpen(
-  menus: Pick<Menus, (typeof OPEN_FLAGS)[Panel]>,
-  panel: Panel,
-): boolean {
+export function panelOpen(menus: OpenPanels, panel: Panel): boolean {
   return menus[OPEN_FLAGS[panel]];
+}
+
+/** Whether any panel is open. */
+export function anyPanelOpen(menus: OpenPanels): boolean {
+  return PANELS.some((panel) => panelOpen(menus, panel));
 }
 
 /**
@@ -458,8 +463,9 @@ function defaultChoice(confirming: boolean): MenuChoice {
   return confirming ? "goBack" : "newHero";
 }
 
+/** Whether `button` is one of the D-pad's directions. */
 function isDirection(button: PadButton): boolean {
-  return ["up", "down", "left", "right"].includes(button);
+  return DIRECTIONS.some((direction) => direction === button);
 }
 
 /**

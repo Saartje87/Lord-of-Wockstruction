@@ -173,7 +173,7 @@ export default function GameCanvas() {
           touchControlsShown(activeInput.way, menus) &&
           !renderer.panelAt(at) &&
           renderer.groundLabelAt(at) === null
-            ? touchControlsLayout(viewportOf(app.screen))
+            ? touchControlsLayout(viewportOf(app.screen), menus)
             : null,
         listeners.signal,
       );

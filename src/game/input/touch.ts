@@ -24,6 +24,7 @@ export type TouchControls = {
   lastHeld: readonly PadButton[];
 };
 
+/** Touch controls no finger holds yet. */
 export function createTouchControls(): TouchControls {
   return { holds: new Map(), lastHeld: [] };
 }
@@ -31,8 +32,9 @@ export function createTouchControls(): TouchControls {
 /**
  * A finger `id` coming down at `at` (CSS px): in the Virtual Stick zone it
  * starts the stick there; on the attack button it holds A; on a Skill
- * button, that slot's controller button; on the pause button, Menu. Returns whether the touch controls
- * take it; one they don't is for the pointer.
+ * button, that slot's controller button; on the pause button, Menu, the
+ * only one taken while a panel is open (`pauseOnly`). Returns whether the
+ * touch controls take it; one they don't is for the pointer.
  */
 export function touchDown(
   controls: TouchControls,
@@ -50,7 +52,7 @@ export function touchDown(
     });
     return true;
   }
-  if (!inside(layout.stickZone, at)) return false;
+  if (layout.pauseOnly || !inside(layout.stickZone, at)) return false;
   // One Virtual Stick: a second thumb in its zone takes it over.
   for (const [other, hold] of controls.holds) {
     if (hold.type === "stick") controls.holds.delete(other);
@@ -190,8 +192,9 @@ export function attachTouch(
 
 /** The pad button of the touch button at `at`, if any. */
 function buttonAt(layout: TouchControlsLayout, at: Vec): PadButton | null {
-  if (inside(layout.attack, at)) return "a";
   if (inside(layout.pause, at)) return "menu";
+  if (layout.pauseOnly) return null;
+  if (inside(layout.attack, at)) return "a";
   const slot = SKILL_BAR_SLOTS.find((slot) => inside(layout.skills[slot], at));
   return slot ? castButton(slot) : null;
 }

@@ -1,5 +1,5 @@
 import type { InputWay } from "../input/activeInput";
-import type { PadButton } from "../input/pad";
+import { castButton, drinkButton, type PadButton } from "../input/pad";
 import { type MenuChoice, PANEL_KEYS, type Panel } from "../menus";
 import { beltColumnKey } from "../sim/belt";
 import { type SkillBarSlot, slotKey } from "../sim/skillBar";
@@ -23,24 +23,12 @@ const PAD_BUTTON_NAMES: Record<PadButton, string> = {
   right: "→",
 };
 
-/** The pad button that casts each Skill Bar slot's Skill. */
-const SLOT_BUTTONS: Record<SkillBarSlot, PadButton> = {
-  key1: "x",
-  key2: "y",
-  key3: "b",
-  key4: "rb",
-  right: "rt",
-};
-
-/** The D-pad direction that drinks from each Belt Column, from the left. */
-const BELT_BUTTONS: readonly PadButton[] = ["left", "up", "right", "down"];
-
 /**
  * The button shown on a Skill Bar slot with the Active Input `way`: its key
  * or right-click, its controller button, or nothing for touch.
  */
 export function skillBarSlotButton(slot: SkillBarSlot, way: InputWay): string {
-  if (way === "controller") return PAD_BUTTON_NAMES[SLOT_BUTTONS[slot]];
+  if (way === "controller") return PAD_BUTTON_NAMES[castButton(slot)];
   if (way === "touch") return "";
   return slot === "right" ? "RMB" : slotKey(slot);
 }
@@ -50,7 +38,7 @@ export function skillBarSlotButton(slot: SkillBarSlot, way: InputWay): string {
  * its key, its D-pad direction, or nothing for touch.
  */
 export function beltColumnButton(column: number, way: InputWay): string {
-  if (way === "controller") return PAD_BUTTON_NAMES[BELT_BUTTONS[column]];
+  if (way === "controller") return PAD_BUTTON_NAMES[drinkButton(column)];
   if (way === "touch") return "";
   return beltColumnKey(column);
 }
@@ -65,11 +53,15 @@ export function panelCloseHint(panel: Panel, way: InputWay): string {
 
 /** How to go on from the Hero's Death back to Town with `way`. */
 export function deathHint(way: InputWay): string {
-  if (way === "controller")
-    return `Press ${PAD_BUTTON_NAMES.a} to return to Town`;
-  if (way === "touch") return "Tap to return to Town";
-  return "Click to return to Town";
+  return DEATH_HINTS[way];
 }
+
+/** The Death screen's hint with each way. */
+const DEATH_HINTS: Record<InputWay, string> = {
+  mouseAndKeyboard: "Click to return to Town",
+  controller: `Press ${PAD_BUTTON_NAMES.a} to return to Town`,
+  touch: "Tap to return to Town",
+};
 
 /**
  * How to leave the pause menu with `way`, or, while `confirming` a New Hero,
@@ -116,18 +108,31 @@ export function menuChoiceLabel(choice: MenuChoice, way: InputWay): string {
 }
 
 /**
- * A Skill's tooltip with `way`: its name and Skill Level, then how to spend
- * a Skill Point on it while one can be, and how to put it on the Skill Bar
- * once learned.
+ * How to spend a Skill Point on a Skill and how to pick it up, with each
+ * way; none for touch, whose hints name no gesture.
+ */
+const SKILL_ACTIONS: Record<
+  InputWay,
+  { learn: string; pickUp: string } | null
+> = {
+  mouseAndKeyboard: { learn: "Click +", pickUp: "Click" },
+  controller: {
+    learn: `Press ${PAD_BUTTON_NAMES.a}`,
+    pickUp: `Press ${PAD_BUTTON_NAMES.x}`,
+  },
+  touch: null,
+};
+
+/**
+ * A Skill's tooltip with `way`: its name and Skill Level, then, but for
+ * touch, how to spend a Skill Point on it while one can be, and how to put
+ * it on the Skill Bar once learned.
  */
 export function skillTooltip(sheet: SkillSheet, way: InputWay): string[] {
   const lines = [sheet.name, `Skill Level ${sheet.skillLevel}`];
-  const [learn, pickUp] =
-    way === "controller"
-      ? [`Press ${PAD_BUTTON_NAMES.a}`, `Press ${PAD_BUTTON_NAMES.x}`]
-      : way === "touch"
-        ? ["Tap +", "Tap"]
-        : ["Click +", "Click"];
+  const actions = SKILL_ACTIONS[way];
+  if (!actions) return lines;
+  const { learn, pickUp } = actions;
   if (sheet.canRaise) lines.push(`${learn} to spend a Skill Point`);
   if (sheet.skillLevel !== "0") lines.push(`${pickUp} to put on the Skill Bar`);
   return lines;

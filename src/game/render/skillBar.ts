@@ -28,8 +28,8 @@ export const SKILL_BAR = { slot: 44, gap: 6, rightGap: 16, bottom: 42 };
  */
 export const BELT_STRIP = { toSkillBar: 16 };
 
-/** The Skill Bar's slots from left to right: keys Q/W/E/R, then right-click. */
-const SHOWN_ORDER: readonly SkillBarSlot[] = [...KEYED_SLOTS, "right"];
+/** The Skill Bar's slots from left to right: the four keyed ones, then right-click. */
+export const SHOWN_ORDER: readonly SkillBarSlot[] = [...KEYED_SLOTS, "right"];
 
 /**
  * Where each slot of the Skill Bar is drawn: centred on the screen, or in

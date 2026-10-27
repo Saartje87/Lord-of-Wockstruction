@@ -122,6 +122,18 @@ describe("the touch buttons", () => {
     expect(readTouch(touch)).toMatchObject({ pressed: ["menu"] });
   });
 
+  it("take only the pause button while a panel is open", () => {
+    const touch = createTouchControls();
+    const menus = { ...createMenus(), inventoryOpen: true };
+    const viewport = viewportOf({ width: 1280, height: 720 });
+    const open = touchControlsLayout(viewport, menus);
+
+    expect(touchDown(touch, 1, centre(open.attack), open)).toBe(false);
+    expect(touchDown(touch, 2, centre(open.stickZone), open)).toBe(false);
+    expect(touchDown(touch, 3, centre(open.pause), open)).toBe(true);
+    expect(readTouch(touch)).toMatchObject({ pressed: ["menu"] });
+  });
+
   it("hold the button while the finger stays down, even sliding off", () => {
     const touch = createTouchControls();
     touchDown(touch, 1, centre(layout.attack), layout);
@@ -168,7 +180,7 @@ describe("two touches at once", () => {
     });
   });
 
-  it("aim the attack with the stick through the pad poll", () => {
+  it("walk with the stick and attack the Target ahead of it", () => {
     // One Skeleton right of the Hero, one left; the Hero faces right.
     const world = arenaWith([
       { x: 12, y: 10 },
@@ -183,7 +195,10 @@ describe("two touches at once", () => {
 
     const { orders } = pollPad(createPadInput(), readTouch(touch), 0, view);
 
-    expect(orders).toEqual([{ type: "Attack", monster: world.monsters[1].id }]);
+    expect(orders).toEqual([
+      { type: "Walk", direction: { x: -1, y: 0 } },
+      { type: "Attack", monster: world.monsters[1].id },
+    ]);
   });
 
   it("walk with the stick while the other thumb holds an empty Skill slot", () => {

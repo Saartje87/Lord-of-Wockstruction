@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createMenus, type Menus } from "../menus";
 import { SKILL_BAR_SLOTS } from "../sim/skillBar";
 import type { Vec } from "../sim/vec";
-import { step, type World } from "../sim/world";
+import { type SimEvent, step, type World } from "../sim/world";
 import { inputTuning } from "../tuning/input";
 import type { FocusSpot } from "./focus";
 import {
@@ -221,13 +221,16 @@ describe("A", () => {
     expect(orders).toEqual([]);
   });
 
-  it("aims with the stick instead of walking while it attacks", () => {
+  it("walks with the stick and attacks the Target ahead of it", () => {
     const world = facingEast([{ x: 10, y: 13 }]);
     const aimed = { ...press("a"), stick: { x: 0, y: 1 } };
 
     const { orders } = pollPad(createPadInput(), aimed, 0, tilesOver(world));
 
-    expect(orders).toEqual([{ type: "Attack", monster: world.monsters[0].id }]);
+    expect(orders).toEqual([
+      { type: "Walk", direction: { x: 0, y: 1 } },
+      { type: "Attack", monster: world.monsters[0].id },
+    ]);
   });
 
   it("walks with the stick when held with nothing to act on", () => {
@@ -349,7 +352,7 @@ describe("the Skill buttons", () => {
     expect(cast.target.y).toBeCloseTo(13);
   });
 
-  it("with no Target casts the tuned distance ahead of the stick, aiming", () => {
+  it("with no Target casts the tuned distance ahead of the stick, walking", () => {
     inputTuning.castDistance = 3;
     const world = golemEverywhere(facingEast([]));
     const aimed = { ...press("rt"), stick: { x: -0.3, y: -0.4 } };
@@ -357,6 +360,7 @@ describe("the Skill buttons", () => {
     const { orders } = pollPad(createPadInput(), aimed, 0, tilesOver(world));
 
     expect(orders).toEqual([
+      { type: "Walk", direction: { x: -0.3, y: -0.4 } },
       { type: "Cast", slot: "right", target: { x: 8.2, y: 7.6 } },
     ]);
   });
@@ -418,6 +422,59 @@ describe("the Skill buttons", () => {
     expect(world.minion?.type).toBe("golem");
     expect(world.minion?.pos.x).toBeCloseTo(13, 0);
     expect(world.minion?.pos.y).toBeCloseTo(10, 0);
+  });
+});
+
+/**
+ * Plays `frames` frames of 60 Hz over `world`, holding `held` with the stick
+ * at `stick`, stepping the World once a frame. Returns the events.
+ */
+function play(
+  world: World,
+  held: PadButton,
+  stick: Vec,
+  frames: number,
+): SimEvent[] {
+  const input = createPadInput();
+  const events: SimEvent[] = [];
+  for (let frame = 0; frame < frames; frame++) {
+    const snapshot: PadSnapshot = {
+      stick,
+      pressed: frame === 0 ? [held] : [],
+      held: [held],
+      released: [],
+    };
+    const nowMs = (frame * 1000) / 60;
+    const { orders } = pollPad(input, snapshot, nowMs, tilesOver(world));
+    events.push(...step(world, orders));
+  }
+  return events;
+}
+
+describe("kiting, the stick walking while a button acts", () => {
+  it("walks the Hero and keeps casting while a Skill button is held", () => {
+    const world = golemEverywhere(arenaWith([], { combat: true }));
+    world.hero.progress.skillLevels.golem = 1;
+    world.hero.mana = 1000;
+
+    const events = play(world, "x", { x: 1, y: 0 }, 120);
+
+    const casts = events.filter(({ type }) => type === "SkillCast");
+    expect(casts.length).toBeGreaterThanOrEqual(2);
+    expect(world.hero.pos.x).toBeGreaterThan(11);
+  });
+
+  it("walks the Hero into reach of the Target and swings at it", () => {
+    const world = arenaWith([{ x: 13, y: 10 }], { combat: true });
+
+    const events = play(world, "a", { x: 1, y: 0 }, 90);
+
+    const swings = events.filter(
+      (event) =>
+        (event.type === "HitLanded" && event.attacker === "hero") ||
+        (event.type === "Missed" && event.target !== "hero"),
+    );
+    expect(swings.length).toBeGreaterThanOrEqual(1);
   });
 });
 

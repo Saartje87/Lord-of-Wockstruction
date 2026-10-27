@@ -36,8 +36,7 @@ describe("picking the Target", () => {
     expect(pickTarget(world, east)).toBeNull();
   });
 
-  it("picks one at the edge of the cone and none just past it", () => {
-    inputTuning.targetConeDegrees = 90;
+  it("picks one at the edge of the tuned 90° cone and none just past it", () => {
     const world = arenaWith([{ x: 12, y: 11.9 }]);
     expect(pickTarget(world, east)).toBe(idAt(world, 0));
 

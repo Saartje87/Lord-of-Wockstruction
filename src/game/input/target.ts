@@ -2,6 +2,11 @@ import { distance, type Vec } from "../sim/vec";
 import type { MonsterId, World } from "../sim/world";
 import { inputTuning } from "../tuning/input";
 
+/** The cosine of half the Target cone, converted once from its degrees. */
+const CONE_EDGE = Math.cos(
+  ((inputTuning.targetConeDegrees / 2) * Math.PI) / 180,
+);
+
 /**
  * The Target auto-aim picks with no cursor (ADR 0002): of the living
  * Monsters within `targetRange` of the Hero and inside a cone of
@@ -12,7 +17,6 @@ export function pickTarget(world: World, direction: Vec): MonsterId | null {
   const { pos } = world.hero;
   const length = Math.hypot(direction.x, direction.y);
   if (length === 0) return null;
-  const halfCone = ((inputTuning.targetConeDegrees / 2) * Math.PI) / 180;
   let nearest: { id: MonsterId; distance: number } | null = null;
   for (const monster of world.monsters) {
     if (monster.life <= 0) continue;
@@ -25,7 +29,7 @@ export function pickTarget(world: World, direction: Vec): MonsterId | null {
         ((monster.pos.x - pos.x) * direction.x +
           (monster.pos.y - pos.y) * direction.y) /
         (away * length);
-      if (along < Math.cos(halfCone)) continue;
+      if (along < CONE_EDGE) continue;
     }
     nearest = { id: monster.id, distance: away };
   }

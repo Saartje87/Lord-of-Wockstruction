@@ -248,6 +248,26 @@ _Avoid_: Selection, highlight, Target (that's a Monster)
 The on-screen stick, bottom left on a touch screen, that walks the Hero the way a controller's left stick does.
 _Avoid_: Joystick, d-pad, thumbstick
 
+**Touch controls**:
+What a touch screen plays the World with, standing in for a controller: the Virtual Stick, the attack button, the Skill buttons and the pause button.
+_Avoid_: On-screen controls, virtual gamepad, overlay
+
+**Attack button**:
+The round touch button over the Mana orb that does what a controller's A does: attack the Target, else pick up a Ground Item near the Hero.
+_Avoid_: Fire button, A button
+
+**Skill button**:
+A button that casts one Skill Bar slot's Skill: X, Y, B, RB or RT on a controller, or on a touch screen one of the five round buttons over the attack button.
+_Avoid_: Spell button, action button
+
+**Pause button**:
+The touch button that opens the pause menu as Esc and Menu do: top right, or, while a panel is open, after the Panel buttons.
+_Avoid_: Menu button (that's the controller's), settings button
+
+**Long press**:
+A touch held still on an Item or Skill for a moment, which shows its tooltip instead of lifting it.
+_Avoid_: Hold, press and hold, hover
+
 **Rotate Notice**:
 What shows instead of the game when the screen is held upright or is too small to play on, asking the player to turn or enlarge it; the World is paused while it shows.
 _Avoid_: Orientation warning, portrait screen

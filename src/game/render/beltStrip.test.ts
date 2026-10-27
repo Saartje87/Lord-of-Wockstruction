@@ -119,6 +119,12 @@ describe("the Belt strip's sheet", () => {
     ]);
   });
 
+  it("shows each Belt Column's D-pad direction while the controller is the Active Input", () => {
+    const sheet = beltStripSheet(world([[], [], [], []]), "controller");
+
+    expect(sheet.map(({ key }) => key)).toEqual(["←", "↑", "→", "↓"]);
+  });
+
   it("counts every row of the Equipped Belt", () => {
     const w = createWorld({
       areas: { town },

@@ -7,6 +7,7 @@ import {
   Text,
 } from "pixi.js";
 import type { CursorHit } from "../cursor";
+import type { ActiveInput } from "../input/activeInput";
 import { toScreen, toTile } from "../iso";
 import {
   type HeroState,
@@ -103,6 +104,7 @@ import {
   heroSheet,
   PANEL_ROWS,
 } from "./heroPanel";
+import { deathHint, panelCloseHint, resumeHint } from "./hints";
 import {
   characterUnder,
   hoveredOf,
@@ -523,12 +525,14 @@ type MonsterView = CharacterView & {
 /**
  * Draws the World's active Area and everything in it into a Pixi stage,
  * following the Hero. `areaDisplayNames` are what the Area Banner on arriving in
- * an Area shows, by Area name.
+ * an Area shows, by Area name. Hints name the buttons of `activeInput`, read
+ * as it is each frame.
  */
 export function createRenderer(
   app: Application,
   art: Art,
   areaDisplayNames: Readonly<Record<string, string>>,
+  activeInput: Readonly<ActiveInput>,
 ) {
   // The World, drawn at the World zoom.
   const camera = new Container();
@@ -599,9 +603,9 @@ export function createRenderer(
   app.stage.addChild(nameplateText);
   const orb = orbsView();
   app.stage.addChild(orb.layer);
-  const skillBar = skillBarView();
+  const skillBar = skillBarView(activeInput);
   app.stage.addChild(skillBar.layer);
-  const beltStrip = beltStripView();
+  const beltStrip = beltStripView(activeInput);
   app.stage.addChild(beltStrip.layer);
   const panelButtons = panelButtonsView();
   app.stage.addChild(panelButtons.layer);
@@ -609,11 +613,11 @@ export function createRenderer(
   app.stage.addChild(experience.layer);
   const levelUp = levelUpButtonView();
   app.stage.addChild(levelUp.layer);
-  const heroPanel = heroPanelView();
+  const heroPanel = heroPanelView(activeInput);
   app.stage.addChild(heroPanel.layer);
-  const inventoryPanel = inventoryPanelView();
+  const inventoryPanel = inventoryPanelView(activeInput);
   app.stage.addChild(inventoryPanel.layer);
-  const skillTreePanel = skillTreePanelView();
+  const skillTreePanel = skillTreePanelView(activeInput);
   app.stage.addChild(skillTreePanel.layer);
   // The Focus's ring, over the panel it is in.
   const focusRing = new Graphics();
@@ -634,13 +638,13 @@ export function createRenderer(
   const hurt = new Graphics().rect(0, 0, 1, 1).fill(HURT_COLOUR);
   hurt.visible = false;
   app.stage.addChild(hurt);
-  const death = deathScreenView();
+  const death = deathScreenView(activeInput);
   app.stage.addChild(death.layer);
   // The fade to black of an Area change, over everything.
   const fade = new Graphics().rect(0, 0, 1, 1).fill(0x000000);
   fade.visible = false;
   app.stage.addChild(fade);
-  const menu = pauseMenuView();
+  const menu = pauseMenuView(activeInput);
   app.stage.addChild(menu.layer);
   // Instead of the game, over everything.
   const notice = rotateNoticeView();
@@ -1651,7 +1655,7 @@ function orbsView() {
  * Skill's name, dimmed while the Hero lacks the Mana for it or while it's
  * the Held Skill.
  */
-function skillBarView() {
+function skillBarView(activeInput: Readonly<ActiveInput>) {
   const style = SKILL_BAR_STYLE;
   const layer = new Container();
   const graphics = new Graphics();
@@ -1670,7 +1674,8 @@ function skillBarView() {
       const { slots } = skillBarLayout(screen);
       const scale = screen.uiScale;
       graphics.clear();
-      skillBarSheet(world, heldFrom).forEach((shown, index) => {
+      const sheet = skillBarSheet(world, heldFrom, activeInput.way);
+      sheet.forEach((shown, index) => {
         if (!labels[index]) {
           const key = text(style.key);
           key.anchor.set(1, 0);
@@ -1715,7 +1720,7 @@ function skillBarView() {
  * in its corner, its bottom Potion drawn tinted as its type, and how many
  * Potions the column holds.
  */
-function beltStripView() {
+function beltStripView(activeInput: Readonly<ActiveInput>) {
   const style = SKILL_BAR_STYLE;
   const layer = new Container();
   const graphics = new Graphics();
@@ -1734,7 +1739,8 @@ function beltStripView() {
       const { columns } = beltStripLayout(screen);
       const scale = screen.uiScale;
       graphics.clear();
-      beltStripSheet(world).forEach((shown, index) => {
+      const sheet = beltStripSheet(world, activeInput.way);
+      sheet.forEach((shown, index) => {
         if (!labels[index]) {
           const key = text(style.key);
           key.anchor.set(1, 0);
@@ -2131,7 +2137,7 @@ function scaledTexts() {
  * the unspent points with Accept while any are pending, and what the
  * Attributes add up to, the pending points previewed in each.
  */
-function heroPanelView() {
+function heroPanelView(activeInput: Readonly<ActiveInput>) {
   const style = HERO_PANEL_STYLE;
   const layer = new Container();
   const graphics = new Graphics();
@@ -2151,7 +2157,6 @@ function heroPanelView() {
   title.text = "Hero";
   title.anchor.set(0.5, 0);
   const hint = text(style.hint, style.hintSize);
-  hint.text = "Press C to close";
   hint.anchor.set(0.5, 1);
   /** A row's name at its left and value at its right. */
   const row = () => {
@@ -2190,6 +2195,7 @@ function heroPanelView() {
     ) {
       layer.visible = open;
       if (!open) return;
+      hint.text = panelCloseHint("hero", activeInput.way);
       const sheet = heroSheet(world, pending);
       const layout = heroPanelLayout(screen);
       const { panel } = layout;
@@ -2278,7 +2284,7 @@ function heroPanelView() {
  * then each Skill's Skill Level, Mana cost at the next Skill Level and
  * required Level, with a + button while a Skill Point can be spent on it.
  */
-function skillTreePanelView() {
+function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
   const style = HERO_PANEL_STYLE;
   const layer = new Container();
   const graphics = new Graphics();
@@ -2298,7 +2304,6 @@ function skillTreePanelView() {
   title.text = "Skill Tree";
   title.anchor.set(0.5, 0);
   const hint = text(style.hint, style.hintSize);
-  hint.text = "Press T to close";
   hint.anchor.set(0.5, 1);
   /** A row's name at its left and value at its right. */
   const row = (nameFill: number = style.name) => {
@@ -2324,6 +2329,7 @@ function skillTreePanelView() {
     draw(screen: Viewport, world: World, open: boolean) {
       layer.visible = open;
       if (!open) return;
+      hint.text = panelCloseHint("skillTree", activeInput.way);
       const sheet = skillTreeSheet(world);
       const layout = skillTreePanelLayout(screen);
       const { panel } = layout;
@@ -2410,7 +2416,7 @@ function skillTreePanelView() {
  * The Inventory panel: the Equipment slots over the 10×4 grid, each Item
  * drawn at its size, and the tooltip of the Item under the cursor.
  */
-function inventoryPanelView() {
+function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
   const style = HERO_PANEL_STYLE;
   const look = INVENTORY_STYLE;
   const layer = new Container();
@@ -2431,7 +2437,6 @@ function inventoryPanelView() {
   title.text = "Inventory";
   title.anchor.set(0.5, 0);
   const hint = text(style.hint, style.hintSize);
-  hint.text = "Press I to close";
   hint.anchor.set(0.5, 1);
   const slotLabels = Object.fromEntries(
     EQUIPMENT_SLOTS.map((slot) => {
@@ -2527,6 +2532,7 @@ function inventoryPanelView() {
       drawHeld(world, pointer, layout);
       layer.visible = open;
       if (!open) return;
+      hint.text = panelCloseHint("inventory", activeInput.way);
 
       graphics.clear();
       graphics
@@ -2666,9 +2672,9 @@ function inventoryPanelView() {
 
 /**
  * The screen over a dead Hero: darkening while they lie still, then "You
- * died" with a pulsing hint to click.
+ * died" with a pulsing hint to go on, named for the Active Input.
  */
-function deathScreenView() {
+function deathScreenView(activeInput: Readonly<ActiveInput>) {
   const layer = new Container();
   const dark = new Graphics().rect(0, 0, 1, 1).fill(0x000000);
   const title = new Text({
@@ -2681,7 +2687,7 @@ function deathScreenView() {
   });
   title.anchor.set(0.5, 1);
   const hint = new Text({
-    text: "Click to return to Town",
+    text: "",
     style: {
       fill: DEATH_SCREEN.hint.colour,
       fontSize: DEATH_SCREEN.hint.size,
@@ -2708,6 +2714,7 @@ function deathScreenView() {
       const ready = lying === 1;
       title.visible = ready;
       hint.visible = ready;
+      hint.text = deathHint(activeInput.way);
       const centre = { x: screen.width / 2, y: screen.height / 2 };
       title.position.set(centre.x, centre.y);
       hint.position.set(centre.x, centre.y + DEATH_SCREEN.hint.gap);
@@ -2724,7 +2731,7 @@ function deathScreenView() {
  * The menu over a paused game: it credits the Flare art and points to
  * `CREDITS.md` for the rest, and offers a New Hero.
  */
-function pauseMenuView() {
+function pauseMenuView(activeInput: Readonly<ActiveInput>) {
   const { darkness, panel, title, credit, question, hint } = PAUSE_MENU;
   const { width, height } = PAUSE_MENU_LAYOUT;
   const layer = new Container();
@@ -2813,12 +2820,9 @@ function pauseMenuView() {
           `Your Level ${level} Hero will be lost for good.`,
         ].join("\n");
       }
-      // Esc goes back from the question rather than resuming.
-      resume.text = confirming
-        ? "Click elsewhere to resume"
-        : "Click elsewhere or press Esc to resume";
+      resume.text = resumeHint(confirming, activeInput.way);
       dark.scale.set(screen.width, screen.height);
-      const layout = pauseMenuLayout(screen, confirming);
+      const layout = pauseMenuLayout(screen, confirming, activeInput.way);
       const scale = screen.uiScale;
       content.position.set(layout.panel.x, layout.panel.y);
       box.scale.set(scale);

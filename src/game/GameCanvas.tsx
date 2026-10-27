@@ -13,6 +13,12 @@ import {
   releaseCursor,
   settleCursor,
 } from "./cursor";
+import {
+  createActiveInput,
+  padTouched,
+  pointerWay,
+  reportInput,
+} from "./input/activeInput";
 import { readGamepad } from "./input/gamepad";
 import { castKeyOrder, drinkKeyOrder } from "./input/keys";
 import {
@@ -40,7 +46,7 @@ import {
   pressPad,
   reactMenus,
 } from "./menus";
-import { gameTime } from "./pause";
+import { gameTime, togglePause } from "./pause";
 import { loadArt } from "./render/art";
 import { inventoryRightClickOrder } from "./render/inventoryPanel";
 import { panelFocusSpots } from "./render/panelFocus";
@@ -102,7 +108,9 @@ export default function GameCanvas() {
       if (cancelled) return;
       container.appendChild(app.canvas);
 
-      const renderer = createRenderer(app, art, areaDisplayNames);
+      // The way the player last played, which the hints name the buttons of.
+      const activeInput = createActiveInput();
+      const renderer = createRenderer(app, art, areaDisplayNames, activeInput);
       const clock = createClock();
       const input = createPointerInput();
       const menus = createMenus();
@@ -111,8 +119,6 @@ export default function GameCanvas() {
       const padInput = createPadInput();
       /** The controller's buttons held last frame. */
       let padHeld: readonly PadButton[] = [];
-      /** Where the mouse pointer was last frame. */
-      let pointerWas = input.screen;
       let last = performance.now();
       /** What the cursor holds besides the Held Item. */
       let cursor = createCursor();
@@ -138,6 +144,43 @@ export default function GameCanvas() {
         },
         { signal: listeners.signal },
       );
+      // Each input event tells the Active Input the way it came by. The
+      // controller is told of in the loop, as it's read there.
+      for (const type of ["pointerdown", "pointermove"] as const) {
+        app.canvas.addEventListener(
+          type,
+          (e) => {
+            reportInput(activeInput, {
+              type: "used",
+              way: pointerWay(e.pointerType),
+            });
+          },
+          { signal: listeners.signal },
+        );
+      }
+      window.addEventListener(
+        "keydown",
+        () =>
+          reportInput(activeInput, { type: "used", way: "mouseAndKeyboard" }),
+        { signal: listeners.signal },
+      );
+      /** Whether the controller went while it was the Active Input. */
+      let controllerLost = false;
+      window.addEventListener(
+        "gamepaddisconnected",
+        () => {
+          const event = { type: "controllerDisconnected" } as const;
+          if (reportInput(activeInput, event).pause) controllerLost = true;
+        },
+        { signal: listeners.signal },
+      );
+      window.addEventListener(
+        "gamepadconnected",
+        () => {
+          reportInput(activeInput, { type: "controllerConnected" });
+        },
+        { signal: listeners.signal },
+      );
 
       const tick = (realNow: number) => {
         const wasPaused = pause.paused;
@@ -148,6 +191,10 @@ export default function GameCanvas() {
         // any key or click this frame, which it then takes for nothing.
         const viewport = viewportOf(app.screen);
         fitMenus(menus, viewport, realNow);
+        // A controller gone while it was played opens the pause menu, so the
+        // Hero isn't killed while it's plugged back in.
+        if (controllerLost && !pause.paused) togglePause(pause, realNow);
+        controllerLost = false;
         let pressed = clickedAt !== null;
         let newHero = false;
         for (const key of keys) {
@@ -172,9 +219,12 @@ export default function GameCanvas() {
         // 0002).
         const pad = readGamepad(padHeld);
         padHeld = pad.held;
-        // The mouse moving hides the Focus, so its pointer is what shows.
-        if (input.screen !== pointerWas) hideFocus(padInput);
-        pointerWas = input.screen;
+        if (padTouched(pad)) {
+          reportInput(activeInput, { type: "used", way: "controller" });
+        }
+        // The Focus shows only while the controller is the Active Input, so
+        // the mouse's pointer shows otherwise.
+        if (activeInput.way !== "controller") hideFocus(padInput);
         const polled = pollPad(padInput, pad, gameTime(pause, realNow), {
           toTile: renderer.screenToTile,
           world,

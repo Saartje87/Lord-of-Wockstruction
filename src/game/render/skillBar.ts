@@ -1,15 +1,16 @@
+import type { InputWay } from "../input/activeInput";
 import { inside, type Rect } from "../sim/rect";
 import {
   KEYED_SLOTS,
   SKILL_BAR_SLOTS,
   type SkillBarSlot,
-  slotKey,
 } from "../sim/skillBar";
 import type { Vec } from "../sim/vec";
 import { skillManaCost, type World } from "../sim/world";
 import { beltTuning } from "../tuning/items";
 import { skillTuning } from "../tuning/skills";
 import { atUiScale, type Viewport } from "../viewport";
+import { skillBarSlotButton } from "./hints";
 
 /**
  * The Skill Bar, centred along the bottom between the orbs (CSS px at
@@ -29,11 +30,6 @@ export const BELT_STRIP = { toSkillBar: 16 };
 
 /** The Skill Bar's slots from left to right: keys Q/W/E/R, then right-click. */
 const SHOWN_ORDER: readonly SkillBarSlot[] = [...KEYED_SLOTS, "right"];
-
-/** The key shown on a slot. */
-function keyLabel(slot: SkillBarSlot): string {
-  return slot === "right" ? "RMB" : slotKey(slot);
-}
 
 /**
  * Where each slot of the Skill Bar is drawn: centred on the screen, or in
@@ -66,7 +62,7 @@ export function skillBarLayout(screen: Viewport): {
 }
 
 /**
- * What a Skill Bar slot shows: its key, its Skill's name or null when
+ * What a Skill Bar slot shows: its key or button, its Skill's name or null when
  * empty, and whether it's dimmed because the Hero lacks the Mana for it or
  * its Skill is the Held Skill.
  */
@@ -81,10 +77,12 @@ export type SkillBarSlotSheet = {
  * What the Skill Bar shows, slot by slot from left to right. `heldFrom` is
  * the slot the Held Skill was picked up from, if any: it stays filled, as
  * the Skill Bar doesn't change until the Skill lands, but shows dimmed.
+ * Each slot names the button that casts it with the Active Input `way`.
  */
 export function skillBarSheet(
   world: World,
   heldFrom: SkillBarSlot | null = null,
+  way: InputWay = "mouseAndKeyboard",
 ): SkillBarSlotSheet[] {
   const { progress, mana } = world.hero;
   return SHOWN_ORDER.map((slot) => {
@@ -92,7 +90,7 @@ export function skillBarSheet(
     const cost = skill && skillManaCost(skill, progress.skillLevels[skill]);
     return {
       slot,
-      key: keyLabel(slot),
+      key: skillBarSlotButton(slot, way),
       name: skill && skillTuning[skill].name,
       dimmed: (cost !== null && mana < cost) || slot === heldFrom,
     };

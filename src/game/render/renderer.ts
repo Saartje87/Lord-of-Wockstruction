@@ -626,6 +626,9 @@ export function createRenderer(
   app.stage.addChild(inventoryPanel.layer);
   const skillTreePanel = skillTreePanelView(activeInput);
   app.stage.addChild(skillTreePanel.layer);
+  // The Focus's ring, over the panel it is in.
+  const focusRing = new Graphics();
+  app.stage.addChild(focusRing);
   // Over the panels, so a hovered Panel button's tooltip is never hidden.
   app.stage.addChild(panelButtons.tooltipLayer);
   app.stage.addChild(inventoryPanel.heldLayer);
@@ -947,7 +950,8 @@ export function createRenderer(
      * at the pointer, and `heldSkillSlot` the Skill Bar slot it was picked
      * up from, drawn dimmed. `target` is the Target auto-aim picked, if any,
      * outlined and named as a hovered Monster is when the pointer is over no
-     * one.
+     * one. `focus` is where the Focus rests in an open panel, if it shows,
+     * ringed as the pause menu's focused button is.
      */
     draw(
       world: World,
@@ -958,6 +962,7 @@ export function createRenderer(
       heldSkill: Skill | null = null,
       heldSkillSlot: SkillBarSlot | null = null,
       target: MonsterId | null = null,
+      focus: Rect | null = null,
     ) {
       const active = world.areas[world.areaName];
       // Read afresh each frame, so a resized window re-lays the HUD at once.
@@ -1291,6 +1296,13 @@ export function createRenderer(
       heldSkillView.draw(heldSkill, pointer, uiScale);
       const spot = onPanel && "inventory" in onPanel ? onPanel.inventory : null;
       inventoryPanel.draw(viewport, world, menus.inventoryOpen, spot, pointer);
+      focusRing.clear();
+      if (focus) {
+        const { colour, width } = PAUSE_MENU.focus;
+        focusRing
+          .rect(focus.x, focus.y, focus.w, focus.h)
+          .stroke({ color: colour, width: width * uiScale });
+      }
 
       const hurtLeft = hurtAtMs === null ? 0 : 1 - (nowMs - hurtAtMs) / HURT_MS;
       hurt.visible = hurtLeft > 0;

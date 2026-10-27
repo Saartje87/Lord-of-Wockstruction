@@ -4,9 +4,11 @@ import { SKILL_BAR_SLOTS } from "../sim/skillBar";
 import type { Vec } from "../sim/vec";
 import { step, type World } from "../sim/world";
 import { inputTuning } from "../tuning/input";
+import type { FocusSpot } from "./focus";
 import {
   bothPads,
   createPadInput,
+  hideFocus,
   type PadButton,
   type PadInput,
   type PadSnapshot,
@@ -22,6 +24,7 @@ const tilesOver = (world: World = arenaWith([]), menus = createMenus()) => ({
   toTile: (screen: Vec) => screen,
   world,
   menus,
+  focusSpots: [] as FocusSpot[],
 });
 const asTiles = tilesOver();
 
@@ -484,6 +487,135 @@ describe("with a panel open", () => {
     const view = tilesOver(facingEast([{ x: 13, y: 10 }]), inventoryOpen());
 
     expect(pollPad(createPadInput(), restAt, 0, view).target).toBeNull();
+  });
+});
+
+/** A 3×2 grid of unit Focus spots, each clicked at its middle. */
+const SPOTS: FocusSpot[] = [0, 1].flatMap((row) =>
+  [0, 1, 2].map((column) => ({
+    rect: { x: column, y: row, w: 1, h: 1 },
+    at: { x: column + 0.5, y: row + 0.5 },
+    hit: { inventory: { column, row } },
+  })),
+);
+const spotAt = (column: number, row: number) =>
+  SPOTS[row * 3 + column] as FocusSpot;
+
+/** The Inventory panel open over `spots`. */
+const focusView = (spots: FocusSpot[] = SPOTS) => ({
+  ...tilesOver(arenaWith([]), inventoryOpen()),
+  focusSpots: spots,
+});
+
+/** Pad input that has shown the Focus on its first spot. */
+function focused(): PadInput {
+  const input = createPadInput();
+  pollPad(input, press("right"), 0, focusView());
+  return input;
+}
+
+describe("the Focus", () => {
+  it("isn't shown until the pad is pressed, then rests on the first spot", () => {
+    const input = createPadInput();
+
+    expect(pollPad(input, restAt, 0, focusView()).focus).toBeNull();
+    expect(pollPad(input, press("right"), 16, focusView()).focus).toEqual(
+      spotAt(0, 0),
+    );
+  });
+
+  it("is shown in a panel after the pad was pressed with none open", () => {
+    const input = createPadInput();
+    pollPad(input, press("view"), 0, asTiles);
+
+    expect(pollPad(input, restAt, 16, focusView()).focus).toEqual(spotAt(0, 0));
+  });
+
+  it("isn't shown with no panel open", () => {
+    const input = focused();
+
+    expect(pollPad(input, restAt, 16, asTiles).focus).toBeNull();
+  });
+
+  it("moves with the D-pad and a push of the stick", () => {
+    const input = focused();
+
+    pollPad(input, press("right"), 16, focusView());
+    pollPad(input, stickAt({ x: 0, y: 1 }), 32, focusView());
+
+    expect(pollPad(input, restAt, 48, focusView()).focus).toEqual(spotAt(1, 1));
+  });
+
+  it("stays on its spot as the spots are laid out afresh", () => {
+    const input = focused();
+    pollPad(input, press("down"), 16, focusView());
+    const moved = SPOTS.map((spot) => ({
+      ...spot,
+      at: { x: spot.at.x + 0.25, y: spot.at.y },
+    }));
+
+    expect(pollPad(input, restAt, 32, focusView(moved)).focus).toEqual(
+      moved[3],
+    );
+  });
+
+  it("goes back to the first spot when its own is gone", () => {
+    const input = focused();
+    pollPad(input, press("down"), 16, focusView());
+
+    const { focus } = pollPad(input, restAt, 32, focusView(SPOTS.slice(0, 3)));
+
+    expect(focus).toEqual(spotAt(0, 0));
+  });
+
+  it("A clicks the focused spot, once a press", () => {
+    const input = focused();
+    pollPad(input, press("right"), 16, focusView());
+
+    const { click } = pollPad(input, press("a"), 32, focusView());
+    expect(click).toEqual({ at: { x: 1.5, y: 0.5 }, hit: spotAt(1, 0).hit });
+    expect(pollPad(input, hold("a"), 1000, focusView()).click).toBeNull();
+  });
+
+  it("X right-clicks the focused spot", () => {
+    const { rightClick, click } = pollPad(
+      focused(),
+      press("x"),
+      16,
+      focusView(),
+    );
+
+    expect(rightClick).toEqual({
+      at: { x: 0.5, y: 0.5 },
+      hit: spotAt(0, 0).hit,
+    });
+    expect(click).toBeNull();
+  });
+
+  it("Y clicks off the panel at the Focus, dropping a Held Item", () => {
+    const { click } = pollPad(focused(), press("y"), 16, focusView());
+
+    expect(click).toEqual({ at: { x: 0.5, y: 0.5 }, hit: { drop: true } });
+  });
+
+  it("the first press only shows it, clicking nothing", () => {
+    const { click, focus } = pollPad(
+      createPadInput(),
+      press("a"),
+      0,
+      focusView(),
+    );
+
+    expect(focus).toEqual(spotAt(0, 0));
+    expect(click).toBeNull();
+  });
+
+  it("is hidden by other input until the pad is pressed again", () => {
+    const input = focused();
+    hideFocus(input);
+
+    expect(pollPad(input, restAt, 16, focusView()).focus).toBeNull();
+    expect(pollPad(input, press("a"), 32, focusView()).click).toBeNull();
   });
 });
 

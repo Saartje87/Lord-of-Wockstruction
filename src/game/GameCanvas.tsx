@@ -6,6 +6,7 @@ import { pressButton } from "./buttonPress";
 import { advance, createClock } from "./clock";
 import { areaDisplayNames, areas, tilesets } from "./content";
 import {
+  clickCursor,
   createCursor,
   forTheWorld,
   pressCursor,
@@ -20,7 +21,13 @@ import {
 } from "./input/activeInput";
 import { readGamepad } from "./input/gamepad";
 import { castKeyOrder, drinkKeyOrder } from "./input/keys";
-import { bothPads, createPadInput, type PadButton, pollPad } from "./input/pad";
+import {
+  bothPads,
+  createPadInput,
+  hideFocus,
+  type PadButton,
+  pollPad,
+} from "./input/pad";
 import {
   attachPointer,
   cancel,
@@ -34,6 +41,7 @@ import { attachTouch, createTouchControls, readTouch } from "./input/touch";
 import {
   clickPaused,
   createMenus,
+  currentPanel,
   fitMenus,
   type Menus,
   pressKey,
@@ -43,6 +51,7 @@ import {
 import { gameTime, togglePause } from "./pause";
 import { loadArt } from "./render/art";
 import { inventoryRightClickOrder } from "./render/inventoryPanel";
+import { panelFocusSpots } from "./render/panelFocus";
 import { createRenderer } from "./render/renderer";
 import {
   touchControlsLayout,
@@ -243,10 +252,14 @@ export default function GameCanvas() {
           reportInput(activeInput, { type: "used", way: "controller" });
         }
         const pad = bothPads(controller, readTouch(touch));
+        // The Focus shows only while the controller is the Active Input, so
+        // the mouse's pointer shows otherwise.
+        if (activeInput.way !== "controller") hideFocus(padInput);
         const polled = pollPad(padInput, pad, gameTime(pause, realNow), {
           toTile: renderer.screenToTile,
           world,
           menus,
+          focusSpots: panelFocusSpots(currentPanel(menus), world, viewport),
         });
         for (const button of polled.presses) {
           const hero = { heroDead: world.death !== null };
@@ -339,6 +352,25 @@ export default function GameCanvas() {
           const order = inventoryRightClickOrder(world, rightHit);
           if (order) orders.push(order);
         }
+        // The Focus pressed clicks or right-clicks its spot, as the mouse
+        // would there; nothing while paused.
+        const focusClick = pause.paused || wasPaused ? null : polled.click;
+        if (focusClick) {
+          const landing = cursor.heldSkill;
+          const outcome = clickCursor(cursor, focusClick, scene);
+          cursor = outcome.cursor;
+          orders.push(...outcome.orders);
+          const { hit } = focusClick;
+          const landed = landing !== null && cursor.heldSkill === null;
+          if (hit && "button" in hit && !landed) {
+            orders.push(...pressButton(menus, world, hit.button));
+          }
+        }
+        const focusRight = pause.paused || wasPaused ? null : polled.rightClick;
+        if (focusRight?.hit && !("button" in focusRight.hit)) {
+          const order = inventoryRightClickOrder(world, focusRight.hit);
+          if (order) orders.push(order);
+        }
         // After the keys and clicks, any of which may have shut it: I, its
         // × or Panel button, or T, Level Up or the Skill Tree's Panel button
         // opening the Skill Tree in its place.
@@ -369,8 +401,12 @@ export default function GameCanvas() {
           orders = [];
           returnOnShut(orders, inventoryOpen, menus);
         }
-        // No hover outline, nameplate or tooltip under the menu.
-        const pointer = pause.paused ? null : input.screen;
+        // No hover outline, nameplate or tooltip under the menu. While it
+        // shows, the Focus stands in for the pointer, so its Item's tooltip
+        // and the Held Item show there.
+        const focus =
+          pause.paused || currentPanel(menus) === null ? null : polled.focus;
+        const pointer = pause.paused ? null : (focus?.at ?? input.screen);
         renderer.draw(
           world,
           alpha,
@@ -380,6 +416,7 @@ export default function GameCanvas() {
           cursor.heldSkill,
           cursor.heldSkillSlot,
           pause.paused ? null : polled.target,
+          focus?.rect ?? null,
         );
         app.render();
         frame = requestAnimationFrame(tick);

@@ -2,6 +2,7 @@ import { beltOf, beltRows, isBeltCell } from "../sim/belt";
 import {
   type Cell,
   cursorItemOf,
+  EQUIPMENT_SLOTS,
   type EquipmentSlot,
   equipmentOf,
   type Item,
@@ -478,4 +479,77 @@ export function itemTooltip(type: ItemType): string[] {
   if (item.potion) lines.push(potionLine(item.potion));
   if (item.beltRows !== undefined) lines.push(`Rows: ${item.beltRows}`);
   return lines;
+}
+
+/**
+ * A spot on the Inventory panel the Focus can rest on: a grid cell, an
+ * Equipment slot, a Belt Column cell or the ×, where it is drawn, and the
+ * point and hit a click on it gives.
+ */
+export type InventoryFocusSpot = {
+  rect: Rect;
+  at: Vec;
+  hit: InventoryHit | InventoryCloseHit;
+};
+
+/**
+ * The Inventory panel's Focus spots: each grid cell, Equipment slot and
+ * Belt Column cell, and its ×, each clicked at its middle. With an Item
+ * held, a grid cell is clicked where the Item goes down with its top-left
+ * on that cell, or as near as keeps it on the grid, so it is drawn and
+ * lands there.
+ */
+export function inventoryFocusSpots(
+  world: World,
+  screen: Viewport,
+): InventoryFocusSpot[] {
+  const layout = inventoryPanelLayout(screen, beltRows(world));
+  const { grid, cell } = layout;
+  const held = cursorItemOf(world)?.item.type ?? null;
+  const { columns, rows } = inventoryTuning;
+  const spots: InventoryFocusSpot[] = [];
+  for (let row = 0; row < rows; row++) {
+    for (let column = 0; column < columns; column++) {
+      const rect = {
+        x: grid.x + column * cell,
+        y: grid.y + row * cell,
+        w: cell,
+        h: cell,
+      };
+      const size = held && itemOf(held).size;
+      const at =
+        held && size
+          ? middle(
+              itemRect(
+                layout,
+                {
+                  column: Math.min(column, columns - size.columns),
+                  row: Math.min(row, rows - size.rows),
+                },
+                held,
+              ),
+            )
+          : middle(rect);
+      spots.push({ rect, at, hit: { inventory: { column, row } } });
+    }
+  }
+  for (const slot of EQUIPMENT_SLOTS) {
+    const rect = layout.slots[slot];
+    spots.push({ rect, at: middle(rect), hit: { inventory: slot } });
+  }
+  layout.belt.forEach((cells, beltColumn) => {
+    cells.forEach((rect, row) => {
+      const hit = { inventory: { beltColumn, row } };
+      spots.push({ rect, at: middle(rect), hit });
+    });
+  });
+  const { closeButton } = layout;
+  const hit = { button: { type: "close", panel: "inventory" } } as const;
+  spots.push({ rect: closeButton, at: middle(closeButton), hit });
+  return spots;
+}
+
+/** The middle of `rect`. */
+function middle(rect: Rect): Vec {
+  return { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
 }

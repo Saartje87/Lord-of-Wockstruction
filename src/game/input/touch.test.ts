@@ -4,6 +4,7 @@ import { touchControlsLayout } from "../render/touchControls";
 import type { Rect } from "../sim/rect";
 import { SKILL_BAR_SLOTS, type SkillBarSlot } from "../sim/skillBar";
 import type { Vec } from "../sim/vec";
+import type { World } from "../sim/world";
 import { viewportOf } from "../viewport";
 import { createPadInput, type PadButton, pollPad } from "./pad";
 import { arenaWith } from "./testArena";
@@ -166,7 +167,7 @@ describe("two touches at once", () => {
       { x: 8, y: 10 },
     ]);
     world.hero.facing = 0;
-    const view = { toTile: (at: Vec) => at, world, menus: createMenus() };
+    const view = { ...asTiles(world), focusSpots: [] };
     const touch = createTouchControls();
     touchDown(touch, 1, inZone, layout);
     touchMove(touch, 1, offBy(inZone, -reach, 0));
@@ -179,7 +180,7 @@ describe("two touches at once", () => {
 
   it("walk with the stick while the other thumb holds an empty Skill slot", () => {
     const world = arenaWith([]);
-    const view = { toTile: (at: Vec) => at, world, menus: createMenus() };
+    const view = { ...asTiles(world), focusSpots: [] };
     const touch = createTouchControls();
     touchDown(touch, 1, inZone, layout);
     touchMove(touch, 1, offBy(inZone, 0, -reach));
@@ -190,6 +191,11 @@ describe("two touches at once", () => {
     expect(orders).toEqual([{ type: "Walk", direction: { x: 0, y: -1 } }]);
   });
 });
+
+/** How the pad sees `world`, canvas points as tiles, with no panel open. */
+function asTiles(world: World) {
+  return { toTile: (at: Vec) => at, world, menus: createMenus() };
+}
 
 /** The controller button that casts each Skill Bar slot. */
 const CONTROLLER_BUTTON: Record<SkillBarSlot, PadButton> = {

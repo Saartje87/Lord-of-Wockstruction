@@ -65,8 +65,8 @@ const NO_PANEL_OPEN: OpenPanels = {
  * buttons stack down that corner, left of the top one. While a panel is
  * open only the pause button shows, moved clear of the panels and their ×:
  * at the top centre under the nameplate, between the panels on the left and
- * those on the right, or in the Compact Layout below the Town Portal button that ends the Panel
- * buttons' column.
+ * those on the right, or in the Compact Layout below the Town Portal button
+ * that ends the Panel buttons' column.
  */
 export function touchControlsLayout(
   screen: Viewport,

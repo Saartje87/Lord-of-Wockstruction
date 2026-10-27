@@ -2081,7 +2081,10 @@ function panelButtonsView(activeInput: Readonly<ActiveInput>) {
   return {
     layer,
     tooltipLayer,
-    /** `hovered` is the Panel button or Town Portal button under the cursor, if any. */
+    /**
+     * `hovered` is the Panel button or Town Portal button under the cursor,
+     * if any.
+     */
     draw(
       screen: Viewport,
       menus: Menus,

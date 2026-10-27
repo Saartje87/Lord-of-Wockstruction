@@ -160,6 +160,10 @@ _Avoid_: Save file, slot, profile, checkpoint
 A thing the Hero can pick up, carry in the Inventory and, if it fits a slot, Equip; each Item has a fixed size in Inventory cells and fixed bonuses.
 _Avoid_: Loot, gear, object
 
+**Short name**:
+A one-line name an Item type also has, short enough to read inside the Item's box in the panels and the Belt strip where the full name won't fit; the tooltip still gives the full name.
+_Avoid_: Abbreviation, label, nickname
+
 **Ground Item**:
 An Item lying in an Area, dropped by a Monster or by the player, until the Hero picks it up or leaves the Area.
 _Avoid_: Drop, loot

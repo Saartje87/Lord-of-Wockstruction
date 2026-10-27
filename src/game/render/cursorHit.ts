@@ -4,7 +4,7 @@ import { beltRows } from "../sim/belt";
 import { cursorItemOf } from "../sim/inventory";
 import { inside, overlaps, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
-import type { World } from "../sim/world";
+import { canRaiseSkill, SKILLS, type World } from "../sim/world";
 import type { Viewport } from "../viewport";
 import { beltStripHitAt, beltStripLayout } from "./beltStrip";
 import {
@@ -120,7 +120,13 @@ function touchTargets(
     const tree = skillTreePanelLayout(screen);
     panels.push(tree.panel);
     close("skillTree", tree.closeButton);
-    still.push(...Object.values(tree.skills), ...Object.values(tree.raise));
+    still.push(...Object.values(tree.skills));
+    // A Skill's +, while there, grows over its own rows: they're drawn over it.
+    for (const skill of SKILLS) {
+      const rect = tree.raise[skill];
+      if (!canRaiseSkill(world, skill)) still.push(rect);
+      else growing.push({ rect, hit: { button: { type: "learn", skill } } });
+    }
   }
   if (shown.inventoryOpen) {
     const inventory = inventoryPanelLayout(screen, beltRows(world));

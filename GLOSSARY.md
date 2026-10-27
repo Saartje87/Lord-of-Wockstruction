@@ -281,12 +281,16 @@ Where a touch hit area stops: halfway to any other button, slot or cell beside i
 _Avoid_: Snapping, nearest-target
 
 **Rotate Notice**:
-What shows instead of the game when the screen is held upright or is too small to play on, asking the player to turn it, or, when too small, to enlarge the window or, on a touch screen, saying the screen is too small and offering the Fullscreen button; the World is paused while it shows.
+What shows instead of the game when the screen is held upright or is too small to play on, asking the player to turn it, or, when too small, to enlarge the window or, on a touch screen, saying the screen is too small and offering the Fullscreen button where it's shown; the World is paused while it shows.
 _Avoid_: Orientation warning, portrait screen
 
 **Fullscreen button**:
-The item in the pause menu, and on the Rotate Notice when the screen is too small, that puts the game in or out of fullscreen, holding it sideways while fullscreen; shown only where the browser allows fullscreen.
+The item in the pause menu, and on the Rotate Notice when the screen is too small, that puts the game in or out of fullscreen, holding it sideways while fullscreen; shown only where the browser allows fullscreen, and never in the Installed game.
 _Avoid_: Maximise button
+
+**Installed game**:
+The game opened from its icon on the home screen or desktop instead of in a browser tab; it plays the same, without the browser around it. On iPhone and iPad it keeps a Save of its own, apart from the browser's.
+_Avoid_: PWA, app, standalone, home-screen app
 
 **Active Input**:
 The way the player last played, mouse and keyboard, controller or touch, which decides what the game shows: touch controls only for touch, and each hint and tooltip naming that way's buttons. A controller disconnecting while it is the Active Input opens the pause menu.

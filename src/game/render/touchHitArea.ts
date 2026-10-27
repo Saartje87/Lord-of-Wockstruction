@@ -18,6 +18,23 @@ function grown(rect: Rect): Rect {
   };
 }
 
+/**
+ * `neighbour` grown as far as `reach` grows `drawn`, or toward
+ * `TOUCH_HIT_AREA` square if that's further: a `reach` overlapping it gets
+ * past halfway to it, or it past halfway to `reach`'s target.
+ */
+function grownBy(neighbour: Rect, reach: Rect, drawn: Rect): Rect {
+  const own = grown(neighbour);
+  const growX = Math.max(drawn.x - reach.x, neighbour.x - own.x);
+  const growY = Math.max(drawn.y - reach.y, neighbour.y - own.y);
+  return {
+    x: neighbour.x - growX,
+    y: neighbour.y - growY,
+    w: neighbour.w + 2 * growX,
+    h: neighbour.h + 2 * growY,
+  };
+}
+
 /** `rect` cut to the part of it inside `bound`. */
 function clipped(rect: Rect, bound: Rect): Rect {
   const x = Math.max(rect.x, bound.x);
@@ -82,8 +99,9 @@ export function touchHitRect(
   for (const neighbour of neighbours) {
     if (overlaps(drawn, neighbour)) continue;
     if (within && !overlaps(within, neighbour)) continue;
-    // Only where the two could reach each other's, as from either side.
-    if (!overlaps(reach, grown(neighbour))) continue;
+    // Only where it could reach past halfway to the other, or the other
+    // past halfway to it.
+    if (!overlaps(reach, grownBy(neighbour, reach, drawn))) continue;
     area = stoppedHalfway(area, drawn, neighbour);
   }
   return area;

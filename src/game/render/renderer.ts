@@ -53,6 +53,7 @@ import {
   groundItemsOf,
   HERO_FLINCH_STEPS,
   HIT_STEP,
+  inTown,
   isInCombat,
   isRegenerating,
   type MinionId,
@@ -140,6 +141,7 @@ import {
   panelButtonsLayout,
   panelButtonsSheet,
   panelButtonTooltipRect,
+  townPortalButtonSheet,
 } from "./panelButtons";
 import {
   type MenuButton,
@@ -496,6 +498,18 @@ const PANEL_BUTTON_STYLE = {
     /** A root node linked to two leaves. */
     skillTree: { rootY: -9, leafX: 8, leafY: 8, node: 4 },
   },
+  /**
+   * The Town Portal button's icon: an upright green oval `w` by `h` with a
+   * lighter core `core` of its size, grey while the button is greyed out.
+   */
+  townPortal: {
+    w: 14,
+    h: 22,
+    core: 0.5,
+    colour: TOWN_PORTAL.colour,
+    coreColour: 0xb8ffc8,
+    greyed: 0x8a8070,
+  },
 };
 /**
  * A Ground Item: a small diamond on the floor tinted as its type, `size`
@@ -650,7 +664,7 @@ export function createRenderer(
   app.stage.addChild(skillBar.layer);
   const beltStrip = beltStripView(activeInput);
   app.stage.addChild(beltStrip.layer);
-  const panelButtons = panelButtonsView();
+  const panelButtons = panelButtonsView(activeInput);
   app.stage.addChild(panelButtons.layer);
   const experience = experienceBarView();
   app.stage.addChild(experience.layer);
@@ -1386,7 +1400,7 @@ export function createRenderer(
       panelButtons.draw(
         viewport,
         menus,
-        { heroDead: world.death !== null },
+        { heroDead: world.death !== null, inTown: inTown(world) },
         hoveredPanelButton(onPanel),
       );
       experience.draw(viewport, world);
@@ -2039,10 +2053,12 @@ function clampedTo(from: Vec, to: Vec, reach: number): Vec {
  * The Panel buttons right of the Skill Bar, in its look: a stone-framed
  * square each, with a simple icon of its panel. A lit one, its panel open,
  * is pressed in with a gold frame and a bright icon; all are faded while
- * the Hero lies in Death. The hovered one shows its tooltip over it, in an
+ * the Hero lies in Death. After them the round Town Portal button, a green
+ * oval in a stone ring, faded and grey while greyed out. The hovered one
+ * shows its tooltip over it, naming the buttons of `activeInput`, in an
  * Item tooltip's look, on `tooltipLayer` over the panels.
  */
-function panelButtonsView() {
+function panelButtonsView(activeInput: Readonly<ActiveInput>) {
   const style = SKILL_BAR_STYLE;
   const look = PANEL_BUTTON_STYLE;
   const layer = new Container();
@@ -2065,14 +2081,14 @@ function panelButtonsView() {
   return {
     layer,
     tooltipLayer,
-    /** `hovered` is the Panel button under the cursor, if any. */
+    /** `hovered` is the Panel button or Town Portal button under the cursor, if any. */
     draw(
       screen: Viewport,
       menus: Menus,
-      hero: HeroState,
-      hovered: Panel | null,
+      hero: HeroState & { inTown: boolean },
+      hovered: Panel | "townPortal" | null,
     ) {
-      const { buttons } = panelButtonsLayout(screen);
+      const { buttons, townPortal } = panelButtonsLayout(screen);
       const scale = screen.uiScale;
       graphics.clear();
       tooltipBox.clear();
@@ -2112,6 +2128,44 @@ function panelButtonsView() {
             panelButtonTooltipRect(screen, shown.panel, size, gap),
           );
         }
+      }
+      const portal = townPortalButtonSheet(hero, activeInput.way);
+      const alpha = portal.greyed ? look.dimmed : 1;
+      const radius = townPortal.w / 2;
+      const x = townPortal.x + radius;
+      const y = townPortal.y + radius;
+      graphics
+        .circle(x, y, radius)
+        .fill({ color: style.fill, alpha })
+        .stroke({ color: style.edge, width: look.frame, alpha });
+      graphics.circle(x, y, radius - look.bevel * scale).stroke({
+        color: style.edge,
+        width: 1,
+        alpha: look.bevelAlpha * alpha,
+      });
+      const icon = atUiScale(look.townPortal, scale);
+      graphics.ellipse(x, y, icon.w / 2, icon.h / 2).fill({
+        color: portal.greyed ? look.townPortal.greyed : look.townPortal.colour,
+        alpha,
+      });
+      graphics
+        .ellipse(
+          x,
+          y,
+          (icon.w / 2) * look.townPortal.core,
+          (icon.h / 2) * look.townPortal.core,
+        )
+        .fill({
+          color: portal.greyed ? style.key : look.townPortal.coreColour,
+          alpha,
+        });
+      if (hovered === "townPortal") {
+        tooltipText.text = portal.tooltip;
+        tooltipText.visible = true;
+        sizeText(tooltipText, INVENTORY_STYLE.tooltipSize * scale);
+        drawTooltip(tooltipBox, [tooltipText], screen, (size, gap) =>
+          panelButtonTooltipRect(screen, "townPortal", size, gap),
+        );
       }
     },
   };

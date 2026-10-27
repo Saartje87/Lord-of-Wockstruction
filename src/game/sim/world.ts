@@ -1028,6 +1028,11 @@ function besideTownPortal(
   );
 }
 
+/** Whether the Hero is in Town, where no Town Portal opens. */
+export function inTown(world: World): boolean {
+  return world.areaName === TOWN;
+}
+
 /** The spot in Town where a Town Portal's Town end stands, if it has one. */
 function townPortalSpot(world: World): Vec | null {
   return world.areas[TOWN].townPortal;

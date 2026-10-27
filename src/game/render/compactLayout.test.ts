@@ -103,11 +103,12 @@ function expectApart(parts: [string, Rect][]) {
 function hudButtons(viewport: Viewport): [string, Rect][] {
   const { slots } = skillBarLayout(viewport);
   const { columns } = beltStripLayout(viewport);
-  const { buttons } = panelButtonsLayout(viewport);
+  const { buttons, townPortal } = panelButtonsLayout(viewport);
   return [
     ...SKILL_BAR_SLOTS.map((slot) => [`Skill Bar ${slot}`, slots[slot]]),
     ...columns.map((rect, column) => [`Belt Column ${column}`, rect]),
     ...PANELS.map((panel) => [`${panel} button`, buttons[panel]]),
+    ["Town Portal button", townPortal],
   ] as [string, Rect][];
 }
 

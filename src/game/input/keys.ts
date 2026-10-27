@@ -28,10 +28,15 @@ export function drinkKeyOrder(key: string): Order | null {
   return null;
 }
 
+/** The key that opens a Town Portal. */
+export const TOWN_PORTAL_KEY = "p";
+
 /**
  * The order a key press gives: P (either case) opens a Town Portal. Null for
  * any other key.
  */
 export function townPortalKeyOrder(key: string): Order | null {
-  return key.toLowerCase() === "p" ? { type: "OpenTownPortal" } : null;
+  return key.toLowerCase() === TOWN_PORTAL_KEY
+    ? { type: "OpenTownPortal" }
+    : null;
 }

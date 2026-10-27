@@ -230,6 +230,40 @@ describe("with touch, a near miss on a panel's ×", () => {
   });
 });
 
+describe.each([
+  { width: 1280, height: 720 },
+  { width: 1024, height: 768 },
+])("with touch on the HUD's row at $width×$height", (size) => {
+  const screen = viewportOf(size);
+  const { buttons, townPortal } = panelButtonsLayout(screen);
+  const shut = createMenus();
+
+  it("a near miss above, below or right of the Town Portal button opens a Town Portal", () => {
+    const { x, y } = middleOf(townPortal);
+    for (const point of [
+      { x, y: townPortal.y - 2 },
+      { x, y: townPortal.y + townPortal.h + 2 },
+      { x: townPortal.x + townPortal.w + 2, y },
+    ]) {
+      expect(cursorHitAt(screen, point, world("sash"), shut, true)).toEqual({
+        button: { type: "townPortal" },
+      });
+    }
+  });
+
+  it("the Town Portal button's hit area stops halfway to the Skill Tree button", () => {
+    const { skillTree } = buttons;
+    const { y } = middleOf(townPortal);
+    const halfway = (skillTree.x + skillTree.w + townPortal.x) / 2;
+    const w = world("sash");
+    const at = (x: number) => cursorHitAt(screen, { x, y }, w, shut, true);
+    expect(at(townPortal.x - 1)).toEqual({ button: { type: "townPortal" } });
+    for (let x = skillTree.x + 0.5; x < halfway; x += 0.5) {
+      expect(at(x)).not.toEqual({ button: { type: "townPortal" } });
+    }
+  });
+});
+
 describe.each(PHONES)("with touch at $width×$height", (size) => {
   const screen = viewportOf(size);
   const { buttons } = panelButtonsLayout(screen);
@@ -353,6 +387,46 @@ describe.each(PHONES)("with touch at $width×$height", (size) => {
     }
   });
 
+  it("a near miss on the Town Portal button opens a Town Portal", () => {
+    const { townPortal } = panelButtonsLayout(screen);
+    const { x, y } = middleOf(townPortal);
+    for (const point of [
+      { x: townPortal.x - 2, y },
+      { x: townPortal.x + townPortal.w + 2, y },
+      { x, y: townPortal.y + townPortal.h + 2 },
+    ]) {
+      expect(cursorHitAt(screen, point, world("sash"), shut, true)).toEqual({
+        button: { type: "townPortal" },
+      });
+    }
+  });
+
+  it("a point between the Skill Tree button and the Town Portal button hits the nearer", () => {
+    const { skillTree } = buttons;
+    const { townPortal } = panelButtonsLayout(screen);
+    const { x } = middleOf(townPortal);
+    const w = world("sash");
+    expect(
+      cursorHitAt(
+        screen,
+        { x, y: skillTree.y + skillTree.h + 1 },
+        w,
+        shut,
+        true,
+      ),
+    ).toEqual(panelButton("skillTree"));
+    expect(
+      cursorHitAt(screen, { x, y: townPortal.y - 1 }, w, shut, true),
+    ).toEqual({ button: { type: "townPortal" } });
+  });
+
+  it("a mouse's near miss on the Town Portal button hits nothing", () => {
+    const { townPortal } = panelButtonsLayout(screen);
+    const { y } = middleOf(townPortal);
+    const point = { x: townPortal.x - 2, y };
+    expect(cursorHitAt(screen, point, world("sash"), shut)).toBeNull();
+  });
+
   it("a mouse's near miss on a Panel button hits no Panel button", () => {
     for (const open of [shut, heroOpen]) {
       for (const panel of PANELS) {
@@ -382,7 +456,8 @@ describe.each([
     screen: { ...viewportOf(PHONES[0]), uiScale: 0.5 },
   },
 ])("with touch at $at, the Compact Layout's open panel", ({ screen }) => {
-  const { buttons } = panelButtonsLayout(screen);
+  const layout = panelButtonsLayout(screen);
+  const buttons = { ...layout.buttons, townPortal: layout.townPortal };
   const w = world("sash");
   const panels = [
     { name: "hero", open: heroOpen, panel: heroPanelLayout(screen).panel },
@@ -400,7 +475,7 @@ describe.each([
 
   it.each(
     panels,
-  )("$name keeps a touch on it from the Panel buttons beside it", ({
+  )("$name keeps a touch on it from the Panel and Town Portal buttons beside it", ({
     open,
     panel,
   }) => {

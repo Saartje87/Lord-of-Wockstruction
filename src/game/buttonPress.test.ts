@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { pressButton } from "./buttonPress";
 import { createMenus } from "./menus";
+import { combatArea } from "./sim/testAreas";
 import { createWorld, type World } from "./sim/world";
 
 /** A Town of one tile with the Hero's `start` on it. */
@@ -178,5 +179,42 @@ describe("a press between the buttons", () => {
 
     expect(pressButton(menus, worldWith({}), null)).toEqual([]);
     expect(menus).toEqual(createMenus());
+  });
+});
+
+describe("a press on the Town Portal button", () => {
+  /** A World whose Hero stands in a Combat Area off Town. */
+  function inCombatArea(): World {
+    const cave = combatArea(town);
+    return createWorld({
+      areas: { town, cave },
+      seed: 1,
+      start: { area: "cave", entry: "start" },
+    });
+  }
+
+  it("orders a Town Portal opened outside Town", () => {
+    const menus = createMenus();
+
+    const orders = pressButton(menus, inCombatArea(), { type: "townPortal" });
+
+    expect(orders).toEqual([{ type: "OpenTownPortal" }]);
+  });
+
+  it("does nothing in Town", () => {
+    const menus = createMenus();
+    const world = createWorld({ areas: { town }, seed: 1 });
+
+    expect(pressButton(menus, world, { type: "townPortal" })).toEqual([]);
+  });
+
+  it("does nothing while the Hero lies dead", () => {
+    const menus = createMenus();
+
+    const orders = pressButton(menus, dead(inCombatArea()), {
+      type: "townPortal",
+    });
+
+    expect(orders).toEqual([]);
   });
 });

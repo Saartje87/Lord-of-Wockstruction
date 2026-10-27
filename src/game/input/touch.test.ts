@@ -285,10 +285,10 @@ describe("the pause button's touch hit area", () => {
 
   it.each(
     PHONES,
-  )("meets the Panel button above it halfway while a panel is open at %o", (screen) => {
+  )("meets the Town Portal button above it halfway while a panel is open at %o", (screen) => {
     const on = touchControlsLayout(screen, panelOpen);
     const { pause } = on;
-    const last = panelButtonsLayout(screen).buttons[PANELS[PANELS.length - 1]];
+    const last = panelButtonsLayout(screen).townPortal;
     const halfway = (last.y + last.h + pause.y) / 2;
     const { x } = centre(pause);
     expect(pauses({ x, y: halfway + 0.5 }, on)).toBe(true);

@@ -178,7 +178,10 @@ function sheetValues(world: World) {
  * Whether the + buttons are there: some unspent points aren't `pending`
  * and the Hero lives.
  */
-function canRaise(world: World, pending: Readonly<PendingPoints>): boolean {
+export function canRaise(
+  world: World,
+  pending: Readonly<PendingPoints>,
+): boolean {
   const unspent = world.hero.progress.attributePoints;
   return unspent - pendingTotal(pending) > 0 && !world.death;
 }

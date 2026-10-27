@@ -47,6 +47,26 @@ A Save at 450 Experience levels up on the next Skeleton kill. For fights, use Le
 
 In dev builds, `?area=<Area>&entry=<Entry>` starts at that Entry instead of in Town, with the Area's Monsters fresh: http://localhost:3000/?area=catacombs&entry=from-town. Areas are the `.tmj` files in `content/areas/`, and Entries their `entry` objects (`start`, `from-town`, …). An unknown Area or Entry starts in Town. Production builds ignore the query. It applies on every load, so drop it to go back to Town.
 
+## Read the game state
+
+Screenshots are JPEGs, and walls, the low-Life tint or Monsters standing on each other can hide what a criterion asks about. In dev builds, `window.__wiablo.state()` returns what the game holds right now, as plain data (`DevState` in `src/game/devState.ts`). Call it from `javascript_exec`, before and after an action:
+
+```js
+window.__wiablo.state();
+// {
+//   area: "catacombs",
+//   hero: { pos: { x: 12.4, y: 30.1 }, facing: 0.79, life: 182, maxLife: 220, experience: 2310 },
+//   target: 41,
+//   monsters: [{ id: 41, type: "skeleton", pos: { x: 14.2, y: 30.6 }, life: 9 }, …],
+// }
+```
+
+- **`target`** is the Monster id of the Target that controller or touch auto-aim picked, the one shown highlighted, or `null` (also while paused). A Monster under the mouse pointer is highlighted too, but it isn't the Target.
+- **`facing`** is in radians in tile space, `atan2(dy, dx)`: 0 is +x, π/2 is +y.
+- **Each call is a fresh copy.** Changing it changes nothing in the game, so call again after each step you take.
+
+Production builds don't have `window.__wiablo`.
+
 ## Touch screen
 
 Chrome stands in for a phone: touch controls read `PointerEvent`s with `pointerType: "touch"` on the canvas (`src/game/input/touch.ts`), so dispatched events drive them.

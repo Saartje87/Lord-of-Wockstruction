@@ -11,7 +11,7 @@
  "infinite": false,
  "compressionlevel": -1,
  "nextlayerid": 5,
- "nextobjectid": 8,
+ "nextobjectid": 9,
  "tilesets": [
   {
    "firstgid": 1,
@@ -3229,6 +3229,18 @@
      "type": "npc",
      "x": 1968.0,
      "y": 816.0,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true
+    },
+    {
+     "id": 8,
+     "name": "town portal",
+     "type": "townPortal",
+     "x": 1776.0,
+     "y": 1680.0,
      "width": 0,
      "height": 0,
      "rotation": 0,

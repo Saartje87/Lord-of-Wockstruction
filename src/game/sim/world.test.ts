@@ -193,6 +193,34 @@ describe("createWorld", () => {
     expect(world.areas.town.areaLevel).toBeNull();
   });
 
+  it("keeps Town's Town Portal spot", () => {
+    const spot = { name: "", type: "townPortal", point: true, x: 16, y: 16 };
+
+    const world = createWorld({ areas: { town: tmj([start, spot]) }, seed: 1 });
+
+    expect(world.areas.town.townPortal).toEqual({ x: 0.5, y: 0.5 });
+  });
+
+  it("throws naming Town when its Town Portal spot can't be reached from `start`", () => {
+    // Tile (2, 1) has no floor.
+    const spot = { name: "", type: "townPortal", point: true, x: 80, y: 48 };
+
+    expect(() =>
+      createWorld({ areas: { town: tmj([start, spot]) }, seed: 1 }),
+    ).toThrow(
+      'Area "town" has its Town Portal spot where it can\'t be reached from "start"',
+    );
+  });
+
+  it("throws naming a Combat Area with a Town Portal spot", () => {
+    const spot = { name: "", type: "townPortal", point: true, x: 16, y: 16 };
+    const cave = combatArea(tmj([start, spot]));
+
+    expect(() =>
+      createWorld({ areas: { town: tmj([start]), cave }, seed: 1 }),
+    ).toThrow('Area "cave" has a Town Portal spot; only Town has one');
+  });
+
   it("keeps each NPC's name and place", () => {
     const npc = { name: "Gillian", type: "npc", point: true, x: 16, y: 16 };
 

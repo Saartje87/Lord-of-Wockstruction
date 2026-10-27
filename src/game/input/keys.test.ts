@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { castKeyOrder, drinkKeyOrder } from "./keys";
+import { castKeyOrder, drinkKeyOrder, townPortalKeyOrder } from "./keys";
 
 describe("the Skill keys", () => {
   it.each([
@@ -47,5 +47,15 @@ describe("the Belt keys", () => {
 
   it.each(["0", "5", "q", "Enter"])("leave %s alone", (key) => {
     expect(drinkKeyOrder(key)).toBeNull();
+  });
+});
+
+describe("the Town Portal key", () => {
+  it.each(["p", "P"])("opens a Town Portal with %s", (key) => {
+    expect(townPortalKeyOrder(key)).toEqual({ type: "OpenTownPortal" });
+  });
+
+  it.each(["o", "1", "Enter"])("leaves %s alone", (key) => {
+    expect(townPortalKeyOrder(key)).toBeNull();
   });
 });

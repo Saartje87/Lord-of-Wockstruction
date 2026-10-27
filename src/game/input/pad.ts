@@ -192,7 +192,8 @@ export function hideFocus(input: PadInput) {
  * `castDistance` ahead (of the stick while pushed, else of the Hero's
  * facing). Held, they cast again every `retargetMs`, and the stick keeps
  * walking between casts, for kiting. An empty slot casts nothing. The D-pad's
- * left, up, right and down drink from Belt Columns 1 to 4, once a press.
+ * left, up, right and down drink from Belt Columns 1 to 4, and LB opens a
+ * Town Portal, once a press.
  *
  * While a panel is open the Hero stands still and nothing is ordered.
  * Instead, once the pad has been pressed, the Focus shows on a spot of
@@ -254,6 +255,7 @@ export function pollPad(
       orders.push({ type: "DrinkFromBelt", column });
     }
   });
+  if (snapshot.pressed.includes("lb")) orders.push({ type: "OpenTownPortal" });
   return { ...none, orders, target, presses };
 }
 

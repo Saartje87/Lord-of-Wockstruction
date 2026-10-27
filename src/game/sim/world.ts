@@ -9,6 +9,7 @@ import {
 import { minionTuning } from "../tuning/minions";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import { type Skill, skillTuning } from "../tuning/skills";
+import { townPortalTuning } from "../tuning/townPortal";
 import {
   type Area,
   exitAt,
@@ -130,6 +131,9 @@ export const CAST_STEPS = Object.fromEntries(
   ]),
 ) as Record<Skill, number>;
 
+/** How many steps opening a Town Portal roots the Hero for. */
+export const OPENING_STEPS = msToSteps(townPortalTuning.openingMs);
+
 export type { Minion, MinionId, MinionType, SkillBar, SkillBarSlot };
 export type { Projectile };
 export { minionMaxLife, potionEffectsOf };
@@ -170,6 +174,8 @@ export type Hero = {
   swing: Swing | null;
   /** The cast rooting the Hero, if any. */
   cast: Cast | null;
+  /** The Town Portal opening, rooting the Hero as a cast does, if any. */
+  opening: Opening | null;
   /** Steps of flinching left; 0 when not flinching. */
   flinch: number;
   /**
@@ -188,6 +194,12 @@ export type Hero = {
 export type Cast = {
   skill: Skill;
   /** Steps since the cast started, not counting hitstop. */
+  elapsed: number;
+};
+
+/** A Town Portal opening: it opens once `OPENING_STEPS` have passed. */
+export type Opening = {
+  /** Steps since the opening started, not counting hitstop. */
   elapsed: number;
 };
 
@@ -267,12 +279,14 @@ export type MonsterState =
   | "return";
 
 /**
- * Walking through an Exit to Entry `entry` in Area `area`. The World stands
- * still and orders are ignored until it ends.
+ * Walking through an Exit to Entry `entry` in Area `area`, or through a Town
+ * Portal to Area `area`, beside its end there. The World stands still and
+ * orders are ignored until it ends.
  */
 export type AreaChange = {
   area: string;
-  entry: string;
+  /** The Entry the Hero arrives at, or null through a Town Portal. */
+  entry: string | null;
   /** Steps since the Hero walked into the Exit. */
   elapsed: number;
 };
@@ -285,6 +299,12 @@ export type Death = {
   /** Steps since the Hero died. */
   elapsed: number;
 };
+
+/**
+ * The Hero's one Town Portal: its end in Combat Area `area` stands at `pos`,
+ * its Town end at Town's Town Portal spot.
+ */
+export type TownPortal = { area: string; pos: Vec };
 
 /** What remains of a dead Monster: inert, not clickable, not blocking. */
 export type Corpse = { id: MonsterId; type: MonsterType; pos: Vec };
@@ -322,6 +342,8 @@ export type World = {
    * The Hero's living Minions, oldest first; never kept by the Save.
    */
   minions: Minion[];
+  /** The Hero's Town Portal, if open; never kept by the Save. */
+  townPortal: TownPortal | null;
   /** The id the next Monster gets. */
   nextMonsterId: MonsterId;
   /** The id the next Minion gets. */
@@ -384,6 +406,12 @@ export type Order =
   | { type: "PickUp"; groundItem: ItemId }
   /** Go back to Town after dying. */
   | { type: "Continue" }
+  /**
+   * Open a Town Portal, rooting the Hero for the opening time as a cast
+   * does. Ignored in Town, during Death and during an Area change, or when
+   * Town has no Town Portal spot.
+   */
+  | { type: "OpenTownPortal" }
   /**
    * Spend unspent Attribute Points raising each Attribute by its count in
    * `points`, at once and whatever the Hero is doing; refused whole when it
@@ -483,8 +511,18 @@ export type SimEvent =
   /** Minion `minion` was killed at `pos`, leaving no Corpse. */
   | { type: "MinionDied"; minion: MinionId; pos: Vec }
   | { type: "HeroDied" }
-  /** The Hero arrived at Entry `entry` in Area `area`. */
-  | { type: "AreaChanged"; area: string; entry: string };
+  /**
+   * The Hero arrived at Entry `entry` in Area `area`, or beside the Town
+   * Portal's end there when `entry` is null.
+   */
+  | { type: "AreaChanged"; area: string; entry: string | null }
+  /** A Town Portal opened, its Combat Area end at `pos` in Area `area`. */
+  | { type: "TownPortalOpened"; area: string; pos: Vec }
+  /**
+   * The Town Portal with its Combat Area end at `pos` in Area `area` closed:
+   * replaced by a new one, or gone back through from Town.
+   */
+  | { type: "TownPortalClosed"; area: string; pos: Vec };
 
 /** The Hero's Attributes, in the order they're shown. */
 export const ATTRIBUTES = [
@@ -618,6 +656,7 @@ export function createWorld(options: {
       pickingUp: null,
       swing: null,
       cast: null,
+      opening: null,
       flinch: 0,
       combat: 0,
       buffered: null,
@@ -627,6 +666,7 @@ export function createWorld(options: {
     corpses: [],
     groundItems: [],
     minions: [],
+    townPortal: null,
     nextMonsterId: 1,
     nextMinionId: 1,
     nextItemId: 1,
@@ -853,13 +893,14 @@ export function areaFade(world: World): number {
 }
 
 /**
- * Starts the Area change to an Exit's target, stopping the Hero, putting
- * back a held Item and ending any hitstop.
+ * Starts the Area change to an Exit's target, or through a Town Portal with
+ * a null `entry`, stopping the Hero, putting back a held Item and ending any
+ * hitstop.
  */
 function startAreaChange(
   world: World,
   area: string,
-  entry: string,
+  entry: string | null,
   events: SimEvent[],
 ) {
   world.areaChange = { area, entry, elapsed: 0 };
@@ -876,6 +917,7 @@ function stopHero(hero: Hero) {
   hero.pickingUp = null;
   hero.swing = null;
   hero.cast = null;
+  hero.opening = null;
   hero.flinch = 0;
   hero.buffered = null;
 }
@@ -891,17 +933,24 @@ function stepAreaChange(world: World, change: AreaChange, events: SimEvent[]) {
  * Makes the target Area the active one, fresh from its definition: its
  * Monsters back at their spawns, and no Projectiles or Corpses. The Hero
  * carries over to the target Entry, facing away from the Area's nearest
- * edge, with their Life restored to full on arriving in Town, and back on
+ * edge, or through a Town Portal to beside its end there, facing away from
+ * it, with their Life restored to full on arriving in Town, and back on
  * their feet if they died.
- * Their Minions come along, next to them.
+ * Their Minions come along, next to them. Going through a Town Portal from
+ * Town closes it.
  */
 function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   const area = world.areas[change.area];
-  const at = area.entries[change.entry];
   const { hero } = world;
-  hero.pos = { ...at };
-  hero.prevPos = { ...at };
-  hero.facing = awayFromEdge(area, at);
+  if (change.entry === null) {
+    const beside = besideTownPortal(world, area);
+    hero.pos = { ...beside.pos };
+    hero.facing = beside.facing;
+  } else {
+    hero.pos = { ...area.entries[change.entry] };
+    hero.facing = awayFromEdge(area, hero.pos);
+  }
+  hero.prevPos = { ...hero.pos };
   if (area.name === TOWN) {
     hero.life = maxLife(world);
     hero.combat = 0;
@@ -916,6 +965,106 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   world.heldOrders = [];
   for (const spawn of area.spawns) placePack(world, area, spawn);
   events.push({ type: "AreaChanged", area: area.name, entry: change.entry });
+  if (change.entry === null && area.name !== TOWN) {
+    closeTownPortal(world, events);
+  }
+}
+
+/**
+ * Where the Hero arrives through a Town Portal in `area`: `arriveDistance`
+ * from its end there, down the screen from it or the nearest way round that
+ * is walkable, facing away from it; on the end itself when none is.
+ */
+function besideTownPortal(
+  world: World,
+  area: Area,
+): { pos: Vec; facing: number } {
+  const end =
+    (area.name === TOWN ? area.townPortal : world.townPortal?.pos) ??
+    area.entries.start;
+  const { arriveDistance } = townPortalTuning;
+  const around = [0, 1, -1, 2, -2, 3, -3, 4]
+    .map((turn) => Math.PI / 4 + (turn * Math.PI) / 4)
+    .map((facing) => ({
+      pos: {
+        x: end.x + arriveDistance * Math.cos(facing),
+        y: end.y + arriveDistance * Math.sin(facing),
+      },
+      facing,
+    }));
+  return (
+    around.find(({ pos }) => isWalkable(area, pos)) ?? {
+      pos: { ...end },
+      facing: Math.PI / 4,
+    }
+  );
+}
+
+/** The spot in Town where a Town Portal's Town end stands, if it has one. */
+function townPortalSpot(world: World): Vec | null {
+  return world.areas[TOWN].townPortal;
+}
+
+/** The end of the Hero's Town Portal standing in the active Area, if any. */
+export function townPortalIn(world: World): Vec | null {
+  const { townPortal } = world;
+  if (!townPortal) return null;
+  if (world.areaName === townPortal.area) return { ...townPortal.pos };
+  const spot = townPortalSpot(world);
+  if (world.areaName === TOWN && spot) return { ...spot };
+  return null;
+}
+
+/**
+ * Whether the Hero walked into a Town Portal end at `end` on this step:
+ * within its radius now, and not a step ago.
+ */
+function walkedInto(hero: Hero, end: Vec): boolean {
+  const { radius } = townPortalTuning;
+  return (
+    distance(hero.pos, end) <= radius && distance(hero.prevPos, end) > radius
+  );
+}
+
+/** Closes the Hero's Town Portal, if any. */
+function closeTownPortal(world: World, events: SimEvent[]) {
+  const { townPortal } = world;
+  if (!townPortal) return;
+  world.townPortal = null;
+  events.push({
+    type: "TownPortalClosed",
+    area: townPortal.area,
+    pos: { ...townPortal.pos },
+  });
+}
+
+/**
+ * Opens a Town Portal `openDistance` ahead of the Hero along their facing,
+ * or on the nearest spot the Hero can stand on when that is a wall, closing
+ * the old one: the Hero has at most one.
+ */
+function openTownPortal(world: World, events: SimEvent[]) {
+  const area = world.areas[world.areaName];
+  const { pos, facing } = world.hero;
+  const { openDistance } = townPortalTuning;
+  const ahead = {
+    x: pos.x + openDistance * Math.cos(facing),
+    y: pos.y + openDistance * Math.sin(facing),
+  };
+  const at = summonPoint(area, ahead, heroTuning.radius);
+  if (!at) return;
+  closeTownPortal(world, events);
+  world.townPortal = { area: area.name, pos: at };
+  events.push({ type: "TownPortalOpened", area: area.name, pos: { ...at } });
+}
+
+/** Counts an opening through, opening the Town Portal once it ends. */
+function advanceOpening(world: World, opening: Opening, events: SimEvent[]) {
+  opening.elapsed += 1;
+  if (opening.elapsed < OPENING_STEPS) return;
+  world.hero.opening = null;
+  openTownPortal(world, events);
+  giveBuffered(world, events);
 }
 
 /** The facing straight away from the Area edge nearest a point. */
@@ -1018,6 +1167,7 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   }
   if (hero.swing) advanceSwing(world, hero.swing, events);
   if (hero.cast) advanceCast(world, hero.cast, events);
+  if (hero.opening) advanceOpening(world, hero.opening, events);
   if (world.death) {
     stepDeath(world, world.death, orders, events);
     world.tick += 1;
@@ -1041,6 +1191,13 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   const exit = exitAt(area, hero.pos);
   if (exit && exit !== exitAt(area, hero.prevPos)) {
     startAreaChange(world, exit.area, exit.entry, events);
+    world.tick += 1;
+    return events;
+  }
+  const townPortalEnd = townPortalIn(world);
+  if (world.townPortal && townPortalEnd && walkedInto(hero, townPortalEnd)) {
+    const to = world.areaName === TOWN ? world.townPortal.area : TOWN;
+    startAreaChange(world, to, null, events);
     world.tick += 1;
     return events;
   }
@@ -1226,6 +1383,13 @@ function give(world: World, order: Order, events: SimEvent[]) {
   const { hero } = world;
   // Only heeded while dead.
   if (order.type === "Continue") return;
+  // Ignored, not buffered, where it can't open.
+  if (
+    order.type === "OpenTownPortal" &&
+    (world.areaName === TOWN || !townPortalSpot(world))
+  ) {
+    return;
+  }
   if (order.type === "SpendAttributePoints") {
     spendAttributePoints(world, order.points, events);
     return;
@@ -1254,7 +1418,7 @@ function give(world: World, order: Order, events: SimEvent[]) {
   }
   // An empty slot does nothing, not even replace a buffered order.
   if (order.type === "Cast" && !hero.progress.skillBar[order.slot]) return;
-  if (hero.flinch > 0 || hero.cast) {
+  if (hero.flinch > 0 || hero.cast || hero.opening) {
     hero.buffered = order;
     return;
   }
@@ -1301,6 +1465,12 @@ function give(world: World, order: Order, events: SimEvent[]) {
       break;
     case "Cast":
       castFrom(world, order.slot, order.target, events);
+      break;
+    case "OpenTownPortal":
+      hero.path = [];
+      hero.attacking = null;
+      hero.pickingUp = null;
+      hero.opening = { elapsed: 0 };
       break;
   }
 }
@@ -1682,6 +1852,8 @@ function hitHero(world: World, attack: AttackNumbers, events: SimEvent[]) {
   hero.swing = null;
   // Its effect has happened; the flinch roots the Hero in its place.
   hero.cast = null;
+  // A Town Portal opens only at the end, so it never does.
+  hero.opening = null;
   hero.attacking = null;
   hero.pickingUp = null;
   hero.path = [];

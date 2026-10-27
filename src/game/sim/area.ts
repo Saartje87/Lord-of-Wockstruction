@@ -39,6 +39,11 @@ export type Area = {
   spawns: Spawn[];
   exits: Exit[];
   npcs: Npc[];
+  /**
+   * Where a Town Portal's Town end stands (tile units), or null in an Area
+   * without one: Town's map must have it (see `validateAreas`).
+   */
+  townPortal: Vec | null;
 };
 
 /** `count` Monsters of one type, placed around `pos` (tile units). */
@@ -141,11 +146,11 @@ function cellAt(area: Area, grid: boolean[], point: Vec): boolean {
 
 /**
  * Reads the `floor`, `walls & props` and `blocking override` tile layers and
- * the `entry`, `exit`, `monsterSpawn` and `npc` objects of a Tiled `.tmj`
- * file. An `exit` is a rectangle, or a point for the one tile it is in. Only
- * uncompressed tile data and a single tileset are supported. A tileset in its
- * own file is looked up in `tilesets` by its file name without extension
- * (`../tilesets/grassland.tsj` is `grassland`).
+ * the `entry`, `exit`, `monsterSpawn`, `npc` and `townPortal` objects of a
+ * Tiled `.tmj` file. An `exit` is a rectangle, or a point for the one tile it
+ * is in. Only uncompressed tile data and a single tileset are supported. A
+ * tileset in its own file is looked up in `tilesets` by its file name without
+ * extension (`../tilesets/grassland.tsj` is `grassland`).
  *
  * A tile on `walls & props` blocks when its tileset tile has `blocks` set. A
  * tile on `blocking override` replaces that with its own `blocks`: set for an
@@ -196,6 +201,7 @@ export function loadArea(
   const spawns: Spawn[] = [];
   const exits: Exit[] = [];
   const npcs: Npc[] = [];
+  let townPortal: Vec | null = null;
   for (const layer of tmj.layers) {
     if (layer.type !== "objectgroup") continue;
     for (const object of layer.objects) {
@@ -211,6 +217,7 @@ export function loadArea(
         exits.push(readExit(name, object, pos, size));
       }
       if (kind === "npc") npcs.push({ name: object.name, pos });
+      if (kind === "townPortal") townPortal = pos;
     }
   }
 
@@ -228,6 +235,7 @@ export function loadArea(
     spawns,
     exits,
     npcs,
+    townPortal,
   };
 }
 

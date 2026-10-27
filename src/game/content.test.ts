@@ -190,6 +190,18 @@ describe("the shipped Areas", () => {
     expect(world.monsters).toEqual([]);
   });
 
+  it("put Town's Town Portal spot a few steps from `start`", () => {
+    const town = shippedWorld().areas.town;
+
+    if (!town.townPortal) throw new Error("Town has no Town Portal spot");
+    expect(
+      Math.hypot(
+        town.townPortal.x - town.entries.start.x,
+        town.townPortal.y - town.entries.start.y,
+      ),
+    ).toBeLessThan(4);
+  });
+
   it("block Town's cliffs and trees by their tileset, and not its plants", () => {
     const town = shippedWorld().areas.town;
     const at = (x: number, y: number) => y * town.width + x;

@@ -236,7 +236,7 @@ const HURT_COLOUR = 0xff0000;
 
 /**
  * The Hero's Death on screen: it darkens to `darkness` over `DEATH_STEPS`,
- * then shows "You died" over a hint that pulses `pulsesPerSecond` times a
+ * then shows "YOU TRIED" over a hint that pulses `pulsesPerSecond` times a
  * second.
  */
 const DEATH_SCREEN = {
@@ -3620,14 +3620,14 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
 }
 
 /**
- * The screen over a dead Hero: darkening while they lie still, then "You
- * died" with a pulsing hint to go on, named for the Active Input.
+ * The screen over a dead Hero: darkening while they lie still, then "YOU
+ * TRIED" with a pulsing hint to go on, named for the Active Input.
  */
 function deathScreenView(activeInput: Readonly<ActiveInput>) {
   const layer = new Container();
   const dark = new Graphics().rect(0, 0, 1, 1).fill(0x000000);
   const title = new Text({
-    text: "You died",
+    text: "YOU TRIED",
     style: {
       fill: DEATH_SCREEN.title.colour,
       fontSize: DEATH_SCREEN.title.size,

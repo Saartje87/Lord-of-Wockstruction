@@ -54,6 +54,7 @@ import {
   createMenus,
   currentPanel,
   fitMenus,
+  MAP_KEY,
   type MenuRequest,
   type Menus,
   pressKey,
@@ -261,6 +262,8 @@ export default function GameCanvas() {
       window.addEventListener(
         "keydown",
         (e) => {
+          // Tab would move the browser's focus off the game.
+          if (e.key === MAP_KEY) e.preventDefault();
           if (!e.repeat) keys.push(e.key);
         },
         { signal: listeners.signal },

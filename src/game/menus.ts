@@ -21,6 +21,11 @@ export type Menus = {
   inventoryOpen: boolean;
   skillTreeOpen: boolean;
   /**
+   * Whether the Map Overlay is open. It is not a panel: the World runs on
+   * under it, and the panels open and shut alongside it.
+   */
+  mapOpen: boolean;
+  /**
    * The Pending Attribute Points on each Attribute in the Hero panel, not
    * spent until Accept, and cancelled as the panel shuts. Never in the World
    * or the Save.
@@ -61,6 +66,7 @@ export function createMenus(): Menus {
     heroPanelOpen: false,
     inventoryOpen: false,
     skillTreeOpen: false,
+    mapOpen: false,
     pendingPoints: noPendingPoints(),
     compact: false,
     lastOpened: null,
@@ -117,7 +123,8 @@ export function menuChoices(
  * A key pressed at real time `nowMs`, by `KeyboardEvent.key`. Esc opens and
  * closes the pause menu, and C the Hero panel, I the Inventory panel and T
  * the Skill Tree panel while the game runs; while `hero` lies dead, C, I and
- * T are taken but open nothing. While the Rotate Notice shows, every key
+ * T are taken but open nothing. Tab opens and closes the Map Overlay, and
+ * does nothing either while the Hero lies dead. While the Rotate Notice shows, every key
  * is taken and does nothing. In the menu, N asks to confirm a New Hero, and then Y confirms it while N or Esc
  * goes back. Returns `"newHero"` once confirmed, for the caller to start
  * one, `"handled"` for any other key the menus took, and null for a key
@@ -146,6 +153,10 @@ export function pressKey(
     if (letter === "n") choose(menus, "newHero", nowMs);
     return "handled";
   }
+  if (key === MAP_KEY) {
+    if (!hero.heroDead) menus.mapOpen = !menus.mapOpen;
+    return "handled";
+  }
   const panel = panelOfKey(letter);
   if (panel) {
     togglePanel(menus, panel, hero);
@@ -153,6 +164,9 @@ export function pressKey(
   }
   return null;
 }
+
+/** The key that opens and shuts the Map Overlay, as `pressKey` reads it. */
+export const MAP_KEY = "Tab";
 
 /**
  * The key that opens and shuts each panel, as `pressKey` reads it: lower

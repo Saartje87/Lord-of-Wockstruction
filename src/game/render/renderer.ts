@@ -138,6 +138,7 @@ import {
   landingCell,
 } from "./inventoryPanel";
 import { itemColour, itemLabel } from "./itemArt";
+import { MAP_LOOK, MAP_OVERLAY, mapMarks, mapOffset } from "./mapMarks";
 import {
   heroHitShows,
   type Orb,
@@ -692,6 +693,9 @@ export function createRenderer(
   });
   nameplateText.anchor.set(0.5, 0);
   app.stage.addChild(nameplateText);
+  // Under the HUD, over the World; the HUD and panels draw over it.
+  const mapOverlay = mapOverlayView();
+  app.stage.addChild(mapOverlay.layer);
   const orb = orbsView();
   app.stage.addChild(orb.layer);
   const skillBar = skillBarView(activeInput);
@@ -1547,6 +1551,7 @@ export function createRenderer(
         }
       }
 
+      mapOverlay.draw(viewport, active, heroAt, menus.mapOpen);
       orb.draw(viewport, world, nowMs);
       skillBar.draw(viewport, world, heldSkillSlot);
       beltStrip.draw(viewport, world);
@@ -2561,6 +2566,56 @@ function createHeldSkillView() {
         .stroke({ color: style.skillEdge, width: 1 });
       name.text = skillTuning[skill].name;
       layer.position.set(pointer.x, pointer.y);
+    },
+  };
+}
+
+/**
+ * The Map Overlay: the Area's wall and floor lines and the Hero's mark, see
+ * through, at a fixed scale and the World's isometric angle, centred on the
+ * Hero. The lines are drawn once per Area and moved as the Hero walks.
+ */
+function mapOverlayView() {
+  const layer = new Container();
+  layer.alpha = MAP_OVERLAY.opacity;
+  layer.visible = false;
+  const lines = new Graphics();
+  const heroMark = new Graphics();
+  layer.addChild(lines, heroMark);
+  let drawn: Area | null = null;
+
+  return {
+    layer,
+    draw(screen: Viewport, area: Area, heroAt: Vec, open: boolean) {
+      layer.visible = open;
+      if (!open) return;
+      if (area !== drawn) {
+        drawn = area;
+        lines.clear();
+        const { edges } = mapMarks({ area, heroAt });
+        const origin = { x: 0, y: 0 };
+        for (const kind of ["floor", "wall"] as const) {
+          const look = MAP_LOOK[kind];
+          for (const edge of edges) {
+            if (edge.kind !== kind) continue;
+            const from = mapOffset(edge.from, origin, MAP_OVERLAY.scale);
+            const to = mapOffset(edge.to, origin, MAP_OVERLAY.scale);
+            lines.moveTo(from.x, from.y).lineTo(to.x, to.y);
+          }
+          lines.stroke({ color: look.colour, width: look.width });
+        }
+      }
+      const centre = { x: screen.width / 2, y: screen.height / 2 };
+      const shift = mapOffset(heroAt, { x: 0, y: 0 }, MAP_OVERLAY.scale);
+      lines.position.set(centre.x - shift.x, centre.y - shift.y);
+      const { colour, size, width } = MAP_LOOK.hero;
+      heroMark.clear();
+      heroMark
+        .moveTo(centre.x - size / 2, centre.y)
+        .lineTo(centre.x + size / 2, centre.y)
+        .moveTo(centre.x, centre.y - size / 2)
+        .lineTo(centre.x, centre.y + size / 2)
+        .stroke({ color: colour, width });
     },
   };
 }

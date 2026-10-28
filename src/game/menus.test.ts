@@ -23,6 +23,45 @@ import { gameTime, togglePause } from "./pause";
 const alive = { heroDead: false };
 const dead = { heroDead: true };
 
+describe("the Map Overlay", () => {
+  it("opens and shuts with Tab, which the menus take", () => {
+    const menus = createMenus();
+
+    expect(menus.mapOpen).toBe(false);
+    expect(pressKey(menus, "Tab", 1000, alive)).toBe("handled");
+    expect(menus.mapOpen).toBe(true);
+    expect(pressKey(menus, "Tab", 2000, alive)).toBe("handled");
+    expect(menus.mapOpen).toBe(false);
+  });
+
+  it("leaves the game running and the panels shut", () => {
+    const menus = createMenus();
+
+    pressKey(menus, "Tab", 1000, alive);
+
+    expect(menus.pause.paused).toBe(false);
+    expect(menus.heroPanelOpen).toBe(false);
+    expect(menus.inventoryOpen).toBe(false);
+    expect(menus.skillTreeOpen).toBe(false);
+  });
+
+  it("does nothing during Death", () => {
+    const menus = createMenus();
+
+    expect(pressKey(menus, "Tab", 1000, dead)).toBe("handled");
+    expect(menus.mapOpen).toBe(false);
+  });
+
+  it("does nothing while the pause menu is open", () => {
+    const menus = createMenus();
+    pressKey(menus, "Escape", 1000, alive);
+
+    pressKey(menus, "Tab", 2000, alive);
+
+    expect(menus.mapOpen).toBe(false);
+  });
+});
+
 describe("the keys", () => {
   it("open and close the pause menu with Esc", () => {
     const menus = createMenus();

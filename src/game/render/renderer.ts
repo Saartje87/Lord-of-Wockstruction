@@ -143,9 +143,8 @@ import {
   type Orb,
   orbFill,
   orbsLayout,
-  WARD_PULSE,
   wardFill,
-  wardPulse,
+  wardPulseBrightness,
 } from "./orbs";
 import {
   hoveredPanelButton,
@@ -400,6 +399,12 @@ const RIPPLE = { calm: 1, combat: 2.5, speed: 5, depth: 3 };
  * ring all the way round.
  */
 const WARD_RING = { colour: 0xe8e0c8, width: 0.6, trackAlpha: 0.2 };
+/**
+ * The pulse over the Bone Ward ring when it soaks damage: a brighter bone
+ * white ring `width` CSS px across at native scale (drawn at the UI Scale),
+ * at `strength` opacity (0..1) as it begins. Its length is `WARD_PULSE.ms`.
+ */
+const WARD_PULSE_LOOK = { colour: 0xfffaf0, width: 6, strength: 0.8 };
 /**
  * Bubbles rising through the Life orb while the Hero regenerates Life,
  * `radius` CSS px at native scale.
@@ -1055,7 +1060,7 @@ export function createRenderer(
       // Red only when Life was lost; the Bone Ward ring pulses when it soaked.
       const shown = heroHitShows(events);
       if (shown.hurt) hurtAtMs = nowMs;
-      if (shown.pulse) orb.pulse(nowMs);
+      if (shown.pulses) orb.startPulse(nowMs);
       for (const event of events) {
         if (event.type === "HitLanded") {
           const view = monsters.get(event.target);
@@ -1913,12 +1918,13 @@ function orbsView() {
   });
   badge.anchor.set(0.5, 1);
   layer.addChild(graphics, badge);
+  // When the Bone Ward ring's last pulse began, if it still shows.
   let pulseAtMs: number | null = null;
 
   return {
     layer,
     /** Starts the Bone Ward ring's pulse, as the Bone Ward soaks damage. */
-    pulse(nowMs: number) {
+    startPulse(nowMs: number) {
       pulseAtMs = nowMs;
     },
     draw(screen: Viewport, world: World, nowMs: number) {
@@ -1990,6 +1996,9 @@ function orbsView() {
       }
 
       const ward = wardFill(world);
+      // No Bone Ward left (used up, Death, a loaded Save) leaves no pulse to
+      // show on a Bone Ward cast later.
+      if (ward === null) pulseAtMs = null;
       if (ward !== null) {
         const ringRadius = r + rim / 2;
         const ring = { width: rim * WARD_RING.width, color: WARD_RING.colour };
@@ -2001,15 +2010,18 @@ function orbsView() {
           .moveTo(lifeX, cy - ringRadius)
           .arc(lifeX, cy, ringRadius, top, top + ward * Math.PI * 2)
           .stroke(ring);
-        // A hit soaked pulses the whole ring brighter and wider, then fades.
+        // A soaked hit lays a bright bone-white ring over the whole ring,
+        // which fades away.
         const glow =
           pulseAtMs === null
             ? 0
-            : wardPulse(nowMs - pulseAtMs) * WARD_PULSE.strength;
+            : wardPulseBrightness(nowMs - pulseAtMs) * WARD_PULSE_LOOK.strength;
         if (glow > 0) {
-          graphics
-            .circle(lifeX, cy, ringRadius)
-            .stroke({ width: rim, color: 0xffffff, alpha: glow });
+          graphics.circle(lifeX, cy, ringRadius).stroke({
+            width: WARD_PULSE_LOOK.width * uiScale,
+            color: WARD_PULSE_LOOK.colour,
+            alpha: glow,
+          });
         }
       }
 

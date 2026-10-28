@@ -9,6 +9,7 @@ import {
   createWorld,
   FRESH_PROGRESS,
   isInCombat,
+  isRegenerating,
   type Progress,
   type SimEvent,
   step,
@@ -151,8 +152,9 @@ function stepUntil(
 function inField(
   { skeleton, archer }: { skeleton?: Vec; archer?: Vec } = {},
   progress = necromancer(),
+  seed = 1,
 ): World {
-  const w = createWorld({ areas: FIELD, seed: 1, progress });
+  const w = createWorld({ areas: FIELD, seed, progress });
   step(w, [{ type: "MoveTo", target: { x: 2.5, y: 0.5 } }]);
   stepUntil(w, () => w.areaName === "field" && !w.areaChange);
   const [melee, ranged] = w.monsters;
@@ -265,28 +267,32 @@ describe("a Bone Ward", () => {
     expect(w.hero.boneWard?.left).toBe(20 - hit.warded);
   });
 
-  it("keeps the Hero In Combat when it soaks a hit whole", () => {
+  it("keeps the Hero In Combat when it soaks a hit whole, so their Life doesn't regenerate", () => {
     const w = inField({ skeleton: { x: 2.5, y: 0.5 } });
     castAndWait(w);
-    w.hero.combat = 0;
-    const hit = nextHeroHit(w);
-    expect(hit.damage).toBe(0);
+    w.hero.life = 50;
 
-    expect(w.hero.combat).toBeGreaterThan(0);
+    const hit = nextHeroHit(w);
+    for (let i = 0; i < 10; i++) step(w, []);
+
+    expect(hit.damage).toBe(0);
     expect(isInCombat(w)).toBe(true);
+    expect(isRegenerating(w)).toBe(false);
+    expect(w.hero.life).toBe(50);
   });
 
   it("can flinch the Hero when it soaks a hit whole", () => {
-    let flinched = false;
-    for (let seed = 1; seed <= 40 && !flinched; seed++) {
-      const w = inField({ skeleton: { x: 2.5, y: 0.5 } });
-      w.rng = createWorld({ areas: FIELD, seed }).rng;
+    // A hit flinches the Hero by chance, so no one seed is sure to flinch
+    // them: find one that does, soaking the hit whole.
+    const flinchedBy = (seed: number) => {
+      const w = inField({ skeleton: { x: 2.5, y: 0.5 } }, necromancer(), seed);
       castAndWait(w);
       const hit = nextHeroHit(w);
-      expect(hit.damage).toBe(0);
-      flinched = w.hero.flinch > 0;
-    }
-    expect(flinched).toBe(true);
+      return hit.damage === 0 && w.hero.flinch > 0;
+    };
+    const seeds = Array.from({ length: 40 }, (_, i) => i + 1);
+
+    expect(seeds.some(flinchedBy)).toBe(true);
   });
 
   it("lets only what's left over of a hit through to Life, and is gone once used up", () => {

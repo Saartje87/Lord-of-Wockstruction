@@ -68,11 +68,8 @@ export function wardFill(world: World): number | null {
   return Math.min(1, Math.max(0, boneWard.left / boneWard.full));
 }
 
-/**
- * How long the Bone Ward ring's pulse lasts (ms), and how strongly it
- * brightens the ring at its start (0..1).
- */
-export const WARD_PULSE = { ms: 250, strength: 0.8 };
+/** How long the Bone Ward ring's pulse lasts (ms). */
+export const WARD_PULSE = { ms: 250 };
 
 /**
  * What a step's events show of the Hero being hit: the red hurt flash if some
@@ -81,19 +78,19 @@ export const WARD_PULSE = { ms: 250, strength: 0.8 };
  */
 export function heroHitShows(events: readonly SimEvent[]): {
   hurt: boolean;
-  pulse: boolean;
+  pulses: boolean;
 } {
   let hurt = false;
-  let pulse = false;
+  let pulses = false;
   for (const event of events) {
     if (event.type !== "HeroHit") continue;
     if (event.damage > 0) hurt = true;
-    if (event.warded > 0) pulse = true;
+    if (event.warded > 0) pulses = true;
   }
-  return { hurt, pulse };
+  return { hurt, pulses };
 }
 
 /** How bright a Bone Ward pulse is (1..0) `sinceMs` after it began. */
-export function wardPulse(sinceMs: number): number {
+export function wardPulseBrightness(sinceMs: number): number {
   return Math.min(1, Math.max(0, 1 - sinceMs / WARD_PULSE.ms));
 }

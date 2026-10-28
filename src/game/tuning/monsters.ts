@@ -1,3 +1,5 @@
+import type { ProjectileKind } from "./projectiles";
+
 /**
  * Monster tuning, in human units. The sim converts it to steps once. The
  * Skeleton's numbers are the final knobs of the Monster behaviour prototype
@@ -83,12 +85,6 @@ export type MeleeTuning = {
   /** An attack hits its target within this of the facing it wound up in. */
   arcDegrees: number;
 };
-
-/** The Projectiles Monsters loose, each with its own art. */
-export const PROJECTILE_KINDS = ["arrow"] as const;
-
-/** One kind of Projectile. */
-export type ProjectileKind = (typeof PROJECTILE_KINDS)[number];
 
 /**
  * A ranged attack: the Monster stops once its target is within `range` and in

@@ -12,6 +12,7 @@ import {
   type CurseEffect,
   corpseTuning,
   type ExplodeEffect,
+  type ProjectileEffect,
   type RaiseEffect,
   type Skill,
   skillTuning,
@@ -1365,12 +1366,23 @@ function stepDeath(
 }
 
 /**
- * Moves every Projectile and lands those that touch the Hero or their Minions.
- * One reaching the Hero on the step another kills them flies on over them.
+ * Moves every Projectile and lands those that touch the Hero or their Minions,
+ * or, for the Hero's, the Monsters. One reaching the Hero on the step another
+ * kills them flies on over them.
  */
 function landProjectiles(world: World, events: SimEvent[]) {
-  stepProjectiles(world, (projectile, target) =>
-    strike(world, target, projectile, events),
+  stepProjectiles(
+    world,
+    (projectile, target) => strike(world, target, projectile, events),
+    (projectile, monster) =>
+      // A Skill's damage always hits: no roll against Defense, and no hitstop.
+      heroHurts(
+        world,
+        monster,
+        randomInt(world.rng, projectile.damage),
+        "skill",
+        events,
+      ),
   );
 }
 
@@ -1646,6 +1658,9 @@ function castFrom(
     case "curse":
       curse(world, skill, effect, skillLevel, target, events);
       break;
+    case "projectile":
+      looseFromHero(world, effect, skillLevel);
+      break;
   }
 }
 
@@ -1783,6 +1798,35 @@ function curse(
       monster.curse = { skill, left };
     }
   }
+}
+
+/** The damage `effect`'s Projectile deals per hit at `skillLevel`. */
+export function projectileDamage(
+  effect: ProjectileEffect,
+  skillLevel: number,
+): [number, number] {
+  const more = effect.damagePerSkillLevel * (skillLevel - 1);
+  return [effect.damage[0] + more, effect.damage[1] + more];
+}
+
+/** Looses `effect`'s Projectile from the Hero the way they face. */
+function looseFromHero(
+  world: World,
+  effect: ProjectileEffect,
+  skillLevel: number,
+) {
+  const { hero } = world;
+  world.projectiles.push({
+    kind: effect.projectile,
+    pos: { ...hero.pos },
+    prevPos: { ...hero.pos },
+    direction: { x: Math.cos(hero.facing), y: Math.sin(hero.facing) },
+    speed: perStep(effect.speed),
+    rangeLeft: effect.range,
+    from: "hero",
+    damage: projectileDamage(effect, skillLevel),
+    hit: [],
+  });
 }
 
 /** Adds a fresh Minion at full Life at `pos` to the Hero's Minions. */

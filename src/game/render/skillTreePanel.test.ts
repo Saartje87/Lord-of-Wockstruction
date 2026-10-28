@@ -125,6 +125,14 @@ describe("skillTreeSheet", () => {
           requiredLevel: "4",
           canRaise: false,
         },
+        {
+          skill: "boneSpear",
+          name: "Bone Spear",
+          skillLevel: "0",
+          manaCost: "7",
+          requiredLevel: "6",
+          canRaise: false,
+        },
       ],
     });
   });

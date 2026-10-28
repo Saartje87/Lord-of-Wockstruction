@@ -1,10 +1,6 @@
 import { Assets, type Spritesheet, type Texture } from "pixi.js";
-import {
-  type MonsterType,
-  monsterTuning,
-  PROJECTILE_KINDS,
-  type ProjectileKind,
-} from "../tuning/monsters";
+import { type MonsterType, monsterTuning } from "../tuning/monsters";
+import { PROJECTILE_KINDS, type ProjectileKind } from "../tuning/projectiles";
 import type { Compass, Timing } from "./animation";
 
 /** The animations the Flare import keeps for every character. */

@@ -1,9 +1,10 @@
 import { heroTuning } from "../tuning/hero";
 import { minionTuning } from "../tuning/minions";
-import type { ProjectileKind } from "../tuning/monsters";
+import { monsterTuning } from "../tuning/monsters";
+import type { ProjectileKind } from "../tuning/projectiles";
 import { canSee } from "./path";
 import type { Vec } from "./vec";
-import type { MonsterId, MonsterTarget, World } from "./world";
+import type { Monster, MonsterId, MonsterTarget, World } from "./world";
 
 /**
  * The numbers an attack rolls with, fixed when it is made: a Projectile
@@ -16,10 +17,13 @@ export type AttackNumbers = {
 };
 
 /**
- * Something loosed by an attack, flying in a straight line through the Area:
- * a Skeleton Archer's Arrow.
+ * Something loosed by an attack or a Skill, flying in a straight line through
+ * the Area: a Skeleton Archer's Arrow, or the Hero's Bone Spear.
  */
-export type Projectile = AttackNumbers & {
+export type Projectile = MonsterProjectile | HeroProjectile;
+
+/** What every Projectile has, whoever loosed it. */
+type Flight = {
   kind: ProjectileKind;
   pos: Vec;
   prevPos: Vec;
@@ -29,21 +33,44 @@ export type Projectile = AttackNumbers & {
   speed: number;
   /** How far it has left to fly before it vanishes (tiles). */
   rangeLeft: number;
-  /** The Monster that loosed it. */
-  from: MonsterId;
 };
 
 /**
- * Moves every Projectile one step along its line, in order, calling `land`
- * on each that touches the Hero, unless they are in Death, or one of their
+ * A Monster's Projectile: it hits the first of the Hero and their Minions it
+ * touches, and flies through Monsters.
+ */
+export type MonsterProjectile = Flight &
+  AttackNumbers & {
+    /** The Monster that loosed it. */
+    from: MonsterId;
+  };
+
+/**
+ * The Hero's Projectile: it hits every Monster it touches, each once, and
+ * flies through the Hero's Minions.
+ */
+export type HeroProjectile = Flight & {
+  from: "hero";
+  /** Damage per hit, rolled from `[min, max]` inclusive. It always hits. */
+  damage: [number, number];
+  /** The Monsters it has hit. */
+  hit: MonsterId[];
+};
+
+/**
+ * Moves every Projectile one step along its line, in order. A Monster's
+ * calls `land` on the Hero, unless they are in Death, or one of their
  * Minions, the first of them it touches, with no wall between. Each lands
  * before the next moves, so one reaching the Hero on the step another kills
- * them flies on over them. A Projectile that lands, meets a blocking tile or has flown
- * its range is removed. It flies through Monsters.
+ * them flies on over them. The Hero's calls `strike` on each Monster it
+ * touches with no wall between, nearest first, and that it hasn't hit
+ * before. A Projectile that lands, meets a blocking tile or has flown its
+ * range is removed.
  */
 export function stepProjectiles(
   world: World,
-  land: (projectile: Projectile, target: MonsterTarget) => void,
+  land: (projectile: MonsterProjectile, target: MonsterTarget) => void,
+  strike: (projectile: HeroProjectile, monster: Monster) => void,
 ) {
   const area = world.areas[world.areaName];
   world.projectiles = world.projectiles.filter((projectile) => {
@@ -56,15 +83,47 @@ export function stepProjectiles(
     projectile.prevPos = { ...from };
     projectile.pos = to;
     projectile.rangeLeft -= move;
-    const touched = firstTouched(world, from, to);
-    // A wall before what it touches stops it short.
-    if (touched && canSee(area, from, touched.at)) {
-      land(projectile, touched.target);
-      return false;
+    if (projectile.from === "hero") {
+      for (const monster of monstersTouched(world, projectile, from, to)) {
+        projectile.hit.push(monster.id);
+        strike(projectile, monster);
+      }
+    } else {
+      const touched = firstTouched(world, from, to);
+      // A wall before what it touches stops it short.
+      if (touched && canSee(area, from, touched.at)) {
+        land(projectile, touched.target);
+        return false;
+      }
     }
     if (!canSee(area, from, to)) return false;
     return projectile.rangeLeft > 0;
   });
+}
+
+/**
+ * The Monsters the Hero's `projectile`, flying from `from` to `to`, touches with
+ * no wall between and hasn't hit before, nearest `from` first.
+ */
+function monstersTouched(
+  world: World,
+  projectile: HeroProjectile,
+  from: Vec,
+  to: Vec,
+): Monster[] {
+  const area = world.areas[world.areaName];
+  const touched: { monster: Monster; along: number }[] = [];
+  for (const monster of world.monsters) {
+    if (projectile.hit.includes(monster.id)) continue;
+    const { radius } = monsterTuning[monster.type];
+    const at = touching(monster.pos, radius, from, to);
+    if (at && canSee(area, from, at.nearest)) {
+      touched.push({ monster, along: at.along });
+    }
+  }
+  return touched
+    .sort((one, other) => one.along - other.along)
+    .map(({ monster }) => monster);
 }
 
 /**
@@ -93,15 +152,32 @@ function firstTouched(
   }
   let first: { target: MonsterTarget; at: Vec; along: number } | null = null;
   for (const { target, pos, radius } of targets) {
-    const along = alongSegment(pos, a, b);
-    const nearest = {
-      x: a.x + along * (b.x - a.x),
-      y: a.y + along * (b.y - a.y),
-    };
-    if (Math.hypot(pos.x - nearest.x, pos.y - nearest.y) > radius) continue;
-    if (!first || along < first.along) first = { target, at: nearest, along };
+    const at = touching(pos, radius, a, b);
+    if (!at) continue;
+    if (!first || at.along < first.along) {
+      first = { target, at: at.nearest, along: at.along };
+    }
   }
   return first;
+}
+
+/**
+ * Where along the segment from `a` to `b`, from 0 to 1, and at which point it
+ * comes nearest a body of `radius` at `pos`, if it touches it at all.
+ */
+function touching(
+  pos: Vec,
+  radius: number,
+  a: Vec,
+  b: Vec,
+): { along: number; nearest: Vec } | null {
+  const along = alongSegment(pos, a, b);
+  const nearest = {
+    x: a.x + along * (b.x - a.x),
+    y: a.y + along * (b.y - a.y),
+  };
+  if (Math.hypot(pos.x - nearest.x, pos.y - nearest.y) > radius) return null;
+  return { along, nearest };
 }
 
 /**

@@ -1,4 +1,5 @@
 import type { MinionType } from "./minions";
+import type { ProjectileKind } from "./projectiles";
 
 /** Skill tuning, in human units. The sim converts it to steps once. */
 export type SkillTuning = {
@@ -19,13 +20,15 @@ export type SkillTuning = {
 /**
  * What a Skill's cast does: summon a Minion at the cast point, the Hero
  * having one of it; raise one from a Corpse (see `RaiseEffect`); burst a
- * Corpse (see `ExplodeEffect`); or Curse Monsters (see `CurseEffect`).
+ * Corpse (see `ExplodeEffect`); Curse Monsters (see `CurseEffect`); or
+ * loose a Projectile (see `ProjectileEffect`).
  */
 export type SkillEffect =
   | { type: "summon"; minion: MinionType }
   | RaiseEffect
   | ExplodeEffect
-  | CurseEffect;
+  | CurseEffect
+  | ProjectileEffect;
 
 /**
  * Raise a Minion from the Corpse nearest the cast point, using the Corpse
@@ -67,6 +70,21 @@ export type CurseEffect = {
   damageTaken: number;
 };
 
+/**
+ * Loose a `projectile` from the Hero toward the cast point, flying `speed`
+ * (tiles per second) until a wall or `range` (tiles). Every Monster it
+ * touches takes a roll of `damage`, each end `damagePerSkillLevel` more each
+ * Skill Level past the first.
+ */
+export type ProjectileEffect = {
+  type: "projectile";
+  projectile: ProjectileKind;
+  speed: number;
+  range: number;
+  damage: [number, number];
+  damagePerSkillLevel: number;
+};
+
 /** Skills that use a Corpse up. */
 export const corpseTuning = {
   /** How near the cast point a Corpse must lie to be used (tiles). */
@@ -78,7 +96,8 @@ export type Skill =
   | "golem"
   | "raiseSkeleton"
   | "amplifyDamage"
-  | "corpseExplosion";
+  | "corpseExplosion"
+  | "boneSpear";
 
 /** Every Skill's tuning. */
 export const skillTuning: Record<Skill, SkillTuning> = {
@@ -133,6 +152,22 @@ export const skillTuning: Record<Skill, SkillTuning> = {
       radius: 2,
       radiusPerSkillLevel: 0.25,
       share: [0.6, 1],
+    },
+  },
+  // Diablo 2's Bone Spear: 16–24 damage, 8 more each Skill Level.
+  boneSpear: {
+    name: "Bone Spear",
+    requiredLevel: 6,
+    manaCost: 7,
+    manaCostPerSkillLevel: 1,
+    castMs: 400,
+    effect: {
+      type: "projectile",
+      projectile: "boneSpear",
+      speed: 15,
+      range: 12,
+      damage: [16, 24],
+      damagePerSkillLevel: 8,
     },
   },
 };

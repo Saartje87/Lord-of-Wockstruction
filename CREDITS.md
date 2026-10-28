@@ -32,6 +32,7 @@ Nothing is recoloured.
 | `mods/fantasycore/images/enemies/zombie.png` | zombie |
 | `mods/fantasycore/images/enemies/skeleton_archer.png` | skeleton_archer |
 | `mods/fantasycore/images/powers/arrows.png` | arrow |
+| `mods/fantasycore/images/powers/icicle.png` | boneSpear |
 | `mods/fantasycore/images/tilesets/tileset_grassland.png` | grassland |
 | `mods/fantasycore/images/tilesets/tileset_grassland_water.png` | grassland |
 | `mods/fantasycore/images/tilesets/tileset_dungeon.png` | dungeon |

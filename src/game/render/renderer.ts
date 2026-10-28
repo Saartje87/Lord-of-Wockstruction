@@ -138,7 +138,15 @@ import {
   landingCell,
 } from "./inventoryPanel";
 import { itemColour, itemLabel } from "./itemArt";
-import { type Orb, orbFill, orbsLayout, wardFill } from "./orbs";
+import {
+  heroHitShows,
+  type Orb,
+  orbFill,
+  orbsLayout,
+  WARD_PULSE,
+  wardFill,
+  wardPulse,
+} from "./orbs";
 import {
   hoveredPanelButton,
   panelButtonsLayout,
@@ -1044,6 +1052,10 @@ export function createRenderer(
         const at = { x: sprite.position.x, y: barTop(sprite) };
         floating.push({ text, bornMs: nowMs, at });
       }
+      // Red only when Life was lost; the Bone Ward ring pulses when it soaked.
+      const shown = heroHitShows(events);
+      if (shown.hurt) hurtAtMs = nowMs;
+      if (shown.pulse) orb.pulse(nowMs);
       for (const event of events) {
         if (event.type === "HitLanded") {
           const view = monsters.get(event.target);
@@ -1061,7 +1073,6 @@ export function createRenderer(
           crumbling.push({ ...drawn, atMs: nowMs });
           minionViews.delete(event.minion);
         }
-        if (event.type === "HeroHit") hurtAtMs = nowMs;
         if (event.type === "LevelReached") levelAtMs = nowMs;
         if (event.type === "TownPortalOpened") townPortalOpenedAtMs = nowMs;
         if (event.type === "CorpseExploded") {
@@ -1902,9 +1913,14 @@ function orbsView() {
   });
   badge.anchor.set(0.5, 1);
   layer.addChild(graphics, badge);
+  let pulseAtMs: number | null = null;
 
   return {
     layer,
+    /** Starts the Bone Ward ring's pulse, as the Bone Ward soaks damage. */
+    pulse(nowMs: number) {
+      pulseAtMs = nowMs;
+    },
     draw(screen: Viewport, world: World, nowMs: number) {
       const { uiScale } = screen;
       const { strip, edge, life: lifeOrb, mana: manaOrb } = orbsLayout(screen);
@@ -1985,6 +2001,16 @@ function orbsView() {
           .moveTo(lifeX, cy - ringRadius)
           .arc(lifeX, cy, ringRadius, top, top + ward * Math.PI * 2)
           .stroke(ring);
+        // A hit soaked pulses the whole ring brighter and wider, then fades.
+        const glow =
+          pulseAtMs === null
+            ? 0
+            : wardPulse(nowMs - pulseAtMs) * WARD_PULSE.strength;
+        if (glow > 0) {
+          graphics
+            .circle(lifeX, cy, ringRadius)
+            .stroke({ width: rim, color: 0xffffff, alpha: glow });
+        }
       }
 
       badge.visible = inCombat || regenerating;

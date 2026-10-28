@@ -8,6 +8,7 @@ import type { Vec } from "./vec";
 import {
   createWorld,
   FRESH_PROGRESS,
+  isInCombat,
   type Progress,
   type SimEvent,
   step,
@@ -262,6 +263,30 @@ describe("a Bone Ward", () => {
     expect(hit.warded).toBeGreaterThan(0);
     expect(w.hero.life).toBe(life);
     expect(w.hero.boneWard?.left).toBe(20 - hit.warded);
+  });
+
+  it("keeps the Hero In Combat when it soaks a hit whole", () => {
+    const w = inField({ skeleton: { x: 2.5, y: 0.5 } });
+    castAndWait(w);
+    w.hero.combat = 0;
+    const hit = nextHeroHit(w);
+    expect(hit.damage).toBe(0);
+
+    expect(w.hero.combat).toBeGreaterThan(0);
+    expect(isInCombat(w)).toBe(true);
+  });
+
+  it("can flinch the Hero when it soaks a hit whole", () => {
+    let flinched = false;
+    for (let seed = 1; seed <= 40 && !flinched; seed++) {
+      const w = inField({ skeleton: { x: 2.5, y: 0.5 } });
+      w.rng = createWorld({ areas: FIELD, seed }).rng;
+      castAndWait(w);
+      const hit = nextHeroHit(w);
+      expect(hit.damage).toBe(0);
+      flinched = w.hero.flinch > 0;
+    }
+    expect(flinched).toBe(true);
   });
 
   it("lets only what's left over of a hit through to Life, and is gone once used up", () => {

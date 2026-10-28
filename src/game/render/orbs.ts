@@ -1,5 +1,5 @@
 import type { Rect } from "../sim/rect";
-import { maxLife, maxMana, type World } from "../sim/world";
+import { maxLife, maxMana, type SimEvent, type World } from "../sim/world";
 import { atUiScale, type Viewport } from "../viewport";
 
 /** The Hero's two orbs: Life at the bottom left, Mana at the bottom right. */
@@ -66,4 +66,34 @@ export function wardFill(world: World): number | null {
   const { boneWard } = world.hero;
   if (!boneWard) return null;
   return Math.min(1, Math.max(0, boneWard.left / boneWard.full));
+}
+
+/**
+ * How long the Bone Ward ring's pulse lasts (ms), and how strongly it
+ * brightens the ring at its start (0..1).
+ */
+export const WARD_PULSE = { ms: 250, strength: 0.8 };
+
+/**
+ * What a step's events show of the Hero being hit: the red hurt flash if some
+ * damage reached Life, and a pulse on the Bone Ward ring if it soaked any.
+ * A Miss shows neither.
+ */
+export function heroHitShows(events: readonly SimEvent[]): {
+  hurt: boolean;
+  pulse: boolean;
+} {
+  let hurt = false;
+  let pulse = false;
+  for (const event of events) {
+    if (event.type !== "HeroHit") continue;
+    if (event.damage > 0) hurt = true;
+    if (event.warded > 0) pulse = true;
+  }
+  return { hurt, pulse };
+}
+
+/** How bright a Bone Ward pulse is (1..0) `sinceMs` after it began. */
+export function wardPulse(sinceMs: number): number {
+  return Math.min(1, Math.max(0, 1 - sinceMs / WARD_PULSE.ms));
 }

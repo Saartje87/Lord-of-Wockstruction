@@ -191,7 +191,7 @@ function nextHeroHit(w: World) {
 }
 
 describe("casting Bone Ward", () => {
-  it("spends its Mana and puts a Bone Ward of 20 on the Hero", () => {
+  it("spends its Mana and puts a Bone Ward of 45 on the Hero", () => {
     const w = inField();
     const mana = w.hero.mana;
     expect(w.hero.boneWard).toBeNull();
@@ -203,29 +203,29 @@ describe("casting Bone Ward", () => {
       skill: "boneWard",
       target: { x: 1.5, y: 0.5 },
     });
-    expect(w.hero.boneWard).toEqual({ left: 20, full: 20 });
+    expect(w.hero.boneWard).toEqual({ left: 45, full: 45 });
     expect(w.hero.mana).toBeCloseTo(mana - skillTuning.boneWard.manaCost, 0);
   });
 
-  it("grows by 10 each Skill Level", () => {
+  it("grows by 15 each Skill Level", () => {
     const w = inField({}, necromancer(3));
 
     cast(w);
 
-    expect(w.hero.boneWard).toEqual({ left: 40, full: 40 });
+    expect(w.hero.boneWard).toEqual({ left: 75, full: 75 });
   });
 
   it("fills a used Bone Ward back up to full, never above", () => {
     const w = inField({ skeleton: { x: 2.5, y: 0.5 } });
     castAndWait(w);
     nextHeroHit(w);
-    expect(w.hero.boneWard?.left).toBeLessThan(20);
+    expect(w.hero.boneWard?.left).toBeLessThan(45);
 
     castAndWait(w);
-    expect(w.hero.boneWard).toEqual({ left: 20, full: 20 });
+    expect(w.hero.boneWard).toEqual({ left: 45, full: 45 });
 
     castAndWait(w);
-    expect(w.hero.boneWard).toEqual({ left: 20, full: 20 });
+    expect(w.hero.boneWard).toEqual({ left: 45, full: 45 });
   });
 
   it("fills to the current Skill Level's full amount", () => {
@@ -235,7 +235,7 @@ describe("casting Bone Ward", () => {
     step(w, [{ type: "SpendSkillPoint", skill: "boneWard" }]);
     castAndWait(w);
 
-    expect(w.hero.boneWard).toEqual({ left: 30, full: 30 });
+    expect(w.hero.boneWard).toEqual({ left: 60, full: 60 });
   });
 });
 
@@ -250,7 +250,7 @@ describe("a Bone Ward", () => {
     expect(hit.damage).toBe(0);
     expect(hit.warded).toBeGreaterThan(0);
     expect(w.hero.life).toBe(life);
-    expect(w.hero.boneWard?.left).toBe(20 - hit.warded);
+    expect(w.hero.boneWard?.left).toBe(45 - hit.warded);
   });
 
   it("soaks an Arrow before the Hero's Life", () => {
@@ -264,7 +264,7 @@ describe("a Bone Ward", () => {
     expect(hit.damage).toBe(0);
     expect(hit.warded).toBeGreaterThan(0);
     expect(w.hero.life).toBe(life);
-    expect(w.hero.boneWard?.left).toBe(20 - hit.warded);
+    expect(w.hero.boneWard?.left).toBe(45 - hit.warded);
   });
 
   it("keeps the Hero In Combat when it soaks a hit whole, so their Life doesn't regenerate", () => {
@@ -319,7 +319,7 @@ describe("a Bone Ward", () => {
       { type: "MoveTo", target: { x: 0.5, y: 0.5 } },
     ]);
 
-    expect(w.hero.boneWard).toEqual({ left: 20, full: 20 });
+    expect(w.hero.boneWard).toEqual({ left: 45, full: 45 });
   });
 
   it("is gone on the Hero's Death", () => {

@@ -10,6 +10,7 @@ import {
   createWorld,
   FRESH_PROGRESS,
   type Monster,
+  maxMana,
   type Progress,
   type Projectile,
   type SimEvent,
@@ -113,9 +114,15 @@ function necromancer(boneSpear = 1): Progress {
   };
 }
 
-/** Town by an Exit to `field`. */
-function areas(field: string[]) {
-  return { town: map(["HAE"], "field", null), field: map(field, "town", 3) };
+/**
+ * Town by an Exit to `field`, a Combat Area of `areaLevel`: by default 8,
+ * where a Skeleton outlasts a spear's hit.
+ */
+function areas(field: string[], areaLevel = 8) {
+  return {
+    town: map(["HAE"], "field", null),
+    field: map(field, "town", areaLevel),
+  };
 }
 
 const FIELD = areas([
@@ -141,7 +148,7 @@ function stepUntil(w: World, done: () => boolean, limit = 600): SimEvent[] {
 
 /**
  * A World with the Hero just arrived in `field`, moved to `hero`, and its
- * Monster Level 3 Skeletons standing still at `at`, the rest far off.
+ * Skeletons standing still at `at`, the rest far off.
  */
 function inField(
   at: Vec[],
@@ -315,15 +322,15 @@ describe("Bone Spear's damage", () => {
     return damage;
   }
 
-  it("rolls 16–24 at Skill Level 1, never Missing whatever the Defense", () => {
+  it("rolls 60–90 at Skill Level 1, never Missing whatever the Defense", () => {
     monsterTuning.skeleton.defense = 1_000_000;
 
     const damage = hits(1);
 
     expect(damage).toHaveLength(10);
     for (const one of damage) {
-      expect(one).toBeGreaterThanOrEqual(16);
-      expect(one).toBeLessThanOrEqual(24);
+      expect(one).toBeGreaterThanOrEqual(60);
+      expect(one).toBeLessThanOrEqual(90);
     }
   });
 
@@ -332,8 +339,8 @@ describe("Bone Spear's damage", () => {
 
     expect(damage).toHaveLength(10);
     for (const one of damage) {
-      expect(one).toBeGreaterThanOrEqual(32);
-      expect(one).toBeLessThanOrEqual(40);
+      expect(one).toBeGreaterThanOrEqual(76);
+      expect(one).toBeLessThanOrEqual(106);
     }
   });
 });
@@ -371,5 +378,45 @@ describe("a Save", () => {
 
     expect(save?.progress.skillLevels.boneSpear).toBe(3);
     expect(save?.progress.skillBar.right).toBe("boneSpear");
+  });
+});
+
+describe("Bone Spear's tuning", () => {
+  /** The casts a Hero at Level 6 takes to kill a Monster Level 6 Skeleton. */
+  function castsToKill(seed: number): number {
+    const field = areas(
+      [
+        "EA..................",
+        "....................",
+        "....................",
+        "....................",
+        "....................",
+        "....................",
+        "....................",
+        "H.................SS",
+      ],
+      6,
+    );
+    const w = inField([{ x: 5, y: 4 }], { field, seed });
+    const [skeleton] = w.monsters;
+    // A Monster Level 6 Skeleton: 60 Life grown by 25% a Monster Level.
+    expect(skeleton.life).toBe(135);
+    for (let casts = 1; casts <= 10; casts++) {
+      w.hero.mana = maxMana(w);
+      spearAt(w, { x: 10, y: 4 });
+      untilGone(w, spearOf(w));
+      stepUntil(w, () => !w.hero.cast);
+      if (!w.monsters.includes(skeleton)) return casts;
+      skeleton.pos = { x: 5, y: 4 };
+    }
+    throw new Error("Never killed");
+  }
+
+  it("kills an own-Level Skeleton in about two casts at Skill Level 1", () => {
+    const casts = Array.from({ length: 20 }, (_, i) => castsToKill(i + 1));
+
+    expect(Math.min(...casts)).toBe(2);
+    expect(Math.max(...casts)).toBeLessThanOrEqual(3);
+    expect(casts.filter((n) => n === 2).length).toBeGreaterThanOrEqual(10);
   });
 });

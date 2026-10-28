@@ -113,7 +113,13 @@ export type Skill =
   | "corpseExplosion"
   | "boneSpear";
 
-/** Every Skill's tuning. */
+/**
+ * Every Skill's tuning. Each cast roots the Hero 400 ms, a touch longer than
+ * the Hero's 350 ms swing, so casting and fighting keep about the same pace.
+ * Mana costs are Diablo 2's: playtests in the Crypt and Ossuary found that
+ * Mana, not damage, paces a Necromancer's fights (a Level 6 Hero with the
+ * starting Energy has 45, six Bone Spears).
+ */
 export const skillTuning: Record<Skill, SkillTuning> = {
   // Diablo 2's Clay Golem.
   golem: {
@@ -124,7 +130,10 @@ export const skillTuning: Record<Skill, SkillTuning> = {
     castMs: 400,
     effect: { type: "summon", minion: "golem" },
   },
-  // Diablo 2's Raise Skeleton: 2 at Skill Level 1, one more at 4, 7, 10 …
+  // Diablo 2's Raise Skeleton, and its Mana: 2 at Skill Level 1, one more at
+  // 4, 7, 10 … A Raised Skeleton is a Monster Level 1 Skeleton grown 20% a
+  // Skill Level, so given a Skill Point a Level it stays a little behind the
+  // Skeletons of the Crypt and Ossuary (see `minionTuning`).
   raiseSkeleton: {
     name: "Raise Skeleton",
     requiredLevel: 1,
@@ -138,7 +147,11 @@ export const skillTuning: Record<Skill, SkillTuning> = {
       countEvery: 3,
     },
   },
-  // Diablo 2's Amplify Damage: +100% damage taken there, softened to +50%.
+  // Diablo 2's Amplify Damage: its Mana, 8 seconds and 3 more each Skill
+  // Level. Its +100% damage taken there is softened to +50%, so a Cursed
+  // own-Level Skeleton still takes two Bone Spears, rarely one. Its
+  // radius at Skill Level 1 takes in a whole pack still standing at its
+  // spawn, within a tile of it.
   amplifyDamage: {
     name: "Amplify Damage",
     requiredLevel: 2,
@@ -150,20 +163,26 @@ export const skillTuning: Record<Skill, SkillTuning> = {
       radius: 2,
       radiusPerSkillLevel: 0.5,
       durationMs: 8000,
-      durationMsPerSkillLevel: 2000,
+      durationMsPerSkillLevel: 3000,
       damageTaken: 1.5,
     },
   },
-  // Diablo 2's Bone Armor: soaks 20 damage, 10 more each Skill Level.
+  // Diablo 2's Bone Armor, and its Mana, scaled by starting Life (a Diablo 2
+  // Necromancer's 45 to the Hero's 100): 45 soaks about five swings of a
+  // Crypt Skeleton (6–13), and 15 more each Skill Level keeps it ahead of
+  // Monster damage, as Diablo 2's 10 does.
   boneWard: {
     name: "Bone Ward",
     requiredLevel: 3,
     manaCost: 11,
     manaCostPerSkillLevel: 1,
     castMs: 400,
-    effect: { type: "ward", amount: 20, amountPerSkillLevel: 10 },
+    effect: { type: "ward", amount: 45, amountPerSkillLevel: 15 },
   },
-  // Diablo 2's Corpse Explosion: 60–100% of the dead Monster's max Life.
+  // Diablo 2's Corpse Explosion bursts for 60–100% of the dead Monster's
+  // max Life, which kills its like in one cast, so it's softened to 40–70%:
+  // an own-Level Skeleton's Corpse kills another in two casts, now and then
+  // three, at any Level. Mana and radius are Diablo 2's.
   corpseExplosion: {
     name: "Corpse Explosion",
     requiredLevel: 4,
@@ -174,10 +193,14 @@ export const skillTuning: Record<Skill, SkillTuning> = {
       type: "explode",
       radius: 2,
       radiusPerSkillLevel: 0.25,
-      share: [0.6, 1],
+      share: [0.4, 0.7],
     },
   },
-  // Diablo 2's Bone Spear: 16–24 damage, 8 more each Skill Level.
+  // Diablo 2's Bone Spear's 16–24 scaled to Wiablo's Life: a Level 6 Hero
+  // kills an own-Level Skeleton (135 Life) in two casts, now and then three.
+  // Its growth stays Diablo 2's 8, about half the 15 Life a Skeleton gains
+  // each Monster Level, so two casts keep up. Diablo 2's Mana; its range
+  // outreaches a Skeleton's 7-tile notice.
   boneSpear: {
     name: "Bone Spear",
     requiredLevel: 6,
@@ -189,7 +212,7 @@ export const skillTuning: Record<Skill, SkillTuning> = {
       projectile: "boneSpear",
       speed: 15,
       range: 12,
-      damage: [16, 24],
+      damage: [60, 90],
       damagePerSkillLevel: 8,
     },
   },

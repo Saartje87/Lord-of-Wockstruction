@@ -312,11 +312,11 @@ describe("the Curse", () => {
     expect(cursed(w)).toHaveLength(0);
   });
 
-  it("lasts 2 seconds longer each Skill Level", () => {
+  it("lasts 3 seconds longer each Skill Level", () => {
     const w = inField(APART, necromancer(3));
     castAt(w, { x: 13, y: 7 });
 
-    for (let i = 2; i < steps(12000); i++) step(w, []);
+    for (let i = 2; i < steps(14000); i++) step(w, []);
     expect(cursed(w)).toHaveLength(1);
     step(w, []);
     expect(cursed(w)).toHaveLength(0);

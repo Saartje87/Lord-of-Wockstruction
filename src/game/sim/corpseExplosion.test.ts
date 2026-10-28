@@ -12,6 +12,7 @@ import {
   createWorld,
   FRESH_PROGRESS,
   type Monster,
+  maxMana,
   type Progress,
   type SimEvent,
   step,
@@ -114,21 +115,28 @@ function necromancer(corpseExplosion = 1): Progress {
   };
 }
 
-/** Town by an Exit to `field`, with three Skeletons far off in its corner. */
-function areas(field: string[]) {
-  return { town: map(["HAE"], "field", null), field: map(field, "town", 3) };
+/**
+ * Town by an Exit to a field of `areaLevel`, with three Skeletons far off in
+ * its corner.
+ */
+function areas(areaLevel = 3) {
+  const field = [
+    "EA............",
+    "..............",
+    "..............",
+    "..............",
+    "..............",
+    "..............",
+    "..............",
+    "H..........SSS",
+  ];
+  return {
+    town: map(["HAE"], "field", null),
+    field: map(field, "town", areaLevel),
+  };
 }
 
-const FIELD = areas([
-  "EA............",
-  "..............",
-  "..............",
-  "..............",
-  "..............",
-  "..............",
-  "..............",
-  "H..........SSS",
-]);
+const FIELD = areas();
 
 /** Steps with no orders until `done`, failing after `limit` steps. */
 function stepUntil(w: World, done: () => boolean, limit = 600): SimEvent[] {
@@ -142,10 +150,15 @@ function stepUntil(w: World, done: () => boolean, limit = 600): SimEvent[] {
 
 /**
  * A World with the Hero just arrived in the field, at tile (1, 0), and its
- * three Monster Level 3 Skeletons standing still at `at`.
+ * three Skeletons, Monster Level 3 unless `field` says otherwise, standing
+ * still at `at`.
  */
-function inField(at: Vec[], progress = necromancer()): World {
-  const w = createWorld({ areas: FIELD, seed: 1, progress });
+function inField(
+  at: Vec[],
+  progress = necromancer(),
+  { field = FIELD, seed = 1 } = {},
+): World {
+  const w = createWorld({ areas: field, seed, progress });
   step(w, [{ type: "MoveTo", target: { x: 2.5, y: 0.5 } }]);
   stepUntil(w, () => w.areaName === "field" && !w.areaChange);
   w.monsters.forEach((monster, i) => {
@@ -210,7 +223,7 @@ describe("casting Corpse Explosion", () => {
 });
 
 describe("Corpse Explosion's burst", () => {
-  it("hurts every Monster within its radius by 60–100% of the dead Monster's max Life at its Monster Level", () => {
+  it("hurts every Monster within its radius by 40–70% of the dead Monster's max Life at its Monster Level", () => {
     const w = inField([
       { x: 5, y: 4 },
       { x: 7, y: 4 },
@@ -225,8 +238,8 @@ describe("Corpse Explosion's burst", () => {
 
     for (const monster of [left, right]) {
       const damage = taken.get(monster?.id ?? -1);
-      expect(damage).toBeGreaterThanOrEqual(162);
-      expect(damage).toBeLessThanOrEqual(270);
+      expect(damage).toBeGreaterThanOrEqual(108);
+      expect(damage).toBeLessThanOrEqual(189);
     }
     expect(taken.has(away?.id ?? -1)).toBe(false);
     expect(away?.life).toBe(
@@ -397,5 +410,38 @@ describe("a Save", () => {
 
     expect(save?.progress.skillLevels.corpseExplosion).toBe(3);
     expect(save?.progress.skillBar.right).toBe("corpseExplosion");
+  });
+});
+
+describe("Corpse Explosion's tuning", () => {
+  /**
+   * The casts a Hero at Level 4 takes to kill a Monster Level 4 Skeleton,
+   * each bursting the Corpse of another.
+   */
+  function castsToKill(seed: number): number {
+    const w = inField([{ x: 6.5, y: 4 }], necromancer(), {
+      field: areas(4),
+      seed,
+    });
+    const [skeleton] = w.monsters;
+    // A Monster Level 4 Skeleton: 60 Life grown by 25% a Monster Level.
+    expect(skeleton?.life).toBe(105);
+    for (let casts = 1; casts <= 10; casts++) {
+      w.hero.mana = maxMana(w);
+      corpseAt(w, { x: 6, y: 4 }, "skeleton", 4);
+      explodeAt(w, { x: 6, y: 4 });
+      stepUntil(w, () => !w.hero.cast);
+      if (!skeleton || !w.monsters.includes(skeleton)) return casts;
+      skeleton.pos = { x: 6.5, y: 4 };
+    }
+    throw new Error("Never killed");
+  }
+
+  it("kills an own-Level Skeleton in about two casts at Skill Level 1", () => {
+    const casts = Array.from({ length: 20 }, (_, i) => castsToKill(i + 1));
+
+    expect(Math.min(...casts)).toBe(2);
+    expect(Math.max(...casts)).toBeLessThanOrEqual(3);
+    expect(casts.filter((n) => n === 2).length).toBeGreaterThanOrEqual(10);
   });
 });

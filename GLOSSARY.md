@@ -153,7 +153,7 @@ The Minion the Raise Skeleton Skill raises from a Corpse, using it up, whatever 
 _Avoid_: Skeleton (that's the Monster), skelly, undead
 
 **Bone Ward**:
-What the Bone Ward Skill puts on the Hero: an amount of damage it soaks up before their Life, until used up; casting it again fills it back up. It stays on through Exits and Town Portals and is gone on the Hero's Death or when the Save is loaded.
+What the Bone Ward Skill puts on the Hero: an amount of damage it soaks up before their Life, until used up; casting it again fills it back up. A hit it soaks whole is still a hit, not a Miss: the Hero has taken it, so it keeps them In Combat and can flinch them, though their Life is untouched. It stays on through Exits and Town Portals and is gone on the Hero's Death or when the Save is loaded.
 _Avoid_: Bone Armor (Armour is an Item), shield, barrier
 
 **Attack Rating**:

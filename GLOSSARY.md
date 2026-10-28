@@ -37,8 +37,20 @@ A two-way gateway the Hero opens a step ahead of them anywhere outside Town, its
 _Avoid_: Portal on its own, TP, waypoint, gate
 
 **Kept Area**:
-The Combat Area a Town Portal stands in, which, unlike any other Area, stands still while the Hero is away and is just as they left it when they come back, by the Town Portal or an Exit: its Monsters, Corpses and Ground Items where they were. It stops being kept when the Town Portal closes.
+The Combat Area a Town Portal stands in, which, unlike any other Area, stands still while the Hero is away and is just as they left it when they come back, by the Town Portal or an Exit: its Monsters, Corpses and Ground Items where they were, and what of it is Explored. It stops being kept when the Town Portal closes.
 _Avoid_: Saved Area, persistent Area
+
+**Explored**:
+The part of an Area the Hero has come near enough to see, the only part the Map Overlay and Mini Map show; all of Town is Explored from the start. It is forgotten when the Hero leaves the Area, unless it is the Kept Area, and the Save never keeps it.
+_Avoid_: Revealed, discovered, fog of war
+
+**Map Overlay**:
+The Explored part of the current Area drawn see-through over the World, centred on the Hero, while play goes on underneath: wall and floor edges, the Hero, their Minions, Exits named for the Area they lead to, the Town Portal and, in Town, NPCs by name; never Monsters, Corpses or Ground Items. It shows the Area's display name, never its Area Level, stays open through Exits and Town Portals, and closes on the Hero's Death.
+_Avoid_: Automap, map, full map
+
+**Mini Map**:
+The small map at the top right of the HUD showing, as the Map Overlay does, the Explored part of the current Area around the Hero; it is always there except while the Map Overlay or a panel is open and during Death, and clicking or tapping it opens the Map Overlay.
+_Avoid_: Radar, minimap, map
 
 **Entry**:
 A named place in an Area where the Hero appears on arriving; the Entry named `start` is where the Hero begins.
@@ -289,7 +301,7 @@ A button that casts one Skill Bar slot's Skill: X, Y, B, RB or RT on a controlle
 _Avoid_: Spell button, action button
 
 **Pause button**:
-The touch button that opens the pause menu as Esc and Menu do: top right, or, while a panel is open, at the top centre under the nameplate (in the Compact Layout, below the Town Portal button).
+The touch button that opens the pause menu as Esc and Menu do: top right below the Mini Map, or, while a panel is open, at the top centre under the nameplate (in the Compact Layout, below the Town Portal button).
 _Avoid_: Menu button (that's the controller's), settings button
 
 **Long press**:

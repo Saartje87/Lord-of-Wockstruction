@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { Area } from "../sim/area";
-import { MAP_OVERLAY, mapMarks, mapOffset } from "./mapMarks";
+import type { Viewport } from "../viewport";
+import {
+  MAP_OVERLAY,
+  type MapMarksOf,
+  mapAreaNameLayout,
+  mapOffset,
+  mapMarks as marksOf,
+} from "./mapMarks";
 
 /**
  * An Area drawn row by row: `.` floor, `#` a wall on floor, and a space void.
@@ -13,7 +20,9 @@ function areaOf(rows: string[]): Area {
     height: rows.length,
     floor: cells.map((cell) => cell !== " "),
     walkable: cells.map((cell) => cell === "."),
-  } as Area;
+    exits: [],
+    npcs: [],
+  } as unknown as Area;
 }
 
 /** Every tile of `area` Explored. */
@@ -22,6 +31,20 @@ function all(area: Area): boolean[] {
 }
 
 const HERO = { x: 1.5, y: 1.5 };
+
+const NAMES = { town: "Town", catacombs: "Catacombs" };
+
+/** The marks of an Area with nothing but its shape, unless said otherwise. */
+function mapMarks(
+  of: Pick<MapMarksOf, "area" | "explored" | "heroAt"> & Partial<MapMarksOf>,
+) {
+  return marksOf({
+    minions: [],
+    townPortal: null,
+    displayNames: NAMES,
+    ...of,
+  });
+}
 
 describe("mapMarks", () => {
   it("draws a wall line on each side of a floor tile that meets a wall", () => {
@@ -106,6 +129,116 @@ describe("mapMarks", () => {
       x: 0.25,
       y: 1.75,
     });
+  });
+});
+
+describe("mapMarks of what stands on the Area", () => {
+  const area = {
+    ...areaOf(["....", "...."]),
+    exits: [
+      { area: "catacombs", entry: "up", x: 2, y: 0, width: 2, height: 1 },
+    ],
+    npcs: [{ name: "Smith", pos: { x: 0.5, y: 1.5 } }],
+  } as Area;
+
+  it("marks each Minion where it stands", () => {
+    const { minions } = mapMarks({
+      area,
+      explored: all(area),
+      heroAt: HERO,
+      minions: [
+        { x: 0.5, y: 0.5 },
+        { x: 1.25, y: 1.75 },
+      ],
+    });
+
+    expect(minions).toEqual([
+      { x: 0.5, y: 0.5 },
+      { x: 1.25, y: 1.75 },
+    ]);
+  });
+
+  it("marks an Exit at its middle, named after the Area it leads to", () => {
+    const { exits } = mapMarks({ area, explored: all(area), heroAt: HERO });
+
+    expect(exits).toEqual([{ at: { x: 3, y: 0.5 }, name: "Catacombs" }]);
+  });
+
+  it("marks the Town Portal where it stands", () => {
+    const { townPortal } = mapMarks({
+      area,
+      explored: all(area),
+      heroAt: HERO,
+      townPortal: { x: 1.5, y: 0.5 },
+    });
+
+    expect(townPortal).toEqual({ x: 1.5, y: 0.5 });
+  });
+
+  it("marks no Town Portal when there is none here", () => {
+    expect(
+      mapMarks({ area, explored: all(area), heroAt: HERO }).townPortal,
+    ).toBeNull();
+  });
+
+  it("names each NPC where they stand", () => {
+    const { npcs } = mapMarks({ area, explored: all(area), heroAt: HERO });
+
+    expect(npcs).toEqual([{ at: { x: 0.5, y: 1.5 }, name: "Smith" }]);
+  });
+
+  it("marks an Exit, the Town Portal and an NPC only where Explored", () => {
+    const explored = area.floor.map(() => false);
+    const unseen = mapMarks({
+      area,
+      explored,
+      heroAt: HERO,
+      townPortal: { x: 1.5, y: 0.5 },
+    });
+
+    expect(unseen.exits).toEqual([]);
+    expect(unseen.townPortal).toBeNull();
+    expect(unseen.npcs).toEqual([]);
+
+    explored[3] = true; // the Exit's middle tile
+    explored[1] = true; // the Town Portal's tile
+    explored[4] = true; // the NPC's tile
+    const seen = mapMarks({
+      area,
+      explored,
+      heroAt: HERO,
+      townPortal: { x: 1.5, y: 0.5 },
+    });
+
+    expect(seen.exits).toHaveLength(1);
+    expect(seen.townPortal).toEqual({ x: 1.5, y: 0.5 });
+    expect(seen.npcs).toHaveLength(1);
+  });
+
+  it("has no marks for Monsters, Corpses, Ground Items or Projectiles", () => {
+    const marks = mapMarks({ area, explored: all(area), heroAt: HERO });
+
+    expect(Object.keys(marks).sort()).toEqual([
+      "edges",
+      "exits",
+      "hero",
+      "minions",
+      "npcs",
+      "townPortal",
+    ]);
+  });
+});
+
+describe("mapAreaNameLayout", () => {
+  it("puts the name at the top right, at the UI Scale", () => {
+    const screen = { width: 1000, height: 800, uiScale: 2 } as Viewport;
+
+    const { at, size } = mapAreaNameLayout(screen);
+
+    expect(at.x).toBeLessThan(1000);
+    expect(at.x).toBeGreaterThan(900);
+    expect(at.y).toBeLessThan(80);
+    expect(size).toBe(2 * 24);
   });
 });
 

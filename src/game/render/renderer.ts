@@ -138,7 +138,13 @@ import {
   landingCell,
 } from "./inventoryPanel";
 import { itemColour, itemLabel } from "./itemArt";
-import { MAP_LOOK, MAP_OVERLAY, mapMarks, mapOffset } from "./mapMarks";
+import {
+  MAP_LOOK,
+  MAP_OVERLAY,
+  mapAreaNameLayout,
+  mapMarks,
+  mapOffset,
+} from "./mapMarks";
 import {
   heroHitShows,
   type Orb,
@@ -1551,7 +1557,16 @@ export function createRenderer(
         }
       }
 
-      mapOverlay.draw(viewport, active, world.explored, heroAt, menus.mapOpen);
+      mapOverlay.draw(
+        viewport,
+        active,
+        world.explored,
+        heroAt,
+        menus.mapOpen,
+        world.minions.map((minion) => lerp(minion.prevPos, minion.pos, alpha)),
+        townPortalIn(world),
+        areaDisplayNames,
+      );
       orb.draw(viewport, world, nowMs);
       skillBar.draw(viewport, world, heldSkillSlot);
       beltStrip.draw(viewport, world);
@@ -2581,9 +2596,25 @@ function mapOverlayView() {
   layer.alpha = MAP_OVERLAY.opacity;
   layer.visible = false;
   const lines = new Graphics();
+  const marks = new Graphics();
   const heroMark = new Graphics();
-  layer.addChild(lines, heroMark);
+  const names = new Container();
+  const areaName = new Text({
+    text: "",
+    style: { fill: MAP_LOOK.areaName.colour, fontFamily: SERIF },
+  });
+  areaName.anchor.set(1, 0);
+  layer.addChild(lines, marks, heroMark, names, areaName);
   let drawn: { area: Area; seen: number } | null = null;
+  /** The names in use, grown as needed: Exits' and NPCs'. */
+  const nameTexts: Text[] = [];
+  const nameText = (i: number) => {
+    if (!nameTexts[i]) {
+      nameTexts[i] = new Text({ text: "", style: { fontFamily: SERIF } });
+      names.addChild(nameTexts[i]);
+    }
+    return nameTexts[i];
+  };
 
   return {
     layer,
@@ -2593,30 +2624,104 @@ function mapOverlayView() {
       explored: boolean[],
       heroAt: Vec,
       open: boolean,
+      minions: Vec[],
+      townPortal: Vec | null,
+      displayNames: Readonly<Record<string, string>>,
     ) {
       layer.visible = open;
       if (!open) return;
+      const scale = MAP_OVERLAY.scale;
+      const found = mapMarks({
+        area,
+        explored,
+        heroAt,
+        minions,
+        townPortal,
+        displayNames,
+      });
       // Tiles are only ever added to what is Explored, so a count tells.
       const seen = explored.filter(Boolean).length;
       if (drawn?.area !== area || drawn.seen !== seen) {
         drawn = { area, seen };
         lines.clear();
-        const { edges } = mapMarks({ area, explored, heroAt });
         const origin = { x: 0, y: 0 };
         for (const kind of ["floor", "wall"] as const) {
           const look = MAP_LOOK[kind];
-          for (const edge of edges) {
+          for (const edge of found.edges) {
             if (edge.kind !== kind) continue;
-            const from = mapOffset(edge.from, origin, MAP_OVERLAY.scale);
-            const to = mapOffset(edge.to, origin, MAP_OVERLAY.scale);
+            const from = mapOffset(edge.from, origin, scale);
+            const to = mapOffset(edge.to, origin, scale);
             lines.moveTo(from.x, from.y).lineTo(to.x, to.y);
           }
           lines.stroke({ color: look.colour, width: look.width });
         }
       }
       const centre = { x: screen.width / 2, y: screen.height / 2 };
-      const shift = mapOffset(heroAt, { x: 0, y: 0 }, MAP_OVERLAY.scale);
+      const shift = mapOffset(heroAt, { x: 0, y: 0 }, scale);
       lines.position.set(centre.x - shift.x, centre.y - shift.y);
+      /** Where a point of the Area is on screen. */
+      const onScreen = (tile: Vec) => {
+        const off = mapOffset(tile, heroAt, scale);
+        return { x: centre.x + off.x, y: centre.y + off.y };
+      };
+
+      marks.clear();
+      const { exit, townPortal: portal, minion } = MAP_LOOK;
+      for (const { at } of found.exits) {
+        const p = onScreen(at);
+        marks
+          .poly([
+            p.x - exit.width / 2,
+            p.y,
+            p.x,
+            p.y - exit.height / 2,
+            p.x + exit.width / 2,
+            p.y,
+            p.x,
+            p.y + exit.height / 2,
+          ])
+          .fill(exit.colour);
+      }
+      if (found.townPortal) {
+        const p = onScreen(found.townPortal);
+        marks
+          .ellipse(p.x, p.y, portal.width / 2, portal.height / 2)
+          .stroke({ color: portal.colour, width: 1.5 })
+          .circle(p.x, p.y, portal.dot)
+          .fill(portal.colour);
+      }
+      for (const at of found.minions) {
+        const p = onScreen(at);
+        marks.circle(p.x, p.y, minion.radius).fill(minion.colour);
+      }
+
+      // Names: the Exits' above their diamonds, the NPCs' on the NPC.
+      let used = 0;
+      for (const { at, name } of found.exits) {
+        const text = nameText(used++);
+        text.text = name;
+        text.style.fill = exit.nameColour;
+        text.style.fontWeight = "normal";
+        text.style.fontSize = exit.nameSize;
+        text.anchor.set(0.5, 1);
+        const p = onScreen(at);
+        text.position.set(p.x, p.y - exit.height / 2 - exit.nameGap);
+        text.visible = true;
+      }
+      for (const { at, name } of found.npcs) {
+        const text = nameText(used++);
+        text.text = name;
+        text.style.fill = MAP_LOOK.npc.nameColour;
+        text.style.fontWeight = "bold";
+        text.style.fontSize = MAP_LOOK.npc.nameSize;
+        text.anchor.set(0.5, 0.5);
+        const p = onScreen(at);
+        text.position.set(p.x, p.y);
+        text.visible = true;
+      }
+      for (let i = used; i < nameTexts.length; i++)
+        nameTexts[i].visible = false;
+
       const { colour, size, width } = MAP_LOOK.hero;
       heroMark.clear();
       heroMark
@@ -2625,6 +2730,11 @@ function mapOverlayView() {
         .moveTo(centre.x, centre.y - size / 2)
         .lineTo(centre.x, centre.y + size / 2)
         .stroke({ color: colour, width });
+
+      const label = mapAreaNameLayout(screen);
+      areaName.text = displayNames[area.name] ?? area.name;
+      sizeText(areaName, label.size);
+      areaName.position.set(label.at.x, label.at.y);
     },
   };
 }

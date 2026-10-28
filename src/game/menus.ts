@@ -21,6 +21,11 @@ export type Menus = {
   inventoryOpen: boolean;
   skillTreeOpen: boolean;
   /**
+   * Whether the Map Overlay is open. It is not a panel: the World runs on
+   * under it, and the panels open and shut alongside it.
+   */
+  mapOpen: boolean;
+  /**
    * The Pending Attribute Points on each Attribute in the Hero panel, not
    * spent until Accept, and cancelled as the panel shuts. Never in the World
    * or the Save.
@@ -61,6 +66,7 @@ export function createMenus(): Menus {
     heroPanelOpen: false,
     inventoryOpen: false,
     skillTreeOpen: false,
+    mapOpen: false,
     pendingPoints: noPendingPoints(),
     compact: false,
     lastOpened: null,
@@ -113,15 +119,19 @@ export function menuChoices(
   return fullscreen.available ? ["newHero", "fullscreen"] : ["newHero"];
 }
 
+/** The key that opens and shuts the Map Overlay, as `pressKey` reads it. */
+export const MAP_KEY = "Tab";
+
 /**
  * A key pressed at real time `nowMs`, by `KeyboardEvent.key`. Esc opens and
  * closes the pause menu, and C the Hero panel, I the Inventory panel and T
  * the Skill Tree panel while the game runs; while `hero` lies dead, C, I and
- * T are taken but open nothing. While the Rotate Notice shows, every key
- * is taken and does nothing. In the menu, N asks to confirm a New Hero, and then Y confirms it while N or Esc
- * goes back. Returns `"newHero"` once confirmed, for the caller to start
- * one, `"handled"` for any other key the menus took, and null for a key
- * they leave to the game.
+ * T are taken but open nothing. Tab opens and closes the Map Overlay, but not
+ * while `hero` lies dead. While the Rotate Notice shows, every key is taken
+ * and does nothing. In the menu, N asks to confirm a New Hero, and then Y
+ * confirms it while N or Esc goes back. Returns `"newHero"` once confirmed,
+ * for the caller to start one, `"handled"` for any other key the menus took,
+ * and null for a key they leave to the game.
  */
 export function pressKey(
   menus: Menus,
@@ -144,6 +154,10 @@ export function pressKey(
   }
   if (pause.paused) {
     if (letter === "n") choose(menus, "newHero", nowMs);
+    return "handled";
+  }
+  if (key === MAP_KEY) {
+    toggleMap(menus, hero);
     return "handled";
   }
   const panel = panelOfKey(letter);
@@ -189,6 +203,25 @@ export function panelOpen(menus: OpenPanels, panel: Panel): boolean {
 /** Whether any panel is open. */
 export function anyPanelOpen(menus: OpenPanels): boolean {
   return PANELS.some((panel) => panelOpen(menus, panel));
+}
+
+/** Opens the Map Overlay or shuts it, as Tab and LT do: not while `hero` lies dead. */
+export function toggleMap(menus: Menus, hero: HeroState) {
+  if (!hero.heroDead) menus.mapOpen = !menus.mapOpen;
+}
+
+/**
+ * A click on the Mini Map, which opens the Map Overlay: nothing while `hero`
+ * lies dead, nor under the Rotate Notice.
+ */
+export function clickMiniMap(menus: Menus, hero: HeroState) {
+  if (hero.heroDead || menus.rotateNotice) return;
+  menus.mapOpen = true;
+}
+
+/** A tap on the open Map Overlay, away from any control, which closes it. */
+export function tapMapOverlay(menus: Menus) {
+  menus.mapOpen = false;
 }
 
 /**
@@ -367,11 +400,14 @@ export function acceptPendingPoints(menus: Menus): Order | null {
 
 /**
  * Follows what happened in a step of the World: the Hero's Death closes the
- * panels.
+ * panels and the Map Overlay. Exits and Town Portals leave the Map Overlay
+ * open.
  */
 export function reactMenus(menus: Menus, events: readonly SimEvent[]) {
   for (const event of events) {
-    if (event.type === "HeroDied") closePanels(menus);
+    if (event.type !== "HeroDied") continue;
+    closePanels(menus);
+    menus.mapOpen = false;
   }
 }
 
@@ -423,7 +459,8 @@ export function tapRotateNotice(
  * D-pad (or the stick) moves between its buttons, A presses the one picked,
  * and Menu or B goes back from confirming a New Hero, as Esc does, or
  * resumes. While the game runs, View opens and shuts the Inventory panel,
- * and with a panel open, LB and RB move to the panel before or after it (in
+ * LT the Map Overlay (not during Death, with a panel open or not), and
+ * with a panel open, LB and RB move to the panel before or after it (in
  * Panel-button order, round from the last to the first), shutting it as
  * its key would, and B shuts it. While the Rotate Notice shows, every
  * button is taken and does nothing. Returns as `pressKey` does, or
@@ -445,6 +482,10 @@ export function pressPad(
   }
   if (button === "view") {
     togglePanel(menus, "inventory", hero);
+    return "handled";
+  }
+  if (button === "lt") {
+    toggleMap(menus, hero);
     return "handled";
   }
   const panel = currentPanel(menus);

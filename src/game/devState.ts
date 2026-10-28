@@ -26,6 +26,8 @@ export type DevState = {
     boneWard: BoneWard | null;
     experience: number;
   };
+  /** How many tiles of the Area are Explored. */
+  exploredTiles: number;
   /** The Monster the game highlights as the Target, if any. */
   target: MonsterId | null;
   monsters: { id: MonsterId; type: MonsterType; pos: Vec; life: number }[];
@@ -73,6 +75,7 @@ export function devStateOf(world: World, target: MonsterId | null): DevState {
       boneWard: hero.boneWard && { ...hero.boneWard },
       experience: hero.progress.experience,
     },
+    exploredTiles: world.explored.filter(Boolean).length,
     target: world.monsters.some(({ id }) => id === target) ? target : null,
     monsters: world.monsters.map(({ id, type, pos, life }) => ({
       id,

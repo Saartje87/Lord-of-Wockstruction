@@ -48,17 +48,25 @@ import {
   tapPointer,
   tapUp,
 } from "./input/tap";
-import { attachTouch, createTouchControls, readTouch } from "./input/touch";
+import {
+  attachTapToClose,
+  attachTouch,
+  createTouchControls,
+  readTouch,
+  touchOnButton,
+} from "./input/touch";
 import {
   clickPaused,
   createMenus,
   currentPanel,
   fitMenus,
+  MAP_KEY,
   type MenuRequest,
   type Menus,
   pressKey,
   pressPad,
   reactMenus,
+  tapMapOverlay,
   tapRotateNotice,
 } from "./menus";
 import { gameTime, togglePause } from "./pause";
@@ -182,6 +190,22 @@ export default function GameCanvas() {
           { capture: true, signal: listeners.signal },
         );
       }
+      // A touch on the open Map Overlay, away from every control, closes it
+      // and is that alone. Before `attachTouch`, so it sees a touch first.
+      attachTapToClose(
+        app.canvas,
+        (at) =>
+          menus.mapOpen &&
+          touchControlsShown(activeInput.way, menus) &&
+          !renderer.panelAt(at) &&
+          renderer.groundLabelAt(at) === null &&
+          !touchOnButton(
+            touchControlsLayout(viewportOf(app.screen), menus),
+            at,
+          ),
+        () => tapMapOverlay(menus),
+        listeners.signal,
+      );
       // A touch on the touch controls, shown and not under a panel, the HUD
       // or a Ground Item's label, is theirs and never the pointer's.
       attachTouch(
@@ -261,6 +285,8 @@ export default function GameCanvas() {
       window.addEventListener(
         "keydown",
         (e) => {
+          // Tab would move the browser's focus off the game.
+          if (e.key === MAP_KEY) e.preventDefault();
           if (!e.repeat) keys.push(e.key);
         },
         { signal: listeners.signal },

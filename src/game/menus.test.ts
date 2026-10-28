@@ -4,6 +4,7 @@ import {
   addPendingPoint,
   clickClose,
   clickLevelUp,
+  clickMiniMap,
   clickPanelButton,
   clickPaused,
   createMenus,
@@ -14,7 +15,9 @@ import {
   pressPad,
   reactMenus,
   removePendingPoint,
+  tapMapOverlay,
   tapRotateNotice,
+  toggleMap,
   unplacedPoints,
 } from "./menus";
 import { gameTime, togglePause } from "./pause";
@@ -22,6 +25,137 @@ import { gameTime, togglePause } from "./pause";
 /** Whether the World has the Hero lying dead, as the menus are told. */
 const alive = { heroDead: false };
 const dead = { heroDead: true };
+
+describe("the Map Overlay", () => {
+  it("opens and shuts with Tab, which the menus take", () => {
+    const menus = createMenus();
+
+    expect(menus.mapOpen).toBe(false);
+    expect(pressKey(menus, "Tab", 1000, alive)).toBe("handled");
+    expect(menus.mapOpen).toBe(true);
+    expect(pressKey(menus, "Tab", 2000, alive)).toBe("handled");
+    expect(menus.mapOpen).toBe(false);
+  });
+
+  it("leaves the game running and the panels shut", () => {
+    const menus = createMenus();
+
+    pressKey(menus, "Tab", 1000, alive);
+
+    expect(menus.pause.paused).toBe(false);
+    expect(menus.heroPanelOpen).toBe(false);
+    expect(menus.inventoryOpen).toBe(false);
+    expect(menus.skillTreeOpen).toBe(false);
+  });
+
+  it("does nothing during Death", () => {
+    const menus = createMenus();
+
+    expect(pressKey(menus, "Tab", 1000, dead)).toBe("handled");
+    expect(menus.mapOpen).toBe(false);
+  });
+
+  it("does nothing while the pause menu is open", () => {
+    const menus = createMenus();
+    pressKey(menus, "Escape", 1000, alive);
+
+    pressKey(menus, "Tab", 2000, alive);
+
+    expect(menus.mapOpen).toBe(false);
+  });
+});
+
+describe("the Map Overlay on the controller", () => {
+  it("opens and shuts with LT, which the menus take", () => {
+    const menus = createMenus();
+
+    expect(pressPad(menus, "lt", 1000, alive)).toBe("handled");
+    expect(menus.mapOpen).toBe(true);
+    expect(pressPad(menus, "lt", 2000, alive)).toBe("handled");
+    expect(menus.mapOpen).toBe(false);
+  });
+
+  it("shares its state with Tab", () => {
+    const menus = createMenus();
+
+    pressKey(menus, "Tab", 1000, alive);
+    pressPad(menus, "lt", 2000, alive);
+
+    expect(menus.mapOpen).toBe(false);
+  });
+
+  it("does nothing during Death", () => {
+    const menus = createMenus();
+
+    pressPad(menus, "lt", 1000, dead);
+
+    expect(menus.mapOpen).toBe(false);
+  });
+
+  it("does nothing while the pause menu is open", () => {
+    const menus = createMenus();
+    pressKey(menus, "Escape", 1000, alive);
+
+    pressPad(menus, "lt", 2000, alive);
+
+    expect(menus.mapOpen).toBe(false);
+  });
+});
+
+describe("the Map Overlay through Death, Area changes and panels", () => {
+  it("closes on the Hero's Death, and stays shut against Tab and LT", () => {
+    const menus = createMenus();
+    pressKey(menus, "Tab", 1000, alive);
+
+    reactMenus(menus, [{ type: "HeroDied" }]);
+    expect(menus.mapOpen).toBe(false);
+
+    pressKey(menus, "Tab", 2000, dead);
+    pressPad(menus, "lt", 3000, dead);
+    expect(menus.mapOpen).toBe(false);
+  });
+
+  it("stays open through an Exit and a Town Portal", () => {
+    const menus = createMenus();
+    pressKey(menus, "Tab", 1000, alive);
+
+    reactMenus(menus, [
+      { type: "AreaChanged", area: "catacombs", entry: "start" },
+    ]);
+    reactMenus(menus, [
+      { type: "TownPortalOpened", area: "catacombs", pos: { x: 1, y: 1 } },
+    ]);
+    reactMenus(menus, [{ type: "AreaChanged", area: "town", entry: "start" }]);
+
+    expect(menus.mapOpen).toBe(true);
+  });
+
+  it("stays open while panels open and shut, by key, button and controller", () => {
+    const menus = createMenus();
+    pressKey(menus, "Tab", 1000, alive);
+
+    pressKey(menus, "i", 2000, alive);
+    expect(menus.mapOpen).toBe(true);
+    pressPad(menus, "view", 3000, alive);
+    expect(menus.mapOpen).toBe(true);
+    clickPanelButton(menus, "hero", alive);
+    expect(menus.mapOpen).toBe(true);
+    pressPad(menus, "b", 4000, alive);
+    expect(menus.mapOpen).toBe(true);
+  });
+
+  it("opens and shuts with a panel open", () => {
+    const menus = createMenus();
+    pressKey(menus, "i", 1000, alive);
+
+    pressKey(menus, "Tab", 2000, alive);
+    expect(menus.mapOpen).toBe(true);
+    expect(menus.inventoryOpen).toBe(true);
+    pressPad(menus, "lt", 3000, alive);
+    expect(menus.mapOpen).toBe(false);
+    expect(menus.inventoryOpen).toBe(true);
+  });
+});
 
 describe("the keys", () => {
   it("open and close the pause menu with Esc", () => {
@@ -411,6 +545,70 @@ describe("a click on a panel's ×", () => {
     expect(menus.heroPanelOpen).toBe(false);
     expect(menus.inventoryOpen).toBe(false);
     expect(menus.skillTreeOpen).toBe(false);
+  });
+});
+
+describe("a click on the Mini Map", () => {
+  it("opens the Map Overlay", () => {
+    const menus = createMenus();
+
+    clickMiniMap(menus, alive);
+
+    expect(menus.mapOpen).toBe(true);
+  });
+
+  it("does nothing while the Hero lies dead, as Tab does not", () => {
+    const menus = createMenus();
+
+    clickMiniMap(menus, { heroDead: true });
+
+    expect(menus.mapOpen).toBe(false);
+  });
+
+  it("does nothing under the Rotate Notice", () => {
+    const menus = createMenus();
+    menus.rotateNotice = true;
+
+    clickMiniMap(menus, alive);
+
+    expect(menus.mapOpen).toBe(false);
+  });
+});
+
+describe("toggling the Map Overlay", () => {
+  it("opens and shuts it while the Hero lives", () => {
+    const menus = createMenus();
+
+    toggleMap(menus, alive);
+    expect(menus.mapOpen).toBe(true);
+    toggleMap(menus, alive);
+    expect(menus.mapOpen).toBe(false);
+  });
+
+  it("does nothing while the Hero lies dead", () => {
+    const menus = createMenus();
+
+    toggleMap(menus, dead);
+
+    expect(menus.mapOpen).toBe(false);
+  });
+});
+
+describe("a tap on the open Map Overlay", () => {
+  it("closes it", () => {
+    const menus = { ...createMenus(), mapOpen: true };
+
+    tapMapOverlay(menus);
+
+    expect(menus.mapOpen).toBe(false);
+  });
+
+  it("leaves the panels as they are", () => {
+    const menus = { ...createMenus(), mapOpen: true, inventoryOpen: true };
+
+    tapMapOverlay(menus);
+
+    expect(menus.inventoryOpen).toBe(true);
   });
 });
 

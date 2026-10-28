@@ -24,6 +24,17 @@ import { tooltipRect } from "./tooltip";
 export const TOWN_PORTAL_BUTTON = { size: 36 };
 
 /**
+ * The right edge of what sits in the top right corner (the Mini Map, the Map
+ * Overlay's Area name): the screen's, or in the Compact Layout, where the
+ * Panel buttons stack down that corner, the left of their column.
+ */
+export function topRightEdge(screen: Viewport): number {
+  return screen.compact
+    ? panelButtonsLayout(screen).buttons.hero.x
+    : screen.width;
+}
+
+/**
  * Where each Panel button is drawn, and the Town Portal button after them:
  * as big and as far apart as the Skill Bar's slots, in line with them,
  * starting as far right of the Skill Bar as the Belt strip ends left of it.

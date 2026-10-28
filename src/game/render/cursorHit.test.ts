@@ -17,6 +17,7 @@ import { beltStripLayout } from "./beltStrip";
 import { cursorHitAt } from "./cursorHit";
 import { heroPanelLayout, heroPanelRow, PANEL_ROWS } from "./heroPanel";
 import { inventoryPanelLayout } from "./inventoryPanel";
+import { miniMapLayout } from "./miniMap";
 import { hoveredPanelButton, panelButtonsLayout } from "./panelButtons";
 import { skillBarLayout } from "./skillBar";
 import { skillTreePanelLayout } from "./skillTreePanel";
@@ -76,6 +77,37 @@ const SMALL = {
   rotateNotice: null,
 };
 const inventoryOpen = { ...createMenus(), inventoryOpen: true };
+
+describe("a press on the Mini Map", () => {
+  const screen = viewportOf({ width: 1280, height: 720 });
+  const inMiniMap = middleOf(miniMapLayout(screen));
+
+  it("hits the Mini Map while it shows", () => {
+    expect(
+      cursorHitAt(screen, inMiniMap, world("sash"), createMenus()),
+    ).toEqual({ button: { type: "miniMap" } });
+  });
+
+  it("hits the Mini Map by touch too, and the pause button below it stays the pause button's", () => {
+    const { pause } = touchControlsLayout(screen);
+
+    expect(
+      cursorHitAt(screen, inMiniMap, world("sash"), createMenus(), true),
+    ).toEqual({ button: { type: "miniMap" } });
+    expect(
+      cursorHitAt(screen, middleOf(pause), world("sash"), createMenus(), true),
+    ).toBeNull();
+  });
+
+  it("is for the World while the Map Overlay is open, and during Death", () => {
+    const open = { ...createMenus(), mapOpen: true };
+    const dead = world("sash");
+    dead.death = { elapsed: 0 };
+
+    expect(cursorHitAt(screen, inMiniMap, world("sash"), open)).toBeNull();
+    expect(cursorHitAt(screen, inMiniMap, dead, createMenus())).toBeNull();
+  });
+});
 
 describe("a press where the open Inventory panel covers the HUD", () => {
   it.each([

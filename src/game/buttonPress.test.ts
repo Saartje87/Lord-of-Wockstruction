@@ -218,3 +218,26 @@ describe("a press on the Town Portal button", () => {
     expect(orders).toEqual([]);
   });
 });
+
+describe("a press on the Mini Map", () => {
+  it("opens the Map Overlay and orders nothing, so the Hero doesn't walk", () => {
+    const menus = createMenus();
+    const world = worldWith({});
+
+    const orders = pressButton(menus, world, { type: "miniMap" });
+
+    expect(menus.mapOpen).toBe(true);
+    expect(orders).toEqual([]);
+  });
+
+  it("does nothing while the Hero lies dead", () => {
+    const menus = createMenus();
+
+    const orders = pressButton(menus, dead(worldWith({})), {
+      type: "miniMap",
+    });
+
+    expect(menus.mapOpen).toBe(false);
+    expect(orders).toEqual([]);
+  });
+});

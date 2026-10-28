@@ -8,6 +8,7 @@ import { experienceBarLayout } from "./experienceBar";
 import { heroPanelLayout } from "./heroPanel";
 import { nameplateLayout } from "./hover";
 import { inventoryPanelLayout } from "./inventoryPanel";
+import { miniMapLayout } from "./miniMap";
 import { type OrbCircle, orbsLayout } from "./orbs";
 import { panelButtonsLayout } from "./panelButtons";
 import { skillBarLayout } from "./skillBar";
@@ -121,13 +122,35 @@ describe("the touch controls at the UI Scale", () => {
 
   it.each(
     SCREENS,
-  )("puts the pause button top right on $width×$height", (size) => {
+  )("puts the pause button just below the Mini Map on $width×$height", (size) => {
     const viewport = viewportOf(size);
     const { pause } = touchControlsLayout(viewport);
+    const miniMap = miniMapLayout(viewport);
 
-    expect(pause.x).toBeGreaterThan(size.width * 0.75);
-    expect(pause.y + pause.h).toBeLessThan(size.height / 4);
+    expect(pause.x + pause.w).toBeCloseTo(miniMap.x + miniMap.w);
+    expect(pause.y).toBeCloseTo(miniMap.y + miniMap.h + 8 * viewport.uiScale);
     expect(pause.w).toBeCloseTo(44 * viewport.uiScale);
+    expect(overlaps(pause, miniMap)).toBe(false);
+  });
+
+  it.each(
+    SCREENS,
+  )("keeps the pause button where it is while the Map Overlay hides the Mini Map on $width×$height", (size) => {
+    const viewport = viewportOf(size);
+    const open = { ...createMenus(), mapOpen: true };
+
+    expect(touchControlsLayout(viewport, open).pause).toEqual(
+      touchControlsLayout(viewport).pause,
+    );
+  });
+
+  it.each(
+    SCREENS,
+  )("stops the pause button's touch hit area at the Mini Map on $width×$height", (size) => {
+    const viewport = viewportOf(size);
+    const { pauseHit } = touchControlsLayout(viewport);
+
+    expect(overlaps(pauseHit, miniMapLayout(viewport))).toBe(false);
   });
 });
 

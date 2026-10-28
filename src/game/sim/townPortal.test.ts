@@ -232,7 +232,7 @@ function walkTo(world: World, target: Vec, limit = 600): SimEvent[] {
  * Walks the Hero to `target`, into an Exit or a Town Portal, and on through
  * the Area change. Returns what the Area they left held as they walked out.
  */
-function leave(world: World, target: Vec): KeptArea {
+function leave(world: World, target: Vec): Omit<KeptArea, "explored"> {
   step(world, [{ type: "MoveTo", target }]);
   for (let i = 0; i < 600 && !world.areaChange; i++) step(world, []);
   const { monsters, corpses, groundItems, projectiles } = world;

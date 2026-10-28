@@ -6,6 +6,7 @@ import {
   itemOf,
   potionDropTuning,
 } from "../tuning/items";
+import { mapTuning } from "../tuning/map";
 import { minionTuning } from "../tuning/minions";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import {
@@ -22,6 +23,7 @@ import { townPortalTuning } from "../tuning/townPortal";
 import { townPortalLook } from "../tuning/townPortalLook";
 import {
   type Area,
+  cellAt,
   exitAt,
   isWalkable,
   loadArea,
@@ -339,7 +341,7 @@ export type TownPortal = { area: string; pos: Vec; kept: KeptArea | null };
  */
 export type KeptArea = Pick<
   World,
-  "monsters" | "projectiles" | "corpses" | "groundItems"
+  "monsters" | "projectiles" | "corpses" | "groundItems" | "explored"
 >;
 
 /**
@@ -385,6 +387,11 @@ export type World = {
   corpses: Corpse[];
   /** The Ground Items in the active Area, never kept by the Save. */
   groundItems: GroundItem[];
+  /**
+   * Which tiles of the active Area are Explored, row by row like
+   * `Area.floor`; never kept by the Save.
+   */
+  explored: boolean[];
   /**
    * The Hero's living Minions, oldest first; never kept by the Save.
    */
@@ -729,6 +736,8 @@ export function createWorld(options: {
     projectiles: [],
     corpses: [],
     groundItems: [],
+    // All of Town is Explored from the start.
+    explored: new Array(town.width * town.height).fill(true),
     minions: [],
     townPortal: null,
     nextMonsterId: 1,
@@ -1075,8 +1084,8 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   world.death = null;
   const { townPortal } = world;
   if (townPortal?.area === world.areaName) {
-    const { monsters, projectiles, corpses, groundItems } = world;
-    townPortal.kept = { monsters, projectiles, corpses, groundItems };
+    const { monsters, projectiles, corpses, groundItems, explored } = world;
+    townPortal.kept = { monsters, projectiles, corpses, groundItems, explored };
   }
   world.areaName = area.name;
   let kept: KeptArea | null = null;
@@ -1089,6 +1098,10 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   world.projectiles = kept?.projectiles ?? [];
   world.corpses = kept?.corpses ?? [];
   world.groundItems = kept?.groundItems ?? [];
+  world.explored =
+    kept?.explored ??
+    new Array(area.width * area.height).fill(area.name === TOWN);
+  revealAround(world);
   for (const minion of world.minions) placeBesideHero(world, minion);
   world.heldOrders = [];
   if (!kept) {
@@ -1159,6 +1172,32 @@ function walkedInto(hero: Hero, end: Vec): boolean {
   return (
     distance(hero.pos, end) <= radius && distance(hero.prevPos, end) > radius
   );
+}
+
+/** Whether `tile` of the active Area is Explored. */
+export function isExplored(world: World, tile: Vec): boolean {
+  return cellAt(world.areas[world.areaName], world.explored, tile);
+}
+
+/**
+ * Explores every tile of the active Area whose centre lies within the tuned
+ * radius of the Hero, walls or not.
+ */
+function revealAround(world: World) {
+  const { width, height } = world.areas[world.areaName];
+  const { pos } = world.hero;
+  const { exploredRadius } = mapTuning;
+  const left = Math.max(0, Math.floor(pos.x - exploredRadius));
+  const right = Math.min(width - 1, Math.floor(pos.x + exploredRadius));
+  const top = Math.max(0, Math.floor(pos.y - exploredRadius));
+  const bottom = Math.min(height - 1, Math.floor(pos.y + exploredRadius));
+  for (let y = top; y <= bottom; y++) {
+    for (let x = left; x <= right; x++) {
+      if (distance(pos, { x: x + 0.5, y: y + 0.5 }) <= exploredRadius) {
+        world.explored[y * width + x] = true;
+      }
+    }
+  }
 }
 
 /** Closes the Hero's Town Portal, if any. */
@@ -1323,6 +1362,7 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   // into it.
   approach(world);
   walk(hero);
+  revealAround(world);
   const area = world.areas[world.areaName];
   const exit = exitAt(area, hero.pos);
   if (exit && exit !== exitAt(area, hero.prevPos)) {

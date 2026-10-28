@@ -1,5 +1,15 @@
 import type { Vec } from "./sim/vec";
-import { type MonsterId, maxLife, type World } from "./sim/world";
+import {
+  type BoneWard,
+  type MinionId,
+  type MinionType,
+  type MonsterId,
+  maxLife,
+  maxMana,
+  minionMaxLife,
+  type Skill,
+  type World,
+} from "./sim/world";
 import type { MonsterType } from "./tuning/monsters";
 
 /** What a playtest reads of the game: see `docs/agents/playtesting.md`. */
@@ -10,11 +20,30 @@ export type DevState = {
     facing: number;
     life: number;
     maxLife: number;
+    mana: number;
+    maxMana: number;
+    /** What's left of the Bone Ward and its full amount, or none. */
+    boneWard: BoneWard | null;
     experience: number;
   };
   /** The Monster the game highlights as the Target, if any. */
   target: MonsterId | null;
   monsters: { id: MonsterId; type: MonsterType; pos: Vec; life: number }[];
+  corpses: {
+    id: MonsterId;
+    type: MonsterType;
+    monsterLevel: number;
+    pos: Vec;
+  }[];
+  minions: {
+    id: MinionId;
+    type: MinionType;
+    /** The Skill that brought it. */
+    skill: Skill;
+    pos: Vec;
+    life: number;
+    maxLife: number;
+  }[];
 };
 
 declare global {
@@ -25,9 +54,9 @@ declare global {
 }
 
 /**
- * A plain copy of the World's Area, Hero and Monsters, with the `target`
- * picked in input (ADR 0002), or none once it is dead, as the renderer
- * highlights none then. Nothing in it refers back into the World.
+ * A plain copy of the World's Area, Hero, Monsters, Corpses and Minions,
+ * with the `target` picked in input (ADR 0002), or none once it is dead, as
+ * the renderer highlights none then. Nothing in it refers back into the World.
  * Dev builds only: see `GameCanvas`.
  */
 export function devStateOf(world: World, target: MonsterId | null): DevState {
@@ -39,6 +68,9 @@ export function devStateOf(world: World, target: MonsterId | null): DevState {
       facing: hero.facing,
       life: hero.life,
       maxLife: maxLife(world),
+      mana: hero.mana,
+      maxMana: maxMana(world),
+      boneWard: hero.boneWard && { ...hero.boneWard },
       experience: hero.progress.experience,
     },
     target: world.monsters.some(({ id }) => id === target) ? target : null,
@@ -47,6 +79,20 @@ export function devStateOf(world: World, target: MonsterId | null): DevState {
       type,
       pos: { ...pos },
       life,
+    })),
+    corpses: world.corpses.map(({ id, type, monsterLevel, pos }) => ({
+      id,
+      type,
+      monsterLevel,
+      pos: { ...pos },
+    })),
+    minions: world.minions.map((minion) => ({
+      id: minion.id,
+      type: minion.type,
+      skill: minion.skill,
+      pos: { ...minion.pos },
+      life: minion.life,
+      maxLife: minionMaxLife(minion),
     })),
   };
 }

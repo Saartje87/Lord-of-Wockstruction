@@ -57,3 +57,13 @@ export function orbFill(world: World, orb: Orb): number {
       : [world.hero.mana, maxMana(world)];
   return Math.min(1, Math.max(0, current / max));
 }
+
+/**
+ * How far round the Life orb its Bone Ward ring goes (0..1): what is left of
+ * the Hero's Bone Ward over what it held when filled, or null without one.
+ */
+export function wardFill(world: World): number | null {
+  const { boneWard } = world.hero;
+  if (!boneWard) return null;
+  return Math.min(1, Math.max(0, boneWard.left / boneWard.full));
+}

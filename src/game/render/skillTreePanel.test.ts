@@ -118,6 +118,14 @@ describe("skillTreeSheet", () => {
           canRaise: false,
         },
         {
+          skill: "boneWard",
+          name: "Bone Ward",
+          skillLevel: "0",
+          manaCost: "11",
+          requiredLevel: "3",
+          canRaise: false,
+        },
+        {
           skill: "corpseExplosion",
           name: "Corpse Explosion",
           skillLevel: "0",

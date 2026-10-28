@@ -414,7 +414,7 @@ describe("attacking", () => {
       const hits = heroHits(w, 24);
       expect(hits.slice(0, 23).flat()).toEqual([]);
       expect(hits[23]).toEqual([
-        { type: "HeroHit", damage: expect.any(Number) },
+        { type: "HeroHit", damage: expect.any(Number), warded: 0 },
       ]);
       const [hit] = hits[23];
       if (hit.type !== "HeroHit") throw new Error();
@@ -501,7 +501,7 @@ describe("attacking", () => {
       const hits = heroHits(w, 4 + 24 - 9);
       expect(hits.slice(0, -1).flat()).toEqual([]);
       expect(hits.at(-1)).toEqual([
-        { type: "HeroHit", damage: expect.any(Number) },
+        { type: "HeroHit", damage: expect.any(Number), warded: 0 },
       ]);
     }
     expect(checked).toBeGreaterThan(0);

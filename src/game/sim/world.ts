@@ -16,6 +16,7 @@ import {
   type RaiseEffect,
   type Skill,
   skillTuning,
+  type WardEffect,
 } from "../tuning/skills";
 import { townPortalTuning } from "../tuning/townPortal";
 import { townPortalLook } from "../tuning/townPortalLook";
@@ -162,6 +163,11 @@ export type Hero = {
   /** The drunk Potions still running their course; all end on Death. */
   potionEffects: PotionEffect[];
   /**
+   * The Bone Ward on the Hero, if any. It stays on through Area changes,
+   * ends on Death and is never kept by the Save.
+   */
+  boneWard: BoneWard | null;
+  /**
    * The Item held on the cursor, if any. The Save keeps it at the cell it
    * was lifted from.
    */
@@ -198,6 +204,12 @@ export type Hero = {
    */
   buffered: Order | null;
 };
+
+/**
+ * A Bone Ward: the damage it still soaks up, and what it soaked when last
+ * filled.
+ */
+export type BoneWard = { left: number; full: number };
 
 /** A Skill being cast: its effect happened as it started. */
 export type Cast = {
@@ -505,7 +517,11 @@ export type SimEvent =
    * to hit a Monster, or a Monster's attack failed to hit the Hero.
    */
   | { type: "Missed"; target: MonsterId | "hero" }
-  | { type: "HeroHit"; damage: number }
+  /**
+   * A Monster's attack hit the Hero, `warded` of it soaked by their Bone
+   * Ward and `damage` reaching their Life.
+   */
+  | { type: "HeroHit"; damage: number; warded: number }
   | { type: "MonsterDied"; id: MonsterId }
   /** A dying Monster or the Hero dropped `item`, which now lies at `pos`. */
   | { type: "ItemDropped"; item: Item; pos: Vec }
@@ -693,6 +709,7 @@ export function createWorld(options: {
       equipment: emptyEquipment(),
       belt: emptyBelt(),
       potionEffects: [],
+      boneWard: null,
       cursor: null,
       pos: { ...start },
       prevPos: { ...start },
@@ -1661,6 +1678,9 @@ function castFrom(
     case "projectile":
       looseFromHero(world, effect, skillLevel);
       break;
+    case "ward":
+      putOnBoneWard(hero, effect, skillLevel);
+      break;
   }
 }
 
@@ -1827,6 +1847,20 @@ function looseFromHero(
     damage: projectileDamage(effect, skillLevel),
     hit: [],
   });
+}
+
+/** How much `effect`'s Bone Ward soaks up at `skillLevel`. */
+export function wardAmount(effect: WardEffect, skillLevel: number): number {
+  return effect.amount + effect.amountPerSkillLevel * (skillLevel - 1);
+}
+
+/**
+ * Puts a full Bone Ward on the Hero for `skillLevel`, replacing whatever is
+ * left of theirs.
+ */
+function putOnBoneWard(hero: Hero, effect: WardEffect, skillLevel: number) {
+  const full = wardAmount(effect, skillLevel);
+  hero.boneWard = { left: full, full };
 }
 
 /** Adds a fresh Minion at full Life at `pos` to the Hero's Minions. */
@@ -2151,7 +2185,9 @@ function rollDrop(world: World, pos: Vec, events: SimEvent[]) {
 /**
  * Lands a Monster's attack, a melee one or a Projectile, on the Hero. A Hero
  * with 0 Defense is always hit; above it the attack can Miss, which deals no
- * damage, so it neither flinches the Hero nor keeps them In Combat.
+ * damage, so it neither flinches the Hero nor keeps them In Combat. A hit's
+ * damage comes off their Bone Ward first, gone once used up, and only the
+ * rest off their Life.
  */
 function hitHero(world: World, attack: AttackNumbers, events: SimEvent[]) {
   const { hero } = world;
@@ -2164,9 +2200,14 @@ function hitHero(world: World, attack: AttackNumbers, events: SimEvent[]) {
     events.push({ type: "Missed", target: "hero" });
     return;
   }
-  hero.life = Math.max(0, hero.life - damage);
+  const warded = Math.min(damage, hero.boneWard?.left ?? 0);
+  if (hero.boneWard) {
+    hero.boneWard.left -= warded;
+    if (hero.boneWard.left <= 0) hero.boneWard = null;
+  }
+  hero.life = Math.max(0, hero.life - (damage - warded));
   hero.combat = COMBAT_STEPS;
-  events.push({ type: "HeroHit", damage });
+  events.push({ type: "HeroHit", damage: damage - warded, warded });
   if (hero.life === 0) {
     die(world, events);
     return;
@@ -2237,12 +2278,13 @@ function removeMinion(world: World, minion: Minion) {
 
 /**
  * Lays the Hero down, stopping whatever they were doing, ending every
- * running Potion effect, crumbles their Minions away and sends every Monster
- * home.
+ * running Potion effect and their Bone Ward, crumbles their Minions away
+ * and sends every Monster home.
  */
 function die(world: World, events: SimEvent[]) {
   world.death = { elapsed: 0 };
   world.hero.potionEffects = [];
+  world.hero.boneWard = null;
   for (const minion of world.minions) crumbleMinion(world, minion, events);
   for (const monster of world.monsters) sendHome(monster);
   stopHero(world.hero);

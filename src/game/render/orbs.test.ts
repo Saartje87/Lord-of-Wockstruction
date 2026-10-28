@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createWorld, step } from "../sim/world";
-import { orbFill } from "./orbs";
+import { orbFill, wardFill } from "./orbs";
 
 /** A Town of open floor with its `start` Entry on the first tile. */
 const town = {
@@ -51,5 +51,20 @@ describe("orbFill", () => {
     w.hero.life = 75;
 
     expect(orbFill(w, "life")).toBe(0.75);
+  });
+});
+
+describe("wardFill", () => {
+  it("shows no ring without a Bone Ward", () => {
+    const w = createWorld({ areas: { town }, seed: 1 });
+
+    expect(wardFill(w)).toBeNull();
+  });
+
+  it("shows how much of the Bone Ward is left", () => {
+    const w = createWorld({ areas: { town }, seed: 1 });
+    w.hero.boneWard = { left: 15, full: 20 };
+
+    expect(wardFill(w)).toBe(0.75);
   });
 });

@@ -20,15 +20,17 @@ export type SkillTuning = {
 /**
  * What a Skill's cast does: summon a Minion at the cast point, the Hero
  * having one of it; raise one from a Corpse (see `RaiseEffect`); burst a
- * Corpse (see `ExplodeEffect`); Curse Monsters (see `CurseEffect`); or
- * loose a Projectile (see `ProjectileEffect`).
+ * Corpse (see `ExplodeEffect`); Curse Monsters (see `CurseEffect`); loose
+ * a Projectile (see `ProjectileEffect`); or put a Bone Ward on the Hero (see
+ * `WardEffect`).
  */
 export type SkillEffect =
   | { type: "summon"; minion: MinionType }
   | RaiseEffect
   | ExplodeEffect
   | CurseEffect
-  | ProjectileEffect;
+  | ProjectileEffect
+  | WardEffect;
 
 /**
  * Raise a Minion from the Corpse nearest the cast point, using the Corpse
@@ -85,6 +87,17 @@ export type ProjectileEffect = {
   damagePerSkillLevel: number;
 };
 
+/**
+ * Put a Bone Ward on the Hero soaking up `amount` damage, and
+ * `amountPerSkillLevel` more each Skill Level past the first, filling an
+ * existing one back up to that instead of adding to it.
+ */
+export type WardEffect = {
+  type: "ward";
+  amount: number;
+  amountPerSkillLevel: number;
+};
+
 /** Skills that use a Corpse up. */
 export const corpseTuning = {
   /** How near the cast point a Corpse must lie to be used (tiles). */
@@ -96,6 +109,7 @@ export type Skill =
   | "golem"
   | "raiseSkeleton"
   | "amplifyDamage"
+  | "boneWard"
   | "corpseExplosion"
   | "boneSpear";
 
@@ -139,6 +153,15 @@ export const skillTuning: Record<Skill, SkillTuning> = {
       durationMsPerSkillLevel: 2000,
       damageTaken: 1.5,
     },
+  },
+  // Diablo 2's Bone Armor: soaks 20 damage, 10 more each Skill Level.
+  boneWard: {
+    name: "Bone Ward",
+    requiredLevel: 3,
+    manaCost: 11,
+    manaCostPerSkillLevel: 1,
+    castMs: 400,
+    effect: { type: "ward", amount: 20, amountPerSkillLevel: 10 },
   },
   // Diablo 2's Corpse Explosion: 60–100% of the dead Monster's max Life.
   corpseExplosion: {

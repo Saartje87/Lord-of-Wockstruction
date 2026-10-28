@@ -55,7 +55,8 @@ export function damageNumbers(events: readonly SimEvent[]): DamageNumber[] {
     if (event.type === "Missed") {
       numbers.push({ on: event.target, kind: "miss" });
     }
-    if (event.type === "HeroHit") {
+    // A hit the Bone Ward soaked whole leaves the Life orb untouched.
+    if (event.type === "HeroHit" && event.damage > 0) {
       numbers.push({ on: "hero", damage: event.damage, kind: "taken" });
     }
     if (event.type === "MinionHit") {

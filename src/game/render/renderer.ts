@@ -138,7 +138,7 @@ import {
   landingCell,
 } from "./inventoryPanel";
 import { itemColour, itemLabel } from "./itemArt";
-import { type Orb, orbFill, orbsLayout } from "./orbs";
+import { type Orb, orbFill, orbsLayout, wardFill } from "./orbs";
 import {
   hoveredPanelButton,
   panelButtonsLayout,
@@ -385,6 +385,13 @@ const ORB_COLOURS: Record<
  * scale) and how fast (rad/s).
  */
 const RIPPLE = { calm: 1, combat: 2.5, speed: 5, depth: 3 };
+/**
+ * The ring round the Life orb while the Hero has a Bone Ward: bone white
+ * along the middle of its rim, `width` of the rim's width, running clockwise
+ * from the top as far as the Bone Ward has left, over a faint `trackAlpha`
+ * ring all the way round.
+ */
+const WARD_RING = { colour: 0xe8e0c8, width: 0.6, trackAlpha: 0.2 };
 /**
  * Bubbles rising through the Life orb while the Hero regenerates Life,
  * `radius` CSS px at native scale.
@@ -1883,7 +1890,8 @@ function outlineView() {
  * on it at the left and their Mana orb at the right, each filling from the
  * bottom. In Combat their surfaces ripple harder, with an "⚔ In Combat" badge
  * over the Life orb; while Life regenerates, bubbles rise through it under a
- * badge with the rate.
+ * badge with the rate. A ring round the Life orb shows what is left of the
+ * Hero's Bone Ward.
  */
 function orbsView() {
   const layer = new Container();
@@ -1963,6 +1971,20 @@ function orbsView() {
           .ellipse(x - r * 0.3, cy - r * 0.45, r * 0.35, r * 0.18)
           .fill({ color: 0xffffff, alpha: 0.12 });
         graphics.circle(x, cy, r).stroke({ width: 3, color: ORB.glassLine });
+      }
+
+      const ward = wardFill(world);
+      if (ward !== null) {
+        const ringRadius = r + rim / 2;
+        const ring = { width: rim * WARD_RING.width, color: WARD_RING.colour };
+        graphics
+          .circle(lifeX, cy, ringRadius)
+          .stroke({ ...ring, alpha: WARD_RING.trackAlpha });
+        const top = -Math.PI / 2;
+        graphics
+          .moveTo(lifeX, cy - ringRadius)
+          .arc(lifeX, cy, ringRadius, top, top + ward * Math.PI * 2)
+          .stroke(ring);
       }
 
       badge.visible = inCombat || regenerating;

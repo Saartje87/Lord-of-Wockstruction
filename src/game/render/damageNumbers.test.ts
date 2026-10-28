@@ -28,9 +28,15 @@ describe("damageNumbers", () => {
   });
 
   it("shows damage the Hero takes on the Hero", () => {
-    expect(damageNumbers([{ type: "HeroHit", damage: 6 }])).toEqual([
+    expect(damageNumbers([{ type: "HeroHit", damage: 6, warded: 0 }])).toEqual([
       { on: "hero", damage: 6, kind: "taken" },
     ]);
+  });
+
+  it("shows nothing on the Hero for a hit their Bone Ward soaked whole", () => {
+    expect(damageNumbers([{ type: "HeroHit", damage: 0, warded: 6 }])).toEqual(
+      [],
+    );
   });
 
   it("shows a Miss on the Monster Missed, alongside the hits", () => {

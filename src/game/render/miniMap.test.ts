@@ -6,6 +6,7 @@ import { mapAreaNameLayout } from "./mapMarks";
 import {
   miniMapHitAt,
   miniMapLayout,
+  miniMapScale,
   miniMapShown,
   miniMapTooltipRect,
 } from "./miniMap";
@@ -136,5 +137,19 @@ describe("the Mini Map's tooltip", () => {
 
     expect(tip.y).toBeGreaterThanOrEqual(rect.y + rect.h);
     expect(tip.x + tip.w).toBeLessThanOrEqual(screen.width);
+  });
+});
+
+describe("the Mini Map's scale", () => {
+  it.each([
+    ...DESKTOP,
+    ...COMPACT,
+  ])("keeps its map in the same proportion to its frame at $width×$height", (size) => {
+    const screen = viewportOf(size);
+    const frame = miniMapLayout(screen).w;
+
+    // Compact frames are smaller at the same UI Scale, so compare per UI Scale.
+    expect(miniMapScale(screen) / screen.uiScale).toBe(0.14);
+    expect(frame / screen.uiScale).toBe(screen.compact ? 96 : 176);
   });
 });

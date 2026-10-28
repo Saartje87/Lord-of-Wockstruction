@@ -54,8 +54,8 @@ describe("the hints and labels that name buttons", () => {
   it.each([
     ["mouseAndKeyboard", "Map (Tab)"],
     ["controller", "Map (LT)"],
-    ["touch", "Map"],
-  ] as const)("name the Mini Map's way to open the Map Overlay with %s: %j", (way, tooltip) => {
+    ["touch", ""],
+  ] as const)("name the Mini Map's way to open the Map Overlay with %s, none for touch: %j", (way, tooltip) => {
     expect(mapTooltip(way)).toBe(tooltip);
   });
 

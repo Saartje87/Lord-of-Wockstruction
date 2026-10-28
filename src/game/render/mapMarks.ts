@@ -1,17 +1,19 @@
 import { toScreen } from "../iso";
-import type { Area } from "../sim/area";
-import { tileOf, type Vec } from "../sim/vec";
+import { type Area, cellAt } from "../sim/area";
+import type { Vec } from "../sim/vec";
 import type { Viewport } from "../viewport";
-import { panelButtonsLayout } from "./panelButtons";
+import { topRightEdge } from "./panelButtons";
 
 /**
- * How the Map Overlay is drawn (CSS px, whatever the UI Scale): `scale` is
- * how much of the World's size a tile takes, and `opacity` how much of it
- * shows through. The marks' sizes are fixed pixels, never scaled with the map.
+ * How the Map Overlay is drawn: `scale` is how much of the World's size a
+ * tile takes (at any World zoom), and `opacity` how much of it shows through.
  */
 export const MAP_OVERLAY = { scale: 0.25, opacity: 0.55 };
 
-/** The look of the maps' lines and marks. */
+/**
+ * The look of the maps' lines and marks (CSS px at native scale, drawn at the
+ * UI Scale, never scaled with the map).
+ */
 export const MAP_LOOK = {
   /** Where walkable floor meets a wall. */
   wall: { colour: 0xd8d0b4, width: 2 },
@@ -43,13 +45,12 @@ export type MapEdge = { from: Vec; to: Vec; kind: "wall" | "floor" };
 
 /**
  * What the maps draw, in tile units: shared by the Map Overlay and the Mini
- * Map, which only differ in where and how big they draw it.
+ * Map, which only differ in where and how big they draw it. The Hero's own
+ * mark is always at the middle of the map, so it is not here.
  */
 export type MapMarks = {
   /** The Area's wall and floor edges. */
   edges: MapEdge[];
-  /** Where the Hero stands. */
-  hero: Vec;
   /** Where the Hero's Minions stand. */
   minions: Vec[];
   /** Explored Exits at their middle, named after the Area each leads to. */
@@ -60,10 +61,15 @@ export type MapMarks = {
   npcs: { at: Vec; name: string }[];
 };
 
-/** What `mapMarks` is made from. */
-export type MapMarksOf = {
+/**
+ * What the maps are made from, once a frame: both the Map Overlay and the
+ * Mini Map draw from the same one.
+ */
+export type MapInputs = {
   area: Area;
-  explored: boolean[];
+  /** Which tiles of `area` are Explored, row by row. */
+  explored: readonly boolean[];
+  /** Where the Hero stands, which the maps centre on. */
   heroAt: Vec;
   /** Where the Hero's Minions stand. */
   minions: Vec[];
@@ -74,17 +80,14 @@ export type MapMarksOf = {
 };
 
 /**
- * The marks of `area` for a Hero standing at `heroAt`: a wall edge on each
- * side of a walkable tile that meets a wall, a floor edge on each that meets
- * void or the Area's end; only of tiles that are Explored. Exits, the Town
- * Portal and NPCs are marked only where Explored too; the Hero and the
- * Minions always. Never Monsters, Corpses, Ground Items or Projectiles.
+ * The marks of `area`: a wall edge on each side of a walkable tile that
+ * meets a wall, a floor edge on each that meets void or the Area's end; only
+ * of tiles that are Explored. Exits, the Town Portal and NPCs are marked
+ * only where Explored too; the Minions always. Never Monsters, Corpses,
+ * Ground Items or Projectiles.
  */
-export function mapMarks(of: MapMarksOf): MapMarks {
-  const { area, explored, heroAt } = of;
-  const { width, height } = area;
-  const at = (cells: boolean[], x: number, y: number) =>
-    x >= 0 && y >= 0 && x < width && y < height && cells[y * width + x];
+export function mapMarks(inputs: MapInputs): MapMarks {
+  const { area, explored } = inputs;
   const edges: MapEdge[] = [];
   // Each side of a tile: its two corners, and the neighbour across it.
   const sides = [
@@ -93,40 +96,39 @@ export function mapMarks(of: MapMarksOf): MapMarks {
     { from: [1, 1], to: [0, 1], across: [0, 1] },
     { from: [0, 1], to: [0, 0], across: [-1, 0] },
   ];
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      if (!at(area.walkable, x, y) || !explored[y * width + x]) continue;
+  for (let y = 0; y < area.height; y++) {
+    for (let x = 0; x < area.width; x++) {
+      const tile = { x, y };
+      if (!cellAt(area, area.walkable, tile) || !cellAt(area, explored, tile)) {
+        continue;
+      }
       for (const side of sides) {
-        const [ax, ay] = [x + side.across[0], y + side.across[1]];
-        if (at(area.walkable, ax, ay)) continue;
+        const across = { x: x + side.across[0], y: y + side.across[1] };
+        if (cellAt(area, area.walkable, across)) continue;
         edges.push({
           from: { x: x + side.from[0], y: y + side.from[1] },
           to: { x: x + side.to[0], y: y + side.to[1] },
-          kind: at(area.floor, ax, ay) ? "wall" : "floor",
+          kind: cellAt(area, area.floor, across) ? "wall" : "floor",
         });
       }
     }
   }
-  const seen = (at: Vec) => {
-    const tile = tileOf(at);
-    return at.x >= 0 && at.y >= 0 && at.x < width && at.y < height
-      ? explored[tile.y * width + tile.x]
-      : false;
-  };
+  const isExplored = (point: Vec) => cellAt(area, explored, point);
   return {
     edges,
-    hero: { ...heroAt },
-    minions: of.minions.map((at) => ({ ...at })),
+    minions: inputs.minions.map((minion) => ({ ...minion })),
     exits: area.exits
       .map((exit) => ({
         at: { x: exit.x + exit.width / 2, y: exit.y + exit.height / 2 },
-        name: of.displayNames[exit.area],
+        name: inputs.displayNames[exit.area],
       }))
-      .filter(({ at }) => seen(at)),
+      .filter((exit) => isExplored(exit.at)),
     townPortal:
-      of.townPortal && seen(of.townPortal) ? { ...of.townPortal } : null,
+      inputs.townPortal && isExplored(inputs.townPortal)
+        ? { ...inputs.townPortal }
+        : null,
     npcs: area.npcs
-      .filter((npc) => seen(npc.pos))
+      .filter((npc) => isExplored(npc.pos))
       .map((npc) => ({ at: { ...npc.pos }, name: npc.name })),
   };
 }
@@ -138,16 +140,21 @@ export function mapMarks(of: MapMarksOf): MapMarks {
  */
 export function mapAreaNameLayout(screen: Viewport): { at: Vec; size: number } {
   const { margin, size } = MAP_LOOK.areaName;
-  const right = screen.compact
-    ? panelButtonsLayout(screen).buttons.hero.x
-    : screen.width;
   return {
     at: {
-      x: right - margin * screen.uiScale,
+      x: topRightEdge(screen) - margin * screen.uiScale,
       y: margin * screen.uiScale,
     },
     size: size * screen.uiScale,
   };
+}
+
+/**
+ * How much of the World's size a tile takes on the Map Overlay: the World is
+ * drawn at the World zoom, so the overlay follows it.
+ */
+export function mapOverlayScale(screen: Viewport): number {
+  return MAP_OVERLAY.scale * screen.worldZoom;
 }
 
 /**

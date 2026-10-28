@@ -23,6 +23,7 @@ import { townPortalTuning } from "../tuning/townPortal";
 import { townPortalLook } from "../tuning/townPortalLook";
 import {
   type Area,
+  cellAt,
   exitAt,
   isWalkable,
   loadArea,
@@ -1175,11 +1176,7 @@ function walkedInto(hero: Hero, end: Vec): boolean {
 
 /** Whether `tile` of the active Area is Explored. */
 export function isExplored(world: World, tile: Vec): boolean {
-  const { width, height } = world.areas[world.areaName];
-  const { x, y } = tile;
-  return x >= 0 && y >= 0 && x < width && y < height
-    ? world.explored[y * width + x]
-    : false;
+  return cellAt(world.areas[world.areaName], world.explored, tile);
 }
 
 /**

@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { Area } from "../sim/area";
-import type { Viewport } from "../viewport";
+import { type Viewport, viewportOf } from "../viewport";
 import {
   MAP_OVERLAY,
-  type MapMarksOf,
+  type MapInputs,
   mapAreaNameLayout,
   mapOffset,
+  mapOverlayScale,
   mapMarks as marksOf,
 } from "./mapMarks";
 
@@ -36,7 +37,7 @@ const NAMES = { town: "Town", catacombs: "Catacombs" };
 
 /** The marks of an Area with nothing but its shape, unless said otherwise. */
 function mapMarks(
-  of: Pick<MapMarksOf, "area" | "explored" | "heroAt"> & Partial<MapMarksOf>,
+  of: Pick<MapInputs, "area" | "explored" | "heroAt"> & Partial<MapInputs>,
 ) {
   return marksOf({
     minions: [],
@@ -117,18 +118,6 @@ describe("mapMarks", () => {
     expect(edges.every((edge) => edge.to.x <= 1 && edge.from.x <= 1)).toBe(
       true,
     );
-  });
-
-  it("marks the Hero where they stand", () => {
-    const area = areaOf(["..", ".."]);
-
-    expect(
-      mapMarks({ area, explored: all(area), heroAt: { x: 0.25, y: 1.75 } })
-        .hero,
-    ).toEqual({
-      x: 0.25,
-      y: 1.75,
-    });
   });
 });
 
@@ -221,7 +210,6 @@ describe("mapMarks of what stands on the Area", () => {
     expect(Object.keys(marks).sort()).toEqual([
       "edges",
       "exits",
-      "hero",
       "minions",
       "npcs",
       "townPortal",
@@ -256,5 +244,14 @@ describe("mapOffset", () => {
     expect(east.y).toBeCloseTo(48 * MAP_OVERLAY.scale);
     expect(south.x).toBeCloseTo(-96 * MAP_OVERLAY.scale);
     expect(south.y).toBeCloseTo(48 * MAP_OVERLAY.scale);
+  });
+});
+
+describe("mapOverlayScale", () => {
+  it("takes the tile's share of the World at the World zoom", () => {
+    const screen = viewportOf({ width: 1920, height: 1080 });
+
+    expect(screen.worldZoom).toBe(1.5);
+    expect(mapOverlayScale(screen)).toBe(MAP_OVERLAY.scale * 1.5);
   });
 });

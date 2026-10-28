@@ -2,14 +2,15 @@ import { anyPanelOpen, type Menus } from "../menus";
 import { inside, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
 import { atUiScale, type Viewport } from "../viewport";
-import { panelButtonsLayout } from "./panelButtons";
+import { topRightEdge } from "./panelButtons";
 import { tooltipRect } from "./tooltip";
 
 /**
  * How the Mini Map is drawn (CSS px at native scale, drawn at the UI Scale):
  * `size` square, `margin` from the screen's top right, in a flat bronze
  * frame `frame` thick with gold studs `stud` across at its corners, over a
- * dark fill. The map shows through at `opacity`, at `scale` of the World.
+ * dark fill. The map shows through at `opacity`, and a tile takes `scale` of
+ * the World's size at the UI Scale.
  */
 export const MINI_MAP = {
   size: 176,
@@ -35,10 +36,21 @@ export function miniMapLayout(screen: Viewport): Rect {
   const scaled = atUiScale(MINI_MAP, screen.uiScale);
   const { margin } = scaled;
   const size = screen.compact ? scaled.compactSize : scaled.size;
-  const right = screen.compact
-    ? panelButtonsLayout(screen).buttons.hero.x
-    : screen.width;
-  return { x: right - margin - size, y: margin, w: size, h: size };
+  return {
+    x: topRightEdge(screen) - margin - size,
+    y: margin,
+    w: size,
+    h: size,
+  };
+}
+
+/**
+ * How much of the World's size a tile takes on the Mini Map: its frame grows
+ * with the UI Scale, so the map in it does too, to read the same on any
+ * screen.
+ */
+export function miniMapScale(screen: Viewport): number {
+  return MINI_MAP.scale * screen.uiScale;
 }
 
 /**

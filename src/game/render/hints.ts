@@ -72,10 +72,10 @@ export function townPortalTooltip(way: InputWay): string {
 
 /**
  * The Mini Map's tooltip with `way`: the Map Overlay's name with its key or
- * controller button, or bare for touch, which taps the Mini Map.
+ * controller button, or empty for touch, which has no hover to show it on.
  */
 export function mapTooltip(way: InputWay): string {
-  if (way === "touch") return "Map";
+  if (way === "touch") return "";
   return `Map (${way === "controller" ? PAD_BUTTON_NAMES.lt : MAP_KEY})`;
 }
 

@@ -17,6 +17,7 @@ import {
   removePendingPoint,
   tapMapOverlay,
   tapRotateNotice,
+  toggleMap,
   unplacedPoints,
 } from "./menus";
 import { gameTime, togglePause } from "./pause";
@@ -569,6 +570,25 @@ describe("a click on the Mini Map", () => {
     menus.rotateNotice = true;
 
     clickMiniMap(menus, alive);
+
+    expect(menus.mapOpen).toBe(false);
+  });
+});
+
+describe("toggling the Map Overlay", () => {
+  it("opens and shuts it while the Hero lives", () => {
+    const menus = createMenus();
+
+    toggleMap(menus, alive);
+    expect(menus.mapOpen).toBe(true);
+    toggleMap(menus, alive);
+    expect(menus.mapOpen).toBe(false);
+  });
+
+  it("does nothing while the Hero lies dead", () => {
+    const menus = createMenus();
+
+    toggleMap(menus, dead);
 
     expect(menus.mapOpen).toBe(false);
   });

@@ -137,8 +137,15 @@ export function isWalkable(area: Area, point: Vec): boolean {
   return cellAt(area, area.walkable, point);
 }
 
-/** A row-major grid's value at a point; false outside the Area. */
-function cellAt(area: Area, grid: boolean[], point: Vec): boolean {
+/**
+ * A row-major grid's value (`floor`, `walkable`, the World's `explored`) at a
+ * point in tile units; false outside the Area.
+ */
+export function cellAt(
+  area: Pick<Area, "width" | "height">,
+  grid: readonly boolean[],
+  point: Vec,
+): boolean {
   const { x, y } = tileOf(point);
   if (x < 0 || y < 0 || x >= area.width || y >= area.height) return false;
   return grid[y * area.width + x];

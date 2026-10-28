@@ -119,16 +119,19 @@ export function menuChoices(
   return fullscreen.available ? ["newHero", "fullscreen"] : ["newHero"];
 }
 
+/** The key that opens and shuts the Map Overlay, as `pressKey` reads it. */
+export const MAP_KEY = "Tab";
+
 /**
  * A key pressed at real time `nowMs`, by `KeyboardEvent.key`. Esc opens and
  * closes the pause menu, and C the Hero panel, I the Inventory panel and T
  * the Skill Tree panel while the game runs; while `hero` lies dead, C, I and
- * T are taken but open nothing. Tab opens and closes the Map Overlay, and
- * does nothing either while the Hero lies dead. While the Rotate Notice shows, every key
- * is taken and does nothing. In the menu, N asks to confirm a New Hero, and then Y confirms it while N or Esc
- * goes back. Returns `"newHero"` once confirmed, for the caller to start
- * one, `"handled"` for any other key the menus took, and null for a key
- * they leave to the game.
+ * T are taken but open nothing. Tab opens and closes the Map Overlay, but not
+ * while `hero` lies dead. While the Rotate Notice shows, every key is taken
+ * and does nothing. In the menu, N asks to confirm a New Hero, and then Y
+ * confirms it while N or Esc goes back. Returns `"newHero"` once confirmed,
+ * for the caller to start one, `"handled"` for any other key the menus took,
+ * and null for a key they leave to the game.
  */
 export function pressKey(
   menus: Menus,
@@ -154,7 +157,7 @@ export function pressKey(
     return "handled";
   }
   if (key === MAP_KEY) {
-    if (!hero.heroDead) menus.mapOpen = !menus.mapOpen;
+    toggleMap(menus, hero);
     return "handled";
   }
   const panel = panelOfKey(letter);
@@ -164,9 +167,6 @@ export function pressKey(
   }
   return null;
 }
-
-/** The key that opens and shuts the Map Overlay, as `pressKey` reads it. */
-export const MAP_KEY = "Tab";
 
 /**
  * The key that opens and shuts each panel, as `pressKey` reads it: lower
@@ -203,6 +203,11 @@ export function panelOpen(menus: OpenPanels, panel: Panel): boolean {
 /** Whether any panel is open. */
 export function anyPanelOpen(menus: OpenPanels): boolean {
   return PANELS.some((panel) => panelOpen(menus, panel));
+}
+
+/** Opens the Map Overlay or shuts it, as Tab and LT do: not while `hero` lies dead. */
+export function toggleMap(menus: Menus, hero: HeroState) {
+  if (!hero.heroDead) menus.mapOpen = !menus.mapOpen;
 }
 
 /**
@@ -454,8 +459,8 @@ export function tapRotateNotice(
  * D-pad (or the stick) moves between its buttons, A presses the one picked,
  * and Menu or B goes back from confirming a New Hero, as Esc does, or
  * resumes. While the game runs, View opens and shuts the Inventory panel,
- * LT opens and shuts the Map Overlay (as Tab does, and not during Death,
- * with or without a panel open), and with a panel open, LB and RB move to the panel before or after it (in
+ * LT the Map Overlay (not during Death, with a panel open or not), and
+ * with a panel open, LB and RB move to the panel before or after it (in
  * Panel-button order, round from the last to the first), shutting it as
  * its key would, and B shuts it. While the Rotate Notice shows, every
  * button is taken and does nothing. Returns as `pressKey` does, or
@@ -480,7 +485,7 @@ export function pressPad(
     return "handled";
   }
   if (button === "lt") {
-    if (!hero.heroDead) menus.mapOpen = !menus.mapOpen;
+    toggleMap(menus, hero);
     return "handled";
   }
   const panel = currentPanel(menus);

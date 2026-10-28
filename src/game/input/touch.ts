@@ -191,6 +191,53 @@ export function attachTouch(
   }
 }
 
+/**
+ * A touch on `canvas` where `closes` says (CSS px) calls `close` as it comes
+ * down and is that alone: the rest of it never reaches the touch controls or
+ * the pointer. On the window as it captures, so call it before `attachTouch`
+ * to see a touch first. Untested glue, like `attachTouch`.
+ */
+export function attachTapToClose(
+  canvas: HTMLCanvasElement,
+  closes: (at: Vec) => boolean,
+  close: () => void,
+  signal: AbortSignal,
+) {
+  /** The pointer ids taken, whose later events are ours too. */
+  const taken = new Set<number>();
+  window.addEventListener(
+    "pointerdown",
+    (e) => {
+      taken.delete(e.pointerId);
+      if (e.target !== canvas || e.pointerType !== "touch") return;
+      if (!closes({ x: e.offsetX, y: e.offsetY })) return;
+      close();
+      taken.add(e.pointerId);
+      e.stopImmediatePropagation();
+    },
+    { capture: true, signal },
+  );
+  for (const type of [
+    "pointermove",
+    "pointerup",
+    "pointercancel",
+    "lostpointercapture",
+    "pointerleave",
+  ] as const) {
+    window.addEventListener(
+      type,
+      (e) => {
+        if (!taken.has(e.pointerId)) return;
+        e.stopImmediatePropagation();
+        if (type === "pointerup" || type === "pointercancel") {
+          taken.delete(e.pointerId);
+        }
+      },
+      { capture: true, signal },
+    );
+  }
+}
+
 /** Whether `at` is on a touch button: the pause, attack or a Skill button. */
 export function touchOnButton(layout: TouchControlsLayout, at: Vec): boolean {
   return buttonAt(layout, at) !== null;

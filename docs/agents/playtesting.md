@@ -57,12 +57,12 @@ window.__wiablo.state();
 //   area: "catacombs",
 //   hero: {
 //     pos: { x: 12.4, y: 30.1 }, facing: 0.79, life: 182, maxLife: 220,
-//     mana: 34, maxMana: 95, boneWard: { left: 12, full: 40 }, experience: 2310,
+//     mana: 34, maxMana: 95, boneWard: { left: 30, full: 45 }, experience: 2310,
 //   },
 //   target: 41,
 //   monsters: [{ id: 41, type: "skeleton", pos: { x: 14.2, y: 30.6 }, life: 9 }, …],
 //   corpses: [{ id: 38, type: "zombie", monsterLevel: 4, pos: { x: 11.8, y: 28.3 } }, …],
-//   minions: [{ id: 2, type: "golem", skill: "golem", pos: { x: 11.6, y: 30.4 }, life: 60, maxLife: 80 }, …],
+//   minions: [{ id: 2, type: "golem", skill: "golem", pos: { x: 11.6, y: 30.4 }, life: 150, maxLife: 180 }, …],
 // }
 ```
 

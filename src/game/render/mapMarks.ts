@@ -2,6 +2,7 @@ import { toScreen } from "../iso";
 import type { Area } from "../sim/area";
 import { tileOf, type Vec } from "../sim/vec";
 import type { Viewport } from "../viewport";
+import { panelButtonsLayout } from "./panelButtons";
 
 /**
  * How the Map Overlay is drawn (CSS px, whatever the UI Scale): `scale` is
@@ -131,14 +132,18 @@ export function mapMarks(of: MapMarksOf): MapMarks {
 }
 
 /**
- * Where the Map Overlay's Area name is drawn: its top right corner, and how
- * big the text is, at the UI Scale.
+ * Where the Map Overlay's Area name is drawn: its top right corner, left of
+ * the Panel buttons' column in the Compact Layout, and how big the text is,
+ * at the UI Scale.
  */
 export function mapAreaNameLayout(screen: Viewport): { at: Vec; size: number } {
   const { margin, size } = MAP_LOOK.areaName;
+  const right = screen.compact
+    ? panelButtonsLayout(screen).buttons.hero.x
+    : screen.width;
   return {
     at: {
-      x: screen.width - margin * screen.uiScale,
+      x: right - margin * screen.uiScale,
       y: margin * screen.uiScale,
     },
     size: size * screen.uiScale,

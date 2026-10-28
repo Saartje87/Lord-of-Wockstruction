@@ -6,7 +6,7 @@ import {
   type PadButton,
   TOWN_PORTAL_PAD_BUTTON,
 } from "../input/pad";
-import { type MenuChoice, PANEL_KEYS, type Panel } from "../menus";
+import { MAP_KEY, type MenuChoice, PANEL_KEYS, type Panel } from "../menus";
 import { beltColumnKey } from "../sim/belt";
 import { type SkillBarSlot, slotKey } from "../sim/skillBar";
 import type { SkillSheet } from "./skillTreePanel";
@@ -68,6 +68,15 @@ export function townPortalTooltip(way: InputWay): string {
       ? PAD_BUTTON_NAMES[TOWN_PORTAL_PAD_BUTTON]
       : TOWN_PORTAL_KEY.toUpperCase();
   return `Town Portal (${button})`;
+}
+
+/**
+ * The Mini Map's tooltip with `way`: the Map Overlay's name with its key or
+ * controller button, or bare for touch, which taps the Mini Map.
+ */
+export function mapTooltip(way: InputWay): string {
+  if (way === "touch") return "Map";
+  return `Map (${way === "controller" ? PAD_BUTTON_NAMES.lt : MAP_KEY})`;
 }
 
 /** How to go on from the Hero's Death back to Town with `way`. */

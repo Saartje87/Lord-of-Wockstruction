@@ -118,7 +118,13 @@ import {
   heroSheet,
   PANEL_ROWS,
 } from "./heroPanel";
-import { deathHint, panelCloseHint, resumeHint, skillTooltip } from "./hints";
+import {
+  deathHint,
+  mapTooltip,
+  panelCloseHint,
+  resumeHint,
+  skillTooltip,
+} from "./hints";
 import {
   type CharacterId,
   characterUnder,
@@ -145,6 +151,12 @@ import {
   mapMarks,
   mapOffset,
 } from "./mapMarks";
+import {
+  MINI_MAP,
+  miniMapLayout,
+  miniMapShown,
+  miniMapTooltipRect,
+} from "./miniMap";
 import {
   heroHitShows,
   type Orb,
@@ -710,6 +722,8 @@ export function createRenderer(
   app.stage.addChild(beltStrip.layer);
   const panelButtons = panelButtonsView(activeInput);
   app.stage.addChild(panelButtons.layer);
+  const miniMap = miniMapView(activeInput);
+  app.stage.addChild(miniMap.layer);
   const experience = experienceBarView();
   app.stage.addChild(experience.layer);
   const levelUp = levelUpButtonView();
@@ -727,6 +741,7 @@ export function createRenderer(
   app.stage.addChild(focusRing);
   // Over the panels, so a hovered Panel button's tooltip is never hidden.
   app.stage.addChild(panelButtons.tooltipLayer);
+  app.stage.addChild(miniMap.tooltipLayer);
   app.stage.addChild(inventoryPanel.heldLayer);
   const heldSkillView = createHeldSkillView();
   app.stage.addChild(heldSkillView.layer);
@@ -818,6 +833,7 @@ export function createRenderer(
   let drawnWorld: World | null = null;
   /** Which panels were open, and the Pending Attribute Points, when last drawn. */
   let shownPanels: ShownPanels = {
+    mapOpen: false,
     heroPanelOpen: false,
     inventoryOpen: false,
     skillTreeOpen: false,
@@ -1142,6 +1158,7 @@ export function createRenderer(
       const viewport = viewportOf(app.screen);
       const { uiScale } = viewport;
       shownPanels = {
+        mapOpen: menus.mapOpen,
         heroPanelOpen: menus.heroPanelOpen,
         inventoryOpen: menus.inventoryOpen,
         skillTreeOpen: menus.skillTreeOpen,
@@ -1575,6 +1592,19 @@ export function createRenderer(
         menus,
         { heroDead: world.death !== null, inTown: inTown(world) },
         hoveredPanelButton(onPanel),
+      );
+      miniMap.draw(
+        viewport,
+        active,
+        world.explored,
+        heroAt,
+        miniMapShown(menus, world.death !== null),
+        onPanel !== null &&
+          "button" in onPanel &&
+          onPanel.button?.type === "miniMap",
+        world.minions.map((minion) => lerp(minion.prevPos, minion.pos, alpha)),
+        townPortalIn(world),
+        areaDisplayNames,
       );
       experience.draw(viewport, world);
       levelUp.draw(viewport, world, nowMs);
@@ -2586,25 +2616,20 @@ function createHeldSkillView() {
 }
 
 /**
- * The Map Overlay: the Area's wall and floor lines and the Hero's mark, see
- * through, at a fixed scale and the World's isometric angle, centred on the
- * Hero. The lines are drawn again whenever more of the Area is Explored, and
- * moved as the Hero walks.
+ * What the Map Overlay and the Mini Map draw: the Area's wall and floor
+ * lines and its marks, at `scale` and the World's isometric angle, centred
+ * on a point of the screen with the Hero's mark on it, the Exits' and NPCs'
+ * names too but when `names` is off. The lines are drawn again whenever more
+ * of the Area is Explored, and moved as the Hero walks.
  */
-function mapOverlayView() {
+function mapView(scale: number, withNames: boolean) {
   const layer = new Container();
-  layer.alpha = MAP_OVERLAY.opacity;
-  layer.visible = false;
   const lines = new Graphics();
   const marks = new Graphics();
   const heroMark = new Graphics();
   const names = new Container();
-  const areaName = new Text({
-    text: "",
-    style: { fill: MAP_LOOK.areaName.colour, fontFamily: SERIF },
-  });
-  areaName.anchor.set(1, 0);
-  layer.addChild(lines, marks, heroMark, names, areaName);
+  names.visible = withNames;
+  layer.addChild(lines, marks, heroMark, names);
   let drawn: { area: Area; seen: number } | null = null;
   /** The names in use, grown as needed: Exits' and NPCs'. */
   const nameTexts: Text[] = [];
@@ -2619,18 +2644,14 @@ function mapOverlayView() {
   return {
     layer,
     draw(
-      screen: Viewport,
+      centre: Vec,
       area: Area,
       explored: boolean[],
       heroAt: Vec,
-      open: boolean,
       minions: Vec[],
       townPortal: Vec | null,
       displayNames: Readonly<Record<string, string>>,
     ) {
-      layer.visible = open;
-      if (!open) return;
-      const scale = MAP_OVERLAY.scale;
       const found = mapMarks({
         area,
         explored,
@@ -2656,7 +2677,6 @@ function mapOverlayView() {
           lines.stroke({ color: look.colour, width: look.width });
         }
       }
-      const centre = { x: screen.width / 2, y: screen.height / 2 };
       const shift = mapOffset(heroAt, { x: 0, y: 0 }, scale);
       lines.position.set(centre.x - shift.x, centre.y - shift.y);
       /** Where a point of the Area is on screen. */
@@ -2697,7 +2717,7 @@ function mapOverlayView() {
 
       // Names: the Exits' above their diamonds, the NPCs' on the NPC.
       let used = 0;
-      for (const { at, name } of found.exits) {
+      for (const { at, name } of withNames ? found.exits : []) {
         const text = nameText(used++);
         text.text = name;
         text.style.fill = exit.nameColour;
@@ -2708,7 +2728,7 @@ function mapOverlayView() {
         text.position.set(p.x, p.y - exit.height / 2 - exit.nameGap);
         text.visible = true;
       }
-      for (const { at, name } of found.npcs) {
+      for (const { at, name } of withNames ? found.npcs : []) {
         const text = nameText(used++);
         text.text = name;
         text.style.fill = MAP_LOOK.npc.nameColour;
@@ -2730,11 +2750,149 @@ function mapOverlayView() {
         .moveTo(centre.x, centre.y - size / 2)
         .lineTo(centre.x, centre.y + size / 2)
         .stroke({ color: colour, width });
+    },
+  };
+}
 
+/**
+ * The Map Overlay: the whole screen's map, see through, at a fixed scale
+ * centred on the Hero, with the Area's display name at the top right.
+ */
+function mapOverlayView() {
+  const map = mapView(MAP_OVERLAY.scale, true);
+  const layer = new Container();
+  layer.alpha = MAP_OVERLAY.opacity;
+  layer.visible = false;
+  const areaName = new Text({
+    text: "",
+    style: { fill: MAP_LOOK.areaName.colour, fontFamily: SERIF },
+  });
+  areaName.anchor.set(1, 0);
+  layer.addChild(map.layer, areaName);
+
+  return {
+    layer,
+    draw(
+      screen: Viewport,
+      area: Area,
+      explored: boolean[],
+      heroAt: Vec,
+      open: boolean,
+      minions: Vec[],
+      townPortal: Vec | null,
+      displayNames: Readonly<Record<string, string>>,
+    ) {
+      layer.visible = open;
+      if (!open) return;
+      const centre = { x: screen.width / 2, y: screen.height / 2 };
+      map.draw(
+        centre,
+        area,
+        explored,
+        heroAt,
+        minions,
+        townPortal,
+        displayNames,
+      );
       const label = mapAreaNameLayout(screen);
       areaName.text = displayNames[area.name] ?? area.name;
       sizeText(areaName, label.size);
       areaName.position.set(label.at.x, label.at.y);
+    },
+  };
+}
+
+/**
+ * The Mini Map at the top right: the map, without names, clipped to a
+ * bronze-framed square with gold studs at its corners over a dark fill,
+ * hidden unless `shown`. While hovered it shows its tooltip, naming how
+ * `activeInput` opens the Map Overlay, on `tooltipLayer`.
+ */
+function miniMapView(activeInput: Readonly<ActiveInput>) {
+  const look = MINI_MAP;
+  const layer = new Container();
+  layer.visible = false;
+  const back = new Graphics();
+  const map = mapView(look.scale, false);
+  map.layer.alpha = look.opacity;
+  const clip = new Graphics();
+  map.layer.mask = clip;
+  const frame = new Graphics();
+  layer.addChild(back, map.layer, clip, frame);
+  const tooltipLayer = new Container();
+  const tooltipBox = new Graphics();
+  const tooltipText = new Text({
+    text: "",
+    style: {
+      fill: INVENTORY_STYLE.tooltipName,
+      fontSize: INVENTORY_STYLE.tooltipSize,
+      fontFamily: SERIF,
+    },
+  });
+  tooltipText.anchor.set(0.5, 0);
+  tooltipLayer.addChild(tooltipBox, tooltipText);
+
+  return {
+    layer,
+    tooltipLayer,
+    draw(
+      screen: Viewport,
+      area: Area,
+      explored: boolean[],
+      heroAt: Vec,
+      shown: boolean,
+      hovered: boolean,
+      minions: Vec[],
+      townPortal: Vec | null,
+      displayNames: Readonly<Record<string, string>>,
+    ) {
+      layer.visible = shown;
+      tooltipBox.clear();
+      tooltipText.visible = false;
+      if (!shown) return;
+      const { x, y, w, h } = miniMapLayout(screen);
+      const { frame: thickness, stud } = atUiScale(look, screen.uiScale);
+      back.clear().rect(x, y, w, h).fill({
+        color: look.fill,
+        alpha: look.fillAlpha,
+      });
+      clip.clear().rect(x, y, w, h).fill(0xffffff);
+      map.draw(
+        { x: x + w / 2, y: y + h / 2 },
+        area,
+        explored,
+        heroAt,
+        minions,
+        townPortal,
+        displayNames,
+      );
+      frame
+        .clear()
+        .rect(
+          x + thickness / 2,
+          y + thickness / 2,
+          w - thickness,
+          h - thickness,
+        )
+        .stroke({ color: look.frameColour, width: thickness });
+      for (const corner of [
+        { x, y },
+        { x: x + w, y },
+        { x, y: y + h },
+        { x: x + w, y: y + h },
+      ]) {
+        frame
+          .rect(corner.x - stud / 2, corner.y - stud / 2, stud, stud)
+          .fill(look.studColour);
+      }
+      if (hovered) {
+        tooltipText.text = mapTooltip(activeInput.way);
+        tooltipText.visible = true;
+        sizeText(tooltipText, INVENTORY_STYLE.tooltipSize * screen.uiScale);
+        drawTooltip(tooltipBox, [tooltipText], screen, (size, gap) =>
+          miniMapTooltipRect(screen, size, gap),
+        );
+      }
     },
   };
 }

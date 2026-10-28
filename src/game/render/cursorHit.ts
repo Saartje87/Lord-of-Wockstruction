@@ -23,6 +23,7 @@ import {
   PANEL_ROWS,
 } from "./heroPanel";
 import { inventoryHitAt, inventoryPanelLayout } from "./inventoryPanel";
+import { miniMapHitAt, miniMapShown } from "./miniMap";
 import { panelButtonHitAt, panelButtonsLayout } from "./panelButtons";
 import { skillBarHitAt, skillBarLayout } from "./skillBar";
 import { skillTreeHitAt, skillTreePanelLayout } from "./skillTreePanel";
@@ -30,7 +31,7 @@ import { touchControlsLayout } from "./touchControls";
 import { touchHitRect } from "./touchHitArea";
 
 /** The panels as drawn: which are open, and the Hero panel's Pending Attribute Points. */
-export type ShownPanels = OpenPanels & Pick<Menus, "pendingPoints">;
+export type ShownPanels = OpenPanels & Pick<Menus, "pendingPoints" | "mapOpen">;
 
 /**
  * What a point on the screen hits of the panels and the HUD, or null when
@@ -69,6 +70,10 @@ export function cursorHitAt(
     levelUpHitAt(screen, point, world) ??
     skillBarHitAt(screen, point) ??
     beltStripHitAt(screen, point) ??
+    // Not by touch yet: the pause button shares its corner.
+    (!touch && miniMapShown(shown, world.death !== null)
+      ? miniMapHitAt(screen, point)
+      : null) ??
     panelButtonHitAt(screen, point) ??
     inventoryHitAt(screen, point, inventoryOpen, holding, rows)
   );

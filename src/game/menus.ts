@@ -206,6 +206,15 @@ export function anyPanelOpen(menus: OpenPanels): boolean {
 }
 
 /**
+ * A click on the Mini Map, which opens the Map Overlay: nothing while `hero`
+ * lies dead, nor under the Rotate Notice.
+ */
+export function clickMiniMap(menus: Menus, hero: HeroState) {
+  if (hero.heroDead || menus.rotateNotice) return;
+  menus.mapOpen = true;
+}
+
+/**
  * A click on a Panel button, which opens or shuts its panel just as its key
  * (C, I or T) does: nothing while `hero` lies dead.
  */

@@ -9,6 +9,7 @@ import {
   itemUnder,
   putDownOrder,
 } from "./render/inventoryPanel";
+import type { MiniMapHit } from "./render/miniMap";
 import type { PanelButtonHit } from "./render/panelButtons";
 import type { SkillBarHit } from "./render/skillBar";
 import type { SkillTreeHit } from "./render/skillTreePanel";
@@ -51,6 +52,7 @@ export type CursorHit =
   | SkillBarHit
   | BeltStripHit
   | PanelButtonHit
+  | MiniMapHit
   | InventoryHit
   | InventoryCloseHit
   | DropHit;

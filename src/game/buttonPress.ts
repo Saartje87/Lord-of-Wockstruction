@@ -4,6 +4,7 @@ import {
   addPendingPoint,
   clickClose,
   clickLevelUp,
+  clickMiniMap,
   clickPanelButton,
   type Menus,
   removePendingPoint,
@@ -23,7 +24,8 @@ export type PressedButton = Extract<CursorHit, { button: unknown }>["button"];
  * and Accept plan and spend Pending Attribute Points, and a panel's × or
  * Panel button shuts it as its key does (a Panel button opening it too),
  * while the game runs on, and the Town Portal button opens a Town Portal
- * as its key does, but in Town. Changes `menus` and gives the orders to send;
+ * as its key does, but in Town, and the Mini Map opens the Map Overlay.
+ * Changes `menus` and gives the orders to send;
  * other buttons, and null between them, do nothing here.
  */
 export function pressButton(
@@ -50,6 +52,9 @@ export function pressButton(
     }
     case "close":
       clickClose(menus, button.panel);
+      return [];
+    case "miniMap":
+      clickMiniMap(menus, { heroDead });
       return [];
     case "panelButton":
       clickPanelButton(menus, button.panel, { heroDead });

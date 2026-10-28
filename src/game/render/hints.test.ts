@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   beltColumnButton,
   deathHint,
+  mapTooltip,
   menuChoiceLabel,
   panelCloseHint,
   resumeHint,
@@ -48,6 +49,14 @@ describe("the hints and labels that name buttons", () => {
     ["touch", "Town Portal"],
   ] as const)("name the Town Portal button's key with %s: %j", (way, tooltip) => {
     expect(townPortalTooltip(way)).toBe(tooltip);
+  });
+
+  it.each([
+    ["mouseAndKeyboard", "Map (Tab)"],
+    ["controller", "Map (LT)"],
+    ["touch", "Map"],
+  ] as const)("name the Mini Map's way to open the Map Overlay with %s: %j", (way, tooltip) => {
+    expect(mapTooltip(way)).toBe(tooltip);
   });
 
   it.each([

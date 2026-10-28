@@ -261,6 +261,7 @@ describe("the Hero panel's Focus spots", () => {
   const leveled = () => world(undefined, { level: 2, attributePoints: 5 });
   const pending = (): PendingPoints => ({ ...noPendingPoints(), strength: 2 });
   const shown = (pendingPoints: PendingPoints) => ({
+    mapOpen: false,
     heroPanelOpen: true,
     inventoryOpen: false,
     skillTreeOpen: false,
@@ -316,6 +317,7 @@ describe("the Skill Tree panel's Focus spots", () => {
     ({ button: { type: "skillBarSlot", slot } }) as const;
   const treeClose = { button: { type: "close", panel: "skillTree" } } as const;
   const shown = {
+    mapOpen: false,
     heroPanelOpen: false,
     inventoryOpen: false,
     skillTreeOpen: true,

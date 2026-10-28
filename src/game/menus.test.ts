@@ -4,6 +4,7 @@ import {
   addPendingPoint,
   clickClose,
   clickLevelUp,
+  clickMiniMap,
   clickPanelButton,
   clickPaused,
   createMenus,
@@ -542,6 +543,33 @@ describe("a click on a panel's ×", () => {
     expect(menus.heroPanelOpen).toBe(false);
     expect(menus.inventoryOpen).toBe(false);
     expect(menus.skillTreeOpen).toBe(false);
+  });
+});
+
+describe("a click on the Mini Map", () => {
+  it("opens the Map Overlay", () => {
+    const menus = createMenus();
+
+    clickMiniMap(menus, alive);
+
+    expect(menus.mapOpen).toBe(true);
+  });
+
+  it("does nothing while the Hero lies dead, as Tab does not", () => {
+    const menus = createMenus();
+
+    clickMiniMap(menus, { heroDead: true });
+
+    expect(menus.mapOpen).toBe(false);
+  });
+
+  it("does nothing under the Rotate Notice", () => {
+    const menus = createMenus();
+    menus.rotateNotice = true;
+
+    clickMiniMap(menus, alive);
+
+    expect(menus.mapOpen).toBe(false);
   });
 });
 

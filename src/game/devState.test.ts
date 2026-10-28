@@ -23,6 +23,7 @@ describe("devStateOf", () => {
         boneWard: null,
         experience: 120,
       },
+      exploredTiles: expect.any(Number),
       target: skeleton.id,
       monsters: [
         {

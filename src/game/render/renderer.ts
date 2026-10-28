@@ -1551,7 +1551,7 @@ export function createRenderer(
         }
       }
 
-      mapOverlay.draw(viewport, active, heroAt, menus.mapOpen);
+      mapOverlay.draw(viewport, active, world.explored, heroAt, menus.mapOpen);
       orb.draw(viewport, world, nowMs);
       skillBar.draw(viewport, world, heldSkillSlot);
       beltStrip.draw(viewport, world);
@@ -2573,7 +2573,8 @@ function createHeldSkillView() {
 /**
  * The Map Overlay: the Area's wall and floor lines and the Hero's mark, see
  * through, at a fixed scale and the World's isometric angle, centred on the
- * Hero. The lines are drawn once per Area and moved as the Hero walks.
+ * Hero. The lines are drawn again whenever more of the Area is Explored, and
+ * moved as the Hero walks.
  */
 function mapOverlayView() {
   const layer = new Container();
@@ -2582,17 +2583,25 @@ function mapOverlayView() {
   const lines = new Graphics();
   const heroMark = new Graphics();
   layer.addChild(lines, heroMark);
-  let drawn: Area | null = null;
+  let drawn: { area: Area; seen: number } | null = null;
 
   return {
     layer,
-    draw(screen: Viewport, area: Area, heroAt: Vec, open: boolean) {
+    draw(
+      screen: Viewport,
+      area: Area,
+      explored: boolean[],
+      heroAt: Vec,
+      open: boolean,
+    ) {
       layer.visible = open;
       if (!open) return;
-      if (area !== drawn) {
-        drawn = area;
+      // Tiles are only ever added to what is Explored, so a count tells.
+      const seen = explored.filter(Boolean).length;
+      if (drawn?.area !== area || drawn.seen !== seen) {
+        drawn = { area, seen };
         lines.clear();
-        const { edges } = mapMarks({ area, heroAt });
+        const { edges } = mapMarks({ area, explored, heroAt });
         const origin = { x: 0, y: 0 };
         for (const kind of ["floor", "wall"] as const) {
           const look = MAP_LOOK[kind];

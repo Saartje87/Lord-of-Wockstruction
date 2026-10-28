@@ -36,10 +36,14 @@ export type MapMarks = {
 /**
  * The marks of `area` for a Hero standing at `heroAt`: a wall edge on each
  * side of a walkable tile that meets a wall, a floor edge on each that meets
- * void or the Area's end.
+ * void or the Area's end; only of tiles that are Explored.
  */
-export function mapMarks(of: { area: Area; heroAt: Vec }): MapMarks {
-  const { area, heroAt } = of;
+export function mapMarks(of: {
+  area: Area;
+  explored: boolean[];
+  heroAt: Vec;
+}): MapMarks {
+  const { area, explored, heroAt } = of;
   const { width, height } = area;
   const at = (cells: boolean[], x: number, y: number) =>
     x >= 0 && y >= 0 && x < width && y < height && cells[y * width + x];
@@ -53,7 +57,7 @@ export function mapMarks(of: { area: Area; heroAt: Vec }): MapMarks {
   ];
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      if (!at(area.walkable, x, y)) continue;
+      if (!at(area.walkable, x, y) || !explored[y * width + x]) continue;
       for (const side of sides) {
         const [ax, ay] = [x + side.across[0], y + side.across[1]];
         if (at(area.walkable, ax, ay)) continue;

@@ -59,6 +59,7 @@ window.__wiablo.state();
 //     pos: { x: 12.4, y: 30.1 }, facing: 0.79, life: 182, maxLife: 220,
 //     mana: 34, maxMana: 95, boneWard: { left: 30, full: 45 }, experience: 2310,
 //   },
+//   exploredTiles: 212,
 //   target: 41,
 //   monsters: [{ id: 41, type: "skeleton", pos: { x: 14.2, y: 30.6 }, life: 9 }, …],
 //   corpses: [{ id: 38, type: "zombie", monsterLevel: 4, pos: { x: 11.8, y: 28.3 } }, …],
@@ -67,6 +68,7 @@ window.__wiablo.state();
 ```
 
 - **`target`** is the Monster id of the Target that controller or touch auto-aim picked, the one shown highlighted, or `null` (also while paused). A Monster under the mouse pointer is highlighted too, but it isn't the Target.
+- **`exploredTiles`** is how many tiles of the active Area are Explored (all of Town from the start). It grows as the Hero walks, so compare it before and after.
 - **`boneWard`** is what's left of the Bone Ward and its full amount, or `null` while the Hero has none.
 - **`corpses`** are the Corpses in the active Area, each with the id, type and Monster Level of the Monster it was and its `pos`. Those left behind through a Town Portal don't show until the Hero is back. A Corpse-using Skill fails without one near its cast point, as it does without the Mana for its cost (`mana`).
 - **`minions`** are the Hero's living Minions, oldest first, with the `skill` that brought each one.

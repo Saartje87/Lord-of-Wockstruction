@@ -16,13 +16,18 @@ function areaOf(rows: string[]): Area {
   } as Area;
 }
 
+/** Every tile of `area` Explored. */
+function all(area: Area): boolean[] {
+  return area.floor.map(() => true);
+}
+
 const HERO = { x: 1.5, y: 1.5 };
 
 describe("mapMarks", () => {
   it("draws a wall line on each side of a floor tile that meets a wall", () => {
     const area = areaOf(["###", "#.#", "###"]);
 
-    const { edges } = mapMarks({ area, heroAt: HERO });
+    const { edges } = mapMarks({ area, explored: all(area), heroAt: HERO });
 
     expect(edges).toHaveLength(4);
     expect(edges.every((edge) => edge.kind === "wall")).toBe(true);
@@ -36,7 +41,7 @@ describe("mapMarks", () => {
   it("draws a floor line where floor meets void", () => {
     const area = areaOf(["   ", " . ", "   "]);
 
-    const { edges } = mapMarks({ area, heroAt: HERO });
+    const { edges } = mapMarks({ area, explored: all(area), heroAt: HERO });
 
     expect(edges).toHaveLength(4);
     expect(edges.every((edge) => edge.kind === "floor")).toBe(true);
@@ -45,7 +50,11 @@ describe("mapMarks", () => {
   it("draws the edge of the Area as a floor line", () => {
     const area = areaOf(["."]);
 
-    const { edges } = mapMarks({ area, heroAt: { x: 0.5, y: 0.5 } });
+    const { edges } = mapMarks({
+      area,
+      explored: all(area),
+      heroAt: { x: 0.5, y: 0.5 },
+    });
 
     expect(edges).toHaveLength(4);
     expect(edges.every((edge) => edge.kind === "floor")).toBe(true);
@@ -54,7 +63,7 @@ describe("mapMarks", () => {
   it("draws no line between two floor tiles", () => {
     const area = areaOf(["..", "  "]);
 
-    const { edges } = mapMarks({ area, heroAt: HERO });
+    const { edges } = mapMarks({ area, explored: all(area), heroAt: HERO });
 
     // Each tile's three outer sides, none on the side they share.
     expect(edges).toHaveLength(6);
@@ -66,13 +75,34 @@ describe("mapMarks", () => {
   it("draws no line round a wall with nothing walkable beside it", () => {
     const area = areaOf(["###", "###"]);
 
-    expect(mapMarks({ area, heroAt: HERO }).edges).toEqual([]);
+    expect(mapMarks({ area, explored: all(area), heroAt: HERO }).edges).toEqual(
+      [],
+    );
+  });
+
+  it("draws only the lines of Explored tiles", () => {
+    const area = areaOf(["..", "  "]);
+
+    const { edges } = mapMarks({
+      area,
+      explored: [true, false, false, false],
+      heroAt: HERO,
+    });
+
+    // The left tile's three outer sides; the right tile, unseen, has none.
+    expect(edges).toHaveLength(3);
+    expect(edges.every((edge) => edge.to.x <= 1 && edge.from.x <= 1)).toBe(
+      true,
+    );
   });
 
   it("marks the Hero where they stand", () => {
     const area = areaOf(["..", ".."]);
 
-    expect(mapMarks({ area, heroAt: { x: 0.25, y: 1.75 } }).hero).toEqual({
+    expect(
+      mapMarks({ area, explored: all(area), heroAt: { x: 0.25, y: 1.75 } })
+        .hero,
+    ).toEqual({
       x: 0.25,
       y: 1.75,
     });

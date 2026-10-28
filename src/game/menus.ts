@@ -381,11 +381,14 @@ export function acceptPendingPoints(menus: Menus): Order | null {
 
 /**
  * Follows what happened in a step of the World: the Hero's Death closes the
- * panels.
+ * panels and the Map Overlay. Exits and Town Portals leave the Map Overlay
+ * open.
  */
 export function reactMenus(menus: Menus, events: readonly SimEvent[]) {
   for (const event of events) {
-    if (event.type === "HeroDied") closePanels(menus);
+    if (event.type !== "HeroDied") continue;
+    closePanels(menus);
+    menus.mapOpen = false;
   }
 }
 
@@ -437,7 +440,8 @@ export function tapRotateNotice(
  * D-pad (or the stick) moves between its buttons, A presses the one picked,
  * and Menu or B goes back from confirming a New Hero, as Esc does, or
  * resumes. While the game runs, View opens and shuts the Inventory panel,
- * and with a panel open, LB and RB move to the panel before or after it (in
+ * LT opens and shuts the Map Overlay (as Tab does, and not during Death,
+ * with or without a panel open), and with a panel open, LB and RB move to the panel before or after it (in
  * Panel-button order, round from the last to the first), shutting it as
  * its key would, and B shuts it. While the Rotate Notice shows, every
  * button is taken and does nothing. Returns as `pressKey` does, or
@@ -459,6 +463,10 @@ export function pressPad(
   }
   if (button === "view") {
     togglePanel(menus, "inventory", hero);
+    return "handled";
+  }
+  if (button === "lt") {
+    if (!hero.heroDead) menus.mapOpen = !menus.mapOpen;
     return "handled";
   }
   const panel = currentPanel(menus);

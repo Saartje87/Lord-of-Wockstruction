@@ -15,6 +15,7 @@ import {
   pressPad,
   reactMenus,
   removePendingPoint,
+  tapMapOverlay,
   tapRotateNotice,
   unplacedPoints,
 } from "./menus";
@@ -570,6 +571,24 @@ describe("a click on the Mini Map", () => {
     clickMiniMap(menus, alive);
 
     expect(menus.mapOpen).toBe(false);
+  });
+});
+
+describe("a tap on the open Map Overlay", () => {
+  it("closes it", () => {
+    const menus = { ...createMenus(), mapOpen: true };
+
+    tapMapOverlay(menus);
+
+    expect(menus.mapOpen).toBe(false);
+  });
+
+  it("leaves the panels as they are", () => {
+    const menus = { ...createMenus(), mapOpen: true, inventoryOpen: true };
+
+    tapMapOverlay(menus);
+
+    expect(menus.inventoryOpen).toBe(true);
   });
 });
 

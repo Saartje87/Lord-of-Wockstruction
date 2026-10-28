@@ -214,6 +214,11 @@ export function clickMiniMap(menus: Menus, hero: HeroState) {
   menus.mapOpen = true;
 }
 
+/** A tap on the open Map Overlay, away from any control, which closes it. */
+export function tapMapOverlay(menus: Menus) {
+  menus.mapOpen = false;
+}
+
 /**
  * A click on a Panel button, which opens or shuts its panel just as its key
  * (C, I or T) does: nothing while `hero` lies dead.

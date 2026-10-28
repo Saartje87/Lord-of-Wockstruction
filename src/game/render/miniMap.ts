@@ -13,6 +13,7 @@ import { tooltipRect } from "./tooltip";
  */
 export const MINI_MAP = {
   size: 176,
+  compactSize: 96,
   margin: 12,
   frame: 2,
   frameColour: 0x8a6d3b,
@@ -27,10 +28,13 @@ export const MINI_MAP = {
 /**
  * Where the Mini Map is drawn: square at the screen's top right. In the
  * Compact Layout, where the Panel buttons stack down that corner, just left
- * of their column, `margin` from it.
+ * of their column, `margin` from it and only `compactSize` square, so the
+ * pause button below it clears the touch controls.
  */
 export function miniMapLayout(screen: Viewport): Rect {
-  const { size, margin } = atUiScale(MINI_MAP, screen.uiScale);
+  const scaled = atUiScale(MINI_MAP, screen.uiScale);
+  const { margin } = scaled;
+  const size = screen.compact ? scaled.compactSize : scaled.size;
   const right = screen.compact
     ? panelButtonsLayout(screen).buttons.hero.x
     : screen.width;

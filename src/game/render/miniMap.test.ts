@@ -68,6 +68,14 @@ describe("the Mini Map's layout", () => {
 
   it.each(
     COMPACT,
+  )("is only 96 px square at UI Scale 1, to leave room for the pause button below it, at $width×$height", (size) => {
+    const screen = viewportOf(size);
+
+    expect(miniMapLayout(screen).w).toBe(96 * screen.uiScale);
+  });
+
+  it.each(
+    COMPACT,
   )("leaves the Map Overlay's Area name left of the column at $width×$height", (size) => {
     const screen = viewportOf(size);
     const { buttons } = panelButtonsLayout(screen);

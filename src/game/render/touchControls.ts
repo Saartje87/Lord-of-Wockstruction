@@ -6,6 +6,7 @@ import type { Vec } from "../sim/vec";
 import { atUiScale, type Viewport } from "../viewport";
 import { heroPanelLayout } from "./heroPanel";
 import { nameplateLayout } from "./hover";
+import { miniMapLayout } from "./miniMap";
 import { orbsLayout } from "./orbs";
 import { panelButtonsLayout } from "./panelButtons";
 import { SHOWN_ORDER } from "./skillBar";
@@ -14,8 +15,8 @@ import { touchHitRect } from "./touchHitArea";
 /**
  * The touch controls (CSS px at native scale, drawn at the UI Scale): an
  * attack button `attack` wide over the Mana orb, the Skill buttons `skill`
- * wide in a row over it, a pause button `pause` wide in the top-right
- * corner, everything `gap` apart and from the screen's edges, and a Virtual
+ * wide in a row over it, a pause button `pause` wide just below the Mini
+ * Map, everything `gap` apart and from the screen's edges, and a Virtual
  * Stick that
  * reaches full push `stickReach` from where the thumb landed. The Virtual
  * Stick's zone starts `zoneTop` of the way down the screen and runs
@@ -61,8 +62,8 @@ const NO_PANEL_OPEN: OpenPanels = {
  * over the Life orb and its Level Up button, the Virtual Stick resting low
  * in it over the orb; the attack button over the Mana orb and the five
  * Skill buttons in a row over that, ending at the orb's right; the pause
- * button in the top-right corner, or in the Compact Layout, where the Panel
- * buttons stack down that corner, left of the top one. While a panel is
+ * button just below the Mini Map, right-aligned with it, which it stays
+ * under while the Map Overlay hides the Mini Map. While a panel is
  * open only the pause button shows, moved clear of the panels and their ×:
  * at the top centre under the nameplate, between the panels on the left and
  * those on the right, or in the Compact Layout below the Town Portal button
@@ -97,12 +98,16 @@ export function touchControlsLayout(
   const rowY = attackRect.y - gap - skill;
   const rowLeft = right - SHOWN_ORDER.length * (skill + gap) + gap;
   const { buttons, townPortal } = panelButtonsLayout(screen);
-  const cornerRight = screen.compact
-    ? buttons[PANELS[0]].x - gap
-    : screen.width - gap;
   const pauseOnly = anyPanelOpen(open);
   const nameplate = nameplateLayout(screen).panel;
-  let pauseRect = { x: cornerRight - pause, y: gap, w: pause, h: pause };
+  // Just below the Mini Map, even while the Map Overlay hides it.
+  const miniMap = miniMapLayout(screen);
+  let pauseRect = {
+    x: miniMap.x + miniMap.w - pause,
+    y: miniMap.y + miniMap.h + gap,
+    w: pause,
+    h: pause,
+  };
   if (pauseOnly) {
     // The bottom row has no room after the Town Portal button on a 4:3
     // screen, so it goes up top unless the column leaves room below.
@@ -127,6 +132,7 @@ export function touchControlsLayout(
   const neighbours = [
     ...Object.values(buttons),
     townPortal,
+    ...(pauseOnly ? [] : [miniMap]),
     ...(pauseOnly ? [] : [attackRect, ...Object.values(skillRects)]),
   ];
   return {

@@ -88,6 +88,17 @@ describe("a press on the Mini Map", () => {
     ).toEqual({ button: { type: "miniMap" } });
   });
 
+  it("hits the Mini Map by touch too, and the pause button below it stays the pause button's", () => {
+    const { pause } = touchControlsLayout(screen);
+
+    expect(
+      cursorHitAt(screen, inMiniMap, world("sash"), createMenus(), true),
+    ).toEqual({ button: { type: "miniMap" } });
+    expect(
+      cursorHitAt(screen, middleOf(pause), world("sash"), createMenus(), true),
+    ).toBeNull();
+  });
+
   it("is for the World while the Map Overlay is open, and during Death", () => {
     const open = { ...createMenus(), mapOpen: true };
     const dead = world("sash");

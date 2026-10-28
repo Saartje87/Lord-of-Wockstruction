@@ -23,7 +23,7 @@ import {
   PANEL_ROWS,
 } from "./heroPanel";
 import { inventoryHitAt, inventoryPanelLayout } from "./inventoryPanel";
-import { miniMapHitAt, miniMapShown } from "./miniMap";
+import { miniMapHitAt, miniMapLayout, miniMapShown } from "./miniMap";
 import { panelButtonHitAt, panelButtonsLayout } from "./panelButtons";
 import { skillBarHitAt, skillBarLayout } from "./skillBar";
 import { skillTreeHitAt, skillTreePanelLayout } from "./skillTreePanel";
@@ -70,8 +70,7 @@ export function cursorHitAt(
     levelUpHitAt(screen, point, world) ??
     skillBarHitAt(screen, point) ??
     beltStripHitAt(screen, point) ??
-    // Not by touch yet: the pause button shares its corner.
-    (!touch && miniMapShown(shown, world.death !== null)
+    (miniMapShown(shown, world.death !== null)
       ? miniMapHitAt(screen, point)
       : null) ??
     panelButtonHitAt(screen, point) ??
@@ -187,6 +186,9 @@ function touchTargets(
   );
   const controls = touchControlsLayout(screen, shown);
   stops.push(controls.pause);
+  if (miniMapShown(shown, world.death !== null)) {
+    stops.push(miniMapLayout(screen));
+  }
   if (!controls.pauseOnly) {
     stops.push(controls.attack, ...Object.values(controls.skills));
   }

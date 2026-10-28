@@ -48,7 +48,12 @@ import {
   tapPointer,
   tapUp,
 } from "./input/tap";
-import { attachTouch, createTouchControls, readTouch } from "./input/touch";
+import {
+  attachTouch,
+  createTouchControls,
+  readTouch,
+  touchOnButton,
+} from "./input/touch";
 import {
   clickPaused,
   createMenus,
@@ -60,6 +65,7 @@ import {
   pressKey,
   pressPad,
   reactMenus,
+  tapMapOverlay,
   tapRotateNotice,
 } from "./menus";
 import { gameTime, togglePause } from "./pause";
@@ -179,6 +185,50 @@ export default function GameCanvas() {
               type: "used",
               way: pointerWay(e.pointerType),
             });
+          },
+          { capture: true, signal: listeners.signal },
+        );
+      }
+      // A touch on the open Map Overlay, away from every control, closes it
+      // and is that alone: the rest of it never reaches the touch controls
+      // or the pointer. On the window as it captures, before `attachTouch`'s.
+      const closing = new Set<number>();
+      for (const type of [
+        "pointerdown",
+        "pointermove",
+        "pointerup",
+        "pointercancel",
+        "lostpointercapture",
+        "pointerleave",
+      ] as const) {
+        window.addEventListener(
+          type,
+          (e) => {
+            if (type !== "pointerdown") {
+              if (closing.has(e.pointerId)) e.stopImmediatePropagation();
+              if (type === "pointerup" || type === "pointercancel") {
+                closing.delete(e.pointerId);
+              }
+              return;
+            }
+            closing.delete(e.pointerId);
+            if (e.target !== app.canvas || e.pointerType !== "touch") return;
+            const at = { x: e.offsetX, y: e.offsetY };
+            if (
+              !menus.mapOpen ||
+              !touchControlsShown(activeInput.way, menus) ||
+              renderer.panelAt(at) ||
+              renderer.groundLabelAt(at) !== null ||
+              touchOnButton(
+                touchControlsLayout(viewportOf(app.screen), menus),
+                at,
+              )
+            ) {
+              return;
+            }
+            tapMapOverlay(menus);
+            closing.add(e.pointerId);
+            e.stopImmediatePropagation();
           },
           { capture: true, signal: listeners.signal },
         );

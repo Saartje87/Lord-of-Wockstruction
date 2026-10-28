@@ -191,6 +191,11 @@ export function attachTouch(
   }
 }
 
+/** Whether `at` is on a touch button: the pause, attack or a Skill button. */
+export function touchOnButton(layout: TouchControlsLayout, at: Vec): boolean {
+  return buttonAt(layout, at) !== null;
+}
+
 /** The pad button of the touch button at `at`, if any. */
 function buttonAt(layout: TouchControlsLayout, at: Vec): PadButton | null {
   if (inside(layout.pauseHit, at)) return "menu";

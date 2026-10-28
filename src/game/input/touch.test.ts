@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createMenus, PANELS } from "../menus";
+import { miniMapLayout } from "../render/miniMap";
 import { panelButtonsLayout } from "../render/panelButtons";
 import {
   type TouchControlsLayout,
@@ -17,6 +18,7 @@ import {
   readTouch,
   touchDown,
   touchMove,
+  touchOnButton,
   touchUp,
 } from "./touch";
 
@@ -235,7 +237,7 @@ const CONTROLLER_BUTTON: Record<SkillBarSlot, PadButton> = {
 
 /** The phones held sideways the touch hit areas are for: the Compact Layout at a UI Scale of 0.75. */
 const PHONES = [
-  viewportOf({ width: 640, height: 320 }),
+  viewportOf({ width: 640, height: 360 }),
   viewportOf({ width: 915, height: 330 }),
 ];
 
@@ -273,14 +275,14 @@ describe("the pause button's touch hit area", () => {
 
   it.each(
     PHONES,
-  )("meets the Panel button beside it halfway with no panel open at %o", (screen) => {
+  )("meets the Mini Map above it halfway with no panel open at %o", (screen) => {
     const on = touchControlsLayout(screen);
     const { pause } = on;
-    const top = panelButtonsLayout(screen).buttons[PANELS[0]];
-    const halfway = (pause.x + pause.w + top.x) / 2;
-    const { y } = centre(pause);
-    expect(pauses({ x: halfway - 0.5, y }, on)).toBe(true);
-    expect(pauses({ x: halfway + 0.5, y }, on)).toBe(false);
+    const miniMap = miniMapLayout(screen);
+    const halfway = (miniMap.y + miniMap.h + pause.y) / 2;
+    const { x } = centre(pause);
+    expect(pauses({ x, y: halfway + 0.5 }, on)).toBe(true);
+    expect(pauses({ x, y: halfway - 0.5 }, on)).toBe(false);
   });
 
   it.each(
@@ -311,5 +313,32 @@ describe("the pause button's touch hit area", () => {
       ]);
     }
     expect(pressedAt(centre(on.stickZone))).toEqual([]);
+  });
+});
+
+describe("whether a touch is on a touch button", () => {
+  it("is on the pause button, the attack button and each Skill button", () => {
+    for (const rect of [
+      layout.pause,
+      layout.attack,
+      ...SKILL_BAR_SLOTS.map((slot) => layout.skills[slot]),
+    ]) {
+      expect(touchOnButton(layout, centre(rect))).toBe(true);
+    }
+  });
+
+  it("is not in the Virtual Stick zone, nor out in the World", () => {
+    expect(touchOnButton(layout, inZone)).toBe(false);
+    expect(touchOnButton(layout, { x: 640, y: 300 })).toBe(false);
+  });
+
+  it("is on only the pause button while a panel is open", () => {
+    const open = touchControlsLayout(viewportOf({ width: 1280, height: 720 }), {
+      ...createMenus(),
+      inventoryOpen: true,
+    });
+
+    expect(touchOnButton(open, centre(open.pause))).toBe(true);
+    expect(touchOnButton(open, centre(open.attack))).toBe(false);
   });
 });

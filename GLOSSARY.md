@@ -32,6 +32,14 @@ _Avoid_: Level, zone, map, scene
 A zone in an Area that, when the Hero walks into it, takes the Hero to an Entry in another Area.
 _Avoid_: Portal (that's the Town Portal), door, transition, warp
 
+**Wall**:
+A blocking part of an Area's edge that joins up with the Walls beside it into one stretch of wall; a Wall standing between the view and the Hero is drawn lowered, so the Hero stays in sight.
+_Avoid_: Wall tile, barrier, obstacle
+
+**Prop**:
+An object standing on an Area's floor, such as a barrel, a gravestone or a candle; some block the way and some don't.
+_Avoid_: Decoration, doodad, object
+
 **Town Portal**:
 A two-way gateway the Hero opens a step ahead of them anywhere outside Town, its other end at a fixed place in Town; the Hero goes through by walking into it, as with an Exit, and nothing else does. The Hero has at most one: opening another closes the old, and going back through it from Town closes it. It stays open through the Hero's Death and through Exits, and the Save never keeps one.
 _Avoid_: Portal on its own, TP, waypoint, gate
@@ -271,6 +279,10 @@ _Avoid_: Zoom (that's the World), DPI, resolution
 **World zoom**:
 How big the World is drawn, following the screen's height within limits, so about as many tiles show top to bottom on a phone as on a desktop, each of the art's pixels covering a whole number of the screen's where it can.
 _Avoid_: Camera zoom, UI Scale (that's the HUD and panels), scale
+
+**3D World**:
+The World drawn in 3D. While it is in beta the player chooses it in the pause menu, a choice that belongs to the device rather than the Save; afterwards it is the only way the World is drawn.
+_Avoid_: 3D mode, renderer, graphics mode
 
 **Compact Layout**:
 How the HUD and panels are arranged on a short screen, such as a phone held sideways: one panel at a time, filling the screen, opening another shuts it.

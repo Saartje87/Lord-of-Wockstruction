@@ -25,6 +25,16 @@ export type FloorPieces = {
   dirt: Object3D;
 };
 
+/**
+ * Which of the loaded floor pieces draws each KayKit floor piece an Area
+ * names. Other floor pieces, and Areas that name none, get a mix.
+ */
+const FLOOR_KIND: Record<string, keyof FloorPieces> = {
+  "dungeon/floor_tile_large": "plain",
+  "dungeon/floor_tile_small_broken_A": "broken",
+  "dungeon/floor_dirt_large": "dirt",
+};
+
 /** A steady 0..1 for a cell and a salt, so an Area always looks the same. */
 function hash(x: number, y: number, salt: number): number {
   let h = (x * 374761393 + y * 668265263 + salt * 2147483647) | 0;
@@ -47,8 +57,10 @@ export function floorOf(area: Area, pieces: FloorPieces): Group {
   for (let y = 0; y < area.height; y++) {
     for (let x = 0; x < area.width; x++) {
       if (!area.floor[y * area.width + x]) continue;
+      const named = FLOOR_KIND[area.floorPieces[y * area.width + x] ?? ""];
       const pick = hash(x, y, 1);
-      const kind = pick < 0.08 ? "broken" : pick < 0.16 ? "dirt" : "plain";
+      const kind =
+        named ?? (pick < 0.08 ? "broken" : pick < 0.16 ? "dirt" : "plain");
       const turn = Math.floor(hash(x, y, 2) * 4) * (Math.PI / 2);
       // The broken piece is 2×2 natively, so it's drawn twice the scale.
       const scale = kind === "broken" ? PIECE_SCALE * 2 : PIECE_SCALE;

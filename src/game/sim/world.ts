@@ -671,7 +671,8 @@ function copyProgress(progress: Progress): Progress {
  * Town at its `start` Entry with full Life: with `progress` and `belongings`
  * if given, or a fresh Level 1 Hero with a Short Sword if not. `tilesets`
  * holds the raw `.tsj` content of the tilesets the Areas keep in their own
- * files, keyed by file name. With `start`, the Hero starts at that Entry
+ * files, keyed by file name. `flareAreas` holds the Flare version of
+ * Areas painted with the KayKit tileset, which the 2D World draws. With `start`, the Hero starts at that Entry
  * instead, as if just arrived there, or in Town if there's no such Entry.
  * Throws, naming the Area, on content that doesn't fit together (see
  * `validateAreas`).
@@ -679,6 +680,7 @@ function copyProgress(progress: Progress): Progress {
 export function createWorld(options: {
   areas: Record<string, unknown>;
   tilesets?: Record<string, unknown>;
+  flareAreas?: Record<string, unknown>;
   seed: number;
   progress?: Progress | null;
   belongings?: Belongings | null;
@@ -686,7 +688,12 @@ export function createWorld(options: {
 }): World {
   const areas: Record<string, Area> = {};
   for (const [name, content] of Object.entries(options.areas)) {
-    areas[name] = loadArea(name, content, options.tilesets);
+    areas[name] = loadArea(
+      name,
+      content,
+      options.tilesets,
+      options.flareAreas?.[name],
+    );
   }
 
   validateAreas(areas);

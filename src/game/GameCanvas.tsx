@@ -4,7 +4,7 @@ import { Application } from "pixi.js";
 import { useEffect, useRef } from "react";
 import { pressButton } from "./buttonPress";
 import { advance, createClock } from "./clock";
-import { areaDisplayNames, areas, tilesets } from "./content";
+import { areaDisplayNames, areas, flareAreas, tilesets } from "./content";
 import {
   type CursorPoint,
   clickCursor,
@@ -151,6 +151,7 @@ export default function GameCanvas() {
       const save = readSave(storage);
       let world = createWorld({
         areas,
+        flareAreas,
         tilesets,
         seed: Date.now(),
         progress: save?.progress,
@@ -455,7 +456,12 @@ export default function GameCanvas() {
           // Confirmed in the menu: the Save goes, and a fresh Level 1 Hero
           // starts in Town.
           removeSave(storage);
-          world = createWorld({ areas, tilesets, seed: Date.now() });
+          world = createWorld({
+            areas,
+            flareAreas,
+            tilesets,
+            seed: Date.now(),
+          });
           orders = [];
         }
         // Stands still while paused, so the clock owes no steps for it and

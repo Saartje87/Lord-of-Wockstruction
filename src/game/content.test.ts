@@ -1,6 +1,7 @@
+import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { areaDisplayNames, areas, tilesets } from "./content";
-import type { Area, Exit, Spawn } from "./sim/area";
+import { areaDisplayNames, areas, flareAreas, tilesets } from "./content";
+import { type Area, type Exit, loadArea, type Spawn } from "./sim/area";
 import { type MonsterOfLevel, monsterExperience } from "./sim/monsters";
 import { findPath } from "./sim/path";
 import type { Vec } from "./sim/vec";
@@ -18,7 +19,8 @@ import type { MonsterType } from "./tuning/monsters";
 // Building the World runs the loader's validation: a `start` Entry, Exits to
 // an Entry that exists and can be reached from `start`, and spawns on tiles
 // Monsters can stand on.
-const shippedWorld = () => createWorld({ areas, tilesets, seed: 1 });
+const shippedWorld = () =>
+  createWorld({ areas, flareAreas, tilesets, seed: 1 });
 
 /**
  * Whether a Monster is as strong as one of its type at `monsterLevel`, by the
@@ -64,7 +66,12 @@ function worldEntering(area: string, entry: string): World {
       },
     ],
   };
-  const world = createWorld({ areas: { ...areas, town }, tilesets, seed: 1 });
+  const world = createWorld({
+    areas: { ...areas, town },
+    flareAreas,
+    tilesets,
+    seed: 1,
+  });
   walkThrough(world, world.areas.town.exits[0]);
   expect(world.areaName).toBe(area);
   return world;
@@ -471,7 +478,13 @@ describe("the shipped Areas", () => {
   it("let the Hero walk from Town down through the Catacombs and the Crypt to the Ossuary, and back up to Town", () => {
     // Sturdy and strong enough to fight through every pack on the way.
     const progress = { ...FRESH_PROGRESS, strength: 200, vitality: 1000 };
-    const world = createWorld({ areas, tilesets, seed: 1, progress });
+    const world = createWorld({
+      areas,
+      flareAreas,
+      tilesets,
+      seed: 1,
+      progress,
+    });
     const route: [from: string, to: string][] = [
       ["town", "catacombs"],
       ["catacombs", "crypt"],
@@ -512,5 +525,110 @@ describe("the Item types", () => {
       "Mana Potion": "Mana",
       "Rejuvenation Potion": "Rejuv",
     });
+  });
+});
+
+describe("the shipped Areas on the KayKit tileset", () => {
+  const names = ["town", "catacombs", "crypt", "ossuary"];
+  const flare = (name: string) => loadArea(name, flareAreas[name], tilesets);
+  const kaykit = (name: string) => shippedWorld().areas[name];
+
+  it.each(
+    names,
+  )("%s keeps the Flare version's floor and walkable cells", (name) => {
+    const old = flare(name);
+    const converted = kaykit(name);
+
+    expect(converted.width).toBe(old.width);
+    expect(converted.height).toBe(old.height);
+    expect(converted.floor).toEqual(old.floor);
+    expect(converted.walkable).toEqual(old.walkable);
+  });
+
+  it.each(
+    names,
+  )("%s keeps the Flare version's Exits, Entries, spawns, NPCs and Town Portal spot", (name) => {
+    const old = flare(name);
+    const converted = kaykit(name);
+
+    expect(converted.exits).toEqual(old.exits);
+    expect(converted.entries).toEqual(old.entries);
+    expect(converted.spawns).toEqual(old.spawns);
+    expect(converted.npcs).toEqual(old.npcs);
+    expect(converted.townPortal).toEqual(old.townPortal);
+    expect(converted.areaLevel).toBe(old.areaLevel);
+  });
+
+  it.each(
+    names,
+  )("%s knows a piece for every floor cell, and its Walls and Props", (name) => {
+    const area = kaykit(name);
+
+    area.floor.forEach((hasFloor, i) => {
+      expect(area.floorPieces[i] !== null).toBe(hasFloor);
+    });
+    expect(area.walls.length).toBeGreaterThan(0);
+    expect(area.props.length).toBeGreaterThan(0);
+    for (const wall of area.walls) expect(wall.blocks).toBe(true);
+    // A blocking Prop stands on floor and stops the Hero.
+    for (const prop of area.props.filter((prop) => prop.blocks)) {
+      expect(area.floor[prop.y * area.width + prop.x]).toBe(true);
+      expect(area.walkable[prop.y * area.width + prop.x]).toBe(false);
+    }
+  });
+
+  it.each(
+    names,
+  )("%s is still drawn by the 2D World with its Flare tiles", (name) => {
+    const old = flare(name);
+    const converted = kaykit(name);
+
+    expect(converted.tileset).toBe(old.tileset);
+    expect(converted.floorTiles).toEqual(old.floorTiles);
+    expect(converted.propTiles).toEqual(old.propTiles);
+  });
+
+  it("gives Town graveyard Props and village buildings", () => {
+    const pieces = [...kaykit("town").props.map((prop) => prop.piece)];
+
+    expect(pieces.some((piece) => piece.startsWith("halloween/"))).toBe(true);
+    expect(pieces.some((piece) => piece.startsWith("hexagon/"))).toBe(true);
+  });
+});
+
+describe("the KayKit tileset", () => {
+  type Tile = {
+    id: number;
+    image: string;
+    properties: { name: string; value: unknown }[];
+  };
+  const tiles = (tilesets.kaykit as { tiles: Tile[] }).tiles;
+  const property = (tile: Tile, name: string) =>
+    tile.properties.find((p) => p.name === name)?.value;
+
+  it("has `piece`, `blocks` and `kind` on every tile", () => {
+    expect(tiles.length).toBeGreaterThan(20);
+    for (const tile of tiles) {
+      expect(typeof property(tile, "piece")).toBe("string");
+      expect(typeof property(tile, "blocks")).toBe("boolean");
+      expect(["floor", "wall", "prop"]).toContain(property(tile, "kind"));
+    }
+  });
+
+  it("has a thumbnail and an imported model for every tile", () => {
+    for (const tile of tiles) {
+      expect(existsSync(`content/tilesets/${tile.image}`)).toBe(true);
+      expect(
+        existsSync(`public/assets/models/${property(tile, "piece")}.glb`),
+      ).toBe(true);
+    }
+  });
+
+  it("never lets a floor block", () => {
+    for (const tile of tiles) {
+      if (property(tile, "kind") === "floor") {
+        expect(property(tile, "blocks")).toBe(false);
+      }
+    }
   });
 });

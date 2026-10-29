@@ -33,6 +33,27 @@ describe("the 3D World's floor", () => {
     expect(instances).toBe(cells);
   });
 
+  it("uses the pieces a KayKit Area names", () => {
+    const world = arenaWith([]);
+    const base = world.areas[world.areaName];
+    const area = {
+      ...base,
+      floorPieces: base.floor.map((hasFloor) =>
+        hasFloor ? "dungeon/floor_dirt_large" : null,
+      ),
+    };
+
+    const floor = floorOf(area, {
+      plain: piece(),
+      broken: piece(),
+      dirt: piece(),
+    });
+
+    const meshes = floor.children as InstancedMesh[];
+    expect(meshes).toHaveLength(1);
+    expect(meshes[0].count).toBe(base.floor.filter(Boolean).length);
+  });
+
   it("covers the Area the same way every time", () => {
     const world = arenaWith([]);
     const area = world.areas[world.areaName];

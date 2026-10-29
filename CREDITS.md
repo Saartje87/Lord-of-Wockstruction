@@ -165,16 +165,51 @@ licence (CC0). Crediting him is not required, and we do.
 
 - Adventurers 1.0: [KayKit-Character-Pack-Adventures-1.0](https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0) (commit `672074b`)
 - Dungeon Remastered 1.0: [KayKit-Dungeon-Remastered-1.0](https://github.com/KayKit-Game-Assets/KayKit-Dungeon-Remastered-1.0) (commit `b0ca9bd`)
+- Halloween Bits 1.0: [KayKit-Halloween-Bits-1.0](https://github.com/KayKit-Game-Assets/KayKit-Halloween-Bits-1.0) (commit `6dc69bf`)
+- Medieval Hexagon 1.0: [KayKit-Medieval-Hexagon-Pack-1.0](https://github.com/KayKit-Game-Assets/KayKit-Medieval-Hexagon-Pack-1.0) (commit `84fa4e9`)
 
 **Changes:** the Knight is cut down to the animations Wiablo uses and to
-the 1-handed sword and the round shield. Nothing is recoloured.
+the 1-handed sword and the round shield. Halloween Bits and Medieval Hexagon
+pieces, which come as glTF with a binary and a texture, are packed into one
+glb each. Nothing is recoloured.
 
 ### Imported files
 
 | KayKit file | Used for |
 |---|---|
 | `addons/kaykit_character_pack_adventures/Characters/gltf/Knight.glb` | the Hero |
-| `addons/kaykit_dungeon_remastered/Assets/gltf/floor_tile_large.gltf.glb` | the floor |
-| `addons/kaykit_dungeon_remastered/Assets/gltf/floor_tile_small_broken_A.gltf.glb` | the floor |
-| `addons/kaykit_dungeon_remastered/Assets/gltf/floor_dirt_large.gltf.glb` | the floor |
+| `addons/kaykit_dungeon_remastered/Assets/gltf/floor_tile_large.gltf.glb` | floors |
+| `addons/kaykit_dungeon_remastered/Assets/gltf/floor_tile_small_broken_A.gltf.glb` | floors |
+| `addons/kaykit_dungeon_remastered/Assets/gltf/floor_dirt_large.gltf.glb` | floors |
+| `addons/kaykit_dungeon_remastered/Assets/gltf/wall.gltf.glb` | Walls |
+| `addons/kaykit_dungeon_remastered/Assets/gltf/pillar.gltf.glb` | Props |
+| `addons/kaykit_dungeon_remastered/Assets/gltf/column.gltf.glb` | Props |
+| `addons/kaykit_dungeon_remastered/Assets/gltf/barrel_large.gltf.glb` | Props |
+| `addons/kaykit_dungeon_remastered/Assets/gltf/crates_stacked.gltf.glb` | Props |
+| `addons/kaykit_dungeon_remastered/Assets/gltf/chest.glb` | Props |
+| `addons/kaykit_dungeon_remastered/Assets/gltf/candle_triple.gltf.glb` | Props |
+| `addons/kaykit_dungeon_remastered/Assets/gltf/rubble_half.gltf.glb` | Props |
+| `addons/kaykit_halloween_bits/Assets/gltf/floor_dirt.gltf` | floors |
+| `addons/kaykit_halloween_bits/Assets/gltf/path_A.gltf` | floors |
+| `addons/kaykit_halloween_bits/Assets/gltf/path_B.gltf` | floors |
+| `addons/kaykit_halloween_bits/Assets/gltf/path_C.gltf` | floors |
+| `addons/kaykit_halloween_bits/Assets/gltf/path_D.gltf` | floors |
+| `addons/kaykit_halloween_bits/Assets/gltf/fence.gltf` | Walls |
+| `addons/kaykit_halloween_bits/Assets/gltf/gravestone.gltf` | Props |
+| `addons/kaykit_halloween_bits/Assets/gltf/grave_A.gltf` | Props |
+| `addons/kaykit_halloween_bits/Assets/gltf/tree_dead_large.gltf` | Props |
+| `addons/kaykit_halloween_bits/Assets/gltf/tree_dead_medium.gltf` | Props |
+| `addons/kaykit_halloween_bits/Assets/gltf/crypt.gltf` | Props |
+| `addons/kaykit_halloween_bits/Assets/gltf/shrine.gltf` | Props |
+| `addons/kaykit_halloween_bits/Assets/gltf/lantern_standing.gltf` | Props |
+| `addons/kaykit_halloween_bits/Assets/gltf/gravemarker_A.gltf` | Props |
+| `addons/kaykit_halloween_bits/Assets/gltf/skull.gltf` | Props |
+| `addons/kaykit_halloween_bits/Assets/gltf/bone_A.gltf` | Props |
+| `addons/kaykit_halloween_bits/Assets/gltf/pumpkin_orange_small.gltf` | Props |
+| `addons/kaykit_medieval_hexagon_pack/Assets/gltf/buildings/red/building_home_A_red.gltf` | Props |
+| `addons/kaykit_medieval_hexagon_pack/Assets/gltf/buildings/blue/building_home_B_blue.gltf` | Props |
+| `addons/kaykit_medieval_hexagon_pack/Assets/gltf/buildings/red/building_tavern_red.gltf` | Props |
+| `addons/kaykit_medieval_hexagon_pack/Assets/gltf/buildings/blue/building_church_blue.gltf` | Props |
+| `addons/kaykit_medieval_hexagon_pack/Assets/gltf/buildings/red/building_well_red.gltf` | Props |
+| `addons/kaykit_medieval_hexagon_pack/Assets/gltf/buildings/red/building_blacksmith_red.gltf` | Props |
 <!-- end kaykit -->

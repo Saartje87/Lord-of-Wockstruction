@@ -184,7 +184,7 @@ export default function GameCanvas() {
         activeInput,
         touch,
       );
-      if (world3d) renderer.hideWorld();
+      if (world3d) renderer.showIn3d(() => worldCamera);
       /** Where the 3D World's camera was last drawn, which input reads. */
       let worldCamera = worldCameraOn(viewportOf(app.screen), world.hero.pos);
       /** The tile under a point on the canvas (CSS px), through the camera. */
@@ -611,6 +611,14 @@ export default function GameCanvas() {
         const pointing = activeInput.way === "touch" ? touched : input.screen;
         const pointer = pause.paused ? null : (focus?.at ?? pointing);
         drawnTarget = pause.paused ? null : polled.target;
+        if (world3d) {
+          // Before the 2D side draws, which places the labels through it.
+          const { hero } = world;
+          worldCamera = worldCameraOn(viewport, {
+            x: hero.prevPos.x + (hero.pos.x - hero.prevPos.x) * alpha,
+            y: hero.prevPos.y + (hero.pos.y - hero.prevPos.y) * alpha,
+          });
+        }
         renderer.draw(
           world,
           alpha,
@@ -623,11 +631,6 @@ export default function GameCanvas() {
           focus?.rect ?? null,
         );
         if (world3d) {
-          const hero = world.hero;
-          worldCamera = worldCameraOn(viewport, {
-            x: hero.prevPos.x + (hero.pos.x - hero.prevPos.x) * alpha,
-            y: hero.prevPos.y + (hero.pos.y - hero.prevPos.y) * alpha,
-          });
           // The tile to outline: on the floor, under no panel or Monster.
           const under =
             pointer &&
@@ -645,7 +648,12 @@ export default function GameCanvas() {
           };
           drawWorld3d(world3d, {
             area: shown,
-            view: worldViewOf(world, alpha, pointerState),
+            view: worldViewOf(
+              world,
+              alpha,
+              pointerState,
+              renderer.effectsAt(now),
+            ),
             camera: worldCamera,
             nowMs: now,
             resolution: app.renderer.resolution,

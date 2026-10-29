@@ -58,6 +58,7 @@ import {
   isRegenerating,
   type MinionId,
   type MinionType,
+  type Monster,
   type MonsterId,
   OPENING_STEPS,
   type SimEvent,
@@ -78,6 +79,10 @@ import {
 import { type Skill, skillTuning } from "../tuning/skills";
 import { townPortalLook } from "../tuning/townPortalLook";
 import { atUiScale, type Viewport, viewportOf } from "../viewport";
+import { tileToScreen, type WorldCamera } from "../world3d/camera";
+import { MONSTER_LOOKS } from "../world3d/monsterLook";
+import { characterUnder3d, type Pickable3d } from "../world3d/picking";
+import type { Effects } from "../world3d/view";
 import { type Compass, compassOf, frameAt, swingFrame } from "./animation";
 import {
   areaBannerLayout,
@@ -321,6 +326,8 @@ const OUTLINE = { colour: 0xd8c890, width: 1 };
 const SERIF = "Georgia, serif";
 /** How high a character's head is over its feet at native scale (CSS px). */
 const HEAD_HEIGHT = 120;
+/** How tall the Hero and the Minions stand in the 3D World, in tiles. */
+const HERO_HEIGHT = 0.9;
 /** The Life bar over a damaged Monster's head (CSS px). */
 const MONSTER_BAR = { width: 30, height: 5, above: 8 };
 /**
@@ -645,6 +652,12 @@ export function createRenderer(
   // zoom: damage numbers and Ground Item labels.
   const overWorld = new Container();
   app.stage.addChild(overWorld);
+  /** The 3D World's camera as last drawn, if the 3D World is on. */
+  let camera3d: (() => WorldCamera) | null = null;
+  /** Where each character stood as last drawn in the 3D World, for picking. */
+  let standing3d: Pickable3d<CharacterId>[] = [];
+  /** Life bars and Curse marks of the 3D World, scaled by its World zoom. */
+  const overheads3d = new Container();
 
   // Filled by `showArea`.
   let area: Area | null = null;
@@ -702,7 +715,7 @@ export function createRenderer(
   let lyingAt: { id: ItemId; at: Vec }[] = [];
   const numbers = new Container();
   overWorld.addChild(numbers);
-  const floating: { text: Text; bornMs: number; at: Vec }[] = [];
+  const floating: { text: Text; bornMs: number; at: Vec; lift: number }[] = [];
   const nameplate = new Graphics();
   app.stage.addChild(nameplate);
   const nameplateText = new Text({
@@ -919,6 +932,7 @@ export function createRenderer(
    * px), as last drawn: the one in front where they overlap.
    */
   const characterAt = (screen: Vec): CharacterId | null => {
+    if (camera3d) return characterUnder3d(camera3d(), standing3d, screen);
     const characters: Pickable<CharacterId>[] = [];
     for (const [id, view] of monsters) {
       if (view.diedAtMs !== null) continue;
@@ -1021,12 +1035,34 @@ export function createRenderer(
 
   return {
     /**
-     * Stops drawing the World and what follows it, for the 3D World drawn
-     * under the HUD instead.
+     * Draws the 3D World in place of the 2D one: stops drawing the 2D World
+     * and what follows it, then places damage numbers, Life bars and Curse marks
+     * through the 3D World's camera (`cameraOf`, as last drawn), and picks
+     * Monsters by their boxes through it.
      */
-    hideWorld() {
+    showIn3d(cameraOf: () => WorldCamera) {
+      camera3d = cameraOf;
       camera.visible = false;
       overWorld.visible = false;
+      const index = app.stage.getChildIndex(overWorld);
+      app.stage.addChildAt(overheads3d, index);
+      overheads3d.addChild(overheads);
+      app.stage.addChildAt(numbers, index);
+    },
+
+    /**
+     * What the 3D World shows that lasts milliseconds: each hit Monster's
+     * flash and how long ago each killed Monster died.
+     */
+    effectsAt(nowMs: number): Effects {
+      const flashes = new Map<MonsterId, number>();
+      const deadForMs = new Map<MonsterId, number>();
+      for (const [id, view] of monsters) {
+        const left = (view.flashUntilMs - nowMs) / FLASH_MS;
+        if (left > 0) flashes.set(id, FLASH_STRENGTH * left);
+        if (view.diedAtMs !== null) deadForMs.set(id, nowMs - view.diedAtMs);
+      }
+      return { flashes, deadForMs };
     },
 
     screenToTile,
@@ -1092,8 +1128,14 @@ export function createRenderer(
         numbers.addChild(text);
         // Over where a Monster's Life bar goes; `gap` more at the UI Scale
         // as it's drawn.
-        const at = { x: sprite.position.x, y: barTop(sprite) };
-        floating.push({ text, bornMs: nowMs, at });
+        // In the 3D World, the tile it was at and the height above it.
+        const at = camera3d
+          ? toTile(sprite.position)
+          : { x: sprite.position.x, y: barTop(sprite) };
+        const type =
+          typeof number.on === "number" && monsters.get(number.on)?.type;
+        const lift = (type ? MONSTER_LOOKS[type].height : HERO_HEIGHT) + 0.15;
+        floating.push({ text, bornMs: nowMs, at, lift });
       }
       // Red only when Life was lost; the Bone Ward ring pulses when it soaked.
       const shown = heroHitShows(events);
@@ -1479,19 +1521,51 @@ export function createRenderer(
       }
 
       overheads.clear();
+      const camera3 = camera3d?.() ?? null;
+      if (camera3) {
+        overheads3d.scale.set(camera3.zoom);
+        standing3d = [
+          ...world.monsters.map((monster) => ({
+            id: monster.id,
+            pos: lerp(monster.prevPos, monster.pos, alpha),
+            height: MONSTER_LOOKS[monster.type].height,
+          })),
+          ...world.minions.map((minion) => ({
+            id: { minion: minion.id },
+            pos: lerp(minion.prevPos, minion.pos, alpha),
+            height: HERO_HEIGHT,
+          })),
+        ];
+      }
+      /** Where the top of a Monster's Life bar goes, in the space it's drawn in. */
+      const barAnchor = (monster: Monster): Vec => {
+        if (camera3) {
+          const head = tileToScreen(
+            camera3,
+            lerp(monster.prevPos, monster.pos, alpha),
+            MONSTER_LOOKS[monster.type].height,
+          );
+          return {
+            x: head.x / camera3.zoom,
+            y: head.y / camera3.zoom - MONSTER_BAR.above - MONSTER_BAR.height,
+          };
+        }
+        const { sprite } = viewOf(monster.id, monster.type);
+        return { x: sprite.position.x, y: barTop(sprite) };
+      };
       const markAlpha = curseMarkAlpha(nowMs);
       for (const monster of world.monsters) {
         if (!monster.curse) continue;
-        const { sprite } = viewOf(monster.id, monster.type);
-        curseMark(overheads, sprite.position.x, barTop(sprite), markAlpha);
+        const anchor = barAnchor(monster);
+        curseMark(overheads, anchor.x, anchor.y, markAlpha);
       }
       for (const monster of world.monsters) {
         const life = monsterMaxLife(monster);
         if (monster.life >= life) continue;
-        const { sprite } = viewOf(monster.id, monster.type);
+        const anchor = barAnchor(monster);
         lifeBar(overheads, {
-          x: sprite.position.x - MONSTER_BAR.width / 2,
-          y: barTop(sprite),
+          x: anchor.x - MONSTER_BAR.width / 2,
+          y: anchor.y,
           width: MONSTER_BAR.width,
           height: MONSTER_BAR.height,
           fraction: monster.life / life,
@@ -1499,7 +1573,7 @@ export function createRenderer(
       }
 
       for (let i = floating.length - 1; i >= 0; i--) {
-        const { text, bornMs, at } = floating[i];
+        const { text, bornMs, at, lift } = floating[i];
         const float = floatAt(nowMs - bornMs, uiScale);
         if (!float) {
           text.destroy();
@@ -1508,7 +1582,9 @@ export function createRenderer(
         }
         const sizes = atUiScale(DAMAGE_NUMBER, uiScale);
         sizeText(text, sizes.size, sizes.stroke);
-        const over = onScreen(shot, at);
+        const over = camera3d
+          ? tileToScreen(camera3d(), at, lift)
+          : onScreen(shot, at);
         text.position.set(
           snapOnScreen(over.x),
           snapOnScreen(over.y - sizes.gap - float.rise),

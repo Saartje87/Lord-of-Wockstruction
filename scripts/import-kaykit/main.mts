@@ -27,7 +27,7 @@ import {
 import { NodeIO } from "@gltf-transform/core";
 import { writeSection } from "../credits-sections.mts";
 import { checkout } from "../import-flare/git.mts";
-import { importCharacter } from "./characters.mts";
+import { importCharacter, rotTexture } from "./characters.mts";
 import { PIECES, type PieceSource, pieceName } from "./pieces.mts";
 import { importRiggedCharacter } from "./retarget.mts";
 import { tilesetOf } from "./tileset.mts";
@@ -41,6 +41,12 @@ const PACKS = {
     repo: "KayKit-Character-Pack-Adventures-1.0",
     commit: "672074b73ba276876a19e8816ecdc5241817ab47",
     root: "addons/kaykit_character_pack_adventures",
+  },
+  skeletons: {
+    name: "Skeletons 1.0",
+    repo: "KayKit-Character-Pack-Skeletons-1.0",
+    commit: "15b62b9bad122f72926c10fb14d622c73819fa54",
+    root: "addons/kaykit_character_pack_skeletons",
   },
   dungeon: {
     name: "Dungeon Remastered 1.0",
@@ -79,6 +85,35 @@ const KNIGHT = {
   ],
   dropNodes: (name: string) =>
     /Shield|2H_Sword|Offhand/.test(name) && name !== "Round_Shield",
+};
+
+/**
+ * The Monsters' clips of the Skeletons' 95, shared by all three: Skeletons
+ * carry the Knight's rig. Weapons come as separate files that the 3D World
+ * parents to the hand slots.
+ */
+const MONSTER_CLIPS = [
+  "Idle",
+  "Idle_Combat",
+  "Walking_A",
+  "Walking_D_Skeletons",
+  "Running_C",
+  "Hit_B",
+  "1H_Melee_Attack_Chop",
+  "2H_Ranged_Shoot",
+  "Death_A",
+];
+
+/** The three Monsters' models, and the weapons they are given. */
+const SKELETONS = {
+  /** The model each Monster is drawn with, and the file it is written to. */
+  models: [
+    { from: "Skeleton_Warrior", to: "Skeleton" },
+    { from: "Skeleton_Rogue", to: "SkeletonArcher" },
+    { from: "Skeleton_Minion", to: "Zombie", repaint: true },
+  ],
+  /** Weapons, written as glbs beside the characters. */
+  weapons: ["Skeleton_Blade", "Skeleton_Shield_Small_A", "Skeleton_Crossbow"],
 };
 
 /** The Mystery Monthly packs, as their downloads unzip. */
@@ -124,8 +159,12 @@ const out = {
   tilesets: "content/tilesets",
 };
 
+const io = new NodeIO();
 const adventurers = PACKS.adventurers;
 const dirOf = (pack: { repo: string }) => `.cache/${pack.repo}`;
+const skeletons = PACKS.skeletons;
+const skeletonDir = `${skeletons.root}/Characters/gltf`;
+const weaponDir = `${skeletons.root}/Assets/gltf`;
 const knightPath = `${adventurers.root}/Characters/gltf/${KNIGHT.file}.glb`;
 /** The files of a piece in its pack: Dungeon's one glb, or glTF with its binary and texture. */
 function filesOf(source: PieceSource): string[] {
@@ -152,19 +191,29 @@ function filesOf(source: PieceSource): string[] {
 
 for (const pack of Object.values(PACKS)) {
   const wanted =
-    pack === adventurers
-      ? [knightPath, "LICENSE.txt"]
-      : [
-          ...PIECES.filter((piece) => PACKS[piece.pack] === pack).flatMap(
-            filesOf,
-          ),
-          ...(pack === PACKS.dungeon
-            ? EXTRA_DUNGEON.map(
-                (name) => `${pack.root}/Assets/gltf/${name}.gltf.glb`,
-              )
-            : []),
+    pack === skeletons
+      ? [
+          ...SKELETONS.models.map(({ from }) => `${skeletonDir}/${from}.glb`),
+          ...SKELETONS.weapons.flatMap((name) => [
+            `${weaponDir}/${name}.gltf`,
+            `${weaponDir}/${name}.bin`,
+          ]),
+          `${weaponDir}/skeleton_texture.png`,
           "LICENSE.txt",
-        ];
+        ]
+      : pack === adventurers
+        ? [knightPath, "LICENSE.txt"]
+        : [
+            ...PIECES.filter((piece) => PACKS[piece.pack] === pack).flatMap(
+              filesOf,
+            ),
+            ...(pack === PACKS.dungeon
+              ? EXTRA_DUNGEON.map(
+                  (name) => `${pack.root}/Assets/gltf/${name}.gltf.glb`,
+                )
+              : []),
+            "LICENSE.txt",
+          ];
   checkout(
     `${ORG}/${pack.repo}`,
     pack.commit,
@@ -189,6 +238,22 @@ await importCharacter({
   clips: KNIGHT.clips,
   dropNodes: KNIGHT.dropNodes,
 });
+for (const { from, to, repaint } of SKELETONS.models) {
+  const target = `${out.characters}/${to}.glb`;
+  await importCharacter({
+    from: `${dirOf(skeletons)}/${skeletonDir}/${from}.glb`,
+    to: target,
+    clips: MONSTER_CLIPS,
+    dropNodes: () => false,
+  });
+  if (repaint) await rotTexture(target);
+}
+for (const name of SKELETONS.weapons) {
+  await io.write(
+    `${out.characters}/${name}.glb`,
+    await io.read(`${dirOf(skeletons)}/${weaponDir}/${name}.gltf`),
+  );
+}
 if (existsSync(MYSTERY.dir)) {
   await importRiggedCharacter({
     from: `${MYSTERY.dir}/${GOLEM.path}`,
@@ -206,7 +271,6 @@ if (existsSync(MYSTERY.dir)) {
 } else {
   console.log(`No ${MYSTERY.dir}: keeping the committed ${GOLEM.file}.glb`);
 }
-const io = new NodeIO();
 for (const source of PIECES) {
   const [from] = filesOf(source);
   const to = `${out.models}/${pieceName(source)}.glb`;

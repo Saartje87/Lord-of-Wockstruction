@@ -16,6 +16,13 @@ import { type FloorPieces, floorOf, PIECE_SCALE } from "./floor";
 import { type HeroActor, heroActorOf, poseHero } from "./heroActor";
 import { createLighting, type Lighting, lightScene } from "./lighting";
 import { createMarkers, type Markers, showMarkers } from "./markers";
+import {
+  type MonsterActor,
+  type MonsterModels,
+  monsterActorOf,
+  poseMonster,
+} from "./monsterActor";
+import { MONSTER_LOOKS } from "./monsterLook";
 import { propMeshesOf, scaleOf } from "./propMeshes";
 import { LOOKS, lookOf, outline, toonShade } from "./toon";
 import { type TorchMeshes, torchMeshesOf } from "./torchMeshes";
@@ -47,6 +54,8 @@ export type World3d = {
       torches: TorchMeshes;
     } | null;
   } | null;
+  /** The Monsters and Corpses in the scene, by id. */
+  monsters: Map<number, MonsterActor>;
   /** The Wall and Prop pieces loaded so far, by piece name. */
   pieces: Record<string, Object3D | undefined>;
   /** The pieces asked for, so each is loaded once. */
@@ -56,7 +65,11 @@ export type World3d = {
 };
 
 /** What the 3D World is made of, loaded. */
-type Models = { hero: HeroActor; floorPieces: FloorPieces };
+type Models = {
+  hero: HeroActor;
+  floorPieces: FloorPieces;
+  monsters: MonsterModels;
+};
 
 /** Where `import:kaykit` puts the models, served from `public/`. */
 const MODELS = "/assets/models";
@@ -96,6 +109,7 @@ export function createWorld3d(): World3d {
     lighting,
     atmosphere,
     models: null,
+    monsters: new Map(),
     shown: null,
     pieces: {},
     loading: new Set(),
@@ -107,12 +121,25 @@ export function createWorld3d(): World3d {
 export async function loadModels(world3d: World3d) {
   const loader = new GLTFLoader();
   const load = (path: string) => loader.loadAsync(`${MODELS}/${path}.glb`);
-  const [knight, plain, broken, dirt] = await Promise.all([
+  const monsterFiles = [
+    ...new Set(
+      Object.values(MONSTER_LOOKS).flatMap((look) => [
+        look.model,
+        ...look.weapons.map((weapon) => weapon.model),
+      ]),
+    ),
+  ];
+  const [knight, plain, broken, dirt, ...monsterGltfs] = await Promise.all([
     load("characters/Knight"),
     load("dungeon/floor_tile_large"),
     load("dungeon/floor_tile_small_broken_A"),
     load("dungeon/floor_dirt_large"),
+    ...monsterFiles.map((file) => load(`characters/${file}`)),
   ]);
+  const monsters: MonsterModels = {};
+  monsterFiles.forEach((file, i) => {
+    monsters[file] = monsterGltfs[i];
+  });
   const floorPieces = {
     plain: plain.scene,
     broken: broken.scene,
@@ -121,7 +148,7 @@ export async function loadModels(world3d: World3d) {
   for (const piece of Object.values(floorPieces)) toonShade(piece, LOOKS.stone);
   const hero = heroActorOf(knight);
   world3d.scene.add(hero.root);
-  world3d.models = { hero, floorPieces };
+  world3d.models = { hero, floorPieces, monsters };
 }
 
 /** Puts `area`'s floor in the scene in place of the last Area's. */
@@ -192,6 +219,33 @@ function showScenery(world3d: World3d, view: WorldView) {
   shown.scenery = { walls, props, torches };
 }
 
+/**
+ * Puts a Monster or Corpse actor in the scene for each in `view`, posed as it
+ * says, and takes away those no longer there.
+ */
+function poseMonsters(world3d: World3d, view: WorldView, dt: number) {
+  const { models, monsters, scene } = world3d;
+  if (!models) return;
+  const seen = new Set<number>();
+  for (const monster of view.monsters) {
+    seen.add(monster.id);
+    let actor = monsters.get(monster.id);
+    if (!actor) {
+      actor = monsterActorOf(monster.type, models.monsters);
+      monsters.set(monster.id, actor);
+      scene.add(actor.root);
+    }
+    poseMonster(actor, monster, dt);
+  }
+  for (const [id, actor] of monsters) {
+    if (seen.has(id)) continue;
+    scene.remove(actor.root);
+    // The geometry and textures are the models' own; the materials are not.
+    for (const material of actor.materials) material.dispose();
+    monsters.delete(id);
+  }
+}
+
 /** The size three.js last drew at, reused each frame. */
 const drawnSize = new Vector2();
 
@@ -228,6 +282,7 @@ export function drawWorld3d(
     world3d.drawnAtMs === null ? 0 : (nowMs - world3d.drawnAtMs) / 1000;
   world3d.drawnAtMs = nowMs;
   if (world3d.models) poseHero(world3d.models.hero, view.hero, dt);
+  poseMonsters(world3d, view, dt);
   const seconds = nowMs / 1000;
   world3d.shown?.scenery?.torches.show(view.torches, seconds);
   lightScene(world3d.lighting, view, seconds);

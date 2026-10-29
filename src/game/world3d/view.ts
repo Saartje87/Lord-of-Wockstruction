@@ -1,17 +1,27 @@
 import { type Area, type Placed, TOWN } from "../sim/area";
+import { recoveryProgress, windUpProgress } from "../sim/monsters";
 import { STEP_MS } from "../sim/units";
 import type { Vec } from "../sim/vec";
 import {
   CAST_STEPS,
   DEATH_STEPS,
+  FLINCH_STEPS,
   HERO_FLINCH_STEPS,
   HIT_STEP,
+  type Monster,
+  type MonsterId,
   OPENING_STEPS,
   SWING_STEPS,
   type World,
 } from "../sim/world";
 import { inputTuning } from "../tuning/input";
+import type { MonsterType } from "../tuning/monsters";
 import { ATTACK_CONTACT, type HeroClip } from "./clips";
+import {
+  MONSTER_DEATH_SECONDS,
+  MONSTER_LOOKS,
+  type MonsterClip,
+} from "./monsterLook";
 import { type Torch, torchesOf } from "./torches";
 
 /**
@@ -32,6 +42,36 @@ export type HeroView = {
   animation: HeroAnimation;
 };
 
+/** What a Monster is doing, as `HeroAnimation` says for the Hero. */
+export type MonsterAnimation =
+  | { clip: "idle" | "walk" | "run"; seconds: number }
+  | { clip: Exclude<MonsterClip, "idle" | "walk" | "run">; progress: number };
+
+/** A Monster, or the Corpse it left, as the 3D World shows it. */
+export type MonsterView = {
+  id: MonsterId;
+  type: MonsterType;
+  /** Interpolated, in tile units. */
+  pos: Vec;
+  /** Radians in tile space; null for a Corpse, which lies as it last stood. */
+  facing: number | null;
+  animation: MonsterAnimation;
+  /** How white a hit Monster is washed, 0..1. */
+  flash: number;
+  corpse: boolean;
+};
+
+/**
+ * What the 3D World shows that the World doesn't hold, because it lasts
+ * milliseconds rather than steps: kept by the renderer from the events.
+ */
+export type Effects = {
+  /** The flash strength (0..1) of each Monster just hit. */
+  flashes: ReadonlyMap<MonsterId, number>;
+  /** How long ago (ms) each Monster just killed died; others lie still. */
+  deadForMs: ReadonlyMap<MonsterId, number>;
+};
+
 /** The click marker on the floor, `progress` of the way through its life. */
 export type ClickMarkerView = { at: Vec; progress: number };
 
@@ -46,6 +86,8 @@ export type PointerState = {
 /** Everything the 3D World shows, as plain data. */
 export type WorldView = {
   hero: HeroView;
+  /** The living Monsters, then the Corpses. */
+  monsters: MonsterView[];
   clickMarker: ClickMarkerView | null;
   hoverTile: Vec | null;
   /**
@@ -101,6 +143,7 @@ export function worldViewOf(
   world: World,
   alpha: number,
   pointer: PointerState,
+  effects: Effects = { flashes: new Map(), deadForMs: new Map() },
 ): WorldView {
   const { hero } = world;
   const pos = {
@@ -115,6 +158,22 @@ export function worldViewOf(
       facing: hero.facing,
       animation: heroAnimationOf(world),
     },
+    monsters: [
+      ...world.monsters.map((monster) =>
+        monsterViewOf(world, monster, alpha, effects),
+      ),
+      ...world.corpses.map(
+        (corpse): MonsterView => ({
+          id: corpse.id,
+          type: corpse.type,
+          pos: corpse.pos,
+          facing: null,
+          animation: corpseAnimationOf(effects.deadForMs.get(corpse.id)),
+          flash: 0,
+          corpse: true,
+        }),
+      ),
+    ],
     clickMarker: clickMarkerOf(pointer.click),
     hoverTile: pointer.hoverTile,
     loweredWalls,
@@ -123,6 +182,61 @@ export function worldViewOf(
       lit: !loweredWalls.includes(torch.wall),
     })),
     combat: world.areaName !== TOWN,
+  };
+}
+
+/** A Corpse's fall: `ms` into it if it just died, else it lies still. */
+function corpseAnimationOf(ms: number | undefined): MonsterAnimation {
+  const progress =
+    ms === undefined ? 1 : Math.min(1, ms / 1000 / MONSTER_DEATH_SECONDS);
+  return { clip: "death", progress };
+}
+
+/** A living Monster as shown: its animation chosen by its state, as in 2D. */
+function monsterViewOf(
+  world: World,
+  monster: Monster,
+  alpha: number,
+  effects: Effects,
+): MonsterView {
+  const { contact } = MONSTER_LOOKS[monster.type];
+  const moving =
+    monster.pos.x !== monster.prevPos.x || monster.pos.y !== monster.prevPos.y;
+  let animation: MonsterAnimation;
+  if (monster.state === "windup") {
+    // A flinch doesn't stop a wind-up, so it shows over one.
+    animation = {
+      clip: "attack",
+      progress: windUpProgress(monster) * contact,
+    };
+  } else if (monster.flinch > 0) {
+    animation = {
+      clip: "flinch",
+      progress:
+        (FLINCH_STEPS[monster.type] - monster.flinch) /
+        FLINCH_STEPS[monster.type],
+    };
+  } else if (monster.state === "recover") {
+    animation = {
+      clip: "attack",
+      progress: contact + recoveryProgress(monster) * (1 - contact),
+    };
+  } else {
+    const seconds = (world.tick * STEP_MS) / 1000;
+    const clip = !moving ? "idle" : monster.state === "chase" ? "run" : "walk";
+    animation = { clip, seconds };
+  }
+  return {
+    id: monster.id,
+    type: monster.type,
+    pos: {
+      x: monster.prevPos.x + (monster.pos.x - monster.prevPos.x) * alpha,
+      y: monster.prevPos.y + (monster.pos.y - monster.prevPos.y) * alpha,
+    },
+    facing: monster.facing,
+    animation,
+    flash: effects.flashes.get(monster.id) ?? 0,
+    corpse: false,
   };
 }
 

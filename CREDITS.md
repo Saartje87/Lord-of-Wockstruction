@@ -164,6 +164,7 @@ The 3D models in `public/assets/models/` are by Kay Lousberg,
 licence (CC0). Crediting him is not required, and we do.
 
 - Adventurers 1.0: [KayKit-Character-Pack-Adventures-1.0](https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0) (commit `672074b`)
+- Skeletons 1.0: [KayKit-Character-Pack-Skeletons-1.0](https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Skeletons-1.0) (commit `15b62b9`)
 - Dungeon Remastered 1.0: [KayKit-Dungeon-Remastered-1.0](https://github.com/KayKit-Game-Assets/KayKit-Dungeon-Remastered-1.0) (commit `b0ca9bd`)
 - Halloween Bits 1.0: [KayKit-Halloween-Bits-1.0](https://github.com/KayKit-Game-Assets/KayKit-Halloween-Bits-1.0) (commit `6dc69bf`)
 - Medieval Hexagon 1.0: [KayKit-Medieval-Hexagon-Pack-1.0](https://github.com/KayKit-Game-Assets/KayKit-Medieval-Hexagon-Pack-1.0) (commit `84fa4e9`)

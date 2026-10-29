@@ -10,44 +10,7 @@ import {
 } from "../sim/world";
 import type { MonsterType } from "../tuning/monsters";
 import { viewportOf } from "../viewport";
-import {
-  characterUnder,
-  hoveredOf,
-  nameplateLayout,
-  nameplateOf,
-  type Pickable,
-} from "./hover";
-
-describe("characterUnder", () => {
-  it("picks the character whose box is under the point", () => {
-    const characters: Pickable<number | "golem">[] = [
-      { id: 1, at: { x: 100, y: 100 }, scale: 1 },
-      { id: "golem", at: { x: 300, y: 100 }, scale: 1 },
-    ];
-
-    expect(characterUnder(characters, { x: 100, y: 60 })).toBe(1);
-    expect(characterUnder(characters, { x: 300, y: 60 })).toBe("golem");
-    expect(characterUnder(characters, { x: 200, y: 60 })).toBeNull();
-  });
-
-  it("picks the one in front, lowest on screen, where boxes overlap", () => {
-    const characters: Pickable<number | "golem">[] = [
-      { id: 1, at: { x: 100, y: 100 }, scale: 1 },
-      { id: "golem", at: { x: 110, y: 120 }, scale: 1.3 },
-    ];
-
-    expect(characterUnder(characters, { x: 105, y: 80 })).toBe("golem");
-  });
-
-  it("grows a character's box with its scale", () => {
-    const at = { x: 100, y: 100 };
-    // Above a native-scale character's head, but on one 1.3 times as big.
-    const point = { x: 100, y: 100 - 150 };
-
-    expect(characterUnder([{ id: 1, at, scale: 1 }], point)).toBeNull();
-    expect(characterUnder([{ id: 1, at, scale: 1.3 }], point)).toBe(1);
-  });
-});
+import { hoveredOf, nameplateLayout, nameplateOf } from "./hover";
 
 /** A World in a Combat Area with one `monster`, to read nameplates from. */
 function world(monster: MonsterType = "skeleton") {

@@ -393,6 +393,11 @@ export function windUpProgress(monster: Monster): number {
   return monster.attack / STEPPED[monster.type].windUpSteps;
 }
 
+/** How far through its recovery a recovering Monster is, from 0 to 1. */
+export function recoveryProgress(monster: Monster): number {
+  return 1 - monster.attack / STEPPED[monster.type].rootSteps;
+}
+
 /** Starts telegraphing an attack, facing its target at `at`. */
 function startWindUp(monster: Monster, at: Vec) {
   monster.state = "windup";

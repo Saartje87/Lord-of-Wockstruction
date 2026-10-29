@@ -1,10 +1,8 @@
 import {
   type Application,
   CanvasTextMetrics,
-  ColorMatrixFilter,
   Container,
   Graphics,
-  Sprite,
   Text,
   TextStyle,
 } from "pixi.js";
@@ -13,7 +11,6 @@ import type { Fullscreen } from "../fullscreen";
 import type { ActiveInput } from "../input/activeInput";
 import { castButton } from "../input/pad";
 import { buttonsHeld, stickHeld, type TouchControls } from "../input/touch";
-import { toScreen, toTile } from "../iso";
 import {
   type FullscreenChoice,
   type HeroState,
@@ -24,7 +21,7 @@ import {
   type PendingPoints,
 } from "../menus";
 import type { Pause } from "../pause";
-import { type Area, isFloor } from "../sim/area";
+import type { Area } from "../sim/area";
 import { beltOf, beltRows, isBeltCell } from "../sim/belt";
 import {
   cursorItemOf,
@@ -38,58 +35,47 @@ import {
   isSlot,
   placement,
 } from "../sim/inventory";
-import { minionWindUpProgress } from "../sim/minions";
-import { monsterMaxLife, windUpProgress } from "../sim/monsters";
+import { monsterMaxLife } from "../sim/monsters";
 import { inside, middleOf, type Rect } from "../sim/rect";
 import type { SkillBarSlot } from "../sim/skillBar";
-import { STEP_MS } from "../sim/units";
-import { tileOf, type Vec } from "../sim/vec";
+import type { Vec } from "../sim/vec";
 import {
   ATTRIBUTES,
   areaFade,
-  CAST_STEPS,
   DEATH_STEPS,
-  FLINCH_STEPS,
   groundItemsOf,
-  HERO_FLINCH_STEPS,
-  HIT_STEP,
   inTown,
   isInCombat,
   isRegenerating,
   type MinionId,
-  type MinionType,
+  type Monster,
   type MonsterId,
-  OPENING_STEPS,
   type SimEvent,
-  SWING_STEPS,
   townPortalFlash,
   townPortalIn,
   type World,
 } from "../sim/world";
 import { heroTuning } from "../tuning/hero";
-import { inputTuning } from "../tuning/input";
 import { type ItemType, itemOf } from "../tuning/items";
-import { minionTuning } from "../tuning/minions";
-import {
-  type MeleeTuning,
-  type MonsterType,
-  monsterTuning,
-} from "../tuning/monsters";
+import type { MonsterType } from "../tuning/monsters";
 import { type Skill, skillTuning } from "../tuning/skills";
 import { townPortalLook } from "../tuning/townPortalLook";
 import { atUiScale, type Viewport, viewportOf } from "../viewport";
-import { type Compass, compassOf, frameAt, swingFrame } from "./animation";
+import { tileToScreen, type WorldCamera } from "../world3d/camera";
+import { groundSpotsOf } from "../world3d/groundSpots";
+import { MONSTER_LOOKS } from "../world3d/monsterLook";
+import { pickablesOf } from "../world3d/pickables";
+import { characterUnder3d, type Pickable3d } from "../world3d/picking";
+import type { Effects } from "../world3d/view";
 import {
   areaBannerLayout,
   arrivedInDisplayName,
   bannerOpacityAt,
 } from "./areaBanner";
-import { type Animation, type Art, type CharacterArt, frameOf } from "./art";
 import { beltStripLayout, beltStripSheet } from "./beltStrip";
-import { type Camera, cameraOn, onScreen, onWorld } from "./camera";
 import { CLOSE_BUTTON } from "./closeButton";
-import { CORPSE_BURST, corpseBurst } from "./corpseBurst";
-import { CURSE_CIRCLE, CURSE_MARK, curseCircle, curseMarkAlpha } from "./curse";
+import { corpseBurst } from "./corpseBurst";
+import { CURSE_MARK, curseCircle, curseMarkAlpha } from "./curse";
 import { cursorHitAt, type ShownPanels } from "./cursorHit";
 import {
   DAMAGE_NUMBER,
@@ -127,11 +113,9 @@ import {
 } from "./hints";
 import {
   type CharacterId,
-  characterUnder,
   hoveredOf,
   nameplateLayout,
   nameplateOf,
-  type Pickable,
 } from "./hover";
 import {
   heldItemRect,
@@ -199,34 +183,12 @@ import {
 } from "./skillTreePanel";
 import { tooltipRect } from "./tooltip";
 import { touchControlsLayout, touchControlsShown } from "./touchControls";
-import {
-  townPortalCloseScale,
-  townPortalGlow,
-  townPortalOpenScale,
-  townPortalPixels,
-  townPortalSparks,
-} from "./townPortalLook";
-
-const HOVER_LINE = 0xd8c48a;
-const MARKER_LINE = 0xe8d27a;
+import { shownTownPortals, townPortalCloseScale } from "./townPortalLook";
 
 /** How long a hit Monster flashes white (ms), fading out. */
 const FLASH_MS = 120;
 /** How white a hit Monster turns at the start of its flash (0..1). */
 const FLASH_STRENGTH = 0.8;
-
-/**
- * The Hero's flash on reaching a new Level: its length (ms), fading out, how
- * strongly it washes them gold at the start (0..1), and a gold ring spreading
- * out at their feet to `ringRadius` (tiles).
- */
-const LEVEL_UP = {
-  ms: 800,
-  strength: 0.7,
-  colour: 0xffd75a,
-  ringRadius: 1.4,
-  ringWidth: 3,
-};
 
 /** The screen's red flash when the Hero is hit: its length (ms), fading out. */
 const HURT_MS = 150;
@@ -270,57 +232,10 @@ const PAUSE_MENU = {
   hint: { colour: 0x9a9080, size: 14, bottom: 26 },
 };
 
-/**
- * A placeholder telegraph: a red wedge over a Monster's reach and arc, filling
- * outwards as it winds up.
- */
-const TELEGRAPH_COLOUR = 0xd02a1e;
-/** How opaque the whole wedge and its filled part are (0..1). */
-const TELEGRAPH_ALPHA = { reach: 0.12, filled: 0.35 };
-const TELEGRAPH_SEGMENTS = 12;
-
-/**
- * Each Monster type's size against Flare's native scale: the one number to
- * change if a type looks off. Each is drawn as Flare made it.
- */
-const MONSTER_SCALE: Record<MonsterType, number> = {
-  skeleton: 1,
-  zombie: 1,
-  skeleton_archer: 1,
-};
-/**
- * How long a screen-east Projectile's art is per tile it spans: a tile of
- * flight straight across the screen, so flight in any other direction is
- * drawn foreshortened as the floor is.
- */
-const PROJECTILE_EAST_LENGTH = Math.hypot(
-  toScreen({ x: Math.SQRT1_2, y: -Math.SQRT1_2 }).x,
-  toScreen({ x: Math.SQRT1_2, y: -Math.SQRT1_2 }).y,
-);
-/**
- * Placeholder NPCs are drawn with the Hero's art, tinted so they can't be
- * mistaken for the Hero, facing down the screen.
- */
-const NPC = { tint: 0x8c9ccc, compass: "s" } satisfies {
-  tint: number;
-  compass: Compass;
-};
-/** How far apart NPCs' idle animations run (ms), so they don't breathe in step. */
-const NPC_STAGGER_MS = 337;
-/**
- * How far behind the living a Corpse sorts (CSS px of screen y): one row of
- * tiles, so anyone standing on or just behind a Corpse is drawn over it.
- */
-const CORPSE_DEPTH = toScreen({ x: 1, y: 0 }).y;
-/** How wide one tile's diamond is on screen (CSS px). */
-const TILE_WIDTH = toScreen({ x: 1, y: -1 }).x;
-
-/** The outline around a hovered Monster, and how thick it is (CSS px). */
-const OUTLINE = { colour: 0xd8c890, width: 1 };
 /** The HUD's font, for the nameplate and damage numbers. */
 const SERIF = "Georgia, serif";
-/** How high a character's head is over its feet at native scale (CSS px). */
-const HEAD_HEIGHT = 120;
+/** How tall the Hero and the Minions stand in the 3D World, in tiles. */
+const HERO_HEIGHT = 0.9;
 /** The Life bar over a damaged Monster's head (CSS px). */
 const MONSTER_BAR = { width: 30, height: 5, above: 8 };
 /**
@@ -345,21 +260,6 @@ const NUMBER_COLOUR: Record<DamageNumber["kind"], number> = {
   noRoom: 0xe8e0c8,
   castFailed: 0x8ab4ff,
 };
-
-/**
- * How each Minion looks: the Skeleton's art, `scale` times as big and tinted
- * `tint`: the placeholder Golem clay, a Raised Skeleton a pale, ghostly
- * green, apart from the Monster Skeletons around it.
- */
-const MINION_LOOK: Record<MinionType, { tint: number; scale: number }> = {
-  golem: { tint: 0xc0804a, scale: 1.3 },
-  raisedSkeleton: { tint: 0xa8f0b8, scale: 1 },
-};
-/**
- * How long a Minion takes to crumble away, replaced or killed: its `die`
- * animation, fading out (ms).
- */
-const CRUMBLE_MS = 900;
 
 /**
  * The Skill Bar's look, in the HUD's colours; where things go is
@@ -559,15 +459,16 @@ const PANEL_BUTTON_STYLE = {
   },
 };
 /**
- * A Ground Item: a small diamond on the floor tinted as its type, `size`
- * across (CSS px), under a dark label with its name, gold while hovered
- * (where the label goes and how big is `groundLabels`). A click within
- * `grab` of the diamond's box picks it up too.
+ * How far from a Ground Item's model a click still picks it up (CSS px at
+ * World zoom 1).
+ */
+const GROUND_ITEM_GRAB = 24;
+
+/**
+ * A Ground Item's name label: a dark back `labelAlpha` opaque, the name gold
+ * while hovered (where the label goes and how big is `groundLabels`).
  */
 const GROUND_ITEM = {
-  size: 14,
-  grab: 4,
-  edge: 0xd8c890,
   label: 0x000000,
   labelAlpha: 0.7,
   name: 0xe8e0c8,
@@ -590,119 +491,60 @@ const SLOT_NAMES: Record<EquipmentSlot, string> = {
  */
 const BADGE = { size: 13, gap: 4, combat: 0xd84a3a, regen: 0x9cd89c };
 
-/** The frame of the Hero's `swing` where the blade connects. */
-const HERO_STRIKE_FRAME = 2;
-/** The swing as the sim times it, so the strike frame starts on the hit step. */
-const HERO_SWING = {
-  swingMs: SWING_STEPS * STEP_MS,
-  hitMs: HIT_STEP * STEP_MS,
-};
-
-/** A character on screen: its sprite and what its animation needs to know. */
-type CharacterView = {
-  sprite: Sprite;
-  art: CharacterArt;
-  /**
-   * The walking speed (tiles/s) at which `run` plays at Flare's own rate; it
-   * plays faster or slower with the speed actually walked.
-   */
-  runSpeed: number;
-  /** How far into `run` the feet are, as ms at `runSpeed`. */
-  runMs: number;
-  /** Where it was drawn last frame, in tile units. */
-  drawnAt: Vec | null;
-};
-
-type MonsterView = CharacterView & {
+/**
+ * What the renderer remembers of a Monster or Corpse the World drew: where
+ * it stood, for damage numbers, and the milliseconds-long effects on it.
+ */
+type MonsterMark = {
   type: MonsterType;
-  /** Which way it faced when last seen alive, for its Corpse. */
-  facing: number;
+  /** Where it stood when last drawn, in tile units. */
+  at: Vec;
   diedAtMs: number | null;
   flashUntilMs: number;
-  flash: ColorMatrixFilter | null;
 };
 
 /**
- * Draws the World's active Area and everything in it into a Pixi stage,
- * following the Hero. `areaDisplayNames` are what the Area Banner on arriving in
- * an Area shows, by Area name. Hints name the buttons of `activeInput`, read
- * as it is each frame, and the touch controls show while it is touch, held
- * as `touch` is each frame.
+ * Draws the HUD, the panels and the maps over the 3D World into a Pixi
+ * stage, and places what hangs over the World (damage numbers, Life bars,
+ * Curse marks and Ground Item labels) through the 3D World's camera,
+ * `cameraOf`, as last drawn. `areaDisplayNames` are what the Area Banner on
+ * arriving in an Area shows, by Area name. Hints name the buttons of
+ * `activeInput`, read as it is each frame, and the touch controls show while
+ * it is touch, held as `touch` is each frame.
  */
 export function createRenderer(
   app: Application,
-  art: Art,
+  cameraOf: () => WorldCamera,
   areaDisplayNames: Readonly<Record<string, string>>,
   activeInput: Readonly<ActiveInput>,
   touch: Readonly<TouchControls>,
 ) {
-  // The World, drawn at the World zoom.
-  const camera = new Container();
-  app.stage.addChild(camera);
-  /** Where the camera was last drawn. */
-  let shot: Camera = { x: 0, y: 0, zoom: 1 };
-  // Over the World, following it but drawn at the UI Scale, not the World
-  // zoom: damage numbers and Ground Item labels.
-  const overWorld = new Container();
-  app.stage.addChild(overWorld);
+  /** Where each character stood as last drawn, for picking. */
+  let standing: Pickable3d<CharacterId>[] = [];
+  let highlighted: CharacterId | null = null;
+  // Over the 3D World, under the HUD, bottom to top: Ground Item labels,
+  // damage numbers, then Life bars and Curse marks, which are scaled by the
+  // World zoom.
+  const labels3d = new Container();
+  app.stage.addChild(labels3d);
+  const numbers = new Container();
+  app.stage.addChild(numbers);
+  const overheads3d = new Container();
+  app.stage.addChild(overheads3d);
+  const overheads = new Graphics();
+  overheads3d.addChild(overheads);
 
   // Filled by `showArea`.
   let area: Area | null = null;
-  const floor = new Container();
-  floor.sortableChildren = true;
-  camera.addChild(floor);
-  let props: Sprite[] = [];
-  let npcs: CharacterView[] = [];
-  const hover = new Graphics();
-  camera.addChild(hover);
-  const marker = drawMarker();
-  marker.visible = false;
-  camera.addChild(marker);
-  const telegraphs = new Graphics();
-  camera.addChild(telegraphs);
-  // On the floor, under everyone standing.
-  const groundItems = new Graphics();
-  camera.addChild(groundItems);
-  // Walls, props, the Hero, Monsters and Corpses, nearest the viewer last.
-  const scene = new Container();
-  scene.sortableChildren = true;
-  camera.addChild(scene);
-  const hero = characterView(art.hero, heroTuning.walkSpeed);
-  scene.addChild(hero.sprite);
-  /** A view for each Town Portal end drawn, made as more are needed. */
-  const townPortals: Graphics[] = [];
-  /** A sprite for each Projectile in flight, in the World's order. */
-  const projectiles: Sprite[] = [];
-  // Under the scene, so the ring spreads at the Hero's feet.
-  const levelRing = new Graphics();
-  camera.addChildAt(levelRing, camera.getChildIndex(scene));
-  // On the floor, under everyone standing.
-  const townPortalGlows = new Graphics();
-  camera.addChildAt(townPortalGlows, camera.getChildIndex(scene));
-  // On the floor too, spreading under the Monsters it hurts.
-  const corpseBursts = new Graphics();
-  camera.addChildAt(corpseBursts, camera.getChildIndex(scene));
-  // And Curses' circles, round the Monsters they Curse.
-  const curseCircles = new Graphics();
-  camera.addChildAt(curseCircles, camera.getChildIndex(scene));
-  const levelFlash = new ColorMatrixFilter({ resolution: "inherit" });
-  levelFlash.matrix = washTo(LEVEL_UP.colour);
-  const outline = outlineView();
-  scene.addChild(outline.layer);
-  // Over the scene: Life bars over heads and damage numbers.
-  const overheads = new Graphics();
-  camera.addChild(overheads);
   // Ground Items' name labels, always shown.
   const labelBacks = new Graphics();
-  overWorld.addChild(labelBacks);
+  labels3d.addChild(labelBacks);
   const labelTexts = new Map<ItemId, Text>();
   /** Where each Ground Item's label was last drawn on the screen. */
   let labels: GroundLabel[] = [];
-  /** Where each Ground Item was last drawn on the floor, in camera space. */
+  /** Where each Ground Item was last drawn, on the screen (CSS px). */
   let lyingAt: { id: ItemId; at: Vec }[] = [];
-  const numbers = new Container();
-  overWorld.addChild(numbers);
-  const floating: { text: Text; bornMs: number; at: Vec }[] = [];
+  const floating: { text: Text; bornMs: number; at: Vec; lift: number }[] = [];
   const nameplate = new Graphics();
   app.stage.addChild(nameplate);
   const nameplateText = new Text({
@@ -778,49 +620,25 @@ export function createRenderer(
   app.stage.addChild(notice.layer);
 
   /** Living Monsters and Corpses by id. */
-  const monsters = new Map<MonsterId, MonsterView>();
-  /** The view of a living Monster or Corpse, made on first sight. */
-  const viewOf = (id: MonsterId, type: MonsterType): MonsterView => {
-    let view = monsters.get(id);
-    if (!view) {
-      view = monsterView(art, type);
-      monsters.set(id, view);
-      scene.addChild(view.sprite);
-    }
-    return view;
-  };
-  /**
-   * Each living Minion's view, made on first sight, with its type and its
-   * facing as drawn.
-   */
-  const minionViews = new Map<
-    MinionId,
-    { view: CharacterView; type: MinionType; compass: Compass }
-  >();
-  /** Gone Minions crumbling away, each from when it began. */
-  const crumbling: { view: CharacterView; atMs: number; compass: Compass }[] =
-    [];
-  /** A Minion's view: the Skeleton's art, in its type's look. */
-  const minionView = (type: MinionType): CharacterView => {
-    const view = characterView(art.monsters.skeleton, minionTuning[type].speed);
-    view.sprite.tint = MINION_LOOK[type].tint;
-    view.sprite.scale.set(MINION_LOOK[type].scale);
-    scene.addChild(view.sprite);
-    return view;
-  };
-  /** Drops the view of Minion `id`, if drawn. */
-  const dropMinionView = (id: MinionId) => {
-    minionViews.get(id)?.view.sprite.destroy();
-    minionViews.delete(id);
-  };
-  let hoveredTile: Vec | null = null;
-  let markedAtMs: number | null = null;
+  const monsters = new Map<MonsterId, MonsterMark>();
+  /** Where the Hero and each living Minion stood as last drawn (tile units). */
+  let heroTile: Vec = { x: 0, y: 0 };
+  const minionTiles = new Map<MinionId, Vec>();
   let hurtAtMs: number | null = null;
   let levelAtMs: number | null = null;
   /** When the Hero's Town Portal last opened, for its burst. */
   let townPortalOpenedAtMs: number | null = null;
   /** Town Portal ends shrinking away, each in its Area from when it closed. */
   const closingTownPortals: { area: string; pos: Vec; atMs: number }[] = [];
+  /** The Town Portal ends to draw in the active Area at `nowMs`. */
+  const portalsShown = (world: World, nowMs: number) =>
+    shownTownPortals({
+      end: townPortalIn(world),
+      openedAtMs: townPortalOpenedAtMs,
+      closing: closingTownPortals,
+      area: world.areaName,
+      nowMs,
+    });
   /** Corpses bursting in the active Area, each over its radius (tiles). */
   const bursts: { pos: Vec; radius: number; atMs: number }[] = [];
   /** Curses cast in the active Area, each over its radius (tiles). */
@@ -858,20 +676,24 @@ export function createRenderer(
       activeInput.way === "touch",
     );
 
+  /** Drops what was in the air in the Area left behind. */
+  const showArea = (next: Area) => {
+    area = next;
+    for (const { text } of floating.splice(0)) text.destroy();
+    bursts.length = 0;
+    curses.length = 0;
+  };
+
   /**
    * Starts afresh for another World, whose Monster ids start over: drops
-   * every Monster view and the Hero's hurt and level-up effects, and shows
+   * every Monster mark and the Hero's hurt and level-up effects, and shows
    * its Area.
    */
   const showWorld = (next: World) => {
     drawnWorld = next;
-    for (const view of monsters.values()) {
-      view.sprite.destroy();
-      view.flash?.destroy();
-    }
     monsters.clear();
     // Minion ids start over too.
-    for (const id of [...minionViews.keys()]) dropMinionView(id);
+    minionTiles.clear();
     // Item ids start over too.
     for (const text of labelTexts.values()) text.destroy();
     labelTexts.clear();
@@ -882,56 +704,11 @@ export function createRenderer(
   };
 
   /**
-   * Swaps in another Area's tiles and NPCs. Its Monsters and Corpses get
-   * their own views as they're drawn, and the old ones go as they're no
-   * longer seen.
-   */
-  const showArea = (next: Area) => {
-    area = next;
-    for (const tile of floor.removeChildren()) tile.destroy();
-    for (const prop of props) prop.destroy();
-    props = drawTiles(next, next.propTiles, art);
-    scene.addChild(...props);
-    const floorTiles = drawTiles(next, next.floorTiles, art);
-    // Floor art wider than a tile, such as Flare's 2×2 waypoint, spreads over
-    // its neighbours, so it goes over their floor whatever the order.
-    for (const tile of floorTiles) {
-      tile.zIndex = tile.width > TILE_WIDTH ? 1 : 0;
-    }
-    floor.addChild(...floorTiles);
-    for (const npc of npcs) npc.sprite.destroy();
-    npcs = next.npcs.map(() => npcView(art));
-    if (npcs.length > 0) scene.addChild(...npcs.map((npc) => npc.sprite));
-    for (const { text } of floating.splice(0)) text.destroy();
-    for (const { view } of crumbling.splice(0)) view.sprite.destroy();
-    bursts.length = 0;
-    curses.length = 0;
-    markedAtMs = null;
-    hoveredTile = null;
-    hover.clear();
-  };
-
-  /** Maps a point on the canvas (CSS px) to tile units, as last drawn. */
-  const screenToTile = (screen: Vec): Vec => toTile(onWorld(shot, screen));
-
-  /**
    * The living Monster or Minion drawn under a point on the canvas (CSS
    * px), as last drawn: the one in front where they overlap.
    */
-  const characterAt = (screen: Vec): CharacterId | null => {
-    const characters: Pickable<CharacterId>[] = [];
-    for (const [id, view] of monsters) {
-      if (view.diedAtMs !== null) continue;
-      const { position } = view.sprite;
-      characters.push({ id, at: position, scale: MONSTER_SCALE[view.type] });
-    }
-    for (const [id, { view, type }] of minionViews) {
-      const { position } = view.sprite;
-      const { scale } = MINION_LOOK[type];
-      characters.push({ id: { minion: id }, at: position, scale });
-    }
-    return characterUnder(characters, onWorld(shot, screen));
-  };
+  const characterAt = (screen: Vec): CharacterId | null =>
+    characterUnder3d(cameraOf(), standing, screen);
 
   /**
    * The Monster drawn under a point on the canvas (CSS px), as last drawn;
@@ -948,15 +725,12 @@ export function createRenderer(
 
   /** The Ground Item drawn on the floor under a canvas point (CSS px). */
   const groundItemAt = (screen: Vec): ItemId | null =>
-    groundItemUnder(
-      lyingAt,
-      onWorld(shot, screen),
-      GROUND_ITEM.size / 2 + GROUND_ITEM.grab,
-    );
+    groundItemUnder(lyingAt, screen, GROUND_ITEM_GRAB * cameraOf().zoom);
 
   /**
-   * Draws each Ground Item on the floor with its name label over it, gold
-   * for `hovered`, and drops the labels of Items no longer lying there.
+   * Draws each Ground Item's name label over where its model is on the
+   * screen, gold for `hovered`, and drops the labels of Items no longer
+   * lying there.
    */
   const drawGroundItems = (
     world: World,
@@ -964,24 +738,13 @@ export function createRenderer(
     uiScale: number,
   ) => {
     const lying = groundItemsOf(world);
-    groundItems.clear();
     labelBacks.clear();
-    const half = GROUND_ITEM.size / 2;
-    const sized = lying.map(({ item, pos }) => {
-      const at = toScreen(pos);
-      groundItems
-        .poly([
-          at.x,
-          at.y - half,
-          at.x + half,
-          at.y,
-          at.x,
-          at.y + half,
-          at.x - half,
-          at.y,
-        ])
-        .fill(itemColour(item.type))
-        .stroke({ color: GROUND_ITEM.edge, width: 1 });
+    const spots = groundSpotsOf(
+      cameraOf(),
+      lying.map(({ item, pos }) => ({ id: item.id, type: item.type, pos })),
+    );
+    const sized = lying.map(({ item }, i) => {
+      const { at } = spots[i];
       let text = labelTexts.get(item.id);
       if (!text) {
         text = new Text({
@@ -990,17 +753,14 @@ export function createRenderer(
         });
         text.anchor.set(0.5, 0.5);
         labelTexts.set(item.id, text);
-        overWorld.addChild(text);
+        labels3d.addChild(text);
       }
       sizeText(text, GROUND_LABEL.textSize * uiScale);
       const width = text.width + 2 * GROUND_LABEL.padding * uiScale;
       return { id: item.id, at, width };
     });
     // Labels are laid out on the screen, at the UI Scale.
-    labels = groundLabels(
-      sized.map(({ id, at, width }) => ({ id, at: onScreen(shot, at), width })),
-      uiScale,
-    );
+    labels = groundLabels(sized, uiScale);
     lyingAt = sized.map(({ id, at }) => ({ id, at }));
     for (const { id, rect } of labels) {
       labelBacks
@@ -1021,15 +781,56 @@ export function createRenderer(
 
   return {
     /**
-     * Stops drawing the World and what follows it, for the 3D World drawn
-     * under the HUD instead.
+     * What the 3D World shows that lasts milliseconds: each hit Monster's
+     * flash, how long ago each killed Monster died, the Town Portal ends,
+     * and the Corpse bursts, Curses and Level Up ring, which are dropped
+     * here once they are over.
      */
-    hideWorld() {
-      camera.visible = false;
-      overWorld.visible = false;
+    effectsAt(nowMs: number, world: World): Effects {
+      const flashes = new Map<MonsterId, number>();
+      const deadForMs = new Map<MonsterId, number>();
+      for (const [id, mark] of monsters) {
+        const left = (mark.flashUntilMs - nowMs) / FLASH_MS;
+        if (left > 0) flashes.set(id, FLASH_STRENGTH * left);
+        if (mark.diedAtMs !== null) deadForMs.set(id, nowMs - mark.diedAtMs);
+      }
+      const portals = portalsShown(world, nowMs);
+      for (let i = closingTownPortals.length - 1; i >= 0; i--) {
+        if (townPortalCloseScale(nowMs - closingTownPortals[i].atMs) === 0) {
+          closingTownPortals.splice(i, 1);
+        }
+      }
+      for (let i = bursts.length - 1; i >= 0; i--) {
+        const { radius, atMs } = bursts[i];
+        if (!corpseBurst(nowMs - atMs, radius)) bursts.splice(i, 1);
+      }
+      for (let i = curses.length - 1; i >= 0; i--) {
+        const { radius, atMs } = curses[i];
+        if (!curseCircle(nowMs - atMs, radius)) curses.splice(i, 1);
+      }
+      const ageOf = ({ pos, radius, atMs }: (typeof bursts)[number]) => ({
+        pos,
+        radius,
+        ageMs: nowMs - atMs,
+      });
+      return {
+        flashes,
+        deadForMs,
+        portals,
+        bursts: bursts.map(ageOf),
+        curses: curses.map(ageOf),
+        levelUpAgoMs: levelAtMs === null ? null : nowMs - levelAtMs,
+      };
     },
 
-    screenToTile,
+    /**
+     * The Monster or Minion outlined as hovered, or as the auto-aim Target
+     * with the pointer over no one, as last drawn.
+     */
+    highlightedCharacter(): CharacterId | null {
+      return highlighted;
+    },
+
     monsterAt,
     groundLabelAt: groundLabelUnder,
     groundItemAt,
@@ -1077,23 +878,24 @@ export function createRenderer(
       const arrivedIn = arrivedInDisplayName(events, areaDisplayNames);
       if (arrivedIn !== null) showBanner(arrivedIn, nowMs);
       for (const number of damageNumbers(events)) {
-        const sprite =
+        // Over the character as last drawn, the tile it stood on.
+        const mark =
+          typeof number.on === "number" ? monsters.get(number.on) : null;
+        const at =
           number.on === "hero"
-            ? hero.sprite
+            ? heroTile
             : typeof number.on === "number"
-              ? monsters.get(number.on)?.sprite
-              : minionViews.get(number.on.minion)?.view.sprite;
-        if (!sprite) continue;
+              ? mark?.at
+              : minionTiles.get(number.on.minion);
+        if (!at) continue;
         const text = new Text({
           text: floatText(number),
           style: { fill: NUMBER_COLOUR[number.kind], fontFamily: SERIF },
         });
         text.anchor.set(0.5, 1);
         numbers.addChild(text);
-        // Over where a Monster's Life bar goes; `gap` more at the UI Scale
-        // as it's drawn.
-        const at = { x: sprite.position.x, y: barTop(sprite) };
-        floating.push({ text, bornMs: nowMs, at });
+        const height = mark ? MONSTER_LOOKS[mark.type].height : HERO_HEIGHT;
+        floating.push({ text, bornMs: nowMs, at, lift: height + 0.15 });
       }
       // Red only when Life was lost; the Bone Ward ring pulses when it soaked.
       const shown = heroHitShows(events);
@@ -1101,20 +903,15 @@ export function createRenderer(
       if (shown.pulses) orb.startPulse(nowMs);
       for (const event of events) {
         if (event.type === "HitLanded") {
-          const view = monsters.get(event.target);
-          if (view) view.flashUntilMs = nowMs + FLASH_MS;
+          const mark = monsters.get(event.target);
+          if (mark) mark.flashUntilMs = nowMs + FLASH_MS;
         }
         if (event.type === "MonsterDied") {
-          const view = monsters.get(event.id);
-          if (view) view.diedAtMs = nowMs;
+          const mark = monsters.get(event.id);
+          if (mark) mark.diedAtMs = nowMs;
         }
-        // Killed, it crumbles away as when replaced.
-        const gone =
-          event.type === "MinionCrumbled" || event.type === "MinionDied";
-        const drawn = gone && minionViews.get(event.minion);
-        if (drawn) {
-          crumbling.push({ ...drawn, atMs: nowMs });
-          minionViews.delete(event.minion);
+        if (event.type === "MinionCrumbled" || event.type === "MinionDied") {
+          minionTiles.delete(event.minion);
         }
         if (event.type === "LevelReached") levelAtMs = nowMs;
         if (event.type === "TownPortalOpened") townPortalOpenedAtMs = nowMs;
@@ -1134,25 +931,18 @@ export function createRenderer(
       }
     },
 
-    /** Shows the click marker at a target in tile units. */
-    markClick(target: Vec, nowMs: number) {
-      const at = toScreen(target);
-      marker.position.set(at.x, at.y);
-      markedAtMs = nowMs;
-    },
-
     /**
      * `alpha` (0..1) is how far the frame is from the previous step to the
      * current one; `pointer` is the cursor on the canvas (CSS px), if on it,
-     * which outlines what it's over in the World, or off a panel, shows the
+     * which names what it's over in the World, or off a panel, shows the
      * tooltip of the Item it's over on one. `menus` shows the Hero and
      * Inventory panels while they're open, and the pause menu over
      * everything while paused. `heldSkill` is the Held Skill, if any, drawn
      * at the pointer, and `heldSkillSlot` the Skill Bar slot it was picked
      * up from, drawn dimmed. `target` is the Target auto-aim picked, if any,
-     * outlined and named as a hovered Monster is when the pointer is over no
-     * one. `focus` is where the Focus rests in an open panel, if it shows,
-     * ringed as the pause menu's focused button is.
+     * named as a hovered Monster is when the pointer is over no one. `focus`
+     * is where the Focus rests in an open panel, if it shows, ringed as the
+     * pause menu's focused button is.
      */
     draw(
       world: World,
@@ -1182,316 +972,73 @@ export function createRenderer(
         showBanner(areaDisplayNames[world.areaName], nowMs);
       } else if (active !== area) showArea(active);
       const heroAt = lerp(world.hero.prevPos, world.hero.pos, alpha);
-      const at = toScreen(heroAt);
-
-      // Snap the camera and sprites to device pixels so the art stays
-      // crisp, with the Hero at the centre of the screen.
+      heroTile = heroAt;
       const { resolution } = app.renderer;
-      shot = cameraOn(viewport, at, resolution);
-      camera.position.set(shot.x, shot.y);
-      camera.scale.set(shot.zoom);
-      // A device pixel, in the World's own pixels.
-      const pixel = shot.zoom * resolution;
-      const snap = (value: number) => Math.round(value * pixel) / pixel;
       const snapOnScreen = (value: number) =>
         Math.round(value * resolution) / resolution;
-      const place = (view: CharacterView, at: Vec, depth = 0) => {
-        const screen = toScreen(at);
-        view.sprite.position.set(snap(screen.x), snap(screen.y));
-        view.sprite.zIndex = screen.y - depth;
-      };
 
-      place(hero, heroAt);
-      active.npcs.forEach((npc, i) => {
-        const view = npcs[i];
-        place(view, npc.pos);
-        const ms = nowMs + i * NPC_STAGGER_MS;
-        show(view, "stance", NPC.compass, frameAt(art.hero.timing.stance, ms));
-      });
-      const { swing } = world.hero;
-      const heroCompass = compassOf(world.hero.facing);
-      if (world.death) {
-        // Down from dying until back in Town.
-        const ms = world.death.elapsed * STEP_MS;
-        show(hero, "die", heroCompass, frameAt(art.hero.timing.die, ms));
-      } else if (swing) {
-        const frame = swingFrame(
-          {
-            ...HERO_SWING,
-            frames: art.hero.timing.swing.frames,
-            strikeFrame: HERO_STRIKE_FRAME,
-          },
-          swing.elapsed * STEP_MS,
-        );
-        show(hero, "swing", heroCompass, frame);
-      } else if (world.hero.cast || world.hero.opening) {
-        // A placeholder: the swing, slowed to the cast or opening time.
-        const { cast, opening } = world.hero;
-        const progress = cast
-          ? cast.elapsed / CAST_STEPS[cast.skill]
-          : (opening?.elapsed ?? 0) / OPENING_STEPS;
-        const { frames } = art.hero.timing.swing;
-        show(
-          hero,
-          "swing",
-          heroCompass,
-          Math.min(frames - 1, Math.floor(progress * frames)),
-        );
-      } else if (world.hero.flinch > 0) {
-        const ms = (HERO_FLINCH_STEPS - world.hero.flinch) * STEP_MS;
-        show(hero, "hit", heroCompass, frameAt(art.hero.timing.hit, ms));
-      } else {
-        walkOrStand(hero, world.hero, heroAt, heroCompass, nowMs);
-      }
-
-      const levelUpLeft =
-        levelAtMs === null ? 0 : 1 - (nowMs - levelAtMs) / LEVEL_UP.ms;
-      levelRing.clear();
-      if (levelUpLeft > 0) {
-        levelFlash.alpha = LEVEL_UP.strength * levelUpLeft;
-        hero.sprite.filters = [levelFlash];
-        const radius = LEVEL_UP.ringRadius * (1 - levelUpLeft);
-        levelRing
-          .poly(
-            [
-              { x: radius, y: 0 },
-              { x: 0, y: radius },
-              { x: -radius, y: 0 },
-              { x: 0, y: -radius },
-            ].flatMap((v) => {
-              const screen = toScreen(v);
-              return [at.x + screen.x, at.y + screen.y];
-            }),
-          )
-          .stroke({
-            color: LEVEL_UP.colour,
-            width: LEVEL_UP.ringWidth,
-            alpha: levelUpLeft,
-          });
-      } else if (hero.sprite.filters) {
-        hero.sprite.filters = null;
-      }
-
-      // The open end bursting open or standing, then any shrinking away.
-      const shownTownPortals: { pos: Vec; scale: number; msOpen: number }[] =
-        [];
-      const townPortalEnd = townPortalIn(world);
-      if (townPortalEnd) {
-        const msOpen =
-          townPortalOpenedAtMs === null
-            ? Number.POSITIVE_INFINITY
-            : nowMs - townPortalOpenedAtMs;
-        shownTownPortals.push({
-          pos: townPortalEnd,
-          scale: townPortalOpenScale(msOpen),
-          msOpen,
-        });
-      }
-      for (let i = closingTownPortals.length - 1; i >= 0; i--) {
-        const closing = closingTownPortals[i];
-        const scale = townPortalCloseScale(nowMs - closing.atMs);
-        if (scale === 0) closingTownPortals.splice(i, 1);
-        else if (closing.area === world.areaName) {
-          shownTownPortals.push({
-            pos: closing.pos,
-            scale,
-            msOpen: Number.POSITIVE_INFINITY,
-          });
-        }
-      }
-      while (townPortals.length < shownTownPortals.length) {
-        const view = new Graphics();
-        scene.addChild(view);
-        townPortals.push(view);
-      }
-      townPortalGlows.clear();
-      townPortals.forEach((view, i) => {
-        view.clear();
-        const shown = shownTownPortals[i];
-        if (!shown) return;
-        const foot = toScreen(shown.pos);
-        drawTownPortal(view, foot, shown.scale, shown.msOpen, nowMs);
-        view.zIndex = foot.y;
-        for (const ring of townPortalGlow(shown.scale)) {
-          townPortalGlows
-            .ellipse(foot.x, foot.y, ring.radiusX, ring.radiusY)
-            .fill({ color: townPortalLook.colours.glow, alpha: ring.alpha });
-        }
-      });
-
-      corpseBursts.clear();
-      for (let i = bursts.length - 1; i >= 0; i--) {
-        const { pos, radius, atMs } = bursts[i];
-        const burst = corpseBurst(nowMs - atMs, radius);
-        if (!burst) {
-          bursts.splice(i, 1);
-          continue;
-        }
-        const foot = toScreen(pos);
-        const { flash, ring } = burst;
-        corpseBursts
-          .ellipse(foot.x, foot.y, flash.radiusX, flash.radiusY)
-          .fill({ color: CORPSE_BURST.flashColour, alpha: flash.alpha })
-          .ellipse(foot.x, foot.y, ring.radiusX, ring.radiusY)
-          .stroke({
-            color: CORPSE_BURST.ringColour,
-            width: CORPSE_BURST.ringWidth,
-            alpha: ring.alpha,
-          });
-      }
-
-      curseCircles.clear();
-      for (let i = curses.length - 1; i >= 0; i--) {
-        const { pos, radius, atMs } = curses[i];
-        const circle = curseCircle(nowMs - atMs, radius);
-        if (!circle) {
-          curses.splice(i, 1);
-          continue;
-        }
-        const foot = toScreen(pos);
-        curseCircles
-          .ellipse(foot.x, foot.y, circle.radiusX, circle.radiusY)
-          .fill({
-            color: CURSE_CIRCLE.colour,
-            alpha: CURSE_CIRCLE.fillAlpha * circle.alpha,
-          })
-          .stroke({
-            color: CURSE_CIRCLE.colour,
-            width: CURSE_CIRCLE.ringWidth,
-            alpha: circle.alpha,
-          });
-      }
-
+      // Where each character stands, for damage numbers, with the marks of
+      // the effects on them.
       const seen = new Set<MonsterId>();
-      telegraphs.clear();
+      const markOf = (id: MonsterId, type: MonsterType): MonsterMark => {
+        let mark = monsters.get(id);
+        if (!mark) {
+          mark = { type, at: heroAt, diedAtMs: null, flashUntilMs: 0 };
+          monsters.set(id, mark);
+        }
+        seen.add(id);
+        return mark;
+      };
       for (const monster of world.monsters) {
-        seen.add(monster.id);
-        const view = viewOf(monster.id, monster.type);
-        const monsterAt = lerp(monster.prevPos, monster.pos, alpha);
-        place(view, monsterAt);
-        view.facing = monster.facing;
-        const compass = compassOf(view.facing);
-        if (monster.state === "windup") {
-          // A flinch doesn't stop a wind-up, so it shows over one.
-          const progress = windUpProgress(monster);
-          // An archer draws its bow with its own animation.
-          const { shoot, swing } = view.art.timing;
-          const animation = shoot ? "shoot" : "swing";
-          const { frames } = shoot ?? swing;
-          const frame = Math.min(frames - 1, Math.floor(progress * frames));
-          show(view, animation, compass, frame);
-          // A ranged attack has no reach to show: the drawn bow is the tell.
-          const { attack } = monsterTuning[monster.type];
-          if (attack.kind === "melee") {
-            telegraph(telegraphs, attack, monsterAt, view.facing, progress);
-          }
-        } else if (monster.flinch > 0) {
-          const ms = (FLINCH_STEPS[monster.type] - monster.flinch) * STEP_MS;
-          show(view, "hit", compass, frameAt(view.art.timing.hit, ms));
-        } else {
-          walkOrStand(view, monster, monsterAt, compass, nowMs);
-        }
-        flash(view, nowMs);
-      }
-
-      while (projectiles.length < world.projectiles.length) {
-        const sprite = new Sprite();
-        projectiles.push(sprite);
-        scene.addChild(sprite);
-      }
-      for (const sprite of projectiles.splice(world.projectiles.length)) {
-        sprite.destroy();
-      }
-      world.projectiles.forEach((projectile, i) => {
-        const sprite = projectiles[i];
-        const { frames, timing, height } = art.projectiles[projectile.kind];
-        const texture = frames[frameAt(timing, nowMs)];
-        sprite.texture = texture;
-        sprite.anchor.copyFrom(texture.defaultAnchor ?? { x: 0.5, y: 0.5 });
-        const ground = toScreen(
-          lerp(projectile.prevPos, projectile.pos, alpha),
+        markOf(monster.id, monster.type).at = lerp(
+          monster.prevPos,
+          monster.pos,
+          alpha,
         );
-        sprite.position.set(snap(ground.x), snap(ground.y - height));
-        sprite.zIndex = ground.y;
-        // Rotated to its direction of flight on screen, and foreshortened
-        // along it as the floor is.
-        const flight = toScreen(projectile.direction);
-        sprite.rotation = Math.atan2(flight.y, flight.x);
-        sprite.scale.set(
-          Math.hypot(flight.x, flight.y) / PROJECTILE_EAST_LENGTH,
-          1,
-        );
-      });
-
+      }
       for (const corpse of world.corpses) {
-        seen.add(corpse.id);
-        const view = viewOf(corpse.id, corpse.type);
+        const mark = markOf(corpse.id, corpse.type);
+        mark.at = corpse.pos;
         // Already dead when first drawn: lying still.
-        view.diedAtMs ??= -Infinity;
-        place(view, corpse.pos, CORPSE_DEPTH);
-        const ms = nowMs - view.diedAtMs;
-        const frame = frameAt(view.art.timing.die, ms);
-        show(view, "die", compassOf(view.facing), frame);
-        flash(view, nowMs);
+        mark.diedAtMs ??= -Infinity;
       }
-
-      const living = new Set(world.minions.map((minion) => minion.id));
-      for (const id of [...minionViews.keys()]) {
-        if (!living.has(id)) dropMinionView(id);
+      for (const id of [...monsters.keys()]) {
+        if (!seen.has(id)) monsters.delete(id);
       }
+      minionTiles.clear();
       for (const minion of world.minions) {
-        let drawn = minionViews.get(minion.id);
-        if (!drawn) {
-          const { type } = minion;
-          drawn = { view: minionView(type), type, compass: "s" };
-          minionViews.set(minion.id, drawn);
-        }
-        const minionAt = lerp(minion.prevPos, minion.pos, alpha);
-        place(drawn.view, minionAt);
-        drawn.compass = compassOf(minion.facing);
-        if (minion.state === "windup") {
-          const { frames } = drawn.view.art.timing.swing;
-          const progress = minionWindUpProgress(minion);
-          const frame = Math.min(frames - 1, Math.floor(progress * frames));
-          show(drawn.view, "swing", drawn.compass, frame);
-        } else {
-          walkOrStand(drawn.view, minion, minionAt, drawn.compass, nowMs);
-        }
-      }
-      for (let i = crumbling.length - 1; i >= 0; i--) {
-        const { view, atMs } = crumbling[i];
-        const ms = nowMs - atMs;
-        if (ms >= CRUMBLE_MS) {
-          view.sprite.destroy();
-          crumbling.splice(i, 1);
-          continue;
-        }
-        const { compass } = crumbling[i];
-        show(view, "die", compass, frameAt(view.art.timing.die, ms));
-        view.sprite.alpha = 1 - ms / CRUMBLE_MS;
-      }
-
-      for (const [id, view] of monsters) {
-        if (seen.has(id)) continue;
-        view.sprite.destroy();
-        view.flash?.destroy();
-        monsters.delete(id);
+        minionTiles.set(minion.id, lerp(minion.prevPos, minion.pos, alpha));
       }
 
       overheads.clear();
+      const camera = cameraOf();
+      overheads3d.scale.set(camera.zoom);
+      standing = pickablesOf(world, alpha);
+      /** Where the top of a Monster's Life bar goes, in the space it's drawn in. */
+      const barAnchor = (monster: Monster): Vec => {
+        const head = tileToScreen(
+          camera,
+          lerp(monster.prevPos, monster.pos, alpha),
+          MONSTER_LOOKS[monster.type].height,
+        );
+        return {
+          x: head.x / camera.zoom,
+          y: head.y / camera.zoom - MONSTER_BAR.above - MONSTER_BAR.height,
+        };
+      };
       const markAlpha = curseMarkAlpha(nowMs);
       for (const monster of world.monsters) {
         if (!monster.curse) continue;
-        const { sprite } = viewOf(monster.id, monster.type);
-        curseMark(overheads, sprite.position.x, barTop(sprite), markAlpha);
+        const anchor = barAnchor(monster);
+        curseMark(overheads, anchor.x, anchor.y, markAlpha);
       }
       for (const monster of world.monsters) {
         const life = monsterMaxLife(monster);
         if (monster.life >= life) continue;
-        const { sprite } = viewOf(monster.id, monster.type);
+        const anchor = barAnchor(monster);
         lifeBar(overheads, {
-          x: sprite.position.x - MONSTER_BAR.width / 2,
-          y: barTop(sprite),
+          x: anchor.x - MONSTER_BAR.width / 2,
+          y: anchor.y,
           width: MONSTER_BAR.width,
           height: MONSTER_BAR.height,
           fraction: monster.life / life,
@@ -1499,7 +1046,7 @@ export function createRenderer(
       }
 
       for (let i = floating.length - 1; i >= 0; i--) {
-        const { text, bornMs, at } = floating[i];
+        const { text, bornMs, at, lift } = floating[i];
         const float = floatAt(nowMs - bornMs, uiScale);
         if (!float) {
           text.destroy();
@@ -1508,7 +1055,7 @@ export function createRenderer(
         }
         const sizes = atUiScale(DAMAGE_NUMBER, uiScale);
         sizeText(text, sizes.size, sizes.stroke);
-        const over = onScreen(shot, at);
+        const over = tileToScreen(camera, at, lift);
         text.position.set(
           snapOnScreen(over.x),
           snapOnScreen(over.y - sizes.gap - float.rise),
@@ -1516,34 +1063,30 @@ export function createRenderer(
         text.alpha = float.alpha;
       }
 
-      // No hover outline or nameplate under a panel.
+      // No nameplate under a panel.
       const onPanel = pointer && panelAt(pointer);
-      const onWorld = onPanel ? null : pointer;
-      // After moving the camera, so the highlight matches this frame.
-      const cursor = onWorld && screenToTile(onWorld);
+      const overWorld = onPanel ? null : pointer;
       // What a click there picks: a label over a Monster, a Monster over an
       // Item lying under it.
-      const hoveredLabel = onWorld && groundLabelUnder(onWorld);
-      const hoveredId = onWorld && !hoveredLabel && characterAt(onWorld);
+      const hoveredLabel = overWorld && groundLabelUnder(overWorld);
+      const hoveredId = overWorld && !hoveredLabel && characterAt(overWorld);
       const hoveredItem =
         hoveredLabel ||
-        (onWorld && typeof hoveredId !== "number"
-          ? groundItemAt(onWorld)
+        (overWorld && typeof hoveredId !== "number"
+          ? groundItemAt(overWorld)
           : null);
       drawGroundItems(world, hoveredItem, uiScale);
-      const hoveredMonster =
-        world.monsters.find((monster) => monster.id === hoveredId) ?? null;
       // With the pointer over no one, the Target is shown as if hovered.
       const pointed =
         typeof hoveredId === "number" || typeof hoveredId === "object"
           ? hoveredId
           : null;
       const hovered = hoveredOf(world, pointed, target);
-      const hoveredView =
-        hovered && "monster" in hovered
-          ? monsters.get(hovered.monster.id)
-          : hovered && minionViews.get(hovered.minion.id)?.view;
-      outline.show(hoveredView?.sprite ?? null);
+      highlighted = hovered
+        ? "monster" in hovered
+          ? hovered.monster.id
+          : { minion: hovered.minion.id }
+        : null;
       nameplate.clear();
       nameplateText.visible = hovered !== null;
       if (hovered) {
@@ -1567,23 +1110,6 @@ export function createRenderer(
           : NAMEPLATE_STYLE.nameColour;
         sizeText(nameplateText, layout.nameSize);
         nameplateText.position.set(layout.nameAt.x, layout.nameAt.y);
-      }
-
-      // A click on a Minion is a move, so its tile is shown too.
-      const tile =
-        cursor && !hoveredMonster && isFloor(active, cursor)
-          ? tileOf(cursor)
-          : null;
-      if (tile?.x !== hoveredTile?.x || tile?.y !== hoveredTile?.y) {
-        hoveredTile = tile;
-        hover.clear();
-        if (tile) {
-          hover.poly(diamond(tile.x, tile.y)).stroke({
-            color: HOVER_LINE,
-            width: 1.5,
-            alpha: 0.7,
-          });
-        }
       }
 
       // One input for both maps, made once a frame.
@@ -1676,189 +1202,8 @@ export function createRenderer(
         menus.fullscreen,
       );
       notice.draw(viewport, menus.fullscreen);
-
-      const markerProgress =
-        markedAtMs === null
-          ? 1
-          : (nowMs - markedAtMs) / inputTuning.clickMarkerMs;
-      marker.visible = markerProgress < 1;
-      if (marker.visible) {
-        marker.alpha = 1 - markerProgress;
-        marker.scale.set(1 - 0.6 * markerProgress);
-      }
     },
   };
-}
-
-function characterView(art: CharacterArt, runSpeed: number): CharacterView {
-  return {
-    sprite: new Sprite(frameOf(art, "stance", "s", 0)),
-    art,
-    runSpeed,
-    runMs: 0,
-    drawnAt: null,
-  };
-}
-
-function monsterView(art: Art, type: MonsterType): MonsterView {
-  const view = characterView(art.monsters[type], monsterTuning[type].speed);
-  view.sprite.scale.set(MONSTER_SCALE[type]);
-  return {
-    ...view,
-    type,
-    // Down the screen, as the Hero starts.
-    facing: Math.PI / 4,
-    diedAtMs: null,
-    flashUntilMs: 0,
-    flash: null,
-  };
-}
-
-/** A placeholder NPC: the Hero's art, tinted. It never walks. */
-function npcView(art: Art): CharacterView {
-  const view = characterView(art.hero, 0);
-  view.sprite.tint = NPC.tint;
-  return view;
-}
-
-function show(
-  view: CharacterView,
-  animation: Animation,
-  compass: Compass,
-  frame: number,
-) {
-  const texture = frameOf(view.art, animation, compass, frame);
-  view.sprite.texture = texture;
-  // Every Flare frame has its own anchor, and setting a texture keeps the
-  // old one.
-  view.sprite.anchor.copyFrom(texture.defaultAnchor ?? { x: 0, y: 0 });
-}
-
-/**
- * Plays `run` while the sim moved the character in its last step, its feet
- * following the ground actually covered so they never slide, and `stance`
- * otherwise.
- */
-function walkOrStand(
-  view: CharacterView,
-  { pos, prevPos }: { pos: Vec; prevPos: Vec },
-  at: Vec,
-  compass: Compass,
-  nowMs: number,
-) {
-  const walking = pos.x !== prevPos.x || pos.y !== prevPos.y;
-  if (walking && view.drawnAt) {
-    const covered = Math.hypot(at.x - view.drawnAt.x, at.y - view.drawnAt.y);
-    view.runMs += (covered / view.runSpeed) * 1000;
-  }
-  view.drawnAt = at;
-  if (walking) {
-    show(view, "run", compass, frameAt(view.art.timing.run, view.runMs));
-  } else {
-    show(view, "stance", compass, frameAt(view.art.timing.stance, nowMs));
-  }
-}
-
-/**
- * Draws a Town Portal end standing on `foot` into `view`: its oval in square
- * pixels at `scale` of its full size, and its sparks, with the splash while
- * it bursts open, `msOpen` after it opened.
- */
-function drawTownPortal(
-  view: Graphics,
-  foot: Vec,
-  scale: number,
-  msOpen: number,
-  nowMs: number,
-) {
-  const { pixel, sparkSize, colours } = townPortalLook;
-  // One fill per colour, not per pixel.
-  const byColour = new Map<number, Vec[]>();
-  for (const { x, y, colour } of townPortalPixels(scale, nowMs)) {
-    const pixels = byColour.get(colour) ?? [];
-    pixels.push({ x, y });
-    byColour.set(colour, pixels);
-  }
-  for (const [colour, pixels] of byColour) {
-    for (const { x, y } of pixels) {
-      view.rect(foot.x + x, foot.y + y, pixel, pixel);
-    }
-    view.fill(colour);
-  }
-  for (const spark of townPortalSparks(scale, nowMs, msOpen)) {
-    view
-      .rect(foot.x + spark.x, foot.y + spark.y, sparkSize, sparkSize)
-      .fill({ color: colours.spark, alpha: spark.alpha });
-  }
-}
-
-/** Washes a hit Monster towards white, fading out over `FLASH_MS`. */
-function flash(view: MonsterView, nowMs: number) {
-  const left = (view.flashUntilMs - nowMs) / FLASH_MS;
-  if (left <= 0) {
-    if (view.sprite.filters) view.sprite.filters = null;
-    return;
-  }
-  if (!view.flash) {
-    view.flash = new ColorMatrixFilter({ resolution: "inherit" });
-    view.flash.matrix = washTo(0xffffff);
-  }
-  view.flash.alpha = FLASH_STRENGTH * left;
-  if (!view.sprite.filters) view.sprite.filters = [view.flash];
-}
-
-/**
- * A colour matrix turning every colour to `colour`, keeping alpha; a filter's
- * `alpha` mixes it in.
- */
-function washTo(colour: number): ColorMatrixFilter["matrix"] {
-  const r = ((colour >> 16) & 0xff) / 0xff;
-  const g = ((colour >> 8) & 0xff) / 0xff;
-  const b = (colour & 0xff) / 0xff;
-  return [0, 0, 0, 0, r, 0, 0, 0, 0, g, 0, 0, 0, 0, b, 0, 0, 0, 1, 0];
-}
-
-/**
- * Draws a winding-up Monster's telegraph: its reach and arc faintly, and the
- * part of it that `progress` (0..1) has filled.
- */
-function telegraph(
-  graphics: Graphics,
-  { reach, arcDegrees }: MeleeTuning,
-  at: Vec,
-  facing: number,
-  progress: number,
-) {
-  const arc = (arcDegrees * Math.PI) / 180;
-  const wedge = (radius: number) => {
-    const points = [toScreen(at)];
-    for (let i = 0; i <= TELEGRAPH_SEGMENTS; i++) {
-      const angle = facing - arc + (2 * arc * i) / TELEGRAPH_SEGMENTS;
-      points.push(
-        toScreen({
-          x: at.x + radius * Math.cos(angle),
-          y: at.y + radius * Math.sin(angle),
-        }),
-      );
-    }
-    return points.flatMap(({ x, y }) => [x, y]);
-  };
-  graphics
-    .poly(wedge(reach))
-    .fill({ color: TELEGRAPH_COLOUR, alpha: TELEGRAPH_ALPHA.reach });
-  graphics
-    .poly(wedge(reach * progress))
-    .fill({ color: TELEGRAPH_COLOUR, alpha: TELEGRAPH_ALPHA.filled });
-}
-
-/** Where the top of the Life bar over a character's head goes (CSS px). */
-function barTop(sprite: Sprite): number {
-  return (
-    sprite.position.y -
-    HEAD_HEIGHT * sprite.scale.y -
-    MONSTER_BAR.above -
-    MONSTER_BAR.height
-  );
 }
 
 /**
@@ -1910,54 +1255,6 @@ function lifeBar(
   graphics
     .rect(bar.x, bar.y, bar.width * bar.fraction, bar.height)
     .fill(bar.colour ?? LIFE_COLOUR);
-}
-
-/**
- * An outline for one sprite at a time: copies of its frame, solid in
- * `OUTLINE.colour`, shifted a little each way and drawn just behind it.
- */
-function outlineView() {
-  const layer = new Container();
-  const solid = new ColorMatrixFilter({ resolution: "inherit" });
-  const r = ((OUTLINE.colour >> 16) & 0xff) / 255;
-  const g = ((OUTLINE.colour >> 8) & 0xff) / 255;
-  const b = (OUTLINE.colour & 0xff) / 255;
-  // Every colour to the outline's. Faint pixels, such as Flare's soft
-  // shadows, drop out and the rest turn opaque, so only the body is outlined.
-  solid.matrix = [0, 0, 0, 0, r, 0, 0, 0, 0, g, 0, 0, 0, 0, b, 0, 0, 0, 10, -9];
-  layer.filters = [solid];
-  const offsets = [
-    [-1, 0],
-    [1, 0],
-    [0, -1],
-    [0, 1],
-    [-1, -1],
-    [1, -1],
-    [-1, 1],
-    [1, 1],
-  ];
-  const copies = offsets.map(([x, y]) => {
-    const copy = new Sprite();
-    copy.position.set(x * OUTLINE.width, y * OUTLINE.width);
-    layer.addChild(copy);
-    return copy;
-  });
-  layer.visible = false;
-  return {
-    layer,
-    /** Outlines `sprite` as last placed, or nothing. */
-    show(sprite: Sprite | null) {
-      layer.visible = sprite !== null;
-      if (!sprite) return;
-      layer.position.copyFrom(sprite.position);
-      layer.zIndex = sprite.zIndex - 0.5;
-      for (const copy of copies) {
-        copy.texture = sprite.texture;
-        copy.anchor.copyFrom(sprite.anchor);
-        copy.scale.copyFrom(sprite.scale);
-      }
-    },
-  };
 }
 
 /**
@@ -3686,7 +2983,7 @@ function deathScreenView(activeInput: Readonly<ActiveInput>) {
 }
 
 /**
- * The menu over a paused game: it credits the Flare art and points to
+ * The menu over a paused game: it credits the KayKit models and points to
  * `CREDITS.md` for the rest, and offers a New Hero.
  */
 function pauseMenuView(activeInput: Readonly<ActiveInput>) {
@@ -3706,9 +3003,8 @@ function pauseMenuView(activeInput: Readonly<ActiveInput>) {
   heading.anchor.set(0.5, 0);
   const credits = new Text({
     text: [
-      "Art from Flare: Empyrean Campaign",
-      "by Clint Bellanger and contributors",
-      "github.com/flareteam/flare-game · CC-BY-SA 3.0",
+      "3D models by Kay Lousberg (KayKit)",
+      "kaylousberg.com · CC0",
       "Full credits in CREDITS.md",
     ].join("\n"),
     style: {
@@ -3995,46 +3291,4 @@ function lerp(from: Vec, to: Vec, alpha: number): Vec {
     x: from.x + (to.x - from.x) * alpha,
     y: from.y + (to.y - from.y) * alpha,
   };
-}
-
-/** The corners of tile (i, j) on screen: top, right, bottom, left. */
-function diamond(i: number, j: number): number[] {
-  return [
-    toScreen({ x: i, y: j }),
-    toScreen({ x: i + 1, y: j }),
-    toScreen({ x: i + 1, y: j + 1 }),
-    toScreen({ x: i, y: j + 1 }),
-  ].flatMap(({ x, y }) => [x, y]);
-}
-
-/**
- * One sprite per tile of a row-major grid of tile ids, each standing on the
- * centre of its diamond and sorted by it.
- */
-function drawTiles(area: Area, tiles: (number | null)[], art: Art) {
-  const sprites: Sprite[] = [];
-  const tileset = area.tileset === null ? undefined : art.tiles[area.tileset];
-  tiles.forEach((id, i) => {
-    if (id === null) return;
-    const texture = tileset?.get(id);
-    if (!texture) {
-      throw new Error(`Area "${area.name}" uses missing tile ${id}`);
-    }
-    const sprite = new Sprite(texture);
-    const at = toScreen({
-      x: (i % area.width) + 0.5,
-      y: Math.floor(i / area.width) + 0.5,
-    });
-    sprite.position.set(at.x, at.y);
-    sprite.zIndex = at.y;
-    sprites.push(sprite);
-  });
-  return sprites;
-}
-
-/** A diamond centred on its origin, the size of one tile. */
-function drawMarker() {
-  return new Graphics()
-    .poly(diamond(-0.5, -0.5))
-    .stroke({ color: MARKER_LINE, width: 2 });
 }

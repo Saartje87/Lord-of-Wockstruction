@@ -1,6 +1,67 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { townPortalLook } from "../tuning/townPortalLook";
-import { townPortalCloseScale, townPortalOpenScale } from "./townPortalLook";
+import {
+  shownTownPortals,
+  townPortalCloseScale,
+  townPortalOpenScale,
+} from "./townPortalLook";
+
+describe("shownTownPortals", () => {
+  const at = { x: 3, y: 4 };
+
+  it("shows the open end bursting open, then standing", () => {
+    const opening = shownTownPortals({
+      end: at,
+      openedAtMs: 1000,
+      closing: [],
+      area: "town",
+      nowMs: 1100,
+    });
+    expect(opening).toEqual([
+      { pos: at, scale: townPortalOpenScale(100), msOpen: 100 },
+    ]);
+
+    const standing = shownTownPortals({
+      end: at,
+      openedAtMs: null,
+      closing: [],
+      area: "town",
+      nowMs: 5000,
+    });
+    expect(standing[0].scale).toBe(1);
+  });
+
+  it("shows a closing end of the Area shrinking, and none of other Areas", () => {
+    const closing = [
+      { area: "town", pos: at, atMs: 1000 },
+      { area: "catacombs", pos: { x: 9, y: 9 }, atMs: 1000 },
+    ];
+
+    const shown = shownTownPortals({
+      end: null,
+      openedAtMs: null,
+      closing,
+      area: "town",
+      nowMs: 1100,
+    });
+
+    expect(shown).toHaveLength(1);
+    expect(shown[0].pos).toEqual(at);
+    expect(shown[0].scale).toBe(townPortalCloseScale(100));
+  });
+
+  it("drops a closing end that has shrunk away", () => {
+    const shown = shownTownPortals({
+      end: null,
+      openedAtMs: null,
+      closing: [{ area: "town", pos: at, atMs: 0 }],
+      area: "town",
+      nowMs: 1_000_000,
+    });
+
+    expect(shown).toEqual([]);
+  });
+});
 
 const { openMs, closeMs, overshoot } = townPortalLook;
 afterEach(() => {

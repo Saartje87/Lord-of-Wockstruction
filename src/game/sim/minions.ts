@@ -142,6 +142,11 @@ export function minionWindUpProgress(minion: Minion): number {
   return minion.attackSteps / STEPPED[minion.type].windUpSteps;
 }
 
+/** How far through its rooted recovery a recovering Minion is, from 0 to 1. */
+export function minionRecoveryProgress(minion: Minion): number {
+  return 1 - minion.attackSteps / STEPPED[minion.type].rootSteps;
+}
+
 /**
  * A fresh Minion of `type`, brought by `skill`, at `pos`, facing `facing`,
  * following the Hero.

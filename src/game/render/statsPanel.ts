@@ -25,14 +25,10 @@ export function createStatsPanel(parent: HTMLElement): HTMLPreElement {
 
 /** Shows a reading on the panel. */
 export function showReading(panel: HTMLPreElement, reading: FrameStatsReading) {
+  const { calls, triangles } = reading.drawn;
   const lines = [
     `${reading.fps.toFixed(0)} fps  ${reading.frameMs.toFixed(1)} ms/frame`,
+    `${calls} draw calls  ${(triangles / 1000).toFixed(1)}k triangles`,
   ];
-  if (reading.drawn) {
-    const { calls, triangles } = reading.drawn;
-    lines.push(
-      `${calls} draw calls  ${(triangles / 1000).toFixed(1)}k triangles`,
-    );
-  }
   panel.textContent = lines.join("\n");
 }

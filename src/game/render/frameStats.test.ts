@@ -34,9 +34,4 @@ describe("recordFrame", () => {
     });
     expect(recordFrame(stats, 750, drawn)).toBeNull();
   });
-
-  it("reads no draw calls for the 2D World, which doesn't count them", () => {
-    const stats = createFrameStats(0);
-    expect(recordFrame(stats, 500, null)?.drawn).toBeNull();
-  });
 });

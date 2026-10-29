@@ -1,48 +1,417 @@
 import {
+  ACESFilmicToneMapping,
   Color,
+  Group,
+  type Object3D,
   OrthographicCamera,
   Scene,
   Vector2,
   WebGLRenderer,
 } from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import type { Area } from "../sim/area";
+import { type Atmosphere, createAtmosphere, driftEmbers } from "./atmosphere";
+import { placeCamera, type WorldCamera } from "./camera";
+import { type ExitMeshes, exitMeshesOf } from "./exitMeshes";
+import {
+  FLOOR_MIX,
+  type FloorPieces,
+  floorOf,
+  PIECE_SCALE,
+  TOWN_FLOOR,
+} from "./floor";
+import {
+  type FloorEffectMeshes,
+  floorEffectMeshesOf,
+} from "./floorEffectMeshes";
+import { type HeroActor, heroActorOf, poseHero } from "./heroActor";
+import { createLighting, type Lighting, lightScene } from "./lighting";
+import {
+  GEM,
+  groundPlacement,
+  LOOT_MODELS,
+  type Placement,
+  projectilePlacements,
+} from "./lootLook";
+import { type Instances, instancesOf, outlineInstances } from "./lootMeshes";
+import { createMarkers, type Markers, showMarkers } from "./markers";
+import { mergeSkinned } from "./mergeSkinned";
+import { MINION_LOOKS } from "./minionLook";
+import {
+  type MonsterActor,
+  type MonsterModels,
+  monsterActorOf,
+  poseMonster,
+} from "./monsterActor";
+import { MONSTER_LOOKS } from "./monsterLook";
+import { NPC_LOOKS } from "./npcLook";
+import { propMeshesOf, scaleOf } from "./propMeshes";
+import type { SharedCanvas } from "./sharedCanvas";
+import { lookOf, outline, toonShade } from "./toon";
+import { type TorchMeshes, torchMeshesOf } from "./torchMeshes";
+import { type TownPortalMeshes, townPortalMeshesOf } from "./townPortalMesh";
+import type { WorldView } from "./view";
+import { type WallMeshes, wallMeshesOf } from "./wallMeshes";
+import { wallPlacementsOf } from "./walls";
 
 /**
- * The 3D World's three.js side. Its renderer owns the canvas and the WebGL
- * context, which Pixi shares to draw the HUD on top (ADR 0004).
+ * The 3D World's three.js side. Its renderer draws on the canvas and the
+ * WebGL context Pixi shares to draw the HUD on top (ADR 0004).
  */
 export type World3d = {
   renderer: WebGLRenderer;
   scene: Scene;
   camera: OrthographicCamera;
+  markers: Markers;
+  lighting: Lighting;
+  atmosphere: Atmosphere;
+  /** The Town Portal ends, drawn as gateways. */
+  townPortals: TownPortalMeshes;
+  /** Telegraphs, Curses, Corpse bursts and the Level-Up ring on the floor. */
+  floorEffects: FloorEffectMeshes;
+  /** Set once `loadModels` is done. */
+  models: Models | null;
+  /** The Area whose floor, Walls and Props are in the scene, if any. */
+  shown: {
+    area: Area;
+    floor: Group;
+    /** The ways out of the Area, glowing. */
+    exits: ExitMeshes;
+    /** Null until the pieces the Area's Walls and Props use are loaded. */
+    scenery: {
+      walls: WallMeshes;
+      props: Group;
+      torches: TorchMeshes;
+    } | null;
+  } | null;
+  /** The Monsters and Corpses in the scene, by id. */
+  monsters: Map<number, MonsterActor>;
+  /** The Minions in the scene, by id. */
+  minions: Map<number, MonsterActor>;
+  /** Town's NPCs in the scene, by their place in the Area's NPCs. */
+  npcs: Map<number, MonsterActor>;
+  /** The Wall and Prop pieces loaded so far, by piece name. */
+  pieces: Record<string, Object3D | undefined>;
+  /** The pieces asked for, so each is loaded once. */
+  loading: Set<string>;
+  /** When the last frame was drawn (ms), for easing. */
+  drawnAtMs: number | null;
 };
+
+/** What the 3D World is made of, loaded. */
+type Models = {
+  hero: HeroActor;
+  floorPieces: FloorPieces;
+  monsters: MonsterModels;
+  /** Ground Items and Projectiles, one instanced draw per model. */
+  loot: Record<string, Instances>;
+};
+
+/** Where `import:kaykit` puts the models, served from `public/`. */
+const MODELS = "/assets/models";
 
 /** The dark the 3D World is drawn on. */
 const BACKGROUND = 0x07060b;
 
+/** The torch's model, which hangs on Walls. */
+const TORCH_PIECE = "dungeon/torch_mounted";
+
+/** How wide the outlines on Walls and Props are, in tiles. */
+const OUTLINE = 0.02;
+
 /** Creates the 3D World's renderer, its canvas and an empty scene. */
-export function createWorld3d(): World3d {
-  // Pixi needs the stencil buffer for its masks.
-  const renderer = new WebGLRenderer({ antialias: true, stencil: true });
+export function createWorld3d(shared: SharedCanvas): World3d {
+  // Draws on the canvas and context Pixi already draws the HUD on.
+  const renderer = new WebGLRenderer({
+    canvas: shared.canvas,
+    context: shared.context,
+  });
+  renderer.toneMapping = ACESFilmicToneMapping;
+  // The vignette draws over the World, so each frame clears by hand.
+  renderer.autoClear = false;
+  renderer.info.autoReset = false;
   const scene = new Scene();
   scene.background = new Color(BACKGROUND);
   const camera = new OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
-  return { renderer, scene, camera };
+  // All the lights exist from the start and only move, so no shader ever
+  // recompiles for a light that came or went.
+  const lighting = createLighting(scene);
+  const atmosphere = createAtmosphere();
+  scene.add(atmosphere.embers);
+  const markers = createMarkers();
+  scene.add(markers.click, markers.hover);
+  const townPortals = townPortalMeshesOf();
+  scene.add(townPortals.group);
+  const floorEffects = floorEffectMeshesOf();
+  scene.add(floorEffects.group);
+  return {
+    renderer,
+    scene,
+    camera,
+    markers,
+    lighting,
+    atmosphere,
+    townPortals,
+    floorEffects,
+    models: null,
+    monsters: new Map(),
+    minions: new Map(),
+    npcs: new Map(),
+    shown: null,
+    pieces: {},
+    loading: new Set(),
+    drawnAtMs: null,
+  };
+}
+
+/** Loads the models into the scene: the Hero, and the pieces of the floor. */
+export async function loadModels(world3d: World3d) {
+  const loader = new GLTFLoader();
+  const load = (path: string) => loader.loadAsync(`${MODELS}/${path}.glb`);
+  const monsterFiles = [
+    ...new Set(
+      [
+        ...Object.values(MONSTER_LOOKS),
+        ...Object.values(MINION_LOOKS),
+        ...Object.values(NPC_LOOKS),
+      ].flatMap((look) => [
+        look.model,
+        ...look.weapons.map((weapon) => weapon.model),
+      ]),
+    ),
+  ];
+  const floorNames = [...Object.values(FLOOR_MIX), ...TOWN_FLOOR];
+  const [knight, ...rest] = await Promise.all([
+    load("characters/Knight"),
+    ...floorNames.map(load),
+    ...monsterFiles.map((file) => load(`characters/${file}`)),
+    ...LOOT_MODELS.map((file) => load(file)),
+  ]);
+  const floorGltfs = rest.slice(0, floorNames.length);
+  const monsterGltfs = rest.slice(
+    floorNames.length,
+    floorNames.length + monsterFiles.length,
+  );
+  const lootGltfs = rest.slice(floorNames.length + monsterFiles.length);
+  const monsters: MonsterModels = {};
+  monsterFiles.forEach((file, i) => {
+    monsters[file] = monsterGltfs[i];
+    // A draw call for a body rather than for each limb.
+    mergeSkinned(monsterGltfs[i].scene);
+  });
+  const floorPieces: FloorPieces = {};
+  floorNames.forEach((name, i) => {
+    floorPieces[name] = floorGltfs[i].scene;
+    toonShade(floorGltfs[i].scene, lookOf(name));
+  });
+  const hero = heroActorOf(knight);
+  world3d.scene.add(hero.root);
+  const loot: Record<string, Instances> = {};
+  [GEM, ...LOOT_MODELS].forEach((file, i) => {
+    const instances = instancesOf(
+      file,
+      i === 0 ? null : lootGltfs[i - 1].scene,
+    );
+    outlineInstances(instances, 0.4);
+    loot[file] = instances;
+    world3d.scene.add(instances.group);
+  });
+  world3d.models = { hero, floorPieces, monsters, loot };
+}
+
+/** Puts `area`'s floor in the scene in place of the last Area's. */
+function showFloor(world3d: World3d, area: Area) {
+  if (world3d.shown?.area === area || !world3d.models) return;
+  const { shown, scene } = world3d;
+  if (shown) {
+    scene.remove(shown.floor, shown.exits.group);
+    if (shown.scenery) {
+      scene.remove(
+        shown.scenery.walls.group,
+        shown.scenery.props,
+        shown.scenery.torches.group,
+      );
+    }
+  }
+  const floor = floorOf(area, world3d.models.floorPieces);
+  const exits = exitMeshesOf(
+    area.exits.map(({ x, y, width, height, area: to }) => ({
+      x,
+      y,
+      width,
+      height,
+      to,
+    })),
+  );
+  scene.add(floor, exits.group);
+  world3d.shown = { area, floor, exits, scenery: null };
+}
+
+/**
+ * Puts the shown Area's Walls and Props in the scene once their pieces are
+ * loaded, asking for the ones that aren't.
+ */
+function showScenery(world3d: World3d, view: WorldView) {
+  const { shown, pieces, loading } = world3d;
+  if (!shown || shown.scenery) return;
+  const { area } = shown;
+  const names = new Set([
+    ...wallPlacementsOf(area.walls).map((placement) => placement.piece),
+    ...area.props.map((prop) => prop.piece),
+    ...(view.torches.length > 0 ? [TORCH_PIECE] : []),
+  ]);
+  const missing = [...names].filter((name) => !pieces[name]);
+  if (missing.length > 0) {
+    const loader = new GLTFLoader();
+    for (const name of missing) {
+      if (loading.has(name)) continue;
+      loading.add(name);
+      loader.loadAsync(`${MODELS}/${name}.glb`).then(
+        (gltf) => {
+          toonShade(gltf.scene, lookOf(name));
+          pieces[name] = gltf.scene;
+        },
+        () => {
+          // A piece that won't load is left out; the rest still draws.
+          pieces[name] = new Group();
+        },
+      );
+    }
+    return;
+  }
+  const walls = wallMeshesOf(area.walls, pieces);
+  const props = propMeshesOf(area.props, pieces);
+  const torches = torchMeshesOf(
+    view.torches,
+    pieces[TORCH_PIECE] ?? new Group(),
+  );
+  // Floors go without outlines; Walls and Props have them.
+  for (const mesh of [...walls.group.children]) {
+    outline(mesh, OUTLINE, PIECE_SCALE);
+  }
+  for (const mesh of [...props.children]) {
+    outline(mesh, OUTLINE, scaleOf(mesh.userData.piece));
+  }
+  world3d.scene.add(walls.group, props, torches.group);
+  shown.scenery = { walls, props, torches };
+}
+
+/**
+ * Puts a Monster or Corpse actor in the scene for each in `view`, posed as it
+ * says, and takes away those no longer there.
+ */
+function poseMonsters(world3d: World3d, view: WorldView, dt: number) {
+  const { models, monsters, scene } = world3d;
+  if (!models) return;
+  const seen = new Set<number>();
+  for (const monster of view.monsters) {
+    seen.add(monster.id);
+    let actor = monsters.get(monster.id);
+    if (!actor) {
+      actor = monsterActorOf(MONSTER_LOOKS[monster.type], models.monsters);
+      monsters.set(monster.id, actor);
+      scene.add(actor.root);
+    }
+    poseMonster(actor, monster, dt);
+  }
+  for (const [id, actor] of monsters) {
+    if (seen.has(id)) continue;
+    scene.remove(actor.root);
+    // The geometry and textures are the models' own; the materials are not.
+    for (const material of actor.materials) material.dispose();
+    monsters.delete(id);
+  }
+}
+
+/**
+ * Puts a Minion actor in the scene for each Minion in `view`, posed as it
+ * says, and takes away those that crumbled.
+ */
+function poseMinions(world3d: World3d, view: WorldView, dt: number) {
+  const { models, minions, scene } = world3d;
+  if (!models) return;
+  const seen = new Set<number>();
+  for (const minion of view.minions) {
+    seen.add(minion.id);
+    let actor = minions.get(minion.id);
+    if (!actor) {
+      actor = monsterActorOf(MINION_LOOKS[minion.type], models.monsters);
+      minions.set(minion.id, actor);
+      scene.add(actor.root);
+    }
+    poseMonster(actor, minion, dt);
+  }
+  for (const [id, actor] of minions) {
+    if (seen.has(id)) continue;
+    scene.remove(actor.root);
+    for (const material of actor.materials) material.dispose();
+    minions.delete(id);
+  }
+}
+
+/**
+ * Puts an NPC actor in the scene for each of Town's NPCs in `view`, posed as
+ * it says, and takes away those of an Area left behind.
+ */
+function poseNpcs(world3d: World3d, view: WorldView, dt: number) {
+  const { models, npcs, scene } = world3d;
+  if (!models) return;
+  const seen = new Set<number>();
+  for (const npc of view.npcs) {
+    seen.add(npc.id);
+    let actor = npcs.get(npc.id);
+    if (!actor) {
+      actor = monsterActorOf(NPC_LOOKS[npc.name], models.monsters);
+      npcs.set(npc.id, actor);
+      scene.add(actor.root);
+    }
+    poseMonster(actor, npc, dt);
+  }
+  for (const [id, actor] of npcs) {
+    if (seen.has(id)) continue;
+    scene.remove(actor.root);
+    for (const material of actor.materials) material.dispose();
+    npcs.delete(id);
+  }
+}
+
+/** Puts the Ground Items on the floor and the Projectiles in the air. */
+function showLoot(models: Models, view: WorldView) {
+  const placed: Record<string, Placement[]> = {};
+  const add = (placement: Placement) => {
+    placed[placement.model] ??= [];
+    placed[placement.model].push(placement);
+  };
+  for (const item of view.groundItems) add(groundPlacement(item));
+  for (const projectile of view.projectiles) {
+    for (const placement of projectilePlacements(projectile)) add(placement);
+  }
+  for (const [model, instances] of Object.entries(models.loot)) {
+    instances.show(placed[model] ?? []);
+  }
 }
 
 /** The size three.js last drew at, reused each frame. */
 const drawnSize = new Vector2();
 
 /**
- * Draws the 3D World into the shared canvas, `width` × `height` CSS px at
- * `resolution`, as Pixi sized it. Pixi then draws the HUD over it.
+ * Draws the 3D World into the shared canvas, as `view` shows it from
+ * `camera` in `area`, `width` × `height` CSS px at `resolution`, as Pixi
+ * sized it. Pixi then draws the HUD over it.
  */
 export function drawWorld3d(
   world3d: World3d,
-  width: number,
-  height: number,
-  resolution: number,
+  frame: {
+    area: Area;
+    view: WorldView;
+    camera: WorldCamera;
+    nowMs: number;
+    resolution: number;
+  },
 ) {
-  const { renderer, scene, camera } = world3d;
+  const { renderer, scene } = world3d;
+  const { area, view, camera, nowMs, resolution } = frame;
+  const { width, height } = camera;
   if (renderer.getPixelRatio() !== resolution) {
     renderer.setPixelRatio(resolution);
   }
@@ -51,14 +420,34 @@ export function drawWorld3d(
   if (size.x !== width || size.y !== height) {
     renderer.setSize(width, height, false);
   }
+  showFloor(world3d, area);
+  showScenery(world3d, view);
+  world3d.shown?.scenery?.walls.lower(view.loweredWalls);
+  const dt =
+    world3d.drawnAtMs === null ? 0 : (nowMs - world3d.drawnAtMs) / 1000;
+  world3d.drawnAtMs = nowMs;
+  if (world3d.models) poseHero(world3d.models.hero, view.hero, dt);
+  poseMonsters(world3d, view, dt);
+  poseMinions(world3d, view, dt);
+  poseNpcs(world3d, view, dt);
+  if (world3d.models) showLoot(world3d.models, view);
+  const seconds = nowMs / 1000;
+  world3d.shown?.scenery?.torches.show(view.torches, seconds);
+  lightScene(world3d.lighting, view, seconds, scene);
+  world3d.townPortals.show(view.townPortals, seconds);
+  world3d.floorEffects.show(view.floorEffects);
+  world3d.shown?.exits.update(seconds);
+  driftEmbers(world3d.atmosphere, view.hero.pos, dt, view.combat);
+  showMarkers(world3d.markers, view);
+  placeCamera(world3d.camera, camera);
   renderer.resetState();
-  renderer.render(scene, camera);
-}
-
-/** The WebGL context Pixi shares to draw the HUD over the 3D World. */
-export function contextOf(world3d: World3d): WebGL2RenderingContext {
-  // three.js only creates WebGL2 contexts, though its type allows WebGL1.
-  return world3d.renderer.getContext() as WebGL2RenderingContext;
+  renderer.info.reset();
+  renderer.clear();
+  renderer.render(scene, world3d.camera);
+  if (view.combat) {
+    const { vignette } = world3d.atmosphere;
+    renderer.render(vignette.scene, vignette.camera);
+  }
 }
 
 /** What the 3D World drew last frame, for the stats panel. */

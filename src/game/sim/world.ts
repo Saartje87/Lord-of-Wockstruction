@@ -69,7 +69,6 @@ import {
   type MonsterOfLevel,
   monsterAttack,
   monsterAttackRating,
-  monsterDamageRange,
   monsterDefense,
   monsterMaxLife,
   noticeHit,

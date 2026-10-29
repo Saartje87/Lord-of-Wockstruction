@@ -22,9 +22,9 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 
 ## Art and credits
 
-The art is from [Flare](https://github.com/flareteam/flare-game), under CC-BY-SA 3.0. See [CREDITS.md](CREDITS.md) for the full attribution.
+The 3D models are by Kay Lousberg ([KayKit](https://www.kaylousberg.com)), under CC0. See [CREDITS.md](CREDITS.md) for the full list.
 
-`npm run import:flare` re-imports it from a pinned Flare commit (see `scripts/import-flare/main.mts`). Run it by hand and commit what it writes: `public/assets/`, `content/tilesets/` and `CREDITS.md`. The build never runs it.
+`npm run import:kaykit` re-imports them from pinned KayKit commits (see `scripts/import-kaykit/main.mts`). Run it by hand and commit what it writes: `public/assets/models/`, `content/tilesets/kaykit.tsj` and `CREDITS.md`. The build never runs it.
 
 ## Learn More
 

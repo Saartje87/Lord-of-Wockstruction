@@ -14,18 +14,6 @@ export type Area = {
   areaLevel: number | null;
   width: number;
   height: number;
-  /**
-   * The tileset the tile ids below come from, by name (`grassland`, …), or
-   * null when the Area has none.
-   */
-  tileset: string | null;
-  /**
-   * Row-major, `width * height` long: the tileset tile id drawn on the
-   * floor, or null where there is none. Ids equal Flare's tile ids.
-   */
-  floorTiles: (number | null)[];
-  /** Like `floorTiles`, for the walls and props drawn among characters. */
-  propTiles: (number | null)[];
   /** Row-major, `width * height` long; true where there is floor. */
   floor: boolean[];
   /**
@@ -33,6 +21,16 @@ export type Area = {
    * that nothing blocks.
    */
   walkable: boolean[];
+  /**
+   * Row-major, `width * height` long: the KayKit piece (its model's name)
+   * on each floor cell, or null where there is no floor or the cell's tile
+   * isn't a KayKit piece.
+   */
+  floorPieces: (string | null)[];
+  /** The Walls, from the KayKit tileset's `wall` tiles. */
+  walls: Placed[];
+  /** The Props, from the KayKit tileset's `prop` tiles. */
+  props: Placed[];
   /** Entries by name, in tile units. */
   entries: Record<string, Vec>;
   /** Where Monsters stand when the Area is entered. */
@@ -45,6 +43,9 @@ export type Area = {
    */
   townPortal: Vec | null;
 };
+
+/** A KayKit piece standing on a cell (tile units), blocking the way or not. */
+export type Placed = { x: number; y: number; piece: string; blocks: boolean };
 
 /** `count` Monsters of one type, placed around `pos` (tile units). */
 export type Spawn = { monster: MonsterType; count: number; pos: Vec };
@@ -162,6 +163,9 @@ export function cellAt(
  * A tile on `walls & props` blocks when its tileset tile has `blocks` set. A
  * tile on `blocking override` replaces that with its own `blocks`: set for an
  * invisible wall, unset or false to unblock.
+ *
+ * An Area painted with the KayKit tileset (tiles with `piece` and `kind`)
+ * gets its `floorPieces`, `walls` and `props` from it.
  */
 export function loadArea(
   name: string,
@@ -185,12 +189,7 @@ export function loadArea(
   };
   const walls = tilesOf("walls & props");
   const overrides = tilesOf("blocking override");
-  const firstgid = tileset?.firstgid ?? 1;
-  const tileIds = (data: number[] | null) =>
-    floorLayer.data.map((_, i) => {
-      const gid = (data?.[i] ?? 0) & GID_MASK;
-      return gid === 0 ? null : gid - firstgid;
-    });
+  const pieces = piecesOf(tileset);
   const floor = floorLayer.data.map((gid) => gid !== 0);
   const walkable = floor.map((hasFloor, i) => {
     const override = (overrides?.[i] ?? 0) & GID_MASK;
@@ -228,15 +227,32 @@ export function loadArea(
     }
   }
 
+  const floorPieces = floorLayer.data.map((value) => {
+    const gid = value & GID_MASK;
+    return gid === 0 ? null : (pieces.get(gid)?.piece ?? null);
+  });
+  const wallPieces: Placed[] = [];
+  const props: Placed[] = [];
+  walls?.forEach((value, i) => {
+    const piece = pieces.get(value & GID_MASK);
+    if (!piece || piece.kind === "floor") return;
+    const placed = {
+      x: i % tmj.width,
+      y: Math.floor(i / tmj.width),
+      piece: piece.piece,
+      blocks: piece.blocks,
+    };
+    (piece.kind === "wall" ? wallPieces : props).push(placed);
+  });
   return {
     name,
     areaLevel: readAreaLevel(name, tmj),
     width: tmj.width,
     height: tmj.height,
-    tileset: tileset?.name ?? null,
-    floorTiles: tileIds(floorLayer.data),
-    propTiles: tileIds(walls),
     floor,
+    floorPieces,
+    walls: wallPieces,
+    props,
     walkable,
     entries,
     spawns,
@@ -327,4 +343,28 @@ function blockingGids(tileset: Tileset | null): Set<number> {
     if (property?.value === true) gids.add(tileset.firstgid + tile.id);
   }
   return gids;
+}
+
+/** A KayKit tileset tile: which model, what it is, and whether it blocks. */
+type PieceTile = { piece: string; kind: string; blocks: boolean };
+
+/**
+ * The KayKit pieces of a tileset by gid: tiles with a `piece` property.
+ * Empty for a tileset that has none.
+ */
+function piecesOf(tileset: Tileset | null): Map<number, PieceTile> {
+  const pieces = new Map<number, PieceTile>();
+  if (!tileset) return pieces;
+  for (const tile of tileset.tiles ?? []) {
+    const value = (key: string) =>
+      tile.properties?.find((p) => p.name === key)?.value;
+    const piece = value("piece");
+    if (typeof piece !== "string") continue;
+    pieces.set(tileset.firstgid + tile.id, {
+      piece,
+      kind: String(value("kind")),
+      blocks: value("blocks") === true,
+    });
+  }
+  return pieces;
 }

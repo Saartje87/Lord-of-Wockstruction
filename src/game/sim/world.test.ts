@@ -245,39 +245,13 @@ describe("createWorld", () => {
 });
 
 describe("Area tiles", () => {
-  // A tileset whose first tile has id 16, as Flare's do.
+  // A tileset whose tiles have ids 16, 17 and 132.
   const grassland = {
     firstgid: 1,
     name: "grassland",
     tiles: [{ id: 16 }, { id: 17 }, { id: 132 }],
   };
-  const gid = (id: number) => grassland.firstgid + id;
-
-  it("keeps floor and prop tiles as tileset tile ids, with null where empty", () => {
-    const map = {
-      ...tmj([start]),
-      tilesets: [grassland],
-      layers: [
-        {
-          type: "tilelayer",
-          name: "floor",
-          data: [gid(16), gid(17), gid(16), gid(16), gid(16), 0],
-        },
-        {
-          type: "tilelayer",
-          name: "walls & props",
-          data: [0, 0, gid(132), 0, 0, 0],
-        },
-        { type: "objectgroup", name: "objects", objects: [start] },
-      ],
-    };
-
-    const area = createWorld({ areas: { town: map }, seed: 1 }).areas.town;
-
-    expect(area.tileset).toBe("grassland");
-    expect(area.floorTiles).toEqual([16, 17, 16, 16, 16, null]);
-    expect(area.propTiles).toEqual([null, null, 132, null, null, null]);
-  });
+  const _gid = (id: number) => grassland.firstgid + id;
 
   it("reads a tileset from its own file, by the file's name", () => {
     const tsj = {
@@ -311,9 +285,6 @@ describe("Area tiles", () => {
     });
 
     const area = world.areas.town;
-    expect(area.tileset).toBe("grassland");
-    expect(area.floorTiles).toEqual([0, 0, 0, 0, 0, null]);
-    expect(area.propTiles).toEqual([null, null, 132, null, null, null]);
     expect(area.walkable).toEqual([true, true, false, true, true, false]);
   });
 

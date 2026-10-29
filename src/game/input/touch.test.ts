@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createMenus, PANELS } from "../menus";
+import { createMenus } from "../menus";
 import { miniMapLayout } from "../render/miniMap";
 import { panelButtonsLayout } from "../render/panelButtons";
 import {

@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { areaDisplayNames, areas, tilesets } from "./content";
 import type { Area, Exit, Spawn } from "./sim/area";
@@ -64,7 +65,11 @@ function worldEntering(area: string, entry: string): World {
       },
     ],
   };
-  const world = createWorld({ areas: { ...areas, town }, tilesets, seed: 1 });
+  const world = createWorld({
+    areas: { ...areas, town },
+    tilesets,
+    seed: 1,
+  });
   walkThrough(world, world.areas.town.exits[0]);
   expect(world.areaName).toBe(area);
   return world;
@@ -176,13 +181,12 @@ describe("the shipped Areas", () => {
     }
   });
 
-  it("start the Hero at `start` in a Town of about 32×32 on the grassland tileset, with NPCs and no Monsters", () => {
+  it("start the Hero at `start` in a Town of about 32×32, with NPCs and no Monsters", () => {
     const world = shippedWorld();
     const town = world.areas.town;
 
     expect(world.areaName).toBe("town");
     expect(world.hero.pos).toEqual({ x: 15.5, y: 16.5 });
-    expect(town.tileset).toBe("grassland");
     expectAbout(town.width, 32, 4);
     expectAbout(town.height, 32, 4);
     expect(town.npcs.length).toBeGreaterThan(0);
@@ -202,26 +206,24 @@ describe("the shipped Areas", () => {
     ).toBeLessThan(4);
   });
 
-  it("block Town's cliffs and trees by their tileset, and not its plants", () => {
+  it("block Town's trees and buildings", () => {
     const town = shippedWorld().areas.town;
-    const at = (x: number, y: number) => y * town.width + x;
+    const blocking = town.props.filter((prop) => prop.blocks);
 
-    // A cliff on the west edge, and a tree.
-    expect(town.propTiles[at(1, 9)]).toBe(48);
-    expect(town.walkable[at(1, 9)]).toBe(false);
-    expect(town.propTiles[at(4, 9)]).toBe(254);
-    expect(town.walkable[at(4, 9)]).toBe(false);
-    // A fern.
-    expect(town.propTiles[at(7, 3)]).toBe(112);
-    expect(town.walkable[at(7, 3)]).toBe(true);
+    expect(blocking.some((prop) => prop.piece.includes("tree"))).toBe(true);
+    expect(blocking.some((prop) => prop.piece.startsWith("hexagon/"))).toBe(
+      true,
+    );
+    for (const prop of blocking) {
+      expect(town.walkable[prop.y * town.width + prop.x]).toBe(false);
+    }
   });
 
-  it("lead from Town through one Exit to a Combat Area of about 64×64 on the dungeon tileset", () => {
+  it("lead from Town through one Exit to a Combat Area of about 64×64", () => {
     const world = shippedWorld();
     const combat = combatAreaOf(world);
 
     expect(world.areas.town.exits).toHaveLength(1);
-    expect(combat.tileset).toBe("dungeon");
     expectAbout(combat.width, 64, 8);
     expectAbout(combat.height, 64, 8);
   });
@@ -279,19 +281,6 @@ describe("the shipped Areas", () => {
     expect(world.areaName).toBe("town");
   });
 
-  it("draw the dungeon Areas only with tiles the dungeon tileset has", () => {
-    const world = shippedWorld();
-    const dungeon = tilesets.dungeon as { tiles: { id: number }[] };
-    const known = new Set(dungeon.tiles.map((tile) => tile.id));
-
-    for (const area of Object.values(world.areas)) {
-      if (area.tileset !== "dungeon") continue;
-      for (const id of [...area.floorTiles, ...area.propTiles]) {
-        if (id !== null) expect(known).toContain(id);
-      }
-    }
-  });
-
   it("lead from the Catacombs down to the Crypt, arriving next to its Exit back up", () => {
     const world = worldEntering("catacombs", "from-crypt");
     const down = exitTo(world.areas.catacombs, "crypt");
@@ -324,12 +313,11 @@ describe("the shipped Areas", () => {
     expect(world.monsters.every(isAtMonsterLevel(4))).toBe(true);
   });
 
-  it("build the Crypt about the Catacombs' size on the dungeon tileset, with somewhat bigger Skeleton packs", () => {
+  it("build the Crypt about the Catacombs' size, with somewhat bigger Skeleton packs", () => {
     const { catacombs, crypt } = shippedWorld().areas;
     const shallower = packsOf(catacombs, "skeleton");
     const deeper = packsOf(crypt, "skeleton");
 
-    expect(crypt.tileset).toBe("dungeon");
     expectAbout(crypt.width, catacombs.width, 8);
     expectAbout(crypt.height, catacombs.height, 8);
     expect(
@@ -423,11 +411,10 @@ describe("the shipped Areas", () => {
     expect(world.monsters.every(isAtMonsterLevel(8))).toBe(true);
   });
 
-  it("build the Ossuary about the Catacombs' size on the dungeon tileset, with more Monsters than the Crypt", () => {
+  it("build the Ossuary about the Catacombs' size, with more Monsters than the Crypt", () => {
     const { catacombs, crypt, ossuary } = shippedWorld().areas;
     const monsters = (area: Area) => sum(area.spawns.map((s) => s.count));
 
-    expect(ossuary.tileset).toBe("dungeon");
     expectAbout(ossuary.width, catacombs.width, 8);
     expectAbout(ossuary.height, catacombs.height, 8);
     expect(monsters(ossuary)).toBeGreaterThan(monsters(crypt));
@@ -471,7 +458,12 @@ describe("the shipped Areas", () => {
   it("let the Hero walk from Town down through the Catacombs and the Crypt to the Ossuary, and back up to Town", () => {
     // Sturdy and strong enough to fight through every pack on the way.
     const progress = { ...FRESH_PROGRESS, strength: 200, vitality: 1000 };
-    const world = createWorld({ areas, tilesets, seed: 1, progress });
+    const world = createWorld({
+      areas,
+      tilesets,
+      seed: 1,
+      progress,
+    });
     const route: [from: string, to: string][] = [
       ["town", "catacombs"],
       ["catacombs", "crypt"],
@@ -512,5 +504,72 @@ describe("the Item types", () => {
       "Mana Potion": "Mana",
       "Rejuvenation Potion": "Rejuv",
     });
+  });
+});
+
+describe("the shipped Areas' pieces", () => {
+  const names = ["town", "catacombs", "crypt", "ossuary"];
+  const kaykit = (name: string) => shippedWorld().areas[name];
+
+  it.each(
+    names,
+  )("%s knows a piece for every floor cell, and its Walls and Props", (name) => {
+    const area = kaykit(name);
+
+    area.floor.forEach((hasFloor, i) => {
+      expect(area.floorPieces[i] !== null).toBe(hasFloor);
+    });
+    expect(area.walls.length).toBeGreaterThan(0);
+    expect(area.props.length).toBeGreaterThan(0);
+    for (const wall of area.walls) expect(wall.blocks).toBe(true);
+    // A blocking Prop stands on floor and stops the Hero.
+    for (const prop of area.props.filter((prop) => prop.blocks)) {
+      expect(area.floor[prop.y * area.width + prop.x]).toBe(true);
+      expect(area.walkable[prop.y * area.width + prop.x]).toBe(false);
+    }
+  });
+
+  it("gives Town graveyard Props and village buildings", () => {
+    const pieces = [...kaykit("town").props.map((prop) => prop.piece)];
+
+    expect(pieces.some((piece) => piece.startsWith("halloween/"))).toBe(true);
+    expect(pieces.some((piece) => piece.startsWith("hexagon/"))).toBe(true);
+  });
+});
+
+describe("the KayKit tileset", () => {
+  type Tile = {
+    id: number;
+    image: string;
+    properties: { name: string; value: unknown }[];
+  };
+  const tiles = (tilesets.kaykit as { tiles: Tile[] }).tiles;
+  const property = (tile: Tile, name: string) =>
+    tile.properties.find((p) => p.name === name)?.value;
+
+  it("has `piece`, `blocks` and `kind` on every tile", () => {
+    expect(tiles.length).toBeGreaterThan(20);
+    for (const tile of tiles) {
+      expect(typeof property(tile, "piece")).toBe("string");
+      expect(typeof property(tile, "blocks")).toBe("boolean");
+      expect(["floor", "wall", "prop"]).toContain(property(tile, "kind"));
+    }
+  });
+
+  it("has a thumbnail and an imported model for every tile", () => {
+    for (const tile of tiles) {
+      expect(existsSync(`content/tilesets/${tile.image}`)).toBe(true);
+      expect(
+        existsSync(`public/assets/models/${property(tile, "piece")}.glb`),
+      ).toBe(true);
+    }
+  });
+
+  it("never lets a floor block", () => {
+    for (const tile of tiles) {
+      if (property(tile, "kind") === "floor") {
+        expect(property(tile, "blocks")).toBe(false);
+      }
+    }
   });
 });

@@ -43,7 +43,7 @@ next-env.d.ts
 # claude code agent worktrees
 .claude/worktrees/
 
-# flare-game checkout for scripts/import-flare
+# flare-game checkout for scripts/import-kaykit
 /.cache/
 
 # paid KayKit Mystery Monthly packs (CC0): only the models the game uses are

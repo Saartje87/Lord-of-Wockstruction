@@ -47,6 +47,12 @@ A Save at 450 Experience levels up on the next Skeleton kill. For fights, use Le
 
 In dev builds, `?area=<Area>&entry=<Entry>` starts at that Entry instead of in Town, with the Area's Monsters fresh: http://localhost:3000/?area=catacombs&entry=from-town. Areas are the `.tmj` files in `content/areas/`, and Entries their `entry` objects (`start`, `from-town`, …). An unknown Area or Entry starts in Town. Production builds ignore the query. It applies on every load, so drop it to go back to Town.
 
+### The 3D World
+
+The World is always drawn in 3D (three.js), with the HUD, panels, Mini Map and Map Overlay drawn over it by Pixi on the same canvas. There is nothing to switch on: the models load before the first frame.
+
+In dev builds and Vercel previews, `?stats` (alone or beside `?area=…`) shows fps, ms per frame, draw calls and triangles at the top left. Use it for any performance criterion, on the device the ticket names.
+
 ## Read the game state
 
 Screenshots are JPEGs, and walls, the low-Life tint or Monsters standing on each other can hide what a criterion asks about. In dev builds, `window.__wiablo.state()` returns what the game holds right now, as plain data (`DevState` in `src/game/devState.ts`). Call it from `javascript_exec`, before and after an action:

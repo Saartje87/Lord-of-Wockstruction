@@ -1,0 +1,869 @@
+{
+ "type": "tileset",
+ "version": "1.10",
+ "name": "kaykit",
+ "tilewidth": 128,
+ "tileheight": 128,
+ "tilecount": 37,
+ "columns": 0,
+ "margin": 0,
+ "spacing": 0,
+ "grid": {
+  "orientation": "isometric",
+  "width": 192,
+  "height": 96
+ },
+ "tiles": [
+  {
+   "id": 0,
+   "image": "kaykit/dungeon_floor_tile_large.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": false
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "floor"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "dungeon/floor_tile_large"
+    }
+   ]
+  },
+  {
+   "id": 1,
+   "image": "kaykit/dungeon_floor_tile_small_broken_A.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": false
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "floor"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "dungeon/floor_tile_small_broken_A"
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "image": "kaykit/dungeon_floor_dirt_large.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": false
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "floor"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "dungeon/floor_dirt_large"
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "image": "kaykit/dungeon_wall.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "wall"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "dungeon/wall"
+    }
+   ]
+  },
+  {
+   "id": 4,
+   "image": "kaykit/dungeon_pillar.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "dungeon/pillar"
+    }
+   ]
+  },
+  {
+   "id": 5,
+   "image": "kaykit/dungeon_column.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "dungeon/column"
+    }
+   ]
+  },
+  {
+   "id": 6,
+   "image": "kaykit/dungeon_barrel_large.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "dungeon/barrel_large"
+    }
+   ]
+  },
+  {
+   "id": 7,
+   "image": "kaykit/dungeon_crates_stacked.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "dungeon/crates_stacked"
+    }
+   ]
+  },
+  {
+   "id": 8,
+   "image": "kaykit/dungeon_chest.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "dungeon/chest"
+    }
+   ]
+  },
+  {
+   "id": 9,
+   "image": "kaykit/dungeon_candle_triple.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": false
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "dungeon/candle_triple"
+    }
+   ]
+  },
+  {
+   "id": 10,
+   "image": "kaykit/dungeon_rubble_half.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": false
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "dungeon/rubble_half"
+    }
+   ]
+  },
+  {
+   "id": 11,
+   "image": "kaykit/halloween_floor_dirt.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": false
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "floor"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "halloween/floor_dirt"
+    }
+   ]
+  },
+  {
+   "id": 12,
+   "image": "kaykit/halloween_path_A.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": false
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "floor"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "halloween/path_A"
+    }
+   ]
+  },
+  {
+   "id": 13,
+   "image": "kaykit/halloween_path_B.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": false
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "floor"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "halloween/path_B"
+    }
+   ]
+  },
+  {
+   "id": 14,
+   "image": "kaykit/halloween_path_C.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": false
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "floor"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "halloween/path_C"
+    }
+   ]
+  },
+  {
+   "id": 15,
+   "image": "kaykit/halloween_path_D.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": false
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "floor"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "halloween/path_D"
+    }
+   ]
+  },
+  {
+   "id": 16,
+   "image": "kaykit/halloween_fence.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "wall"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "halloween/fence"
+    }
+   ]
+  },
+  {
+   "id": 17,
+   "image": "kaykit/halloween_gravestone.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "halloween/gravestone"
+    }
+   ]
+  },
+  {
+   "id": 18,
+   "image": "kaykit/halloween_grave_A.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "halloween/grave_A"
+    }
+   ]
+  },
+  {
+   "id": 19,
+   "image": "kaykit/halloween_tree_dead_large.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "halloween/tree_dead_large"
+    }
+   ]
+  },
+  {
+   "id": 20,
+   "image": "kaykit/halloween_tree_dead_medium.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "halloween/tree_dead_medium"
+    }
+   ]
+  },
+  {
+   "id": 21,
+   "image": "kaykit/halloween_crypt.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "halloween/crypt"
+    }
+   ]
+  },
+  {
+   "id": 22,
+   "image": "kaykit/halloween_shrine.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "halloween/shrine"
+    }
+   ]
+  },
+  {
+   "id": 23,
+   "image": "kaykit/halloween_lantern_standing.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": false
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "halloween/lantern_standing"
+    }
+   ]
+  },
+  {
+   "id": 24,
+   "image": "kaykit/halloween_gravemarker_A.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": false
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "halloween/gravemarker_A"
+    }
+   ]
+  },
+  {
+   "id": 25,
+   "image": "kaykit/halloween_skull.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": false
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "halloween/skull"
+    }
+   ]
+  },
+  {
+   "id": 26,
+   "image": "kaykit/halloween_bone_A.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": false
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "halloween/bone_A"
+    }
+   ]
+  },
+  {
+   "id": 27,
+   "image": "kaykit/halloween_pumpkin_orange_small.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": false
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "halloween/pumpkin_orange_small"
+    }
+   ]
+  },
+  {
+   "id": 28,
+   "image": "kaykit/hexagon_building_home_A_red.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "hexagon/building_home_A_red"
+    }
+   ]
+  },
+  {
+   "id": 29,
+   "image": "kaykit/hexagon_building_home_B_blue.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "hexagon/building_home_B_blue"
+    }
+   ]
+  },
+  {
+   "id": 30,
+   "image": "kaykit/hexagon_building_tavern_red.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "hexagon/building_tavern_red"
+    }
+   ]
+  },
+  {
+   "id": 31,
+   "image": "kaykit/hexagon_building_church_blue.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "hexagon/building_church_blue"
+    }
+   ]
+  },
+  {
+   "id": 32,
+   "image": "kaykit/hexagon_building_well_red.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "hexagon/building_well_red"
+    }
+   ]
+  },
+  {
+   "id": 33,
+   "image": "kaykit/hexagon_building_blacksmith_red.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "hexagon/building_blacksmith_red"
+    }
+   ]
+  },
+  {
+   "id": 34,
+   "image": "kaykit/dungeon_wall_corner.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "wall"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "dungeon/wall_corner"
+    }
+   ]
+  },
+  {
+   "id": 35,
+   "image": "kaykit/dungeon_wall_Tsplit.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "wall"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "dungeon/wall_Tsplit"
+    }
+   ]
+  },
+  {
+   "id": 36,
+   "image": "kaykit/dungeon_wall_crossing.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "wall"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "dungeon/wall_crossing"
+    }
+   ]
+  }
+ ]
+}

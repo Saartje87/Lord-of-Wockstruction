@@ -4,14 +4,11 @@ const READING_MS = 500;
 /** What the last frame drew: three.js's draw calls and triangles. */
 export type Drawn = { calls: number; triangles: number };
 
-/**
- * What the stats panel shows: `drawn` is null for the 2D World, which
- * doesn't count them.
- */
+/** What the stats panel shows. */
 export type FrameStatsReading = {
   fps: number;
   frameMs: number;
-  drawn: Drawn | null;
+  drawn: Drawn;
 };
 
 /** The frames counted since the last reading. */
@@ -29,7 +26,7 @@ export function createFrameStats(nowMs: number): FrameStats {
 export function recordFrame(
   stats: FrameStats,
   nowMs: number,
-  drawn: Drawn | null,
+  drawn: Drawn,
 ): FrameStatsReading | null {
   stats.frames++;
   const elapsed = nowMs - stats.since;

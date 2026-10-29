@@ -41,6 +41,11 @@ export function corpseBurst(
   };
 }
 
+/** The radius in tiles of a circle that `onFloor` drew as `oval`. */
+export function tileRadiusOf(oval: FloorOval): number {
+  return (oval.radiusX * Math.SQRT2) / TILE_WIDTH;
+}
+
 /** A tile-space circle of `radius` on the floor, as the screen shows it. */
 export function onFloor(radius: number, alpha: number): FloorOval {
   return {

@@ -14,6 +14,7 @@ import {
   releaseCursor,
   settleCursor,
 } from "./cursor";
+import { devOptionsOf } from "./devOptions";
 import { devStartOf } from "./devStart";
 import { devStateOf } from "./devState";
 import { browserFullscreen, fullscreenPointerEvent } from "./fullscreen";
@@ -71,9 +72,11 @@ import {
 } from "./menus";
 import { gameTime, togglePause } from "./pause";
 import { loadArt } from "./render/art";
+import { createFrameStats, recordFrame } from "./render/frameStats";
 import { inventoryRightClickOrder } from "./render/inventoryPanel";
 import { panelFocusSpots } from "./render/panelFocus";
 import { createRenderer } from "./render/renderer";
+import { createStatsPanel, showReading } from "./render/statsPanel";
 import {
   touchControlsLayout,
   touchControlsShown,
@@ -91,6 +94,13 @@ import { cursorItemOf } from "./sim/inventory";
 import type { Vec } from "./sim/vec";
 import { createWorld, type MonsterId, type Order, step } from "./sim/world";
 import { viewportOf } from "./viewport";
+import {
+  contextOf,
+  createWorld3d,
+  disposeOf,
+  drawnBy,
+  drawWorld3d,
+} from "./world3d/world3d";
 
 /** Mounts the Pixi Application and runs the fixed-step loop. */
 export default function GameCanvas() {
@@ -101,6 +111,14 @@ export default function GameCanvas() {
     if (!container) return;
 
     const app = new Application();
+    // Dev builds and Vercel previews can draw the 3D World and show stats.
+    const dev = devOptionsOf(
+      window.location.search,
+      process.env.NODE_ENV === "development" ||
+        process.env.WIABLO_PREVIEW === "true",
+    );
+    const world3d = dev.world === "3d" ? createWorld3d() : null;
+    const statsPanel = dev.stats ? createStatsPanel(container) : null;
     const listeners = new AbortController();
     let cancelled = false;
     let frame = 0;
@@ -113,6 +131,14 @@ export default function GameCanvas() {
       resolution: Math.min(window.devicePixelRatio, 2),
       background: 0x0b0a08,
       autoStart: false,
+      // Pixi draws the HUD into three.js's canvas and WebGL context, over
+      // the 3D World, without clearing it first (ADR 0004).
+      ...(world3d && {
+        preference: "webgl",
+        canvas: world3d.renderer.domElement,
+        context: contextOf(world3d),
+        clearBeforeRender: false,
+      }),
     });
     init.then(async () => {
       if (cancelled) return;
@@ -152,6 +178,8 @@ export default function GameCanvas() {
         activeInput,
         touch,
       );
+      if (world3d) renderer.hideWorld();
+      const frameStats = createFrameStats(performance.now());
       const clock = createClock();
       const input = createPointerInput();
       const menus = createMenus();
@@ -574,7 +602,24 @@ export default function GameCanvas() {
           drawnTarget,
           focus?.rect ?? null,
         );
+        if (world3d) {
+          drawWorld3d(
+            world3d,
+            app.screen.width,
+            app.screen.height,
+            app.renderer.resolution,
+          );
+          app.renderer.resetState();
+        }
         app.render();
+        if (statsPanel) {
+          const reading = recordFrame(
+            frameStats,
+            performance.now(),
+            world3d && drawnBy(world3d),
+          );
+          if (reading) showReading(statsPanel, reading);
+        }
         frame = requestAnimationFrame(tick);
       };
       frame = requestAnimationFrame(tick);
@@ -586,10 +631,13 @@ export default function GameCanvas() {
       listeners.abort();
       delete window.__wiablo;
       // A failed `init()` already surfaces through the chain above.
-      init.then(
-        () => app.destroy(true, { children: true }),
-        () => {},
-      );
+      // three.js owns the context Pixi shares, so it goes last.
+      const disposeWorld3d = () => world3d && disposeOf(world3d);
+      init.then(() => {
+        app.destroy(true, { children: true });
+        disposeWorld3d();
+      }, disposeWorld3d);
+      statsPanel?.remove();
     };
   }, []);
 

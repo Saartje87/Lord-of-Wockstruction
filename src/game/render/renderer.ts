@@ -1020,6 +1020,15 @@ export function createRenderer(
   };
 
   return {
+    /**
+     * Stops drawing the World and what follows it, for the 3D World drawn
+     * under the HUD instead.
+     */
+    hideWorld() {
+      camera.visible = false;
+      overWorld.visible = false;
+    },
+
     screenToTile,
     monsterAt,
     groundLabelAt: groundLabelUnder,

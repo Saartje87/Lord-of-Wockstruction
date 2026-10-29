@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { NO_FULLSCREEN } from "./fullscreen";
 import {
   acceptPendingPoints,
   addPendingPoint,
@@ -10,6 +11,7 @@ import {
   createMenus,
   fitMenus,
   type Menus,
+  menuChoices,
   panelOpen,
   pressKey,
   pressPad,
@@ -381,6 +383,59 @@ describe("a click while paused", () => {
   });
 });
 
+describe("the 3D World (beta) button", () => {
+  /** Menus paused by Esc, at 1000. */
+  function paused() {
+    const menus = createMenus();
+    pressKey(menus, "Escape", 1000, alive);
+    return menus;
+  }
+
+  it("asks to switch the World on a click or tap, leaving the menu open", () => {
+    const menus = paused();
+
+    expect(clickPaused(menus, "world3d", 2000)).toBe("world3d");
+    expect(menus.pause.paused).toBe(true);
+    expect(menus.pause.confirming).toBe(false);
+  });
+
+  it("is reached by the controller's focus, and A asks to switch", () => {
+    const menus = createMenus();
+    pressPad(menus, "menu", 1000, alive);
+
+    pressPad(menus, "right", 2000, alive);
+    expect(menus.menuFocus).toBe("world3d");
+
+    expect(pressPad(menus, "a", 3000, alive)).toBe("world3d");
+    expect(menus.pause.paused).toBe(true);
+    expect(menus.menuFocus).toBe("world3d");
+  });
+
+  it("follows the Fullscreen button for the controller where it shows", () => {
+    const menus = createMenus();
+    menus.fullscreen = { available: true, on: false };
+    pressPad(menus, "menu", 1000, alive);
+
+    pressPad(menus, "right", 2000, alive);
+    pressPad(menus, "right", 3000, alive);
+
+    expect(menus.menuFocus).toBe("world3d");
+  });
+
+  it("is hidden while confirming a New Hero", () => {
+    expect(menuChoices(true, NO_FULLSCREEN)).not.toContain("world3d");
+    expect(menuChoices(false, NO_FULLSCREEN)).toContain("world3d");
+  });
+
+  it("does nothing while the Rotate Notice shows", () => {
+    const menus = paused();
+    fitMenus(menus, { compact: true, rotateNotice: "tooSmall" }, 2000);
+
+    expect(clickPaused(menus, "world3d", 3000)).toBeNull();
+    expect(pressPad(menus, "a", 3000, alive)).toBe("handled");
+  });
+});
+
 describe("the Fullscreen button", () => {
   /** Menus paused by Esc where the browser allows fullscreen, at 1000. */
   function pausedWithFullscreen(on = false) {
@@ -425,7 +480,7 @@ describe("the Fullscreen button", () => {
 
     pressPad(menus, "right", 2000, alive);
 
-    expect(menus.menuFocus).toBe("newHero");
+    expect(menus.menuFocus).toBe("world3d");
   });
 
   it("leaves New Hero to ask to confirm, and Yes to start one", () => {

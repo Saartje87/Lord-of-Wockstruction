@@ -46,6 +46,7 @@ import {
 import { MONSTER_LOOKS } from "./monsterLook";
 import { NPC_LOOKS } from "./npcLook";
 import { propMeshesOf, scaleOf } from "./propMeshes";
+import type { SharedCanvas } from "./sharedCanvas";
 import { lookOf, outline, toonShade } from "./toon";
 import { type TorchMeshes, torchMeshesOf } from "./torchMeshes";
 import { type TownPortalMeshes, townPortalMeshesOf } from "./townPortalMesh";
@@ -54,8 +55,8 @@ import { type WallMeshes, wallMeshesOf } from "./wallMeshes";
 import { wallPlacementsOf } from "./walls";
 
 /**
- * The 3D World's three.js side. Its renderer owns the canvas and the WebGL
- * context, which Pixi shares to draw the HUD on top (ADR 0004).
+ * The 3D World's three.js side. Its renderer draws on the canvas and the
+ * WebGL context Pixi shares to draw the HUD on top (ADR 0004).
  */
 export type World3d = {
   renderer: WebGLRenderer;
@@ -119,9 +120,12 @@ const TORCH_PIECE = "dungeon/torch_mounted";
 const OUTLINE = 0.02;
 
 /** Creates the 3D World's renderer, its canvas and an empty scene. */
-export function createWorld3d(): World3d {
-  // Pixi needs the stencil buffer for its masks.
-  const renderer = new WebGLRenderer({ antialias: true, stencil: true });
+export function createWorld3d(shared: SharedCanvas): World3d {
+  // Draws on the canvas and context Pixi already draws the HUD on.
+  const renderer = new WebGLRenderer({
+    canvas: shared.canvas,
+    context: shared.context,
+  });
   renderer.toneMapping = ACESFilmicToneMapping;
   // The vignette draws over the World, so each frame clears by hand.
   renderer.autoClear = false;
@@ -444,12 +448,6 @@ export function drawWorld3d(
     const { vignette } = world3d.atmosphere;
     renderer.render(vignette.scene, vignette.camera);
   }
-}
-
-/** The WebGL context Pixi shares to draw the HUD over the 3D World. */
-export function contextOf(world3d: World3d): WebGL2RenderingContext {
-  // three.js only creates WebGL2 contexts, though its type allows WebGL1.
-  return world3d.renderer.getContext() as WebGL2RenderingContext;
 }
 
 /** What the 3D World drew last frame, for the stats panel. */

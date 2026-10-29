@@ -55,6 +55,11 @@ export type Menus = {
    * fullscreen, as the game loop last read them from the browser.
    */
   fullscreen: Fullscreen;
+  /**
+   * Whether the 3D World is the one drawn, as the game loop last set it,
+   * for the pause menu's "3D World (beta)" button to read.
+   */
+  world3d: boolean;
 };
 
 /** A count of Pending Attribute Points on each Attribute. */
@@ -74,6 +79,7 @@ export function createMenus(): Menus {
     pausedForNotice: false,
     menuFocus: null,
     fullscreen: NO_FULLSCREEN,
+    world3d: false,
   };
 }
 
@@ -93,30 +99,39 @@ export type HeroState = { heroDead: boolean };
 /**
  * The pause menu's buttons: New Hero asks to confirm one, and then
  * `confirm` starts it while `goBack` returns to the menu; the Fullscreen
- * button asks to go in or out of fullscreen.
+ * button asks to go in or out of fullscreen; the "3D World (beta)" button
+ * asks to switch the World's drawing.
  */
-export type MenuChoice = "newHero" | "confirm" | "goBack" | "fullscreen";
+export type MenuChoice =
+  | "newHero"
+  | "confirm"
+  | "goBack"
+  | "fullscreen"
+  | "world3d";
 
 /** The Fullscreen button, the Rotate Notice's one choice. */
 export type FullscreenChoice = Extract<MenuChoice, "fullscreen">;
 
 /**
- * What the menus ask the game loop to carry out: start a New Hero, or take
- * the game in or out of fullscreen.
+ * What the menus ask the game loop to carry out: start a New Hero, take
+ * the game in or out of fullscreen, or switch between the 2D and the 3D
+ * World.
  */
-export type MenuRequest = "newHero" | "fullscreen";
+export type MenuRequest = "newHero" | "fullscreen" | "world3d";
 
 /**
  * The pause menu's buttons in their row from left to right: New Hero, and
- * the Fullscreen button where `fullscreen` says the browser allows it, or
- * Yes and No while `confirming` a New Hero.
+ * the Fullscreen button where `fullscreen` says the browser allows it, and
+ * the 3D World (beta) button, or Yes and No while `confirming` a New Hero.
  */
 export function menuChoices(
   confirming: boolean,
   fullscreen: Fullscreen,
 ): MenuChoice[] {
   if (confirming) return ["confirm", "goBack"];
-  return fullscreen.available ? ["newHero", "fullscreen"] : ["newHero"];
+  return fullscreen.available
+    ? ["newHero", "fullscreen", "world3d"]
+    : ["newHero", "world3d"];
 }
 
 /** The key that opens and shuts the Map Overlay, as `pressKey` reads it. */
@@ -420,8 +435,9 @@ function closePanels(menus: Menus) {
  * A click at real time `nowMs` while paused, on one of the menu's buttons
  * or, for null, anywhere else, which resumes; nothing while the Rotate
  * Notice shows. Returns `"newHero"` once one is confirmed, for the caller
- * to start it, and `"fullscreen"` on the Fullscreen button, for the caller
- * to take the game in or out of fullscreen, the menu staying open.
+ * to start it, `"fullscreen"` on the Fullscreen button, for the caller
+ * to take the game in or out of fullscreen, and `"world3d"` on the 3D World
+ * (beta) button, for the caller to switch the World, the menu staying open.
  */
 export function clickPaused(
   menus: Menus,
@@ -464,7 +480,7 @@ export function tapRotateNotice(
  * Panel-button order, round from the last to the first), shutting it as
  * its key would, and B shuts it. While the Rotate Notice shows, every
  * button is taken and does nothing. Returns as `pressKey` does, or
- * `"fullscreen"` on A with the Fullscreen button picked, as `clickPaused`.
+ * `"fullscreen"` or `"world3d"` on A with that button picked, as `clickPaused`.
  */
 export function pressPad(
   menus: Menus,
@@ -538,8 +554,9 @@ function pickChoice(
   nowMs: number,
 ): MenuRequest | null {
   const started = choose(menus, choice, nowMs);
-  // The Fullscreen button leaves the row as it was, so stays picked.
-  if (choice !== "fullscreen") {
+  // The Fullscreen and 3D World buttons leave the row as it was, so stay
+  // picked.
+  if (choice !== "fullscreen" && choice !== "world3d") {
     menus.menuFocus = defaultChoice(menus.pause.confirming);
   }
   return started;
@@ -582,6 +599,8 @@ function choose(
       return null;
     case "fullscreen":
       return "fullscreen";
+    case "world3d":
+      return "world3d";
     case "confirm":
       if (!pause.confirming) return null;
       // Starts afresh with nothing open.

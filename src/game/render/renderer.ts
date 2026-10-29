@@ -650,6 +650,8 @@ export function createRenderer(
   let highlighted: CharacterId | null = null;
   /** Life bars and Curse marks of the 3D World, scaled by its World zoom. */
   const overheads3d = new Container();
+  /** Ground Item labels over the 3D World, made with the first `showIn3d`. */
+  const labels3d = new Container();
 
   // Filled by `showArea`.
   let area: Area | null = null;
@@ -1064,6 +1066,8 @@ export function createRenderer(
      * Monsters by their boxes through it.
      */
     showIn3d(cameraOf: () => WorldCamera) {
+      // Numbers in the air were placed for the other World.
+      for (const { text } of floating.splice(0)) text.destroy();
       camera3d = cameraOf;
       camera.visible = false;
       overWorld.visible = false;
@@ -1072,10 +1076,27 @@ export function createRenderer(
       overheads3d.addChild(overheads);
       app.stage.addChildAt(numbers, index);
       // Ground Item labels follow, over the 3D World, under the numbers.
-      const labels3d = new Container();
       app.stage.addChildAt(labels3d, index);
       labels3d.addChild(labelBacks, ...labelTexts.values());
       labelLayer = labels3d;
+    },
+
+    /**
+     * Draws the 2D World again after `showIn3d`, putting back what it
+     * moved: the 2D World, its Life bars and Curse marks, damage numbers and
+     * Ground Item labels, and picking through the 2D camera. The 2D World
+     * kept running while hidden, so it is up to date.
+     */
+    showIn2d() {
+      for (const { text } of floating.splice(0)) text.destroy();
+      camera3d = null;
+      standing3d = [];
+      camera.visible = true;
+      overWorld.visible = true;
+      camera.addChild(overheads);
+      overWorld.addChild(labelBacks, ...labelTexts.values(), numbers);
+      labelLayer = overWorld;
+      app.stage.removeChild(overheads3d, labels3d);
     },
 
     /**
@@ -1123,12 +1144,14 @@ export function createRenderer(
     /**
      * The pause-menu button under a click on the canvas (CSS px), or null
      * off them all; `confirming` while asking to confirm a New Hero, and
-     * the Fullscreen button only where `fullscreen` says it's allowed.
+     * the Fullscreen button only where `fullscreen` says it's allowed;
+     * `world3d` is whether the 3D World is on.
      */
     menuChoiceAt(
       screen: Vec,
       confirming: boolean,
       fullscreen: Fullscreen,
+      world3d: boolean,
     ): MenuChoice | null {
       return menuChoiceAt(
         viewportOf(app.screen),
@@ -1136,6 +1159,7 @@ export function createRenderer(
         confirming,
         activeInput.way,
         fullscreen,
+        world3d,
       );
     },
 
@@ -1772,6 +1796,7 @@ export function createRenderer(
         // Only a controller picks with the menu's focus.
         activeInput.way === "controller" ? menus.menuFocus : null,
         menus.fullscreen,
+        menus.world3d,
       );
       notice.draw(viewport, menus.fullscreen);
 
@@ -3864,6 +3889,7 @@ function pauseMenuView(activeInput: Readonly<ActiveInput>) {
       level: number,
       focus: MenuChoice | null,
       fullscreen: Fullscreen,
+      world3d: boolean,
     ) {
       layer.visible = pause.paused;
       if (!pause.paused) return;
@@ -3883,6 +3909,7 @@ function pauseMenuView(activeInput: Readonly<ActiveInput>) {
         confirming,
         activeInput.way,
         fullscreen,
+        world3d,
       );
       const scale = screen.uiScale;
       content.position.set(layout.panel.x, layout.panel.y);

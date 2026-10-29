@@ -1,4 +1,7 @@
+import { corpseBurst, tileRadiusOf } from "../render/corpseBurst";
+import { curseCircle } from "../render/curse";
 import type { CharacterId } from "../render/hover";
+import { levelRing } from "../render/levelUp";
 import type { ShownTownPortal } from "../render/townPortalLook";
 import { type Area, type Placed, TOWN } from "../sim/area";
 import type { ItemId } from "../sim/inventory";
@@ -23,7 +26,7 @@ import {
 import { inputTuning } from "../tuning/input";
 import type { ItemType } from "../tuning/items";
 import type { MinionType } from "../tuning/minions";
-import type { MonsterType } from "../tuning/monsters";
+import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import type { ProjectileKind } from "../tuning/projectiles";
 import { ATTACK_CONTACT, type HeroClip } from "./clips";
 import { MINION_LOOKS } from "./minionLook";
@@ -122,6 +125,42 @@ export type Effects = {
   deadForMs: ReadonlyMap<MonsterId, number>;
   /** The Town Portal ends of the Area, bursting open, standing or closing. */
   portals: ShownTownPortal[];
+  /** The Corpse bursts so far, with how long ago each began. */
+  bursts: AgedCircle[];
+  /** The Curses cast so far, with how long ago each was cast. */
+  curses: AgedCircle[];
+  /** How long ago (ms) the Hero reached a Level, if the ring may still show. */
+  levelUpAgoMs: number | null;
+};
+
+/** A circle of `radius` tiles on the floor at `pos`, `ageMs` into its play. */
+export type AgedCircle = { pos: Vec; radius: number; ageMs: number };
+
+/** A melee Monster's wind-up on the floor: its reach and arc, filling. */
+export type TelegraphView = {
+  /** Interpolated, in tile units. */
+  pos: Vec;
+  /** Radians in tile space. */
+  facing: number;
+  /** In tiles. */
+  reach: number;
+  /** Half the wedge's angle, in radians. */
+  arc: number;
+  /** How far the wind-up has filled the wedge, 0..1. */
+  progress: number;
+};
+
+/** A ring or disc flat on the floor, in tiles, and how opaque it is. */
+export type FloorCircle = { radius: number; alpha: number };
+
+/** What the World draws flat on the floor, apart from its pieces. */
+export type FloorEffectsView = {
+  telegraphs: TelegraphView[];
+  curses: (FloorCircle & { pos: Vec })[];
+  /** A flash disc and a spreading ring round a burst Corpse. */
+  bursts: { pos: Vec; flash: FloorCircle; ring: FloorCircle }[];
+  /** The gold ring round the Hero's feet on a Level-Up. */
+  levelRing: (FloorCircle & { pos: Vec }) | null;
 };
 
 /** A Projectile in flight as the 3D World shows it. */
@@ -180,6 +219,7 @@ export type WorldView = {
   lamps: Lamp[];
   /** Whether the Area is a Combat Area, which has embers and a vignette. */
   combat: boolean;
+  floorEffects: FloorEffectsView;
 };
 
 /** An Area's torches, worked out once. */
@@ -247,6 +287,9 @@ export function worldViewOf(
     flashes: new Map(),
     deadForMs: new Map(),
     portals: [],
+    bursts: [],
+    curses: [],
+    levelUpAgoMs: null,
   },
 ): WorldView {
   const { hero } = world;
@@ -330,6 +373,55 @@ export function worldViewOf(
     })),
     lamps: lampsIn(area),
     combat: world.areaName !== TOWN,
+    floorEffects: floorEffectsOf(world, alpha, effects, pos),
+  };
+}
+
+/** The wedges, circles and rings on the floor, timed as in 2D. */
+function floorEffectsOf(
+  world: World,
+  alpha: number,
+  effects: Effects,
+  heroPos: Vec,
+): FloorEffectsView {
+  const telegraphs: TelegraphView[] = [];
+  for (const monster of world.monsters) {
+    const { attack } = monsterTuning[monster.type];
+    // A ranged attack has no reach to show: the drawn bow is the tell.
+    if (monster.state !== "windup" || attack.kind !== "melee") continue;
+    telegraphs.push({
+      pos: {
+        x: monster.prevPos.x + (monster.pos.x - monster.prevPos.x) * alpha,
+        y: monster.prevPos.y + (monster.pos.y - monster.prevPos.y) * alpha,
+      },
+      facing: monster.facing,
+      reach: attack.reach,
+      arc: (attack.arcDegrees * Math.PI) / 180,
+      progress: windUpProgress(monster),
+    });
+  }
+  const curses: FloorEffectsView["curses"] = [];
+  for (const { pos, radius, ageMs } of effects.curses) {
+    const circle = curseCircle(ageMs, radius);
+    if (circle) curses.push({ pos, radius, alpha: circle.alpha });
+  }
+  const bursts: FloorEffectsView["bursts"] = [];
+  for (const { pos, radius, ageMs } of effects.bursts) {
+    const burst = corpseBurst(ageMs, radius);
+    if (!burst) continue;
+    bursts.push({
+      pos,
+      flash: { radius: tileRadiusOf(burst.flash), alpha: burst.flash.alpha },
+      ring: { radius: tileRadiusOf(burst.ring), alpha: burst.ring.alpha },
+    });
+  }
+  const ring =
+    effects.levelUpAgoMs === null ? null : levelRing(effects.levelUpAgoMs);
+  return {
+    telegraphs,
+    curses,
+    bursts,
+    levelRing: ring && { pos: heroPos, ...ring },
   };
 }
 

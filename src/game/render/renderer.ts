@@ -151,6 +151,7 @@ import {
   landingCell,
 } from "./inventoryPanel";
 import { itemColour, itemLabel } from "./itemArt";
+import { LEVEL_UP } from "./levelUp";
 import {
   MAP_LOOK,
   MAP_OVERLAY,
@@ -204,6 +205,7 @@ import {
   skillTreeRow,
   skillTreeSheet,
 } from "./skillTreePanel";
+import { TELEGRAPH } from "./telegraph";
 import { tooltipRect } from "./tooltip";
 import { touchControlsLayout, touchControlsShown } from "./touchControls";
 import {
@@ -221,19 +223,6 @@ const MARKER_LINE = 0xe8d27a;
 const FLASH_MS = 120;
 /** How white a hit Monster turns at the start of its flash (0..1). */
 const FLASH_STRENGTH = 0.8;
-
-/**
- * The Hero's flash on reaching a new Level: its length (ms), fading out, how
- * strongly it washes them gold at the start (0..1), and a gold ring spreading
- * out at their feet to `ringRadius` (tiles).
- */
-const LEVEL_UP = {
-  ms: 800,
-  strength: 0.7,
-  colour: 0xffd75a,
-  ringRadius: 1.4,
-  ringWidth: 3,
-};
 
 /** The screen's red flash when the Hero is hit: its length (ms), fading out. */
 const HURT_MS = 150;
@@ -277,13 +266,7 @@ const PAUSE_MENU = {
   hint: { colour: 0x9a9080, size: 14, bottom: 26 },
 };
 
-/**
- * A placeholder telegraph: a red wedge over a Monster's reach and arc, filling
- * outwards as it winds up.
- */
-const TELEGRAPH_COLOUR = 0xd02a1e;
-/** How opaque the whole wedge and its filled part are (0..1). */
-const TELEGRAPH_ALPHA = { reach: 0.12, filled: 0.35 };
+/** How many segments the 2D telegraph wedge is cut into. */
 const TELEGRAPH_SEGMENTS = 12;
 
 /**
@@ -1107,7 +1090,19 @@ export function createRenderer(
         if (left > 0) flashes.set(id, FLASH_STRENGTH * left);
         if (view.diedAtMs !== null) deadForMs.set(id, nowMs - view.diedAtMs);
       }
-      return { flashes, deadForMs, portals: portalsShown(world, nowMs) };
+      const ageOf = ({ pos, radius, atMs }: (typeof bursts)[number]) => ({
+        pos,
+        radius,
+        ageMs: nowMs - atMs,
+      });
+      return {
+        flashes,
+        deadForMs,
+        portals: portalsShown(world, nowMs),
+        bursts: bursts.map(ageOf),
+        curses: curses.map(ageOf),
+        levelUpAgoMs: levelAtMs === null ? null : nowMs - levelAtMs,
+      };
     },
 
     /**
@@ -1339,13 +1334,13 @@ export function createRenderer(
         walkOrStand(hero, world.hero, heroAt, heroCompass, nowMs);
       }
 
-      const levelUpLeft =
+      const levelLeft =
         levelAtMs === null ? 0 : 1 - (nowMs - levelAtMs) / LEVEL_UP.ms;
       levelRing.clear();
-      if (levelUpLeft > 0) {
-        levelFlash.alpha = LEVEL_UP.strength * levelUpLeft;
+      if (levelLeft > 0) {
+        levelFlash.alpha = LEVEL_UP.strength * levelLeft;
         hero.sprite.filters = [levelFlash];
-        const radius = LEVEL_UP.ringRadius * (1 - levelUpLeft);
+        const radius = LEVEL_UP.ringRadius * (1 - levelLeft);
         levelRing
           .poly(
             [
@@ -1361,7 +1356,7 @@ export function createRenderer(
           .stroke({
             color: LEVEL_UP.colour,
             width: LEVEL_UP.ringWidth,
-            alpha: levelUpLeft,
+            alpha: levelLeft,
           });
       } else if (hero.sprite.filters) {
         hero.sprite.filters = null;
@@ -1948,10 +1943,10 @@ function telegraph(
   };
   graphics
     .poly(wedge(reach))
-    .fill({ color: TELEGRAPH_COLOUR, alpha: TELEGRAPH_ALPHA.reach });
+    .fill({ color: TELEGRAPH.colour, alpha: TELEGRAPH.alpha.reach });
   graphics
     .poly(wedge(reach * progress))
-    .fill({ color: TELEGRAPH_COLOUR, alpha: TELEGRAPH_ALPHA.filled });
+    .fill({ color: TELEGRAPH.colour, alpha: TELEGRAPH.alpha.filled });
 }
 
 /** Where the top of the Life bar over a character's head goes (CSS px). */

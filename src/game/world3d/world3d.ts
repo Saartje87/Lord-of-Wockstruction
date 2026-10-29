@@ -20,6 +20,10 @@ import {
   PIECE_SCALE,
   TOWN_FLOOR,
 } from "./floor";
+import {
+  type FloorEffectMeshes,
+  floorEffectMeshesOf,
+} from "./floorEffectMeshes";
 import { type HeroActor, heroActorOf, poseHero } from "./heroActor";
 import { createLighting, type Lighting, lightScene } from "./lighting";
 import {
@@ -62,6 +66,8 @@ export type World3d = {
   atmosphere: Atmosphere;
   /** The Town Portal ends, drawn as gateways. */
   townPortals: TownPortalMeshes;
+  /** Telegraphs, Curses, Corpse bursts and the Level-Up ring on the floor. */
+  floorEffects: FloorEffectMeshes;
   /** Set once `loadModels` is done. */
   models: Models | null;
   /** The Area whose floor, Walls and Props are in the scene, if any. */
@@ -132,6 +138,8 @@ export function createWorld3d(): World3d {
   scene.add(markers.click, markers.hover);
   const townPortals = townPortalMeshesOf();
   scene.add(townPortals.group);
+  const floorEffects = floorEffectMeshesOf();
+  scene.add(floorEffects.group);
   return {
     renderer,
     scene,
@@ -140,6 +148,7 @@ export function createWorld3d(): World3d {
     lighting,
     atmosphere,
     townPortals,
+    floorEffects,
     models: null,
     monsters: new Map(),
     minions: new Map(),
@@ -422,6 +431,7 @@ export function drawWorld3d(
   world3d.shown?.scenery?.torches.show(view.torches, seconds);
   lightScene(world3d.lighting, view, seconds, scene);
   world3d.townPortals.show(view.townPortals, seconds);
+  world3d.floorEffects.show(view.floorEffects);
   world3d.shown?.exits.update(seconds);
   driftEmbers(world3d.atmosphere, view.hero.pos, dt, view.combat);
   showMarkers(world3d.markers, view);

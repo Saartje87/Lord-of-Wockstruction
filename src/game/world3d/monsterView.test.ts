@@ -14,6 +14,9 @@ const NO_EFFECTS: Effects = {
   flashes: new Map(),
   deadForMs: new Map(),
   portals: [],
+  bursts: [],
+  curses: [],
+  levelUpAgoMs: null,
 };
 
 const withSkeleton = () => {

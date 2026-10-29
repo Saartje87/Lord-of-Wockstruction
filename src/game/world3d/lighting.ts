@@ -1,3 +1,7 @@
+// The scene's actual three.js lights: creates them once, then each frame moves
+// them (Hero lantern, torch pool) and sets the mood. Which torches get a light
+// and how a flame flickers is decided by the pure maths in lights.ts.
+
 import {
   AmbientLight,
   Color,
@@ -18,8 +22,21 @@ import type { WorldView } from "./view";
  */
 export const TORCH_LIGHTS = 4;
 
-/** The brightest a torch's light gets. */
+/** The brightest a torch's (or standing lantern's) light gets. */
 const TORCH_INTENSITY = 2.6;
+/** The colour of a torch's light. */
+const TORCH_COLOUR = 0xff7a2a;
+/** How far a torch's light reaches (tiles), and how fast it falls off. */
+const TORCH_REACH = 6;
+const TORCH_DECAY = 1.5;
+
+/** The Hero's lantern: its colour, brightness, reach (tiles) and falloff. */
+const LANTERN_COLOUR = 0xffb878;
+const LANTERN_INTENSITY = 3.0;
+const LANTERN_REACH = 7.5;
+const LANTERN_DECAY = 1.6;
+/** How much of the lantern's brightness its flicker takes away at most. */
+const LANTERN_FLICKER = 0.06;
 
 /** The scene's lights, and the fog and sky that go with them. */
 export type Lighting = {
@@ -78,10 +95,15 @@ export function createLighting(scene: Scene): Lighting {
   const moon = new DirectionalLight(mood.moon.colour, mood.moon.intensity);
   moon.position.set(-4, 10, 2);
   scene.add(moon);
-  const lantern = new PointLight(0xffb878, 3.0, 7.5, 1.6);
+  const lantern = new PointLight(
+    LANTERN_COLOUR,
+    LANTERN_INTENSITY,
+    LANTERN_REACH,
+    LANTERN_DECAY,
+  );
   scene.add(lantern);
   const torches = Array.from({ length: TORCH_LIGHTS }, () => {
-    const light = new PointLight(0xff7a2a, 0, 6, 1.5);
+    const light = new PointLight(TORCH_COLOUR, 0, TORCH_REACH, TORCH_DECAY);
     scene.add(light);
     return light;
   });
@@ -111,8 +133,7 @@ function moodScene(lighting: Lighting, scene: Scene | null, combat: boolean) {
 export const LANTERN_HEIGHT = 1.5;
 export const FLAME_HEIGHT = 0.85;
 
-/** The colour of a torch's light, and of a standing lantern's, which is softer. */
-const TORCH_COLOUR = 0xff7a2a;
+/** The colour of a standing lantern's light, softer than a torch's. */
 const LAMP_COLOUR = 0xffa04a;
 
 /** How high a standing lantern's flame hangs. */
@@ -134,7 +155,9 @@ export function lightScene(
   moodScene(lighting, scene, view.combat);
   const { pos } = view.hero;
   lighting.lantern.position.set(pos.x, LANTERN_HEIGHT, pos.y);
-  lighting.lantern.intensity = 3.0 * (0.94 + 0.06 * flicker(seconds, 0.5));
+  lighting.lantern.intensity =
+    LANTERN_INTENSITY *
+    (1 - LANTERN_FLICKER + LANTERN_FLICKER * flicker(seconds, 0.5));
   const sources: (
     | (WorldView["torches"][number] & { lamp?: undefined })
     | { pos: Vec; lit: true; lamp: true }

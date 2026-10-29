@@ -1,3 +1,6 @@
+// Pure light maths, no three.js: which lit torches get the scene's few point
+// lights (nearestLit) and how a flame flickers. lighting.ts owns the lights.
+
 import type { Vec } from "../sim/vec";
 
 /** Torches farther than this from the Hero (tiles) light nothing in view. */

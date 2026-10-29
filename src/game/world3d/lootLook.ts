@@ -82,12 +82,15 @@ export type ProjectileLook = Look & {
   trail: number;
 };
 
-/** The arrow's long side is its y axis; the bone's is its x axis. */
+/**
+ * The arrow's long side is its y axis, its point at -y (fletching at +y), so
+ * it is laid with -y towards the flight. The bone's long side is its x axis.
+ */
 export const PROJECTILE_LOOKS: Record<ProjectileKind, ProjectileLook> = {
   arrow: {
     model: "loot/arrow",
     scale: 0.6,
-    lay: [Math.PI / 2, 0, 0],
+    lay: [-Math.PI / 2, 0, 0],
     tint: null,
     height: 0.8,
     glow: null,

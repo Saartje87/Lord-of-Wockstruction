@@ -10,6 +10,7 @@ import {
 import type { GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone } from "three/examples/jsm/utils/SkeletonUtils.js";
 import type { Vec } from "../sim/vec";
+import { blendClips, scrubTime, turnTowards } from "./actorPose";
 import type { MonsterLook } from "./monsterLook";
 import {
   type Inks,
@@ -21,8 +22,11 @@ import {
 } from "./toon";
 import type { MonsterAnimation } from "./view";
 
-/** How long one clip takes to give way to the next, seconds. */
-const BLEND_SECONDS = 0.12;
+/**
+ * Seconds of looping-clip phase each Monster id adds, so a crowd of the same
+ * kind does not move in lockstep.
+ */
+const PHASE_SECONDS_PER_ID = 0.37;
 /** How fast a Monster turns to face a new way, per second (an easing rate). */
 const TURN_RATE = 14;
 /** How bright a fully flashed Monster glows. */
@@ -127,17 +131,7 @@ export function poseMonster(actor: MonsterActor, monster: Posed, dt: number) {
   actor.root.position.set(monster.pos.x, 0, monster.pos.y);
   // A Corpse keeps the way it last faced.
   if (monster.facing !== null) {
-    // KayKit's models look down +z; facing is atan2 in tile space (x, z).
-    const target = Math.PI / 2 - monster.facing;
-    if (first || actor.turn === null) {
-      actor.turn = target;
-    } else {
-      const gap = Math.atan2(
-        Math.sin(target - actor.turn),
-        Math.cos(target - actor.turn),
-      );
-      actor.turn += gap * Math.min(1, dt * TURN_RATE);
-    }
+    actor.turn = turnTowards(actor.turn, monster.facing, dt, TURN_RATE);
   }
   actor.root.rotation.y = actor.turn ?? 0;
   for (const material of actor.materials) {
@@ -150,20 +144,14 @@ export function poseMonster(actor: MonsterActor, monster: Posed, dt: number) {
   }
 
   const name = actor.clips[monster.animation.clip];
-  // The first pose has nothing to blend from.
-  const blend = first ? 1 : Math.min(1, dt / BLEND_SECONDS);
-  for (const [clipName, action] of actor.actions) {
-    const goal = clipName === name ? 1 : 0;
-    action.weight += Math.sign(goal - action.weight) * blend;
-    action.weight = Math.min(1, Math.max(0, action.weight));
-    if (clipName !== name) continue;
-    const duration = action.getClip().duration;
-    // Just short of the end, where a repeating clip would wrap round.
-    const last = duration - 1e-3;
-    action.time =
-      "progress" in monster.animation
-        ? Math.min(last, monster.animation.progress * duration)
-        : (monster.animation.seconds + monster.id * 0.37) % duration;
+  blendClips(actor.actions, name, dt, first);
+  const action = actor.actions.get(name);
+  if (action) {
+    action.time = scrubTime(
+      monster.animation,
+      action.getClip().duration,
+      monster.id * PHASE_SECONDS_PER_ID,
+    );
   }
   actor.mixer.update(0);
 }

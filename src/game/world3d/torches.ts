@@ -1,3 +1,6 @@
+// Torch placement data: which Walls of an Area carry a torch, and where. No
+// drawing; torchMeshes.ts draws them from the view.
+
 import type { Area } from "../sim/area";
 import type { Vec } from "../sim/vec";
 import { hash } from "./floor";

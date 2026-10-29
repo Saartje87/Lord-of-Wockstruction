@@ -1,3 +1,6 @@
+// Torch drawing: the instanced holder and flame meshes for the torches the
+// view says are lit. torches.ts decides where torches hang; lighting.ts lights.
+
 import {
   ConeGeometry,
   Group,

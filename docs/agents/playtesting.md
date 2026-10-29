@@ -49,7 +49,9 @@ In dev builds, `?area=<Area>&entry=<Entry>` starts at that Entry instead of in T
 
 ### The 3D World
 
-The pause menu (Esc) has a "3D World (beta)" button; the choice is stored per device in `localStorage` under `wiablo.world` (`"3d"` or `"2d"`), apart from the Save. `?renderer=3d` turns the 3D World on for that load without storing it. Switching happens at once, mid-game; the 3D World's code and models load the first time it is chosen.
+The World is always drawn in 3D (three.js), with the HUD, panels, Mini Map and Map Overlay drawn over it by Pixi on the same canvas. There is nothing to switch on: the models load before the first frame.
+
+In dev builds and Vercel previews, `?stats` (alone or beside `?area=…`) shows fps, ms per frame, draw calls and triangles at the top left. Use it for any performance criterion, on the device the ticket names.
 
 ## Read the game state
 

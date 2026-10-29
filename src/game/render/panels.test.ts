@@ -223,17 +223,14 @@ describe("the panels at the UI Scale", () => {
         confirming,
         "mouseAndKeyboard",
         NO_FULLSCREEN,
-        false,
       );
 
-      // At native scale: a 460×340 panel with 32 high buttons.
+      // At native scale: a 460×290 panel with 160×32 buttons.
       expect(panel.w).toBeCloseTo(460 * uiScale);
-      expect(panel.h).toBeCloseTo(340 * uiScale);
+      expect(panel.h).toBeCloseTo(290 * uiScale);
       expectOnScreen(viewport, panel, "pause menu");
       for (const { choice, rect } of buttons) {
-        expect(rect.w).toBeCloseTo(
-          (choice === "world3d" ? 240 : 160) * uiScale,
-        );
+        expect(rect.w).toBeCloseTo(160 * uiScale);
         expect(rect.h).toBeCloseTo(32 * uiScale);
         expect(
           menuChoiceAt(
@@ -242,7 +239,6 @@ describe("the panels at the UI Scale", () => {
             confirming,
             "mouseAndKeyboard",
             NO_FULLSCREEN,
-            false,
           ),
         ).toBe(choice);
       }

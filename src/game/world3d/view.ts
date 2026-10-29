@@ -377,7 +377,7 @@ export function worldViewOf(
   };
 }
 
-/** The wedges, circles and rings on the floor, timed as in 2D. */
+/** The wedges, circles and rings on the floor. */
 function floorEffectsOf(
   world: World,
   alpha: number,
@@ -432,7 +432,7 @@ function corpseAnimationOf(ms: number | undefined): MonsterAnimation {
   return { clip: "death", progress };
 }
 
-/** A living Monster as shown: its animation chosen by its state, as in 2D. */
+/** A living Monster as shown: its animation chosen by its state. */
 function monsterViewOf(
   world: World,
   monster: Monster,
@@ -524,7 +524,7 @@ function minionViewOf(
   };
 }
 
-/** The Hero's animation, the World's state deciding which, as in 2D. */
+/** The Hero's animation, the World's state deciding which. */
 function heroAnimationOf(world: World): HeroAnimation {
   const { hero, death } = world;
   if (death) {

@@ -4,7 +4,7 @@ import { Application } from "pixi.js";
 import { useEffect, useRef } from "react";
 import { pressButton } from "./buttonPress";
 import { advance, createClock } from "./clock";
-import { areaDisplayNames, areas, flareAreas, tilesets } from "./content";
+import { areaDisplayNames, areas, tilesets } from "./content";
 import {
   type CursorPoint,
   clickCursor,
@@ -71,7 +71,6 @@ import {
   tapRotateNotice,
 } from "./menus";
 import { gameTime, togglePause } from "./pause";
-import { loadArt } from "./render/art";
 import { createFrameStats, recordFrame } from "./render/frameStats";
 import { inventoryRightClickOrder } from "./render/inventoryPanel";
 import { panelFocusSpots } from "./render/panelFocus";
@@ -97,18 +96,19 @@ import { viewportOf } from "./viewport";
 import { screenToTile, worldCameraOn } from "./world3d/camera";
 import { createSharedCanvas } from "./world3d/sharedCanvas";
 import { type PointerState, worldViewOf } from "./world3d/view";
-import type { World3d } from "./world3d/world3d";
 import {
-  readWorldChoice,
-  startingWorld,
-  type WorldChoice,
-  writeWorldChoice,
-} from "./worldChoice";
+  createWorld3d,
+  disposeOf,
+  drawnBy,
+  drawWorld3d,
+  loadModels,
+  type World3d,
+} from "./world3d/world3d";
 
-/** The 3D World's code, which is fetched when it is first chosen. */
-type World3dModule = typeof import("./world3d/world3d");
-
-/** Mounts the Pixi Application and runs the fixed-step loop. */
+/**
+ * Mounts the Pixi Application, which draws the HUD over the 3D World on one
+ * canvas, and runs the fixed-step loop.
+ */
 export default function GameCanvas() {
   const host = useRef<HTMLDivElement>(null);
 
@@ -117,8 +117,7 @@ export default function GameCanvas() {
     if (!container) return;
 
     const app = new Application();
-    // Any build can draw the 3D World; dev builds and Vercel previews can
-    // also show stats.
+    // Dev builds and Vercel previews can show stats.
     const dev = devOptionsOf(
       window.location.search,
       process.env.NODE_ENV === "development" ||
@@ -126,10 +125,12 @@ export default function GameCanvas() {
     );
     // Pixi and the 3D World draw on one canvas, made up front.
     const shared = createSharedCanvas();
-    /** The 3D World's code and scene, once it has been chosen. */
-    let three: { module: World3dModule; world3d: World3d } | null = null;
-    /** Whether the 3D World is the one drawn right now. */
-    let in3d = false;
+    if (!shared) {
+      container.textContent = "Wiablo needs a browser with WebGL 2.";
+      return;
+    }
+    /** The 3D World, once it is made. */
+    let world3d: World3d | null = null;
     const statsPanel = dev.stats ? createStatsPanel(container) : null;
     const listeners = new AbortController();
     let cancelled = false;
@@ -145,11 +146,9 @@ export default function GameCanvas() {
       autoStart: false,
       // Pixi draws the HUD into the canvas and WebGL context the 3D World
       // shares, over it (ADR 0004).
-      ...(shared && {
-        preference: "webgl",
-        canvas: shared.canvas,
-        context: shared.context,
-      }),
+      preference: "webgl",
+      canvas: shared.canvas,
+      context: shared.context,
     });
     init.then(async () => {
       if (cancelled) return;
@@ -158,7 +157,6 @@ export default function GameCanvas() {
       const save = readSave(storage);
       let world = createWorld({
         areas,
-        flareAreas,
         tilesets,
         seed: Date.now(),
         progress: save?.progress,
@@ -169,79 +167,36 @@ export default function GameCanvas() {
             ? devStartOf(window.location.search)
             : null,
       });
-      const usedTilesets = Object.values(world.areas).map(
-        (area) => area.tileset,
-      );
-      const art = await loadArt(
-        [...new Set(usedTilesets)].filter((name) => name !== null),
-        app.renderer.resolution,
-      );
+      const loaded = createWorld3d(shared);
+      world3d = loaded;
+      try {
+        await loadModels(loaded);
+      } catch (error) {
+        console.error("The 3D World failed to load", error);
+        container.textContent = "The 3D World failed to load.";
+        return;
+      }
       if (cancelled) return;
+      // The 3D World draws first and Pixi's HUD over it, so Pixi clears
+      // nothing.
+      app.renderer.background.clearBeforeRender = false;
       container.appendChild(app.canvas);
 
       // The way the player last played, which the hints name the buttons of.
       const activeInput = createActiveInput();
       // What the fingers hold of the touch controls.
       const touch = createTouchControls();
+      /** Where the 3D World's camera was last drawn, which input reads. */
+      let worldCamera = worldCameraOn(viewportOf(app.screen), world.hero.pos);
       const renderer = createRenderer(
         app,
-        art,
+        () => worldCamera,
         areaDisplayNames,
         activeInput,
         touch,
       );
-      /** Where the 3D World's camera was last drawn, which input reads. */
-      let worldCamera = worldCameraOn(viewportOf(app.screen), world.hero.pos);
       /** The tile under a point on the canvas (CSS px), through the camera. */
-      const toTile = (at: Vec) =>
-        in3d ? screenToTile(worldCamera, at) : renderer.screenToTile(at);
-      /** Whether a switch of World is still loading the 3D World. */
-      let switching = false;
-      /**
-       * Draws the 3D World or the 2D World from now on, at once: the World
-       * keeps running and only its drawing swaps, so the Hero stays put.
-       * The 3D World's code and models are fetched the first time it is
-       * chosen; until they are here, and if they fail to load, the 2D
-       * World stays. Returns whether the 3D World is on after.
-       */
-      const showWorld = async (choice: WorldChoice): Promise<boolean> => {
-        if (choice === "2d") {
-          in3d = false;
-          renderer.showIn2d();
-          return false;
-        }
-        if (in3d) return true;
-        if (!three) {
-          if (!shared) return false;
-          try {
-            const module = await import("./world3d/world3d");
-            const world3d = module.createWorld3d(shared);
-            three = { module, world3d };
-            await module.loadModels(world3d);
-          } catch (error) {
-            console.error("The 3D World failed to load", error);
-            three = null;
-            return false;
-          }
-        }
-        if (cancelled) return false;
-        worldCamera = worldCameraOn(viewportOf(app.screen), world.hero.pos);
-        renderer.showIn3d(() => worldCamera);
-        in3d = true;
-        return true;
-      };
-      /** Carries out the 3D World (beta) button, and stores the choice. */
-      const switchWorld = async () => {
-        if (switching) return;
-        switching = true;
-        const wanted: WorldChoice = in3d ? "2d" : "3d";
-        // The button reads the choice at once, while the 3D World loads.
-        menus.world3d = wanted === "3d";
-        const shown = await showWorld(wanted);
-        menus.world3d = shown;
-        writeWorldChoice(storage, shown ? "3d" : "2d");
-        switching = false;
-      };
+      const toTile = (at: Vec) => screenToTile(worldCamera, at);
       /** The last click on the floor, which the 3D World marks. */
       let lastClick: { at: Vec; atMs: number } | null = null;
       const frameStats = createFrameStats(performance.now());
@@ -327,12 +282,8 @@ export default function GameCanvas() {
         menus.rotateNotice
           ? renderer.rotateNoticeChoiceAt(at, menus.fullscreen) === "fullscreen"
           : pause.paused &&
-            renderer.menuChoiceAt(
-              at,
-              pause.confirming,
-              menus.fullscreen,
-              menus.world3d,
-            ) === "fullscreen";
+            renderer.menuChoiceAt(at, pause.confirming, menus.fullscreen) ===
+              "fullscreen";
       /**
        * Presses the Fullscreen button and carries out the menus' request at
        * once, inside the event handler: browsers allow fullscreen only
@@ -486,7 +437,6 @@ export default function GameCanvas() {
             clickedAt,
             pause.confirming,
             menus.fullscreen,
-            menus.world3d,
           );
           const asked = clickPaused(menus, choice, realNow);
           if (asked !== null) requests.add(asked);
@@ -499,7 +449,6 @@ export default function GameCanvas() {
           // player's own action, so one may refuse it.
           fullscreen.toggle();
         }
-        if (requests.has("world3d")) void switchWorld();
         if (wasPaused || pause.paused) {
           // Neither a click on the menu nor a hold from before the pause
           // orders the Hero about.
@@ -515,7 +464,6 @@ export default function GameCanvas() {
           removeSave(storage);
           world = createWorld({
             areas,
-            flareAreas,
             tilesets,
             seed: Date.now(),
           });
@@ -633,7 +581,6 @@ export default function GameCanvas() {
         pressed = false;
         const area = world.areas[world.areaName];
         if (click && !world.death && isFloor(area, click)) {
-          renderer.markClick(click, now);
           lastClick = { at: click, atMs: now };
         }
 
@@ -668,14 +615,12 @@ export default function GameCanvas() {
         const pointing = activeInput.way === "touch" ? touched : input.screen;
         const pointer = pause.paused ? null : (focus?.at ?? pointing);
         drawnTarget = pause.paused ? null : polled.target;
-        if (in3d) {
-          // Before the 2D side draws, which places the labels through it.
-          const { hero } = world;
-          worldCamera = worldCameraOn(viewport, {
-            x: hero.prevPos.x + (hero.pos.x - hero.prevPos.x) * alpha,
-            y: hero.prevPos.y + (hero.pos.y - hero.prevPos.y) * alpha,
-          });
-        }
+        // Before the HUD draws, which places the labels through it.
+        const { hero } = world;
+        worldCamera = worldCameraOn(viewport, {
+          x: hero.prevPos.x + (hero.pos.x - hero.prevPos.x) * alpha,
+          y: hero.prevPos.y + (hero.pos.y - hero.prevPos.y) * alpha,
+        });
         renderer.draw(
           world,
           alpha,
@@ -687,57 +632,46 @@ export default function GameCanvas() {
           drawnTarget,
           focus?.rect ?? null,
         );
-        // The 3D World clears nothing itself, so Pixi clears in the 2D World.
-        app.renderer.background.clearBeforeRender = !in3d;
-        if (in3d && three) {
-          const { module, world3d } = three;
-          // The tile to outline: on the floor, under no panel or Monster.
-          const under =
-            pointer &&
-            !renderer.panelAt(pointer) &&
-            renderer.monsterAt(pointer) === null
-              ? tileOf(screenToTile(worldCamera, pointer))
-              : null;
-          const shown = world.areas[world.areaName];
-          const pointerState: PointerState = {
-            hoverTile: under && isFloor(shown, under) ? under : null,
-            highlight: renderer.highlightedCharacter(),
-            click: lastClick && {
-              at: lastClick.at,
-              ageMs: now - lastClick.atMs,
-            },
-          };
-          module.drawWorld3d(world3d, {
-            area: shown,
-            view: worldViewOf(
-              world,
-              alpha,
-              pointerState,
-              renderer.effectsAt(now, world),
-            ),
-            camera: worldCamera,
-            nowMs: now,
-            resolution: app.renderer.resolution,
-          });
-          app.renderer.resetState();
-        }
+        // The tile to outline: on the floor, under no panel or Monster.
+        const under =
+          pointer &&
+          !renderer.panelAt(pointer) &&
+          renderer.monsterAt(pointer) === null
+            ? tileOf(screenToTile(worldCamera, pointer))
+            : null;
+        const shown = world.areas[world.areaName];
+        const pointerState: PointerState = {
+          hoverTile: under && isFloor(shown, under) ? under : null,
+          highlight: renderer.highlightedCharacter(),
+          click: lastClick && {
+            at: lastClick.at,
+            ageMs: now - lastClick.atMs,
+          },
+        };
+        drawWorld3d(loaded, {
+          area: shown,
+          view: worldViewOf(
+            world,
+            alpha,
+            pointerState,
+            renderer.effectsAt(now, world),
+          ),
+          camera: worldCamera,
+          nowMs: now,
+          resolution: app.renderer.resolution,
+        });
+        app.renderer.resetState();
         app.render();
         if (statsPanel) {
           const reading = recordFrame(
             frameStats,
             performance.now(),
-            in3d && three ? three.module.drawnBy(three.world3d) : null,
+            drawnBy(loaded),
           );
           if (reading) showReading(statsPanel, reading);
         }
         frame = requestAnimationFrame(tick);
       };
-      // The device's choice, or ?renderer=3d (which is not stored), is
-      // loaded before the first frame, so the World never shows empty.
-      if (startingWorld(dev.world, readWorldChoice(storage)) === "3d") {
-        menus.world3d = await showWorld("3d");
-        if (cancelled) return;
-      }
       frame = requestAnimationFrame(tick);
     });
 
@@ -747,11 +681,10 @@ export default function GameCanvas() {
       listeners.abort();
       delete window.__wiablo;
       // A failed `init()` already surfaces through the chain above.
-      // The context is shared, so it goes last: three.js frees it where the
-      // 3D World was chosen, otherwise it is freed here.
+      // The context is shared, so it goes last: three.js frees it.
       const disposeWorld3d = () => {
-        if (three) three.module.disposeOf(three.world3d);
-        else shared?.context.getExtension("WEBGL_lose_context")?.loseContext();
+        if (world3d) disposeOf(world3d);
+        else shared.context.getExtension("WEBGL_lose_context")?.loseContext();
       };
       init.then(() => {
         app.destroy(true, { children: true });

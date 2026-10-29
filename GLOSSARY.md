@@ -277,11 +277,11 @@ How big the HUD and panels are drawn, following the screen's height within limit
 _Avoid_: Zoom (that's the World), DPI, resolution
 
 **World zoom**:
-How big the World is drawn, following the screen's height within limits, so about as many tiles show top to bottom on a phone as on a desktop, each of the art's pixels covering a whole number of the screen's where it can.
+How big the World is drawn, following the screen's height within limits, so about as many tiles show top to bottom on a phone as on a desktop. The 3D World, the Mini Map and the Map Overlay all draw at the same angle.
 _Avoid_: Camera zoom, UI Scale (that's the HUD and panels), scale
 
 **3D World**:
-The World drawn in 3D. While it is in beta the player chooses it in the pause menu, a choice that belongs to the device rather than the Save; afterwards it is the only way the World is drawn.
+The World as the player sees it: the Area, its characters and effects drawn in 3D under a fixed isometric camera, with the HUD and panels drawn over it. It is the only way the World is drawn.
 _Avoid_: 3D mode, renderer, graphics mode
 
 **Compact Layout**:

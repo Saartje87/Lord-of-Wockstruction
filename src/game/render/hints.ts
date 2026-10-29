@@ -109,7 +109,7 @@ export function resumeHint(confirming: boolean, way: InputWay): string {
 }
 
 /** A pause-menu button pressed by a key as well, as New Hero is by N. */
-type KeyedMenuChoice = Exclude<MenuChoice, "fullscreen" | "world3d">;
+type KeyedMenuChoice = Exclude<MenuChoice, "fullscreen">;
 
 /** Each keyed pause-menu button's label, without its key. */
 const MENU_LABELS: Record<KeyedMenuChoice, string> = {
@@ -133,25 +133,17 @@ export function fullscreenLabel(on: boolean): string {
   return on ? "Exit fullscreen" : "Fullscreen";
 }
 
-/** The 3D World (beta) button's label, whatever the way: On while `on`. */
-export function world3dLabel(on: boolean): string {
-  return `3D World (beta): ${on ? "On" : "Off"}`;
-}
-
 /**
  * A pause-menu button's label with `way`: with its key, with B on No for a
  * controller (A presses the picked one), or bare for touch. The Fullscreen
- * button has no key, and reads as `fullscreenOn` says; nor has the 3D
- * World (beta) button, which reads On or Off as `world3dOn` says.
+ * button has no key, and reads as `fullscreenOn` says.
  */
 export function menuChoiceLabel(
   choice: MenuChoice,
   way: InputWay,
   fullscreenOn: boolean,
-  world3dOn: boolean,
 ): string {
   if (choice === "fullscreen") return fullscreenLabel(fullscreenOn);
-  if (choice === "world3d") return world3dLabel(world3dOn);
   const label = MENU_LABELS[choice];
   if (way === "mouseAndKeyboard") return `${label} (${MENU_KEYS[choice]})`;
   if (way === "controller" && choice === "goBack") {

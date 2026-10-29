@@ -14,18 +14,6 @@ export type Area = {
   areaLevel: number | null;
   width: number;
   height: number;
-  /**
-   * The tileset the tile ids below come from, by name (`grassland`, …), or
-   * null when the Area has none.
-   */
-  tileset: string | null;
-  /**
-   * Row-major, `width * height` long: the tileset tile id drawn on the
-   * floor, or null where there is none. Ids equal Flare's tile ids.
-   */
-  floorTiles: (number | null)[];
-  /** Like `floorTiles`, for the walls and props drawn among characters. */
-  propTiles: (number | null)[];
   /** Row-major, `width * height` long; true where there is floor. */
   floor: boolean[];
   /**
@@ -35,8 +23,8 @@ export type Area = {
   walkable: boolean[];
   /**
    * Row-major, `width * height` long: the KayKit piece (its model's name)
-   * on each floor cell, or null where there is no floor or the Area isn't
-   * painted with the KayKit tileset.
+   * on each floor cell, or null where there is no floor or the cell's tile
+   * isn't a KayKit piece.
    */
   floorPieces: (string | null)[];
   /** The Walls, from the KayKit tileset's `wall` tiles. */
@@ -177,16 +165,12 @@ export function cellAt(
  * invisible wall, unset or false to unblock.
  *
  * An Area painted with the KayKit tileset (tiles with `piece` and `kind`)
- * gets its `floorPieces`, `walls` and `props` from it. The 2D World still
- * draws Flare's tiles: `flare` is the Flare version of the map, whose
- * `floorTiles`, `propTiles` and `tileset` the Area then takes. Without it
- * the Area keeps its own tile ids, or none if it is a KayKit one.
+ * gets its `floorPieces`, `walls` and `props` from it.
  */
 export function loadArea(
   name: string,
   content: unknown,
   tilesets: Record<string, unknown> = {},
-  flare?: unknown,
 ): Area {
   const tmj = content as Tmj;
   const floorLayer = tmj.layers.find(
@@ -205,14 +189,7 @@ export function loadArea(
   };
   const walls = tilesOf("walls & props");
   const overrides = tilesOf("blocking override");
-  const firstgid = tileset?.firstgid ?? 1;
   const pieces = piecesOf(tileset);
-  const drawn = flare ? loadArea(name, flare, tilesets) : null;
-  const tileIds = (data: number[] | null) =>
-    floorLayer.data.map((_, i) => {
-      const gid = (data?.[i] ?? 0) & GID_MASK;
-      return gid === 0 ? null : gid - firstgid;
-    });
   const floor = floorLayer.data.map((gid) => gid !== 0);
   const walkable = floor.map((hasFloor, i) => {
     const override = (overrides?.[i] ?? 0) & GID_MASK;
@@ -267,22 +244,11 @@ export function loadArea(
     };
     (piece.kind === "wall" ? wallPieces : props).push(placed);
   });
-  // A KayKit Area has no Flare tile ids of its own to draw.
-  const own = pieces.size === 0;
-  const none = floorLayer.data.map(() => null);
-
   return {
     name,
     areaLevel: readAreaLevel(name, tmj),
     width: tmj.width,
     height: tmj.height,
-    tileset: drawn ? drawn.tileset : own ? (tileset?.name ?? null) : null,
-    floorTiles: drawn
-      ? drawn.floorTiles
-      : own
-        ? tileIds(floorLayer.data)
-        : none,
-    propTiles: drawn ? drawn.propTiles : own ? tileIds(walls) : none,
     floor,
     floorPieces,
     walls: wallPieces,
@@ -384,7 +350,7 @@ type PieceTile = { piece: string; kind: string; blocks: boolean };
 
 /**
  * The KayKit pieces of a tileset by gid: tiles with a `piece` property.
- * Empty for a tileset that has none (Flare's).
+ * Empty for a tileset that has none.
  */
 function piecesOf(tileset: Tileset | null): Map<number, PieceTile> {
   const pieces = new Map<number, PieceTile>();

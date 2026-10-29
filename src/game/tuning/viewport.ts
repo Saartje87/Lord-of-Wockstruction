@@ -10,13 +10,13 @@ export type ViewportTuning = {
   /** The largest UI Scale, however tall the screen. */
   maxUiScale: number;
   /**
-   * The smallest World zoom, however short the screen: below it the art
+   * The smallest World zoom, however short the screen: below it the World
    * would be too small to read.
    */
   minWorldZoom: number;
   /**
-   * The largest World zoom, however tall the screen: above it the pixel art
-   * would be blown up blocky.
+   * The largest World zoom, however tall the screen: above it the World
+   * would be blown up bigger than it needs to be.
    */
   maxWorldZoom: number;
   /**

@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { areaDisplayNames, areas, flareAreas, tilesets } from "./content";
-import { type Area, type Exit, loadArea, type Spawn } from "./sim/area";
+import { areaDisplayNames, areas, tilesets } from "./content";
+import type { Area, Exit, Spawn } from "./sim/area";
 import { type MonsterOfLevel, monsterExperience } from "./sim/monsters";
 import { findPath } from "./sim/path";
 import type { Vec } from "./sim/vec";
@@ -19,8 +19,7 @@ import type { MonsterType } from "./tuning/monsters";
 // Building the World runs the loader's validation: a `start` Entry, Exits to
 // an Entry that exists and can be reached from `start`, and spawns on tiles
 // Monsters can stand on.
-const shippedWorld = () =>
-  createWorld({ areas, flareAreas, tilesets, seed: 1 });
+const shippedWorld = () => createWorld({ areas, tilesets, seed: 1 });
 
 /**
  * Whether a Monster is as strong as one of its type at `monsterLevel`, by the
@@ -68,7 +67,6 @@ function worldEntering(area: string, entry: string): World {
   };
   const world = createWorld({
     areas: { ...areas, town },
-    flareAreas,
     tilesets,
     seed: 1,
   });
@@ -183,13 +181,12 @@ describe("the shipped Areas", () => {
     }
   });
 
-  it("start the Hero at `start` in a Town of about 32×32 on the grassland tileset, with NPCs and no Monsters", () => {
+  it("start the Hero at `start` in a Town of about 32×32, with NPCs and no Monsters", () => {
     const world = shippedWorld();
     const town = world.areas.town;
 
     expect(world.areaName).toBe("town");
     expect(world.hero.pos).toEqual({ x: 15.5, y: 16.5 });
-    expect(town.tileset).toBe("grassland");
     expectAbout(town.width, 32, 4);
     expectAbout(town.height, 32, 4);
     expect(town.npcs.length).toBeGreaterThan(0);
@@ -209,26 +206,24 @@ describe("the shipped Areas", () => {
     ).toBeLessThan(4);
   });
 
-  it("block Town's cliffs and trees by their tileset, and not its plants", () => {
+  it("block Town's trees and buildings", () => {
     const town = shippedWorld().areas.town;
-    const at = (x: number, y: number) => y * town.width + x;
+    const blocking = town.props.filter((prop) => prop.blocks);
 
-    // A cliff on the west edge, and a tree.
-    expect(town.propTiles[at(1, 9)]).toBe(48);
-    expect(town.walkable[at(1, 9)]).toBe(false);
-    expect(town.propTiles[at(4, 9)]).toBe(254);
-    expect(town.walkable[at(4, 9)]).toBe(false);
-    // A fern.
-    expect(town.propTiles[at(7, 3)]).toBe(112);
-    expect(town.walkable[at(7, 3)]).toBe(true);
+    expect(blocking.some((prop) => prop.piece.includes("tree"))).toBe(true);
+    expect(blocking.some((prop) => prop.piece.startsWith("hexagon/"))).toBe(
+      true,
+    );
+    for (const prop of blocking) {
+      expect(town.walkable[prop.y * town.width + prop.x]).toBe(false);
+    }
   });
 
-  it("lead from Town through one Exit to a Combat Area of about 64×64 on the dungeon tileset", () => {
+  it("lead from Town through one Exit to a Combat Area of about 64×64", () => {
     const world = shippedWorld();
     const combat = combatAreaOf(world);
 
     expect(world.areas.town.exits).toHaveLength(1);
-    expect(combat.tileset).toBe("dungeon");
     expectAbout(combat.width, 64, 8);
     expectAbout(combat.height, 64, 8);
   });
@@ -286,19 +281,6 @@ describe("the shipped Areas", () => {
     expect(world.areaName).toBe("town");
   });
 
-  it("draw the dungeon Areas only with tiles the dungeon tileset has", () => {
-    const world = shippedWorld();
-    const dungeon = tilesets.dungeon as { tiles: { id: number }[] };
-    const known = new Set(dungeon.tiles.map((tile) => tile.id));
-
-    for (const area of Object.values(world.areas)) {
-      if (area.tileset !== "dungeon") continue;
-      for (const id of [...area.floorTiles, ...area.propTiles]) {
-        if (id !== null) expect(known).toContain(id);
-      }
-    }
-  });
-
   it("lead from the Catacombs down to the Crypt, arriving next to its Exit back up", () => {
     const world = worldEntering("catacombs", "from-crypt");
     const down = exitTo(world.areas.catacombs, "crypt");
@@ -331,12 +313,11 @@ describe("the shipped Areas", () => {
     expect(world.monsters.every(isAtMonsterLevel(4))).toBe(true);
   });
 
-  it("build the Crypt about the Catacombs' size on the dungeon tileset, with somewhat bigger Skeleton packs", () => {
+  it("build the Crypt about the Catacombs' size, with somewhat bigger Skeleton packs", () => {
     const { catacombs, crypt } = shippedWorld().areas;
     const shallower = packsOf(catacombs, "skeleton");
     const deeper = packsOf(crypt, "skeleton");
 
-    expect(crypt.tileset).toBe("dungeon");
     expectAbout(crypt.width, catacombs.width, 8);
     expectAbout(crypt.height, catacombs.height, 8);
     expect(
@@ -430,11 +411,10 @@ describe("the shipped Areas", () => {
     expect(world.monsters.every(isAtMonsterLevel(8))).toBe(true);
   });
 
-  it("build the Ossuary about the Catacombs' size on the dungeon tileset, with more Monsters than the Crypt", () => {
+  it("build the Ossuary about the Catacombs' size, with more Monsters than the Crypt", () => {
     const { catacombs, crypt, ossuary } = shippedWorld().areas;
     const monsters = (area: Area) => sum(area.spawns.map((s) => s.count));
 
-    expect(ossuary.tileset).toBe("dungeon");
     expectAbout(ossuary.width, catacombs.width, 8);
     expectAbout(ossuary.height, catacombs.height, 8);
     expect(monsters(ossuary)).toBeGreaterThan(monsters(crypt));
@@ -480,7 +460,6 @@ describe("the shipped Areas", () => {
     const progress = { ...FRESH_PROGRESS, strength: 200, vitality: 1000 };
     const world = createWorld({
       areas,
-      flareAreas,
       tilesets,
       seed: 1,
       progress,
@@ -528,36 +507,9 @@ describe("the Item types", () => {
   });
 });
 
-describe("the shipped Areas on the KayKit tileset", () => {
+describe("the shipped Areas' pieces", () => {
   const names = ["town", "catacombs", "crypt", "ossuary"];
-  const flare = (name: string) => loadArea(name, flareAreas[name], tilesets);
   const kaykit = (name: string) => shippedWorld().areas[name];
-
-  it.each(
-    names,
-  )("%s keeps the Flare version's floor and walkable cells", (name) => {
-    const old = flare(name);
-    const converted = kaykit(name);
-
-    expect(converted.width).toBe(old.width);
-    expect(converted.height).toBe(old.height);
-    expect(converted.floor).toEqual(old.floor);
-    expect(converted.walkable).toEqual(old.walkable);
-  });
-
-  it.each(
-    names,
-  )("%s keeps the Flare version's Exits, Entries, spawns, NPCs and Town Portal spot", (name) => {
-    const old = flare(name);
-    const converted = kaykit(name);
-
-    expect(converted.exits).toEqual(old.exits);
-    expect(converted.entries).toEqual(old.entries);
-    expect(converted.spawns).toEqual(old.spawns);
-    expect(converted.npcs).toEqual(old.npcs);
-    expect(converted.townPortal).toEqual(old.townPortal);
-    expect(converted.areaLevel).toBe(old.areaLevel);
-  });
 
   it.each(
     names,
@@ -575,17 +527,6 @@ describe("the shipped Areas on the KayKit tileset", () => {
       expect(area.floor[prop.y * area.width + prop.x]).toBe(true);
       expect(area.walkable[prop.y * area.width + prop.x]).toBe(false);
     }
-  });
-
-  it.each(
-    names,
-  )("%s is still drawn by the 2D World with its Flare tiles", (name) => {
-    const old = flare(name);
-    const converted = kaykit(name);
-
-    expect(converted.tileset).toBe(old.tileset);
-    expect(converted.floorTiles).toEqual(old.floorTiles);
-    expect(converted.propTiles).toEqual(old.propTiles);
   });
 
   it("gives Town graveyard Props and village buildings", () => {

@@ -7,37 +7,6 @@ import { minionTuning } from "../tuning/minions";
 import { monsterTuning } from "../tuning/monsters";
 import { atUiScale, type Viewport } from "../viewport";
 
-/**
- * The box a character is picked by, around its feet at native scale (CSS
- * px): about where its art is drawn.
- */
-export const CHARACTER_BOX = { left: -35, right: 35, top: -135, bottom: 15 };
-
-/** A character drawn with its feet at `at` (CSS px), `scale` times native. */
-export type Pickable<Id> = { id: Id; at: Vec; scale: number };
-
-/**
- * The character whose box is under `point` (CSS px), the one in front, lowest
- * on screen, where boxes overlap; null over none.
- */
-export function characterUnder<Id>(
-  characters: readonly Pickable<Id>[],
-  point: Vec,
-): Id | null {
-  let front: Pickable<Id> | null = null;
-  for (const character of characters) {
-    const dx = (point.x - character.at.x) / character.scale;
-    const dy = (point.y - character.at.y) / character.scale;
-    const inside =
-      dx >= CHARACTER_BOX.left &&
-      dx <= CHARACTER_BOX.right &&
-      dy >= CHARACTER_BOX.top &&
-      dy <= CHARACTER_BOX.bottom;
-    if (inside && (!front || character.at.y > front.at.y)) front = character;
-  }
-  return front?.id ?? null;
-}
-
 /** A hovered Monster, or one of the Hero's Minions hovered. */
 export type Hovered = { monster: Monster } | { minion: Minion };
 

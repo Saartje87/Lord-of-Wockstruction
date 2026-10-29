@@ -8,7 +8,7 @@ import type { Viewport } from "../viewport";
  * with `focus` (a point on the floor, in tile units) at the centre of the
  * screen. It has no rotation and no zoom control, only the World zoom.
  * Tile (x, y) is scene (x, 0, y), so tile +x runs down-right on screen and
- * +y down-left, as in 2D.
+ * +y down-left, as on the maps.
  */
 export type WorldCamera = {
   focus: Vec;
@@ -34,7 +34,8 @@ export function worldCameraOn(viewport: Viewport, focus: Vec): WorldCamera {
 
 /**
  * How many CSS px one scene unit measures along the floor's diagonals. At
- * this scale the floor's diamonds are Flare's 2:1 diamonds at the World zoom.
+ * this scale the floor's diamonds are the 2:1 diamonds of `iso.ts` at the World
+ * zoom.
  */
 export function pixelsPerUnit(zoom: number): number {
   return (TILE_WIDTH * zoom) / Math.SQRT2;

@@ -87,11 +87,8 @@ describe("the hints and labels that name buttons", () => {
     ["goBack", "controller", "No (B)"],
     ["newHero", "touch", "New Hero"],
     ["goBack", "touch", "No"],
-    ["world3d", "mouseAndKeyboard", "3D World (beta): Off"],
-    ["world3d", "controller", "3D World (beta): Off"],
-    ["world3d", "touch", "3D World (beta): Off"],
   ] as const)("label the pause menu's %s button with %s as %j", (choice, way, label) => {
-    expect(menuChoiceLabel(choice, way, false, false)).toBe(label);
+    expect(menuChoiceLabel(choice, way, false)).toBe(label);
   });
 
   const golem = {

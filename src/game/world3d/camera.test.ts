@@ -31,7 +31,9 @@ describe("the 3D World's camera", () => {
     expect(at.y).toBeCloseTo(height / 2);
   });
 
-  it.each(SCREENS)("draws the floor as the 2D World does on $screen", ({
+  it.each(
+    SCREENS,
+  )("draws the floor as the maps do, at the World zoom, on $screen", ({
     width,
     height,
   }) => {
@@ -41,7 +43,7 @@ describe("the 3D World's camera", () => {
 
     const at = tileToScreen(camera, tile);
 
-    // The same diamonds, at the same World zoom, as Flare's tiles.
+    // The 2:1 diamonds of `iso.ts`, at the World zoom.
     const flat = toScreen(tile);
     const hero = toScreen(HERO);
     expect(at.x - width / 2).toBeCloseTo(
@@ -52,7 +54,9 @@ describe("the 3D World's camera", () => {
     );
   });
 
-  it.each(SCREENS)("shows as many tiles top to bottom as 2D on $screen", ({
+  it.each(
+    SCREENS,
+  )("shows as many tiles top to bottom as the World zoom says on $screen", ({
     width,
     height,
   }) => {

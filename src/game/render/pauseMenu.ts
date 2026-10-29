@@ -14,16 +14,10 @@ import { menuChoiceLabel } from "./hints";
  */
 export const PAUSE_MENU_LAYOUT = {
   width: 460,
-  height: 340,
+  height: 290,
   buttonsTop: 196,
   gap: 20,
 };
-
-/**
- * The "3D World (beta)" button's width (CSS px at native scale): wider than
- * the others, for its longer label, on a row of its own under them.
- */
-export const WORLD_3D_BUTTON_WIDTH = 240;
 
 /**
  * A menu button's size (CSS px at native scale): each of the pause menu's,
@@ -36,8 +30,7 @@ export type MenuButton = { choice: MenuChoice; label: string; rect: Rect };
 
 /**
  * Where the pause menu and its buttons are drawn: New Hero, and the
- * Fullscreen button where `fullscreen` says the browser allows it, with
- * the 3D World (beta) button, reading as `world3d` says, under them; or Yes
+ * Fullscreen button where `fullscreen` says the browser allows it, or Yes
  * and No while `confirming` a New Hero.
  */
 export function pauseMenuLayout(
@@ -45,7 +38,6 @@ export function pauseMenuLayout(
   confirming: boolean,
   way: InputWay,
   fullscreen: Fullscreen,
-  world3d: boolean,
 ): { panel: Rect; buttons: MenuButton[] } {
   const { width, height, buttonsTop, gap } = atUiScale(
     PAUSE_MENU_LAYOUT,
@@ -58,40 +50,24 @@ export function pauseMenuLayout(
     w: width,
     h: height,
   };
-  const choices = menuChoices(confirming, fullscreen);
-  const labelled = (choice: MenuChoice) => ({
+  const row = menuChoices(confirming, fullscreen).map((choice) => ({
     choice,
-    label: menuChoiceLabel(choice, way, fullscreen.on, world3d),
-  });
-  // The 3D World (beta) button stands apart, on a row under the others.
-  const row = choices.filter((choice) => choice !== "world3d").map(labelled);
+    label: menuChoiceLabel(choice, way, fullscreen.on),
+  }));
   const rowWidth = row.length * button.width + (row.length - 1) * gap;
   const left = panel.x + (panel.w - rowWidth) / 2;
-  const buttons = row.map((entry, i) => ({
-    ...entry,
-    rect: {
-      x: left + i * (button.width + gap),
-      y: panel.y + buttonsTop,
-      w: button.width,
-      h: button.height,
-    },
-  }));
-  if (choices.includes("world3d")) {
-    const width = atUiScale(
-      { width: WORLD_3D_BUTTON_WIDTH },
-      screen.uiScale,
-    ).width;
-    buttons.push({
-      ...labelled("world3d"),
+  return {
+    panel,
+    buttons: row.map((entry, i) => ({
+      ...entry,
       rect: {
-        x: panel.x + (panel.w - width) / 2,
-        y: panel.y + buttonsTop + button.height + gap,
-        w: width,
+        x: left + i * (button.width + gap),
+        y: panel.y + buttonsTop,
+        w: button.width,
         h: button.height,
       },
-    });
-  }
-  return { panel, buttons };
+    })),
+  };
 }
 
 /**
@@ -105,14 +81,7 @@ export function menuChoiceAt(
   confirming: boolean,
   way: InputWay,
   fullscreen: Fullscreen,
-  world3d: boolean,
 ): MenuChoice | null {
-  const { buttons } = pauseMenuLayout(
-    screen,
-    confirming,
-    way,
-    fullscreen,
-    world3d,
-  );
+  const { buttons } = pauseMenuLayout(screen, confirming, way, fullscreen);
   return buttons.find((button) => inside(button.rect, point))?.choice ?? null;
 }

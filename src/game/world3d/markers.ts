@@ -8,7 +8,7 @@ import {
 } from "three";
 import type { ClickMarkerView } from "./view";
 
-/** The click marker's colour and the hover tile's, as the 2D World's. */
+/** The click marker's colour and the hover tile's. */
 const MARKER_COLOUR = 0xe8d27a;
 const HOVER_COLOUR = 0xd8c48a;
 const HOVER_OPACITY = 0.7;

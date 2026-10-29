@@ -72,37 +72,17 @@ describe("an Area painted with the KayKit tileset", () => {
   });
 });
 
-describe("an Area painted with the Flare tileset", () => {
+describe("an Area whose tileset has no pieces", () => {
   it("has no pieces", () => {
-    const flare = {
+    const bare = {
       ...map([1, 1, 1, 1, 1, 0], [0, 0, 0, 0, 0, 0]),
-      tilesets: [{ firstgid: 1, name: "grassland", tiles: [] }],
+      tilesets: [{ firstgid: 1, name: "plain", tiles: [] }],
     };
 
-    const area = loadArea("town", flare);
+    const area = loadArea("town", bare);
 
     expect(area.floorPieces).toEqual([null, null, null, null, null, null]);
     expect(area.walls).toEqual([]);
     expect(area.props).toEqual([]);
-  });
-});
-
-describe("an Area with a Flare version to draw in the 2D World", () => {
-  it("draws the Flare version's tiles and tileset, and plays the KayKit one", () => {
-    const flare = {
-      ...map([1, 1, 1, 1, 1, 0], [0, 0, 0, 0, 0, 0]),
-      tilesets: [{ firstgid: 1, name: "grassland", tiles: [] }],
-    };
-
-    const area = loadArea(
-      "town",
-      map([1, 1, 1, 1, 1, 0], [0, 0, 3, 0, 0, 0]),
-      { kaykit },
-      flare,
-    );
-
-    expect(area.tileset).toBe("grassland");
-    expect(area.floorTiles).toEqual([0, 0, 0, 0, 0, null]);
-    expect(area.walkable[2]).toBe(false);
   });
 });

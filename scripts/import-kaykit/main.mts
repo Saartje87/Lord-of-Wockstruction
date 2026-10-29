@@ -8,7 +8,7 @@
  *   painted with (see `pieces.mts`), each as one glb.
  * - `content/tilesets/kaykit.tsj`: the Tiled tileset of those pieces. Its
  *   thumbnails come from `npm run thumbnails:kaykit`.
- * - `CREDITS.md`: KayKit's section. Flare's stays as it is.
+ * - `CREDITS.md`: KayKit's section.
  *
  * Run it by hand with `npm run import:kaykit`. It keeps its checkouts in the
  * gitignored `.cache/`, and re-runs without fetching while the pins stay.
@@ -26,8 +26,8 @@ import {
 } from "node:fs";
 import { NodeIO } from "@gltf-transform/core";
 import { writeSection } from "../credits-sections.mts";
-import { checkout } from "../import-flare/git.mts";
 import { importCharacter, rotTexture } from "./characters.mts";
+import { checkout } from "./git.mts";
 import { PIECES, type PieceSource, pieceName } from "./pieces.mts";
 import { importRiggedCharacter } from "./retarget.mts";
 import { tilesetOf } from "./tileset.mts";

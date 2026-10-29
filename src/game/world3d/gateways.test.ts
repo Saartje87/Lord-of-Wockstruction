@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { areas, flareAreas, tilesets } from "../content";
+import { areas, tilesets } from "../content";
 import { createWorld } from "../sim/world";
 import { exitMeshesOf } from "./exitMeshes";
 import { townPortalMeshesOf } from "./townPortalMesh";
@@ -13,7 +13,7 @@ const NO_POINTER: PointerState = {
 
 describe("Exits in the 3D World", () => {
   it("are in the view of every Area that has one", () => {
-    const world = createWorld({ areas, tilesets, flareAreas, seed: 1 });
+    const world = createWorld({ areas, tilesets, seed: 1 });
 
     expect(worldViewOf(world, 1, NO_POINTER).exits).toEqual([
       { x: 27, y: 14, width: 2, height: 2, to: "catacombs" },

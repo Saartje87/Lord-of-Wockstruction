@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { areas, flareAreas, tilesets } from "../content";
+import { areas, tilesets } from "../content";
 import { createWorld, type World } from "../sim/world";
 import { NPC_LOOKS } from "./npcLook";
 import { type PointerState, worldViewOf } from "./view";
@@ -10,8 +10,7 @@ const NO_POINTER: PointerState = {
   highlight: null,
 };
 
-const shipped = (): World =>
-  createWorld({ areas, tilesets, flareAreas, seed: 1 });
+const shipped = (): World => createWorld({ areas, tilesets, seed: 1 });
 
 describe("the 3D World view of Town", () => {
   it("shows each NPC where it stands, as a character of its own", () => {

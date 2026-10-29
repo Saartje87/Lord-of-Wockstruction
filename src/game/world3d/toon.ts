@@ -32,6 +32,8 @@ export const LOOKS = {
   prop: { saturation: 0.4, tint: 0x9aa4c8 },
   /** Characters keep their colours, which carry who they are. */
   character: { saturation: 0.85, tint: 0xffffff },
+  /** Raised Skeletons: paler and tinged with the green of raised bone. */
+  raised: { saturation: 0.6, tint: 0xa8f0b8 },
   /** Fire, magic, loot and danger keep their warmth. */
   warm: { saturation: 1, tint: 0xffffff },
 } satisfies Record<string, Look>;
@@ -88,13 +90,20 @@ function tintOf(tint: number): string {
 /** The dark ink the outlines are drawn in. */
 const INK = 0x050309;
 
-/** Outline materials, one per thickness. */
-const hulls = new Map<number, MeshBasicMaterial>();
+/** The colour of the outline round a hovered or targeted character. */
+const HIGHLIGHT = 0xffd35a;
 
-function hullMaterial(thickness: number): MeshBasicMaterial {
-  const known = hulls.get(thickness);
+/** How much wider the highlight outline is than the ink one. */
+const HIGHLIGHT_WIDER = 1.7;
+
+/** Outline materials, one per thickness and colour. */
+const hulls = new Map<string, MeshBasicMaterial>();
+
+function hullMaterial(thickness: number, colour = INK): MeshBasicMaterial {
+  const key = `${thickness}-${colour}`;
+  const known = hulls.get(key);
   if (known) return known;
-  const material = new MeshBasicMaterial({ color: INK, side: BackSide });
+  const material = new MeshBasicMaterial({ color: colour, side: BackSide });
   material.toneMapped = false;
   material.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader.replace(
@@ -104,8 +113,34 @@ function hullMaterial(thickness: number): MeshBasicMaterial {
     );
   };
   material.customProgramCacheKey = () => `hull-${thickness}`;
-  hulls.set(thickness, material);
+  hulls.set(key, material);
   return material;
+}
+
+/** The outline materials of a character: its ink, and its highlight. */
+export type Inks = { ink: MeshBasicMaterial; highlight: MeshBasicMaterial };
+
+/** The ink and highlight outlines `outline` gives meshes at `scale`. */
+export function inksOf(thickness: number, scale: number): Inks {
+  const width = thickness / scale;
+  return {
+    ink: hullMaterial(Number(width.toFixed(4))),
+    highlight: hullMaterial(
+      Number((width * HIGHLIGHT_WIDER).toFixed(4)),
+      HIGHLIGHT,
+    ),
+  };
+}
+
+/** The outline meshes (those `outline` added) under `model`. */
+export function outlinesOf(model: Object3D): Mesh[] {
+  const found: Mesh[] = [];
+  model.traverse((node) => {
+    if ((node as Mesh).isMesh && node.userData.isOutline) {
+      found.push(node as Mesh);
+    }
+  });
+  return found;
 }
 
 /**

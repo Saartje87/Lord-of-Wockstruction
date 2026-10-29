@@ -7,7 +7,11 @@ import { groundSpotsOf } from "./groundSpots";
 import { LOOT_LOOKS, PROJECTILE_LOOKS, projectilePlacements } from "./lootLook";
 import { type PointerState, worldViewOf } from "./view";
 
-const NO_POINTER: PointerState = { hoverTile: null, click: null };
+const NO_POINTER: PointerState = {
+  hoverTile: null,
+  click: null,
+  highlight: null,
+};
 
 describe("the 3D World view of Projectiles", () => {
   it("shows a Projectile between its steps' positions, facing its flight", () => {

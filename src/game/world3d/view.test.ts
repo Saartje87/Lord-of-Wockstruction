@@ -14,7 +14,11 @@ import { inputTuning } from "../tuning/input";
 import { ATTACK_CONTACT } from "./clips";
 import { type PointerState, worldViewOf } from "./view";
 
-const NO_POINTER: PointerState = { hoverTile: null, click: null };
+const NO_POINTER: PointerState = {
+  hoverTile: null,
+  click: null,
+  highlight: null,
+};
 
 describe("the 3D World view of the Hero", () => {
   it("stands idle when nothing happens", () => {
@@ -150,6 +154,7 @@ describe("the 3D World view of the pointer", () => {
     const view = worldViewOf(world, 0, {
       hoverTile: { x: 4, y: 5 },
       click: null,
+      highlight: null,
     });
 
     expect(view.hoverTile).toEqual({ x: 4, y: 5 });
@@ -159,8 +164,11 @@ describe("the 3D World view of the pointer", () => {
     const world = arenaWith([], { combat: true });
     const at = { x: 12.5, y: 9.5 };
     const marker = (ageMs: number) =>
-      worldViewOf(world, 0, { hoverTile: null, click: { at, ageMs } })
-        .clickMarker;
+      worldViewOf(world, 0, {
+        hoverTile: null,
+        click: { at, ageMs },
+        highlight: null,
+      }).clickMarker;
 
     expect(marker(0)).toEqual({ at, progress: 0 });
     expect(marker(inputTuning.clickMarkerMs / 2)?.progress).toBeCloseTo(0.5);

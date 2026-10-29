@@ -641,6 +641,7 @@ export default function GameCanvas() {
           const shown = world.areas[world.areaName];
           const pointerState: PointerState = {
             hoverTile: under && isFloor(shown, under) ? under : null,
+            highlight: renderer.highlightedCharacter(),
             click: lastClick && {
               at: lastClick.at,
               ageMs: now - lastClick.atMs,

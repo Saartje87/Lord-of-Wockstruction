@@ -1,4 +1,5 @@
 import type { MonsterType } from "../tuning/monsters";
+import type { LOOKS } from "./toon";
 
 /** The Monster animations as the 3D World view names them. */
 export type MonsterClip =
@@ -24,11 +25,14 @@ export type MonsterLook = {
    * wind-up scrubs the clip to here, the recovery plays the rest.
    */
   contact: number;
+  /** How its colours are graded; a character's own by default. */
+  look?: keyof typeof LOOKS;
   /** Weapon files in `characters/`, by the hand slot that holds them. */
   weapons: { slot: "handslot.r" | "handslot.l"; model: string }[];
 };
 
-const STANDING = {
+/** The clips the standing, walking and hurt Skeletons share. */
+export const STANDING = {
   idle: "Idle_Combat",
   walk: "Walking_A",
   run: "Running_C",

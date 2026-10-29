@@ -5,7 +5,11 @@ import { monsterTuning } from "../tuning/monsters";
 import { MONSTER_LOOKS } from "./monsterLook";
 import { type Effects, type PointerState, worldViewOf } from "./view";
 
-const NO_POINTER: PointerState = { hoverTile: null, click: null };
+const NO_POINTER: PointerState = {
+  hoverTile: null,
+  click: null,
+  highlight: null,
+};
 const NO_EFFECTS: Effects = { flashes: new Map(), deadForMs: new Map() };
 
 const withSkeleton = () => {

@@ -1,5 +1,7 @@
+import type { CharacterId } from "../render/hover";
 import { type Area, type Placed, TOWN } from "../sim/area";
 import type { ItemId } from "../sim/inventory";
+import { minionRecoveryProgress, minionWindUpProgress } from "../sim/minions";
 import { recoveryProgress, windUpProgress } from "../sim/monsters";
 import { STEP_MS } from "../sim/units";
 import type { Vec } from "../sim/vec";
@@ -9,6 +11,8 @@ import {
   FLINCH_STEPS,
   HERO_FLINCH_STEPS,
   HIT_STEP,
+  type Minion,
+  type MinionId,
   type Monster,
   type MonsterId,
   OPENING_STEPS,
@@ -17,9 +21,11 @@ import {
 } from "../sim/world";
 import { inputTuning } from "../tuning/input";
 import type { ItemType } from "../tuning/items";
+import type { MinionType } from "../tuning/minions";
 import type { MonsterType } from "../tuning/monsters";
 import type { ProjectileKind } from "../tuning/projectiles";
 import { ATTACK_CONTACT, type HeroClip } from "./clips";
+import { MINION_LOOKS } from "./minionLook";
 import {
   MONSTER_DEATH_SECONDS,
   MONSTER_LOOKS,
@@ -62,6 +68,21 @@ export type MonsterView = {
   /** How white a hit Monster is washed, 0..1. */
   flash: number;
   corpse: boolean;
+  /** Whether it is outlined as hovered or targeted. */
+  highlighted: boolean;
+};
+
+/** One of the Hero's Minions as the 3D World shows it. */
+export type MinionView = {
+  id: MinionId;
+  type: MinionType;
+  /** Interpolated, in tile units. */
+  pos: Vec;
+  /** Radians in tile space. */
+  facing: number;
+  animation: MonsterAnimation;
+  /** Whether it is outlined as hovered. */
+  highlighted: boolean;
 };
 
 /**
@@ -96,6 +117,8 @@ export type PointerState = {
   hoverTile: Vec | null;
   /** The last click on the floor and how long ago it was. */
   click: { at: Vec; ageMs: number } | null;
+  /** The Monster or Minion to outline: the hovered one, else the Target. */
+  highlight: CharacterId | null;
 };
 
 /** Everything the 3D World shows, as plain data. */
@@ -103,6 +126,8 @@ export type WorldView = {
   hero: HeroView;
   /** The living Monsters, then the Corpses. */
   monsters: MonsterView[];
+  /** The Hero's living Minions. */
+  minions: MinionView[];
   projectiles: ProjectileView[];
   groundItems: GroundItemView[];
   clickMarker: ClickMarkerView | null;
@@ -177,7 +202,7 @@ export function worldViewOf(
     },
     monsters: [
       ...world.monsters.map((monster) =>
-        monsterViewOf(world, monster, alpha, effects),
+        monsterViewOf(world, monster, alpha, effects, pointer.highlight),
       ),
       ...world.corpses.map(
         (corpse): MonsterView => ({
@@ -188,9 +213,13 @@ export function worldViewOf(
           animation: corpseAnimationOf(effects.deadForMs.get(corpse.id)),
           flash: 0,
           corpse: true,
+          highlighted: false,
         }),
       ),
     ],
+    minions: world.minions.map((minion) =>
+      minionViewOf(world, minion, alpha, pointer.highlight),
+    ),
     projectiles: world.projectiles.map((projectile) => ({
       kind: projectile.kind,
       pos: {
@@ -232,6 +261,7 @@ function monsterViewOf(
   monster: Monster,
   alpha: number,
   effects: Effects,
+  highlight: CharacterId | null,
 ): MonsterView {
   const { contact } = MONSTER_LOOKS[monster.type];
   const moving =
@@ -271,6 +301,49 @@ function monsterViewOf(
     animation,
     flash: effects.flashes.get(monster.id) ?? 0,
     corpse: false,
+    highlighted: highlight === monster.id,
+  };
+}
+
+/** A Minion as shown: its animation chosen by its state, as a Monster's. */
+function minionViewOf(
+  world: World,
+  minion: Minion,
+  alpha: number,
+  highlight: CharacterId | null,
+): MinionView {
+  const { contact } = MINION_LOOKS[minion.type];
+  const moving =
+    minion.pos.x !== minion.prevPos.x || minion.pos.y !== minion.prevPos.y;
+  let animation: MonsterAnimation;
+  if (minion.state === "windup") {
+    animation = {
+      clip: "attack",
+      progress: minionWindUpProgress(minion) * contact,
+    };
+  } else if (minion.state === "recover") {
+    animation = {
+      clip: "attack",
+      progress: contact + minionRecoveryProgress(minion) * (1 - contact),
+    };
+  } else {
+    const seconds = (world.tick * STEP_MS) / 1000;
+    const clip = !moving ? "idle" : minion.state === "chase" ? "run" : "walk";
+    animation = { clip, seconds };
+  }
+  return {
+    id: minion.id,
+    type: minion.type,
+    pos: {
+      x: minion.prevPos.x + (minion.pos.x - minion.prevPos.x) * alpha,
+      y: minion.prevPos.y + (minion.pos.y - minion.prevPos.y) * alpha,
+    },
+    facing: minion.facing,
+    animation,
+    highlighted:
+      typeof highlight === "object" &&
+      highlight !== null &&
+      highlight.minion === minion.id,
   };
 }
 

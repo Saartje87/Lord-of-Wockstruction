@@ -24,6 +24,8 @@ import {
 } from "./lootLook";
 import { type Instances, instancesOf, outlineInstances } from "./lootMeshes";
 import { createMarkers, type Markers, showMarkers } from "./markers";
+import { mergeSkinned } from "./mergeSkinned";
+import { MINION_LOOKS } from "./minionLook";
 import {
   type MonsterActor,
   type MonsterModels,
@@ -64,6 +66,8 @@ export type World3d = {
   } | null;
   /** The Monsters and Corpses in the scene, by id. */
   monsters: Map<number, MonsterActor>;
+  /** The Minions in the scene, by id. */
+  minions: Map<number, MonsterActor>;
   /** The Wall and Prop pieces loaded so far, by piece name. */
   pieces: Record<string, Object3D | undefined>;
   /** The pieces asked for, so each is loaded once. */
@@ -120,6 +124,7 @@ export function createWorld3d(): World3d {
     atmosphere,
     models: null,
     monsters: new Map(),
+    minions: new Map(),
     shown: null,
     pieces: {},
     loading: new Set(),
@@ -133,10 +138,9 @@ export async function loadModels(world3d: World3d) {
   const load = (path: string) => loader.loadAsync(`${MODELS}/${path}.glb`);
   const monsterFiles = [
     ...new Set(
-      Object.values(MONSTER_LOOKS).flatMap((look) => [
-        look.model,
-        ...look.weapons.map((weapon) => weapon.model),
-      ]),
+      [...Object.values(MONSTER_LOOKS), ...Object.values(MINION_LOOKS)].flatMap(
+        (look) => [look.model, ...look.weapons.map((weapon) => weapon.model)],
+      ),
     ),
   ];
   const [knight, plain, broken, dirt, ...rest] = await Promise.all([
@@ -152,6 +156,8 @@ export async function loadModels(world3d: World3d) {
   const monsters: MonsterModels = {};
   monsterFiles.forEach((file, i) => {
     monsters[file] = monsterGltfs[i];
+    // A draw call for a body rather than for each limb.
+    mergeSkinned(monsterGltfs[i].scene);
   });
   const floorPieces = {
     plain: plain.scene,
@@ -254,7 +260,7 @@ function poseMonsters(world3d: World3d, view: WorldView, dt: number) {
     seen.add(monster.id);
     let actor = monsters.get(monster.id);
     if (!actor) {
-      actor = monsterActorOf(monster.type, models.monsters);
+      actor = monsterActorOf(MONSTER_LOOKS[monster.type], models.monsters);
       monsters.set(monster.id, actor);
       scene.add(actor.root);
     }
@@ -266,6 +272,32 @@ function poseMonsters(world3d: World3d, view: WorldView, dt: number) {
     // The geometry and textures are the models' own; the materials are not.
     for (const material of actor.materials) material.dispose();
     monsters.delete(id);
+  }
+}
+
+/**
+ * Puts a Minion actor in the scene for each Minion in `view`, posed as it
+ * says, and takes away those that crumbled.
+ */
+function poseMinions(world3d: World3d, view: WorldView, dt: number) {
+  const { models, minions, scene } = world3d;
+  if (!models) return;
+  const seen = new Set<number>();
+  for (const minion of view.minions) {
+    seen.add(minion.id);
+    let actor = minions.get(minion.id);
+    if (!actor) {
+      actor = monsterActorOf(MINION_LOOKS[minion.type], models.monsters);
+      minions.set(minion.id, actor);
+      scene.add(actor.root);
+    }
+    poseMonster(actor, minion, dt);
+  }
+  for (const [id, actor] of minions) {
+    if (seen.has(id)) continue;
+    scene.remove(actor.root);
+    for (const material of actor.materials) material.dispose();
+    minions.delete(id);
   }
 }
 
@@ -322,6 +354,7 @@ export function drawWorld3d(
   world3d.drawnAtMs = nowMs;
   if (world3d.models) poseHero(world3d.models.hero, view.hero, dt);
   poseMonsters(world3d, view, dt);
+  poseMinions(world3d, view, dt);
   if (world3d.models) showLoot(world3d.models, view);
   const seconds = nowMs / 1000;
   world3d.shown?.scenery?.torches.show(view.torches, seconds);

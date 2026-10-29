@@ -82,6 +82,7 @@ import { atUiScale, type Viewport, viewportOf } from "../viewport";
 import { tileToScreen, type WorldCamera } from "../world3d/camera";
 import { groundSpotsOf } from "../world3d/groundSpots";
 import { MONSTER_LOOKS } from "../world3d/monsterLook";
+import { pickablesOf } from "../world3d/pickables";
 import { characterUnder3d, type Pickable3d } from "../world3d/picking";
 import type { Effects } from "../world3d/view";
 import { type Compass, compassOf, frameAt, swingFrame } from "./animation";
@@ -663,6 +664,7 @@ export function createRenderer(
   let camera3d: (() => WorldCamera) | null = null;
   /** Where each character stood as last drawn in the 3D World, for picking. */
   let standing3d: Pickable3d<CharacterId>[] = [];
+  let highlighted: CharacterId | null = null;
   /** Life bars and Curse marks of the 3D World, scaled by its World zoom. */
   const overheads3d = new Container();
 
@@ -1097,6 +1099,14 @@ export function createRenderer(
         if (view.diedAtMs !== null) deadForMs.set(id, nowMs - view.diedAtMs);
       }
       return { flashes, deadForMs };
+    },
+
+    /**
+     * The Monster or Minion outlined as hovered, or as the auto-aim Target
+     * with the pointer over no one, as last drawn.
+     */
+    highlightedCharacter(): CharacterId | null {
+      return highlighted;
     },
 
     screenToTile,
@@ -1558,18 +1568,7 @@ export function createRenderer(
       const camera3 = camera3d?.() ?? null;
       if (camera3) {
         overheads3d.scale.set(camera3.zoom);
-        standing3d = [
-          ...world.monsters.map((monster) => ({
-            id: monster.id,
-            pos: lerp(monster.prevPos, monster.pos, alpha),
-            height: MONSTER_LOOKS[monster.type].height,
-          })),
-          ...world.minions.map((minion) => ({
-            id: { minion: minion.id },
-            pos: lerp(minion.prevPos, minion.pos, alpha),
-            height: HERO_HEIGHT,
-          })),
-        ];
+        standing3d = pickablesOf(world, alpha);
       }
       /** Where the top of a Monster's Life bar goes, in the space it's drawn in. */
       const barAnchor = (monster: Monster): Vec => {
@@ -1654,6 +1653,11 @@ export function createRenderer(
           ? monsters.get(hovered.monster.id)
           : hovered && minionViews.get(hovered.minion.id)?.view;
       outline.show(hoveredView?.sprite ?? null);
+      highlighted = hovered
+        ? "monster" in hovered
+          ? hovered.monster.id
+          : { minion: hovered.minion.id }
+        : null;
       nameplate.clear();
       nameplateText.visible = hovered !== null;
       if (hovered) {

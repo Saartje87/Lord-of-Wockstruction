@@ -144,6 +144,22 @@ const GOLEM = {
   knightClips: ["2H_Melee_Attack_Chop"],
 };
 
+/**
+ * Ground Items' models, written to `public/assets/models/loot/`: Adventurers
+ * weapons and shields (glTF with a texture each), an arrow and Dungeon
+ * Remastered's bottles. Item kinds without one get a stand-in drawn in code.
+ */
+const LOOT = {
+  adventurers: [
+    { model: "sword_1handed", texture: "knight_texture.png" },
+    { model: "axe_1handed", texture: "barbarian_texture.png" },
+    { model: "shield_round", texture: "knight_texture.png" },
+    { model: "shield_spikes", texture: "barbarian_texture.png" },
+    { model: "arrow", texture: "rogue_texture.png" },
+  ],
+  dungeon: ["bottle_A_brown", "bottle_B_green", "bottle_C_brown"],
+};
+
 /** Dungeon Remastered glbs that, unlike the rest, don't end `.gltf.glb`. */
 const PLAIN_GLB = new Set(["chest"]);
 
@@ -202,13 +218,21 @@ for (const pack of Object.values(PACKS)) {
           "LICENSE.txt",
         ]
       : pack === adventurers
-        ? [knightPath, "LICENSE.txt"]
+        ? [
+            knightPath,
+            ...LOOT.adventurers.flatMap(({ model, texture }) => [
+              `${adventurers.root}/Assets/gltf/${model}.gltf`,
+              `${adventurers.root}/Assets/gltf/${model}.bin`,
+              `${adventurers.root}/Assets/gltf/${texture}`,
+            ]),
+            "LICENSE.txt",
+          ]
         : [
             ...PIECES.filter((piece) => PACKS[piece.pack] === pack).flatMap(
               filesOf,
             ),
             ...(pack === PACKS.dungeon
-              ? EXTRA_DUNGEON.map(
+              ? [...EXTRA_DUNGEON, ...LOOT.dungeon].map(
                   (name) => `${pack.root}/Assets/gltf/${name}.gltf.glb`,
                 )
               : []),
@@ -231,6 +255,7 @@ for (const dir of Object.values(out)) mkdirSync(dir, { recursive: true });
 for (const pack of ["dungeon", "halloween", "hexagon"]) {
   mkdirSync(`${out.models}/${pack}`, { recursive: true });
 }
+mkdirSync(`${out.models}/loot`, { recursive: true });
 
 await importCharacter({
   from: `${dirOf(adventurers)}/${knightPath}`,
@@ -288,6 +313,20 @@ for (const name of EXTRA_DUNGEON) {
     `${out.models}/dungeon/${name}.glb`,
   );
 }
+for (const { model } of LOOT.adventurers) {
+  await io.write(
+    `${out.models}/loot/${model}.glb`,
+    await io.read(
+      `${dirOf(adventurers)}/${adventurers.root}/Assets/gltf/${model}.gltf`,
+    ),
+  );
+}
+for (const name of LOOT.dungeon) {
+  copyFileSync(
+    `${dirOf(PACKS.dungeon)}/${PACKS.dungeon.root}/Assets/gltf/${name}.gltf.glb`,
+    `${out.models}/loot/${name}.glb`,
+  );
+}
 writeFileSync(
   `${out.tilesets}/kaykit.tsj`,
   `${JSON.stringify(tilesetOf(PIECES), null, 1)}\n`,
@@ -299,6 +338,14 @@ const imported = [
   ...EXTRA_DUNGEON.map(
     (name) =>
       `| \`${PACKS.dungeon.root}/Assets/gltf/${name}.gltf.glb\` | Wall torches |`,
+  ),
+  ...LOOT.adventurers.map(
+    ({ model }) =>
+      `| \`${adventurers.root}/Assets/gltf/${model}.gltf\` | Ground Items and Arrows |`,
+  ),
+  ...LOOT.dungeon.map(
+    (name) =>
+      `| \`${PACKS.dungeon.root}/Assets/gltf/${name}.gltf.glb\` | Ground Items (Potions) |`,
   ),
   ...PIECES.map(
     (source) =>

@@ -184,6 +184,14 @@ glb each. Nothing is recoloured.
 | `addons/kaykit_character_pack_adventures/Characters/gltf/Knight.glb` | the Hero, and the Golem's attack |
 | Mystery Monthly Series 6: `Monstrosity.glb` | the Golem |
 | `addons/kaykit_dungeon_remastered/Assets/gltf/torch_mounted.gltf.glb` | Wall torches |
+| `addons/kaykit_character_pack_adventures/Assets/gltf/sword_1handed.gltf` | Ground Items and Arrows |
+| `addons/kaykit_character_pack_adventures/Assets/gltf/axe_1handed.gltf` | Ground Items and Arrows |
+| `addons/kaykit_character_pack_adventures/Assets/gltf/shield_round.gltf` | Ground Items and Arrows |
+| `addons/kaykit_character_pack_adventures/Assets/gltf/shield_spikes.gltf` | Ground Items and Arrows |
+| `addons/kaykit_character_pack_adventures/Assets/gltf/arrow.gltf` | Ground Items and Arrows |
+| `addons/kaykit_dungeon_remastered/Assets/gltf/bottle_A_brown.gltf.glb` | Ground Items (Potions) |
+| `addons/kaykit_dungeon_remastered/Assets/gltf/bottle_B_green.gltf.glb` | Ground Items (Potions) |
+| `addons/kaykit_dungeon_remastered/Assets/gltf/bottle_C_brown.gltf.glb` | Ground Items (Potions) |
 | `addons/kaykit_dungeon_remastered/Assets/gltf/floor_tile_large.gltf.glb` | floors |
 | `addons/kaykit_dungeon_remastered/Assets/gltf/floor_tile_small_broken_A.gltf.glb` | floors |
 | `addons/kaykit_dungeon_remastered/Assets/gltf/floor_dirt_large.gltf.glb` | floors |

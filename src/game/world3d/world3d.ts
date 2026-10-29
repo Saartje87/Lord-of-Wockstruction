@@ -15,6 +15,14 @@ import { placeCamera, type WorldCamera } from "./camera";
 import { type FloorPieces, floorOf, PIECE_SCALE } from "./floor";
 import { type HeroActor, heroActorOf, poseHero } from "./heroActor";
 import { createLighting, type Lighting, lightScene } from "./lighting";
+import {
+  GEM,
+  groundPlacement,
+  LOOT_MODELS,
+  type Placement,
+  projectilePlacements,
+} from "./lootLook";
+import { type Instances, instancesOf, outlineInstances } from "./lootMeshes";
 import { createMarkers, type Markers, showMarkers } from "./markers";
 import {
   type MonsterActor,
@@ -69,6 +77,8 @@ type Models = {
   hero: HeroActor;
   floorPieces: FloorPieces;
   monsters: MonsterModels;
+  /** Ground Items and Projectiles, one instanced draw per model. */
+  loot: Record<string, Instances>;
 };
 
 /** Where `import:kaykit` puts the models, served from `public/`. */
@@ -129,13 +139,16 @@ export async function loadModels(world3d: World3d) {
       ]),
     ),
   ];
-  const [knight, plain, broken, dirt, ...monsterGltfs] = await Promise.all([
+  const [knight, plain, broken, dirt, ...rest] = await Promise.all([
     load("characters/Knight"),
     load("dungeon/floor_tile_large"),
     load("dungeon/floor_tile_small_broken_A"),
     load("dungeon/floor_dirt_large"),
     ...monsterFiles.map((file) => load(`characters/${file}`)),
+    ...LOOT_MODELS.map((file) => load(file)),
   ]);
+  const monsterGltfs = rest.slice(0, monsterFiles.length);
+  const lootGltfs = rest.slice(monsterFiles.length);
   const monsters: MonsterModels = {};
   monsterFiles.forEach((file, i) => {
     monsters[file] = monsterGltfs[i];
@@ -148,7 +161,17 @@ export async function loadModels(world3d: World3d) {
   for (const piece of Object.values(floorPieces)) toonShade(piece, LOOKS.stone);
   const hero = heroActorOf(knight);
   world3d.scene.add(hero.root);
-  world3d.models = { hero, floorPieces, monsters };
+  const loot: Record<string, Instances> = {};
+  [GEM, ...LOOT_MODELS].forEach((file, i) => {
+    const instances = instancesOf(
+      file,
+      i === 0 ? null : lootGltfs[i - 1].scene,
+    );
+    outlineInstances(instances, 0.4);
+    loot[file] = instances;
+    world3d.scene.add(instances.group);
+  });
+  world3d.models = { hero, floorPieces, monsters, loot };
 }
 
 /** Puts `area`'s floor in the scene in place of the last Area's. */
@@ -246,6 +269,22 @@ function poseMonsters(world3d: World3d, view: WorldView, dt: number) {
   }
 }
 
+/** Puts the Ground Items on the floor and the Projectiles in the air. */
+function showLoot(models: Models, view: WorldView) {
+  const placed: Record<string, Placement[]> = {};
+  const add = (placement: Placement) => {
+    placed[placement.model] ??= [];
+    placed[placement.model].push(placement);
+  };
+  for (const item of view.groundItems) add(groundPlacement(item));
+  for (const projectile of view.projectiles) {
+    for (const placement of projectilePlacements(projectile)) add(placement);
+  }
+  for (const [model, instances] of Object.entries(models.loot)) {
+    instances.show(placed[model] ?? []);
+  }
+}
+
 /** The size three.js last drew at, reused each frame. */
 const drawnSize = new Vector2();
 
@@ -283,6 +322,7 @@ export function drawWorld3d(
   world3d.drawnAtMs = nowMs;
   if (world3d.models) poseHero(world3d.models.hero, view.hero, dt);
   poseMonsters(world3d, view, dt);
+  if (world3d.models) showLoot(world3d.models, view);
   const seconds = nowMs / 1000;
   world3d.shown?.scenery?.torches.show(view.torches, seconds);
   lightScene(world3d.lighting, view, seconds);

@@ -80,6 +80,7 @@ import { type Skill, skillTuning } from "../tuning/skills";
 import { townPortalLook } from "../tuning/townPortalLook";
 import { atUiScale, type Viewport, viewportOf } from "../viewport";
 import { tileToScreen, type WorldCamera } from "../world3d/camera";
+import { groundSpotsOf } from "../world3d/groundSpots";
 import { MONSTER_LOOKS } from "../world3d/monsterLook";
 import { characterUnder3d, type Pickable3d } from "../world3d/picking";
 import type { Effects } from "../world3d/view";
@@ -566,6 +567,12 @@ const PANEL_BUTTON_STYLE = {
   },
 };
 /**
+ * How far from a Ground Item's model in the 3D World a click still picks it
+ * up (CSS px at World zoom 1).
+ */
+const GROUND_ITEM_3D_GRAB = 24;
+
+/**
  * A Ground Item: a small diamond on the floor tinted as its type, `size`
  * across (CSS px), under a dark label with its name, gold while hovered
  * (where the label goes and how big is `groundLabels`). A click within
@@ -709,9 +716,14 @@ export function createRenderer(
   const labelBacks = new Graphics();
   overWorld.addChild(labelBacks);
   const labelTexts = new Map<ItemId, Text>();
+  /** Where the labels and their backs are drawn: over the 2D or the 3D World. */
+  let labelLayer: Container = overWorld;
   /** Where each Ground Item's label was last drawn on the screen. */
   let labels: GroundLabel[] = [];
-  /** Where each Ground Item was last drawn on the floor, in camera space. */
+  /**
+   * Where each Ground Item was last drawn: on the floor in camera space, or
+   * on the screen (CSS px) in the 3D World.
+   */
   let lyingAt: { id: ItemId; at: Vec }[] = [];
   const numbers = new Container();
   overWorld.addChild(numbers);
@@ -962,11 +974,13 @@ export function createRenderer(
 
   /** The Ground Item drawn on the floor under a canvas point (CSS px). */
   const groundItemAt = (screen: Vec): ItemId | null =>
-    groundItemUnder(
-      lyingAt,
-      onWorld(shot, screen),
-      GROUND_ITEM.size / 2 + GROUND_ITEM.grab,
-    );
+    camera3d
+      ? groundItemUnder(lyingAt, screen, GROUND_ITEM_3D_GRAB * camera3d().zoom)
+      : groundItemUnder(
+          lyingAt,
+          onWorld(shot, screen),
+          GROUND_ITEM.size / 2 + GROUND_ITEM.grab,
+        );
 
   /**
    * Draws each Ground Item on the floor with its name label over it, gold
@@ -981,21 +995,32 @@ export function createRenderer(
     groundItems.clear();
     labelBacks.clear();
     const half = GROUND_ITEM.size / 2;
-    const sized = lying.map(({ item, pos }) => {
-      const at = toScreen(pos);
-      groundItems
-        .poly([
-          at.x,
-          at.y - half,
-          at.x + half,
-          at.y,
-          at.x,
-          at.y + half,
-          at.x - half,
-          at.y,
-        ])
-        .fill(itemColour(item.type))
-        .stroke({ color: GROUND_ITEM.edge, width: 1 });
+    const camera3 = camera3d?.() ?? null;
+    // In the 3D World the Items are models; only their labels are drawn here,
+    // over the spot the model is on the screen.
+    const spots = camera3
+      ? groundSpotsOf(
+          camera3,
+          lying.map(({ item, pos }) => ({ id: item.id, type: item.type, pos })),
+        )
+      : null;
+    const sized = lying.map(({ item, pos }, i) => {
+      const at = spots ? spots[i].at : toScreen(pos);
+      if (!spots) {
+        groundItems
+          .poly([
+            at.x,
+            at.y - half,
+            at.x + half,
+            at.y,
+            at.x,
+            at.y + half,
+            at.x - half,
+            at.y,
+          ])
+          .fill(itemColour(item.type))
+          .stroke({ color: GROUND_ITEM.edge, width: 1 });
+      }
       let text = labelTexts.get(item.id);
       if (!text) {
         text = new Text({
@@ -1004,7 +1029,7 @@ export function createRenderer(
         });
         text.anchor.set(0.5, 0.5);
         labelTexts.set(item.id, text);
-        overWorld.addChild(text);
+        labelLayer.addChild(text);
       }
       sizeText(text, GROUND_LABEL.textSize * uiScale);
       const width = text.width + 2 * GROUND_LABEL.padding * uiScale;
@@ -1012,7 +1037,11 @@ export function createRenderer(
     });
     // Labels are laid out on the screen, at the UI Scale.
     labels = groundLabels(
-      sized.map(({ id, at, width }) => ({ id, at: onScreen(shot, at), width })),
+      sized.map(({ id, at, width }) => ({
+        id,
+        at: spots ? at : onScreen(shot, at),
+        width,
+      })),
       uiScale,
     );
     lyingAt = sized.map(({ id, at }) => ({ id, at }));
@@ -1048,6 +1077,11 @@ export function createRenderer(
       app.stage.addChildAt(overheads3d, index);
       overheads3d.addChild(overheads);
       app.stage.addChildAt(numbers, index);
+      // Ground Item labels follow, over the 3D World, under the numbers.
+      const labels3d = new Container();
+      app.stage.addChildAt(labels3d, index);
+      labels3d.addChild(labelBacks, ...labelTexts.values());
+      labelLayer = labels3d;
     },
 
     /**

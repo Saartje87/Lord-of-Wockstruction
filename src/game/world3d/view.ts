@@ -1,4 +1,5 @@
 import { type Area, type Placed, TOWN } from "../sim/area";
+import type { ItemId } from "../sim/inventory";
 import { recoveryProgress, windUpProgress } from "../sim/monsters";
 import { STEP_MS } from "../sim/units";
 import type { Vec } from "../sim/vec";
@@ -15,7 +16,9 @@ import {
   type World,
 } from "../sim/world";
 import { inputTuning } from "../tuning/input";
+import type { ItemType } from "../tuning/items";
 import type { MonsterType } from "../tuning/monsters";
+import type { ProjectileKind } from "../tuning/projectiles";
 import { ATTACK_CONTACT, type HeroClip } from "./clips";
 import {
   MONSTER_DEATH_SECONDS,
@@ -72,6 +75,18 @@ export type Effects = {
   deadForMs: ReadonlyMap<MonsterId, number>;
 };
 
+/** A Projectile in flight as the 3D World shows it. */
+export type ProjectileView = {
+  kind: ProjectileKind;
+  /** Interpolated, in tile units. */
+  pos: Vec;
+  /** The way it flies, radians in tile space. */
+  facing: number;
+};
+
+/** A Ground Item lying on the floor as the 3D World shows it. */
+export type GroundItemView = { id: ItemId; type: ItemType; pos: Vec };
+
 /** The click marker on the floor, `progress` of the way through its life. */
 export type ClickMarkerView = { at: Vec; progress: number };
 
@@ -88,6 +103,8 @@ export type WorldView = {
   hero: HeroView;
   /** The living Monsters, then the Corpses. */
   monsters: MonsterView[];
+  projectiles: ProjectileView[];
+  groundItems: GroundItemView[];
   clickMarker: ClickMarkerView | null;
   hoverTile: Vec | null;
   /**
@@ -174,6 +191,23 @@ export function worldViewOf(
         }),
       ),
     ],
+    projectiles: world.projectiles.map((projectile) => ({
+      kind: projectile.kind,
+      pos: {
+        x:
+          projectile.prevPos.x +
+          (projectile.pos.x - projectile.prevPos.x) * alpha,
+        y:
+          projectile.prevPos.y +
+          (projectile.pos.y - projectile.prevPos.y) * alpha,
+      },
+      facing: Math.atan2(projectile.direction.y, projectile.direction.x),
+    })),
+    groundItems: world.groundItems.map(({ item, pos }) => ({
+      id: item.id,
+      type: item.type,
+      pos: { ...pos },
+    })),
     clickMarker: clickMarkerOf(pointer.click),
     hoverTile: pointer.hoverTile,
     loweredWalls,

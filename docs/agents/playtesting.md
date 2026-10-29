@@ -47,6 +47,10 @@ A Save at 450 Experience levels up on the next Skeleton kill. For fights, use Le
 
 In dev builds, `?area=<Area>&entry=<Entry>` starts at that Entry instead of in Town, with the Area's Monsters fresh: http://localhost:3000/?area=catacombs&entry=from-town. Areas are the `.tmj` files in `content/areas/`, and Entries their `entry` objects (`start`, `from-town`, …). An unknown Area or Entry starts in Town. Production builds ignore the query. It applies on every load, so drop it to go back to Town.
 
+### The 3D World
+
+The pause menu (Esc) has a "3D World (beta)" button; the choice is stored per device in `localStorage` under `wiablo.world` (`"3d"` or `"2d"`), apart from the Save. `?renderer=3d` turns the 3D World on for that load without storing it. Switching happens at once, mid-game; the 3D World's code and models load the first time it is chosen.
+
 ## Read the game state
 
 Screenshots are JPEGs, and walls, the low-Life tint or Monsters standing on each other can hide what a criterion asks about. In dev builds, `window.__wiablo.state()` returns what the game holds right now, as plain data (`DevState` in `src/game/devState.ts`). Call it from `javascript_exec`, before and after an action:

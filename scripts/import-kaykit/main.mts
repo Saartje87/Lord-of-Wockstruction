@@ -9,11 +9,16 @@
  *
  * Run it by hand with `npm run import:kaykit`. It keeps its checkouts in the
  * gitignored `.cache/`, and re-runs without fetching while the pins stay.
+ *
+ * The paid Mystery Monthly packs can't be fetched: they're read from the
+ * gitignored `vendor/kaykit/`, unzipped as downloaded, and skipped when
+ * they aren't there, keeping the committed models.
  */
-import { copyFileSync, mkdirSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync } from "node:fs";
 import { writeSection } from "../credits-sections.mts";
 import { checkout } from "../import-flare/git.mts";
 import { importCharacter } from "./characters.mts";
+import { importRiggedCharacter } from "./retarget.mts";
 
 const ORG = "https://github.com/KayKit-Game-Assets";
 
@@ -50,6 +55,34 @@ const KNIGHT = {
   ],
   dropNodes: (name: string) =>
     /Shield|2H_Sword|Offhand/.test(name) && name !== "Round_Shield",
+};
+
+/** The Mystery Monthly packs, as their downloads unzip. */
+const MYSTERY = {
+  name: "Mystery Monthly Series 6",
+  dir: "vendor/kaykit/KayKit_Mystery_Monthly_Series_6",
+  url: "https://kaylousberg.itch.io/kaykit-series-6",
+};
+
+/**
+ * The Golem: the Monstrosity, with `Rig_Large`'s clips and, since that rig
+ * has no attack, the Knight's 2-handed chop retargeted onto it.
+ */
+const GOLEM = {
+  file: "Monstrosity",
+  path: "4 - October 2025 - Monstrosity/characters/Monstrosity.glb",
+  rigClips: {
+    "Animations/gltf/Rig_Large/Rig_Large_General.glb": [
+      "Idle_A",
+      "Hit_A",
+      "Death_A",
+    ],
+    "Animations/gltf/Rig_Large/Rig_Large_MovementBasic.glb": [
+      "Walking_A",
+      "Running_A",
+    ],
+  },
+  knightClips: ["2H_Melee_Attack_Chop"],
 };
 
 /** The Dungeon Remastered pieces the floor is made of. */
@@ -92,6 +125,23 @@ await importCharacter({
   clips: KNIGHT.clips,
   dropNodes: KNIGHT.dropNodes,
 });
+if (existsSync(MYSTERY.dir)) {
+  await importRiggedCharacter({
+    from: `${MYSTERY.dir}/${GOLEM.path}`,
+    to: `${out.characters}/${GOLEM.file}.glb`,
+    clips: [
+      ...Object.entries(GOLEM.rigClips).flatMap(([file, names]) =>
+        names.map((name) => ({ from: `${MYSTERY.dir}/${file}`, name })),
+      ),
+      ...GOLEM.knightClips.map((name) => ({
+        from: `${dirOf(adventurers)}/${knightPath}`,
+        name,
+      })),
+    ],
+  });
+} else {
+  console.log(`No ${MYSTERY.dir}: keeping the committed ${GOLEM.file}.glb`);
+}
 for (const piece of FLOORS) {
   copyFileSync(
     `${dirOf(dungeon)}/${floorPath(piece)}`,
@@ -100,7 +150,8 @@ for (const piece of FLOORS) {
 }
 
 const imported = [
-  `| \`${knightPath}\` | the Hero |`,
+  `| \`${knightPath}\` | the Hero, and the Golem's attack |`,
+  `| ${MYSTERY.name}: \`${GOLEM.path.split("/").pop()}\` | the Golem |`,
   ...FLOORS.map((piece) => `| \`${floorPath(piece)}\` | the floor |`),
 ].join("\n");
 
@@ -121,9 +172,12 @@ ${Object.values(PACKS)
       `- ${pack.name}: [${pack.repo}](${ORG}/${pack.repo}) (commit \`${pack.commit.slice(0, 7)}\`)`,
   )
   .join("\n")}
+- ${MYSTERY.name}: [itch.io](${MYSTERY.url}), paid and CC0
 
 **Changes:** the Knight is cut down to the animations Wiablo uses and to
-the 1-handed sword and the round shield. Nothing is recoloured.
+the 1-handed sword and the round shield. The Monstrosity gets the
+\`Rig_Large\` animations Wiablo uses and the Knight's 2-handed chop,
+retargeted onto its rig. Nothing is recoloured.
 
 ### Imported files
 

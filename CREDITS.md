@@ -165,15 +165,19 @@ licence (CC0). Crediting him is not required, and we do.
 
 - Adventurers 1.0: [KayKit-Character-Pack-Adventures-1.0](https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0) (commit `672074b`)
 - Dungeon Remastered 1.0: [KayKit-Dungeon-Remastered-1.0](https://github.com/KayKit-Game-Assets/KayKit-Dungeon-Remastered-1.0) (commit `b0ca9bd`)
+- Mystery Monthly Series 6: [itch.io](https://kaylousberg.itch.io/kaykit-series-6), paid and CC0
 
 **Changes:** the Knight is cut down to the animations Wiablo uses and to
-the 1-handed sword and the round shield. Nothing is recoloured.
+the 1-handed sword and the round shield. The Monstrosity gets the
+`Rig_Large` animations Wiablo uses and the Knight's 2-handed chop,
+retargeted onto its rig. Nothing is recoloured.
 
 ### Imported files
 
 | KayKit file | Used for |
 |---|---|
-| `addons/kaykit_character_pack_adventures/Characters/gltf/Knight.glb` | the Hero |
+| `addons/kaykit_character_pack_adventures/Characters/gltf/Knight.glb` | the Hero, and the Golem's attack |
+| Mystery Monthly Series 6: `Monstrosity.glb` | the Golem |
 | `addons/kaykit_dungeon_remastered/Assets/gltf/floor_tile_large.gltf.glb` | the floor |
 | `addons/kaykit_dungeon_remastered/Assets/gltf/floor_tile_small_broken_A.gltf.glb` | the floor |
 | `addons/kaykit_dungeon_remastered/Assets/gltf/floor_dirt_large.gltf.glb` | the floor |

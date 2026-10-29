@@ -91,15 +91,18 @@ import {
 } from "./save";
 import { isFloor } from "./sim/area";
 import { cursorItemOf } from "./sim/inventory";
-import type { Vec } from "./sim/vec";
+import { tileOf, type Vec } from "./sim/vec";
 import { createWorld, type MonsterId, type Order, step } from "./sim/world";
 import { viewportOf } from "./viewport";
+import { screenToTile, worldCameraOn } from "./world3d/camera";
+import { type PointerState, worldViewOf } from "./world3d/view";
 import {
   contextOf,
   createWorld3d,
   disposeOf,
   drawnBy,
   drawWorld3d,
+  loadModels,
 } from "./world3d/world3d";
 
 /** Mounts the Pixi Application and runs the fixed-step loop. */
@@ -165,6 +168,7 @@ export default function GameCanvas() {
         [...new Set(usedTilesets)].filter((name) => name !== null),
         app.renderer.resolution,
       );
+      if (world3d) await loadModels(world3d);
       if (cancelled) return;
       container.appendChild(app.canvas);
 
@@ -180,6 +184,14 @@ export default function GameCanvas() {
         touch,
       );
       if (world3d) renderer.hideWorld();
+      /** Where the 3D World's camera was last drawn, which input reads. */
+      let worldCamera = worldCameraOn(viewportOf(app.screen), world.hero.pos);
+      /** The tile under a point on the canvas (CSS px), through the camera. */
+      const toTile = world3d
+        ? (at: Vec) => screenToTile(worldCamera, at)
+        : renderer.screenToTile;
+      /** The last click on the floor, which the 3D World marks. */
+      let lastClick: { at: Vec; atMs: number } | null = null;
       const frameStats = createFrameStats(performance.now());
       const clock = createClock();
       const input = createPointerInput();
@@ -369,7 +381,7 @@ export default function GameCanvas() {
           if (used === null) {
             pressed = true;
             // Keys Q/W/E/R cast at the cursor.
-            const cursor = input.screen && renderer.screenToTile(input.screen);
+            const cursor = input.screen && toTile(input.screen);
             const cast = castKeyOrder(key, cursor);
             if (cast) orders.push(cast);
             // Keys 1–4 drink from the Belt Columns.
@@ -398,7 +410,7 @@ export default function GameCanvas() {
         // the mouse's pointer shows otherwise.
         if (activeInput.way !== "controller") hideFocus(padInput);
         const polled = pollPad(padInput, pad, gameTime(pause, realNow), {
-          toTile: renderer.screenToTile,
+          toTile,
           world,
           menus,
           focusSpots: panelFocusSpots(
@@ -478,7 +490,7 @@ export default function GameCanvas() {
           }
         }
         const { orders: newOrders, click } = poll(input, now, {
-          toTile: renderer.screenToTile,
+          toTile,
           monsterAt: renderer.monsterAt,
           groundLabelAt: renderer.groundLabelAt,
           groundItemAt: renderer.groundItemAt,
@@ -559,6 +571,7 @@ export default function GameCanvas() {
         const area = world.areas[world.areaName];
         if (click && !world.death && isFloor(area, click)) {
           renderer.markClick(click, now);
+          lastClick = { at: click, atMs: now };
         }
 
         // Orders wait for the next step, which may be a frame away.
@@ -604,12 +617,33 @@ export default function GameCanvas() {
           focus?.rect ?? null,
         );
         if (world3d) {
-          drawWorld3d(
-            world3d,
-            app.screen.width,
-            app.screen.height,
-            app.renderer.resolution,
-          );
+          const hero = world.hero;
+          worldCamera = worldCameraOn(viewport, {
+            x: hero.prevPos.x + (hero.pos.x - hero.prevPos.x) * alpha,
+            y: hero.prevPos.y + (hero.pos.y - hero.prevPos.y) * alpha,
+          });
+          // The tile to outline: on the floor, under no panel or Monster.
+          const under =
+            pointer &&
+            !renderer.panelAt(pointer) &&
+            renderer.monsterAt(pointer) === null
+              ? tileOf(screenToTile(worldCamera, pointer))
+              : null;
+          const shown = world.areas[world.areaName];
+          const pointerState: PointerState = {
+            hoverTile: under && isFloor(shown, under) ? under : null,
+            click: lastClick && {
+              at: lastClick.at,
+              ageMs: now - lastClick.atMs,
+            },
+          };
+          drawWorld3d(world3d, {
+            area: shown,
+            view: worldViewOf(world, alpha, pointerState),
+            camera: worldCamera,
+            nowMs: now,
+            resolution: app.renderer.resolution,
+          });
           app.renderer.resetState();
         }
         app.render();

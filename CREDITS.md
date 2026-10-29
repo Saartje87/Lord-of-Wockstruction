@@ -153,3 +153,28 @@ Concept Artist - [Misha](http://opengameart.org/users/misha)
 * License: CC-BY 3.0
 * /art_src/characters/skeleton/skeleton.blend (sword concept, [original](http://opengameart.org/content/bastardsword001-concept))
 * /mods/fantasycore/images/enemies/skeleton.png (sword concept, [original](http://opengameart.org/content/bastardsword001-concept))
+
+<!-- begin kaykit -->
+## Models
+
+The 3D models in `public/assets/models/` are by Kay Lousberg,
+[www.kaylousberg.com](https://www.kaylousberg.com) (KayKit), from
+[KayKit-Game-Assets](https://github.com/KayKit-Game-Assets) on GitHub, under the
+[Creative Commons Zero](https://creativecommons.org/publicdomain/zero/1.0/)
+licence (CC0). Crediting him is not required, and we do.
+
+- Adventurers 1.0: [KayKit-Character-Pack-Adventures-1.0](https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0) (commit `672074b`)
+- Dungeon Remastered 1.0: [KayKit-Dungeon-Remastered-1.0](https://github.com/KayKit-Game-Assets/KayKit-Dungeon-Remastered-1.0) (commit `b0ca9bd`)
+
+**Changes:** the Knight is cut down to the animations Wiablo uses and to
+the 1-handed sword and the round shield. Nothing is recoloured.
+
+### Imported files
+
+| KayKit file | Used for |
+|---|---|
+| `addons/kaykit_character_pack_adventures/Characters/gltf/Knight.glb` | the Hero |
+| `addons/kaykit_dungeon_remastered/Assets/gltf/floor_tile_large.gltf.glb` | the floor |
+| `addons/kaykit_dungeon_remastered/Assets/gltf/floor_tile_small_broken_A.gltf.glb` | the floor |
+| `addons/kaykit_dungeon_remastered/Assets/gltf/floor_dirt_large.gltf.glb` | the floor |
+<!-- end kaykit -->

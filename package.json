@@ -12,6 +12,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "check": "npm run lint && npm run typecheck && npm test",
     "import:flare": "node scripts/import-flare/main.mts",
+    "import:kaykit": "node scripts/import-kaykit/main.mts",
     "tuning:report": "node scripts/tuning-report.mts"
   },
   "dependencies": {
@@ -23,6 +24,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.2",
+    "@gltf-transform/core": "^4.5.1",
+    "@gltf-transform/functions": "^4.5.1",
     "@types/node": "^24.19.2",
     "@types/pngjs": "^6.0.5",
     "@types/react": "^19",

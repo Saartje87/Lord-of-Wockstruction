@@ -11,8 +11,15 @@
  * Run it by hand with `npm run import:flare`. It keeps its Flare checkout in
  * the gitignored `.cache/`, and re-runs without fetching while the pins stay.
  */
-import { mkdirSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import type { ProjectileKind } from "../../src/game/tuning/projectiles.ts";
+import { sectionOf } from "../credits-sections.mts";
 import { importCharacter } from "./characters.mts";
 import { filterFileCredits, readFlareArtists } from "./credits.mts";
 import { readHeroLayers } from "./flare.mts";
@@ -203,6 +210,11 @@ const fileList = Object.entries(IMPORTED)
   .flatMap(([use, paths]) => paths.map((p) => `| \`${p}\` | ${use} |`))
   .join("\n");
 
+// KayKit's section is import:kaykit's. Rewriting the file whole keeps it.
+const kaykit = sectionOf(
+  existsSync("CREDITS.md") ? readFileSync("CREDITS.md", "utf8") : "",
+  "kaykit",
+);
 writeFileSync(
   "CREDITS.md",
   `# Credits
@@ -245,4 +257,5 @@ filtered to the files above and their sources.
 ${filterFileCredits(`${WIKI.dir}/Credits.md`, CREDIT_PATHS)}
 `,
 );
+if (kaykit) appendFileSync("CREDITS.md", `\n${kaykit}\n`);
 console.log("Wrote CREDITS.md");

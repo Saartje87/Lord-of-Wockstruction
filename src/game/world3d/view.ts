@@ -1,4 +1,4 @@
-import type { Placed } from "../sim/area";
+import { type Area, type Placed, TOWN } from "../sim/area";
 import { STEP_MS } from "../sim/units";
 import type { Vec } from "../sim/vec";
 import {
@@ -12,6 +12,7 @@ import {
 } from "../sim/world";
 import { inputTuning } from "../tuning/input";
 import { ATTACK_CONTACT, type HeroClip } from "./clips";
+import { type Torch, torchesOf } from "./torches";
 
 /**
  * What the Hero is doing, as the clip to show and how far into it: idle and
@@ -52,7 +53,26 @@ export type WorldView = {
    * indices into its `walls`, ascending.
    */
   loweredWalls: number[];
+  /**
+   * The torches on the Area's Walls. A torch is lit unless its Wall is
+   * lowered; the scene gives its light to the lit ones nearest the Hero.
+   */
+  torches: (Torch & { lit: boolean })[];
+  /** Whether the Area is a Combat Area, which has embers and a vignette. */
+  combat: boolean;
 };
+
+/** An Area's torches, worked out once. */
+const torchCache = new WeakMap<Area, Torch[]>();
+
+function torchesIn(area: Area): Torch[] {
+  let torches = torchCache.get(area);
+  if (!torches) {
+    torches = torchesOf(area);
+    torchCache.set(area, torches);
+  }
+  return torches;
+}
 
 /**
  * The Walls between the camera and the Hero: those a few tiles on the
@@ -87,6 +107,8 @@ export function worldViewOf(
     x: hero.prevPos.x + (hero.pos.x - hero.prevPos.x) * alpha,
     y: hero.prevPos.y + (hero.pos.y - hero.prevPos.y) * alpha,
   };
+  const area = world.areas[world.areaName];
+  const loweredWalls = loweredWallsOf(area.walls, pos);
   return {
     hero: {
       pos,
@@ -95,7 +117,12 @@ export function worldViewOf(
     },
     clickMarker: clickMarkerOf(pointer.click),
     hoverTile: pointer.hoverTile,
-    loweredWalls: loweredWallsOf(world.areas[world.areaName].walls, pos),
+    loweredWalls,
+    torches: torchesIn(area).map((torch) => ({
+      ...torch,
+      lit: !loweredWalls.includes(torch.wall),
+    })),
+    combat: world.areaName !== TOWN,
   };
 }
 

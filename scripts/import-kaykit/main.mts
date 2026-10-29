@@ -112,6 +112,12 @@ const GOLEM = {
 /** Dungeon Remastered glbs that, unlike the rest, don't end `.gltf.glb`. */
 const PLAIN_GLB = new Set(["chest"]);
 
+/**
+ * Dungeon Remastered pieces the 3D World places itself rather than Areas
+ * painting them, so they are no tiles in the tileset: the Wall torches.
+ */
+const EXTRA_DUNGEON = ["torch_mounted"];
+
 const out = {
   characters: "public/assets/models/characters",
   models: "public/assets/models",
@@ -152,6 +158,11 @@ for (const pack of Object.values(PACKS)) {
           ...PIECES.filter((piece) => PACKS[piece.pack] === pack).flatMap(
             filesOf,
           ),
+          ...(pack === PACKS.dungeon
+            ? EXTRA_DUNGEON.map(
+                (name) => `${pack.root}/Assets/gltf/${name}.gltf.glb`,
+              )
+            : []),
           "LICENSE.txt",
         ];
   checkout(
@@ -207,6 +218,12 @@ for (const source of PIECES) {
     await io.write(to, await io.read(`${dirOf(pack)}/${from}`));
   }
 }
+for (const name of EXTRA_DUNGEON) {
+  copyFileSync(
+    `${dirOf(PACKS.dungeon)}/${PACKS.dungeon.root}/Assets/gltf/${name}.gltf.glb`,
+    `${out.models}/dungeon/${name}.glb`,
+  );
+}
 writeFileSync(
   `${out.tilesets}/kaykit.tsj`,
   `${JSON.stringify(tilesetOf(PIECES), null, 1)}\n`,
@@ -215,6 +232,10 @@ writeFileSync(
 const imported = [
   `| \`${knightPath}\` | the Hero, and the Golem's attack |`,
   `| ${MYSTERY.name}: \`${GOLEM.path.split("/").pop()}\` | the Golem |`,
+  ...EXTRA_DUNGEON.map(
+    (name) =>
+      `| \`${PACKS.dungeon.root}/Assets/gltf/${name}.gltf.glb\` | Wall torches |`,
+  ),
   ...PIECES.map(
     (source) =>
       `| \`${filesOf(source)[0]}\` | ${source.kind === "floor" ? "floors" : source.kind === "wall" ? "Walls" : "Props"} |`,

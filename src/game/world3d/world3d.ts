@@ -1,9 +1,7 @@
 import {
-  AmbientLight,
+  ACESFilmicToneMapping,
   Color,
-  DirectionalLight,
   Group,
-  HemisphereLight,
   type Object3D,
   OrthographicCamera,
   Scene,
@@ -12,12 +10,15 @@ import {
 } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { Area } from "../sim/area";
+import { type Atmosphere, createAtmosphere, driftEmbers } from "./atmosphere";
 import { placeCamera, type WorldCamera } from "./camera";
-import { type FloorPieces, floorOf } from "./floor";
+import { type FloorPieces, floorOf, PIECE_SCALE } from "./floor";
 import { type HeroActor, heroActorOf, poseHero } from "./heroActor";
+import { createLighting, type Lighting, lightScene } from "./lighting";
 import { createMarkers, type Markers, showMarkers } from "./markers";
-import { propMeshesOf } from "./propMeshes";
-import { toonShade } from "./toon";
+import { propMeshesOf, scaleOf } from "./propMeshes";
+import { LOOKS, lookOf, outline, toonShade } from "./toon";
+import { type TorchMeshes, torchMeshesOf } from "./torchMeshes";
 import type { WorldView } from "./view";
 import { type WallMeshes, wallMeshesOf } from "./wallMeshes";
 import { wallPlacementsOf } from "./walls";
@@ -31,6 +32,8 @@ export type World3d = {
   scene: Scene;
   camera: OrthographicCamera;
   markers: Markers;
+  lighting: Lighting;
+  atmosphere: Atmosphere;
   /** Set once `loadModels` is done. */
   models: Models | null;
   /** The Area whose floor, Walls and Props are in the scene, if any. */
@@ -38,7 +41,11 @@ export type World3d = {
     area: Area;
     floor: Group;
     /** Null until the pieces the Area's Walls and Props use are loaded. */
-    scenery: { walls: WallMeshes; props: Group } | null;
+    scenery: {
+      walls: WallMeshes;
+      props: Group;
+      torches: TorchMeshes;
+    } | null;
   } | null;
   /** The Wall and Prop pieces loaded so far, by piece name. */
   pieces: Record<string, Object3D | undefined>;
@@ -57,19 +64,28 @@ const MODELS = "/assets/models";
 /** The dark the 3D World is drawn on. */
 const BACKGROUND = 0x07060b;
 
+/** The torch's model, which hangs on Walls. */
+const TORCH_PIECE = "dungeon/torch_mounted";
+
+/** How wide the outlines on Walls and Props are, in tiles. */
+const OUTLINE = 0.02;
+
 /** Creates the 3D World's renderer, its canvas and an empty scene. */
 export function createWorld3d(): World3d {
   // Pixi needs the stencil buffer for its masks.
   const renderer = new WebGLRenderer({ antialias: true, stencil: true });
+  renderer.toneMapping = ACESFilmicToneMapping;
+  // The vignette draws over the World, so each frame clears by hand.
+  renderer.autoClear = false;
+  renderer.info.autoReset = false;
   const scene = new Scene();
   scene.background = new Color(BACKGROUND);
   const camera = new OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
-  // Plain light for now: the gothic look, torches and lantern come later.
-  scene.add(new AmbientLight(0x6a5f9a, 0.8));
-  scene.add(new HemisphereLight(0x8a9ac8, 0x241a30, 0.7));
-  const sun = new DirectionalLight(0xa8b4e0, 1.1);
-  sun.position.set(-4, 10, 2);
-  scene.add(sun);
+  // All the lights exist from the start and only move, so no shader ever
+  // recompiles for a light that came or went.
+  const lighting = createLighting(scene);
+  const atmosphere = createAtmosphere();
+  scene.add(atmosphere.embers);
   const markers = createMarkers();
   scene.add(markers.click, markers.hover);
   return {
@@ -77,6 +93,8 @@ export function createWorld3d(): World3d {
     scene,
     camera,
     markers,
+    lighting,
+    atmosphere,
     models: null,
     shown: null,
     pieces: {},
@@ -100,7 +118,7 @@ export async function loadModels(world3d: World3d) {
     broken: broken.scene,
     dirt: dirt.scene,
   };
-  for (const piece of Object.values(floorPieces)) toonShade(piece);
+  for (const piece of Object.values(floorPieces)) toonShade(piece, LOOKS.stone);
   const hero = heroActorOf(knight);
   world3d.scene.add(hero.root);
   world3d.models = { hero, floorPieces };
@@ -112,8 +130,13 @@ function showFloor(world3d: World3d, area: Area) {
   const { shown, scene } = world3d;
   if (shown) {
     scene.remove(shown.floor);
-    if (shown.scenery)
-      scene.remove(shown.scenery.walls.group, shown.scenery.props);
+    if (shown.scenery) {
+      scene.remove(
+        shown.scenery.walls.group,
+        shown.scenery.props,
+        shown.scenery.torches.group,
+      );
+    }
   }
   const floor = floorOf(area, world3d.models.floorPieces);
   scene.add(floor);
@@ -124,13 +147,14 @@ function showFloor(world3d: World3d, area: Area) {
  * Puts the shown Area's Walls and Props in the scene once their pieces are
  * loaded, asking for the ones that aren't.
  */
-function showScenery(world3d: World3d) {
+function showScenery(world3d: World3d, view: WorldView) {
   const { shown, pieces, loading } = world3d;
   if (!shown || shown.scenery) return;
   const { area } = shown;
   const names = new Set([
     ...wallPlacementsOf(area.walls).map((placement) => placement.piece),
     ...area.props.map((prop) => prop.piece),
+    ...(view.torches.length > 0 ? [TORCH_PIECE] : []),
   ]);
   const missing = [...names].filter((name) => !pieces[name]);
   if (missing.length > 0) {
@@ -140,7 +164,7 @@ function showScenery(world3d: World3d) {
       loading.add(name);
       loader.loadAsync(`${MODELS}/${name}.glb`).then(
         (gltf) => {
-          toonShade(gltf.scene);
+          toonShade(gltf.scene, lookOf(name));
           pieces[name] = gltf.scene;
         },
         () => {
@@ -153,8 +177,19 @@ function showScenery(world3d: World3d) {
   }
   const walls = wallMeshesOf(area.walls, pieces);
   const props = propMeshesOf(area.props, pieces);
-  world3d.scene.add(walls.group, props);
-  shown.scenery = { walls, props };
+  const torches = torchMeshesOf(
+    view.torches,
+    pieces[TORCH_PIECE] ?? new Group(),
+  );
+  // Floors go without outlines; Walls and Props have them.
+  for (const mesh of [...walls.group.children]) {
+    outline(mesh, OUTLINE, PIECE_SCALE);
+  }
+  for (const mesh of [...props.children]) {
+    outline(mesh, OUTLINE, scaleOf(mesh.userData.piece));
+  }
+  world3d.scene.add(walls.group, props, torches.group);
+  shown.scenery = { walls, props, torches };
 }
 
 /** The size three.js last drew at, reused each frame. */
@@ -187,16 +222,26 @@ export function drawWorld3d(
     renderer.setSize(width, height, false);
   }
   showFloor(world3d, area);
-  showScenery(world3d);
+  showScenery(world3d, view);
   world3d.shown?.scenery?.walls.lower(view.loweredWalls);
   const dt =
     world3d.drawnAtMs === null ? 0 : (nowMs - world3d.drawnAtMs) / 1000;
   world3d.drawnAtMs = nowMs;
   if (world3d.models) poseHero(world3d.models.hero, view.hero, dt);
+  const seconds = nowMs / 1000;
+  world3d.shown?.scenery?.torches.show(view.torches, seconds);
+  lightScene(world3d.lighting, view, seconds);
+  driftEmbers(world3d.atmosphere, view.hero.pos, dt, view.combat);
   showMarkers(world3d.markers, view);
   placeCamera(world3d.camera, camera);
   renderer.resetState();
+  renderer.info.reset();
+  renderer.clear();
   renderer.render(scene, world3d.camera);
+  if (view.combat) {
+    const { vignette } = world3d.atmosphere;
+    renderer.render(vignette.scene, vignette.camera);
+  }
 }
 
 /** The WebGL context Pixi shares to draw the HUD over the 3D World. */

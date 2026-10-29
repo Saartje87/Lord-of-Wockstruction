@@ -2,7 +2,7 @@ import { type AnimationAction, AnimationMixer, Group, LoopRepeat } from "three";
 import type { GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { HERO_CLIPS } from "./clips";
-import { toonShade } from "./toon";
+import { LOOKS, outline, toonShade } from "./toon";
 import type { HeroView } from "./view";
 
 /** The Knight is drawn a little larger than a tile's worth of model units. */
@@ -25,7 +25,8 @@ export type HeroActor = {
 /** Makes an actor of the loaded Knight. */
 export function heroActorOf(knight: GLTF): HeroActor {
   const model = clone(knight.scene);
-  toonShade(model);
+  toonShade(model, LOOKS.character);
+  outline(model, 0.024, HERO_SCALE);
   model.scale.setScalar(HERO_SCALE);
   const root = new Group();
   root.add(model);

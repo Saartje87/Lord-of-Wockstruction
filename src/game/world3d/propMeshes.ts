@@ -16,7 +16,7 @@ import { hash, PIECE_SCALE } from "./floor";
  * Knight, and Medieval Hexagon's buildings come at about a quarter of the
  * size of the other packs.
  */
-function scaleOf(piece: string): number {
+export function scaleOf(piece: string): number {
   if (piece.startsWith("hexagon/")) return 1.25;
   if (/barrel|chest|crates/.test(piece)) return PIECE_SCALE * 1.2;
   return PIECE_SCALE;

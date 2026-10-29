@@ -220,3 +220,41 @@ describe("the 3D World view of the Walls", () => {
     expect(worldViewOf(world, 1, NO_POINTER).loweredWalls).toEqual([0]);
   });
 });
+
+describe("the 3D World view of the torches", () => {
+  /** A combat Area with a long Wall at y = 14, floor south of it. */
+  function worldWithTorchWall(heroAt: { x: number; y: number }) {
+    const world = arenaWith([], { combat: true });
+    const area = world.areas[world.areaName];
+    area.walls = [];
+    for (let x = 0; x < area.width; x++) {
+      area.floor[14 * area.width + x] = false;
+      area.walls.push({ x, y: 14, piece: "dungeon/wall", blocks: true });
+    }
+    world.hero.prevPos = world.hero.pos = heroAt;
+    return world;
+  }
+
+  it("lights the torches on Walls that stand", () => {
+    // The Hero south of the Wall, which stands behind them.
+    const world = worldWithTorchWall({ x: 10, y: 17 });
+
+    const { torches } = worldViewOf(world, 1, NO_POINTER);
+
+    expect(torches.length).toBeGreaterThan(0);
+    expect(torches.every((torch) => torch.lit)).toBe(true);
+  });
+
+  it("puts out the torches on lowered Walls", () => {
+    // The Hero north of the Wall, which stands between them and the camera.
+    const world = worldWithTorchWall({ x: 10, y: 12 });
+
+    const view = worldViewOf(world, 1, NO_POINTER);
+
+    expect(view.loweredWalls.length).toBeGreaterThan(0);
+    expect(view.torches.some((torch) => !torch.lit)).toBe(true);
+    for (const torch of view.torches) {
+      expect(torch.lit).toBe(!view.loweredWalls.includes(torch.wall));
+    }
+  });
+});

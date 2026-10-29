@@ -182,6 +182,7 @@ glb each. Nothing is recoloured.
 |---|---|
 | `addons/kaykit_character_pack_adventures/Characters/gltf/Knight.glb` | the Hero, and the Golem's attack |
 | Mystery Monthly Series 6: `Monstrosity.glb` | the Golem |
+| `addons/kaykit_dungeon_remastered/Assets/gltf/torch_mounted.gltf.glb` | Wall torches |
 | `addons/kaykit_dungeon_remastered/Assets/gltf/floor_tile_large.gltf.glb` | floors |
 | `addons/kaykit_dungeon_remastered/Assets/gltf/floor_tile_small_broken_A.gltf.glb` | floors |
 | `addons/kaykit_dungeon_remastered/Assets/gltf/floor_dirt_large.gltf.glb` | floors |

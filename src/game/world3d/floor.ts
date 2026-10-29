@@ -15,6 +15,9 @@ import type { Area } from "../sim/area";
  */
 export const PIECE_SCALE = 0.25;
 
+/** The floor is drawn in blocks this many tiles square, culled by block. */
+const CHUNK = 12;
+
 /** The floor pieces an Area's floor is made of. */
 export type FloorPieces = {
   /** The plain 4×4 piece most cells get. */
@@ -36,7 +39,7 @@ const FLOOR_KIND: Record<string, keyof FloorPieces> = {
 };
 
 /** A steady 0..1 for a cell and a salt, so an Area always looks the same. */
-function hash(x: number, y: number, salt: number): number {
+export function hash(x: number, y: number, salt: number): number {
   let h = (x * 374761393 + y * 668265263 + salt * 2147483647) | 0;
   h = Math.imul(h ^ (h >>> 13), 1274126177);
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
@@ -87,22 +90,28 @@ export function floorOf(area: Area, pieces: FloorPieces): Group {
 function instanced(model: Object3D, placements: Matrix4[]): InstancedMesh[] {
   if (placements.length === 0) return [];
   model.updateMatrixWorld(true);
+  // Each block of cells is its own mesh, so three.js culls the ones off screen.
+  const blocks = new Map<string, Matrix4[]>();
+  for (const placement of placements) {
+    const key = `${Math.floor(placement.elements[12] / CHUNK)},${Math.floor(placement.elements[14] / CHUNK)}`;
+    blocks.set(key, [...(blocks.get(key) ?? []), placement]);
+  }
   const meshes: InstancedMesh[] = [];
   model.traverse((node) => {
     const mesh = node as Mesh;
     if (!mesh.isMesh) return;
-    const instances = new InstancedMesh(
-      mesh.geometry,
-      mesh.material,
-      placements.length,
-    );
-    placements.forEach((placement, i) => {
-      instances.setMatrixAt(i, placement.clone().multiply(mesh.matrixWorld));
-    });
-    instances.instanceMatrix.needsUpdate = true;
-    // The bounds are one piece's, so three.js would cull the far ones.
-    instances.frustumCulled = false;
-    meshes.push(instances);
+    for (const block of blocks.values()) {
+      const instances = new InstancedMesh(
+        mesh.geometry,
+        mesh.material,
+        block.length,
+      );
+      block.forEach((placement, i) => {
+        instances.setMatrixAt(i, placement.clone().multiply(mesh.matrixWorld));
+      });
+      instances.instanceMatrix.needsUpdate = true;
+      meshes.push(instances);
+    }
   });
   return meshes;
 }

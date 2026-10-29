@@ -2,8 +2,9 @@ import {
   AmbientLight,
   Color,
   DirectionalLight,
-  type Group,
+  Group,
   HemisphereLight,
+  type Object3D,
   OrthographicCamera,
   Scene,
   Vector2,
@@ -15,8 +16,11 @@ import { placeCamera, type WorldCamera } from "./camera";
 import { type FloorPieces, floorOf } from "./floor";
 import { type HeroActor, heroActorOf, poseHero } from "./heroActor";
 import { createMarkers, type Markers, showMarkers } from "./markers";
+import { propMeshesOf } from "./propMeshes";
 import { toonShade } from "./toon";
 import type { WorldView } from "./view";
+import { type WallMeshes, wallMeshesOf } from "./wallMeshes";
+import { wallPlacementsOf } from "./walls";
 
 /**
  * The 3D World's three.js side. Its renderer owns the canvas and the WebGL
@@ -29,8 +33,17 @@ export type World3d = {
   markers: Markers;
   /** Set once `loadModels` is done. */
   models: Models | null;
-  /** The Area whose floor is in the scene, if any. */
-  shown: { area: Area; floor: Group } | null;
+  /** The Area whose floor, Walls and Props are in the scene, if any. */
+  shown: {
+    area: Area;
+    floor: Group;
+    /** Null until the pieces the Area's Walls and Props use are loaded. */
+    scenery: { walls: WallMeshes; props: Group } | null;
+  } | null;
+  /** The Wall and Prop pieces loaded so far, by piece name. */
+  pieces: Record<string, Object3D | undefined>;
+  /** The pieces asked for, so each is loaded once. */
+  loading: Set<string>;
   /** When the last frame was drawn (ms), for easing. */
   drawnAtMs: number | null;
 };
@@ -66,6 +79,8 @@ export function createWorld3d(): World3d {
     markers,
     models: null,
     shown: null,
+    pieces: {},
+    loading: new Set(),
     drawnAtMs: null,
   };
 }
@@ -94,10 +109,52 @@ export async function loadModels(world3d: World3d) {
 /** Puts `area`'s floor in the scene in place of the last Area's. */
 function showFloor(world3d: World3d, area: Area) {
   if (world3d.shown?.area === area || !world3d.models) return;
-  if (world3d.shown) world3d.scene.remove(world3d.shown.floor);
+  const { shown, scene } = world3d;
+  if (shown) {
+    scene.remove(shown.floor);
+    if (shown.scenery)
+      scene.remove(shown.scenery.walls.group, shown.scenery.props);
+  }
   const floor = floorOf(area, world3d.models.floorPieces);
-  world3d.scene.add(floor);
-  world3d.shown = { area, floor };
+  scene.add(floor);
+  world3d.shown = { area, floor, scenery: null };
+}
+
+/**
+ * Puts the shown Area's Walls and Props in the scene once their pieces are
+ * loaded, asking for the ones that aren't.
+ */
+function showScenery(world3d: World3d) {
+  const { shown, pieces, loading } = world3d;
+  if (!shown || shown.scenery) return;
+  const { area } = shown;
+  const names = new Set([
+    ...wallPlacementsOf(area.walls).map((placement) => placement.piece),
+    ...area.props.map((prop) => prop.piece),
+  ]);
+  const missing = [...names].filter((name) => !pieces[name]);
+  if (missing.length > 0) {
+    const loader = new GLTFLoader();
+    for (const name of missing) {
+      if (loading.has(name)) continue;
+      loading.add(name);
+      loader.loadAsync(`${MODELS}/${name}.glb`).then(
+        (gltf) => {
+          toonShade(gltf.scene);
+          pieces[name] = gltf.scene;
+        },
+        () => {
+          // A piece that won't load is left out; the rest still draws.
+          pieces[name] = new Group();
+        },
+      );
+    }
+    return;
+  }
+  const walls = wallMeshesOf(area.walls, pieces);
+  const props = propMeshesOf(area.props, pieces);
+  world3d.scene.add(walls.group, props);
+  shown.scenery = { walls, props };
 }
 
 /** The size three.js last drew at, reused each frame. */
@@ -130,6 +187,8 @@ export function drawWorld3d(
     renderer.setSize(width, height, false);
   }
   showFloor(world3d, area);
+  showScenery(world3d);
+  world3d.shown?.scenery?.walls.lower(view.loweredWalls);
   const dt =
     world3d.drawnAtMs === null ? 0 : (nowMs - world3d.drawnAtMs) / 1000;
   world3d.drawnAtMs = nowMs;

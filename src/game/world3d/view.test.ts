@@ -173,3 +173,50 @@ describe("the 3D World view of the pointer", () => {
     expect(worldViewOf(world, 0, NO_POINTER).clickMarker).toBeNull();
   });
 });
+
+describe("the 3D World view of the Walls", () => {
+  /** A combat Area with a Wall at each of `cells`; the Hero stands at (10, 10). */
+  function worldWithWalls(cells: [number, number][]) {
+    const world = arenaWith([], { combat: true });
+    world.areas[world.areaName].walls = cells.map(([x, y]) => ({
+      x,
+      y,
+      piece: "dungeon/wall",
+      blocks: true,
+    }));
+    return world;
+  }
+
+  it("lowers the Walls between the camera and the Hero", () => {
+    // The camera looks from tile +x +y, so those are the Walls in front.
+    const world = worldWithWalls([
+      [10, 11],
+      [11, 10],
+      [12, 12],
+    ]);
+
+    expect(worldViewOf(world, 0, NO_POINTER).loweredWalls).toEqual([0, 1, 2]);
+  });
+
+  it("leaves the Walls behind or beside the Hero, and far ahead, standing", () => {
+    const world = worldWithWalls([
+      [10, 9], // behind
+      [8, 8], // behind
+      [10, 10], // the Hero's own cell
+      [17, 10], // 7 tiles ahead: too far
+      [16, 6], // too far sideways
+      [10, 12], // lowered
+    ]);
+
+    expect(worldViewOf(world, 0, NO_POINTER).loweredWalls).toEqual([5]);
+  });
+
+  it("follows the Hero from tile to tile", () => {
+    const world = worldWithWalls([[12, 8]]);
+    expect(worldViewOf(world, 1, NO_POINTER).loweredWalls).toEqual([]);
+
+    world.hero.prevPos = world.hero.pos = { x: 10, y: 8 };
+
+    expect(worldViewOf(world, 1, NO_POINTER).loweredWalls).toEqual([0]);
+  });
+});

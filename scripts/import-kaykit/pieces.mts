@@ -73,6 +73,10 @@ export const PIECES: PieceSource[] = [
   building("church", "blue"),
   building("well", "red"),
   building("blacksmith", "red"),
+  // Joints for the dungeon Wall: the 3D World picks them where Walls meet.
+  wall("dungeon", "wall_corner"),
+  wall("dungeon", "wall_Tsplit"),
+  wall("dungeon", "wall_crossing"),
 ];
 
 /** The piece's name: its pack and its model's file name. */

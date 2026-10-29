@@ -43,15 +43,20 @@ describe("the 3D World's floor", () => {
       ),
     };
 
+    const dirt = piece();
     const floor = floorOf(area, {
       plain: piece(),
       broken: piece(),
-      dirt: piece(),
+      dirt,
     });
 
+    // The floor comes in blocks; all of them are the dirt piece.
     const meshes = floor.children as InstancedMesh[];
-    expect(meshes).toHaveLength(1);
-    expect(meshes[0].count).toBe(base.floor.filter(Boolean).length);
+    const dirtGeometry = (dirt.children[0] as Mesh).geometry;
+    expect(meshes.every((mesh) => mesh.geometry === dirtGeometry)).toBe(true);
+    expect(meshes.reduce((total, mesh) => total + mesh.count, 0)).toBe(
+      base.floor.filter(Boolean).length,
+    );
   });
 
   it("covers the Area the same way every time", () => {

@@ -1,3 +1,4 @@
+import type { Placed } from "../sim/area";
 import { STEP_MS } from "../sim/units";
 import type { Vec } from "../sim/vec";
 import {
@@ -46,7 +47,30 @@ export type WorldView = {
   hero: HeroView;
   clickMarker: ClickMarkerView | null;
   hoverTile: Vec | null;
+  /**
+   * The Area's Walls drawn lowered to stubs, so they don't hide the Hero:
+   * indices into its `walls`, ascending.
+   */
+  loweredWalls: number[];
 };
+
+/**
+ * The Walls between the camera and the Hero: those a few tiles on the
+ * camera's side of the Hero's tile, in a band across the screen. The camera
+ * looks from tile +x +y, so "nearer the camera" is a greater x + y.
+ */
+function loweredWallsOf(walls: Placed[], hero: Vec): number[] {
+  const hx = Math.floor(hero.x) + 0.5;
+  const hy = Math.floor(hero.y) + 0.5;
+  const lowered: number[] = [];
+  walls.forEach((wall, i) => {
+    const dx = wall.x + 0.5 - hx;
+    const dy = wall.y + 0.5 - hy;
+    const nearer = dx + dy;
+    if (nearer > 0.5 && nearer < 7 && Math.abs(dx - dy) < 5) lowered.push(i);
+  });
+  return lowered;
+}
 
 /**
  * What the 3D World shows of `world`, `alpha` (0..1) of the way from the
@@ -59,17 +83,19 @@ export function worldViewOf(
   pointer: PointerState,
 ): WorldView {
   const { hero } = world;
+  const pos = {
+    x: hero.prevPos.x + (hero.pos.x - hero.prevPos.x) * alpha,
+    y: hero.prevPos.y + (hero.pos.y - hero.prevPos.y) * alpha,
+  };
   return {
     hero: {
-      pos: {
-        x: hero.prevPos.x + (hero.pos.x - hero.prevPos.x) * alpha,
-        y: hero.prevPos.y + (hero.pos.y - hero.prevPos.y) * alpha,
-      },
+      pos,
       facing: hero.facing,
       animation: heroAnimationOf(world),
     },
     clickMarker: clickMarkerOf(pointer.click),
     hoverTile: pointer.hoverTile,
+    loweredWalls: loweredWallsOf(world.areas[world.areaName].walls, pos),
   };
 }
 

@@ -12,7 +12,14 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { Area } from "../sim/area";
 import { type Atmosphere, createAtmosphere, driftEmbers } from "./atmosphere";
 import { placeCamera, type WorldCamera } from "./camera";
-import { type FloorPieces, floorOf, PIECE_SCALE } from "./floor";
+import { type ExitMeshes, exitMeshesOf } from "./exitMeshes";
+import {
+  FLOOR_MIX,
+  type FloorPieces,
+  floorOf,
+  PIECE_SCALE,
+  TOWN_FLOOR,
+} from "./floor";
 import { type HeroActor, heroActorOf, poseHero } from "./heroActor";
 import { createLighting, type Lighting, lightScene } from "./lighting";
 import {
@@ -33,9 +40,11 @@ import {
   poseMonster,
 } from "./monsterActor";
 import { MONSTER_LOOKS } from "./monsterLook";
+import { NPC_LOOKS } from "./npcLook";
 import { propMeshesOf, scaleOf } from "./propMeshes";
-import { LOOKS, lookOf, outline, toonShade } from "./toon";
+import { lookOf, outline, toonShade } from "./toon";
 import { type TorchMeshes, torchMeshesOf } from "./torchMeshes";
+import { type TownPortalMeshes, townPortalMeshesOf } from "./townPortalMesh";
 import type { WorldView } from "./view";
 import { type WallMeshes, wallMeshesOf } from "./wallMeshes";
 import { wallPlacementsOf } from "./walls";
@@ -51,12 +60,16 @@ export type World3d = {
   markers: Markers;
   lighting: Lighting;
   atmosphere: Atmosphere;
+  /** The Town Portal ends, drawn as gateways. */
+  townPortals: TownPortalMeshes;
   /** Set once `loadModels` is done. */
   models: Models | null;
   /** The Area whose floor, Walls and Props are in the scene, if any. */
   shown: {
     area: Area;
     floor: Group;
+    /** The ways out of the Area, glowing. */
+    exits: ExitMeshes;
     /** Null until the pieces the Area's Walls and Props use are loaded. */
     scenery: {
       walls: WallMeshes;
@@ -68,6 +81,8 @@ export type World3d = {
   monsters: Map<number, MonsterActor>;
   /** The Minions in the scene, by id. */
   minions: Map<number, MonsterActor>;
+  /** Town's NPCs in the scene, by their place in the Area's NPCs. */
+  npcs: Map<number, MonsterActor>;
   /** The Wall and Prop pieces loaded so far, by piece name. */
   pieces: Record<string, Object3D | undefined>;
   /** The pieces asked for, so each is loaded once. */
@@ -115,6 +130,8 @@ export function createWorld3d(): World3d {
   scene.add(atmosphere.embers);
   const markers = createMarkers();
   scene.add(markers.click, markers.hover);
+  const townPortals = townPortalMeshesOf();
+  scene.add(townPortals.group);
   return {
     renderer,
     scene,
@@ -122,9 +139,11 @@ export function createWorld3d(): World3d {
     markers,
     lighting,
     atmosphere,
+    townPortals,
     models: null,
     monsters: new Map(),
     minions: new Map(),
+    npcs: new Map(),
     shown: null,
     pieces: {},
     loading: new Set(),
@@ -138,33 +157,40 @@ export async function loadModels(world3d: World3d) {
   const load = (path: string) => loader.loadAsync(`${MODELS}/${path}.glb`);
   const monsterFiles = [
     ...new Set(
-      [...Object.values(MONSTER_LOOKS), ...Object.values(MINION_LOOKS)].flatMap(
-        (look) => [look.model, ...look.weapons.map((weapon) => weapon.model)],
-      ),
+      [
+        ...Object.values(MONSTER_LOOKS),
+        ...Object.values(MINION_LOOKS),
+        ...Object.values(NPC_LOOKS),
+      ].flatMap((look) => [
+        look.model,
+        ...look.weapons.map((weapon) => weapon.model),
+      ]),
     ),
   ];
-  const [knight, plain, broken, dirt, ...rest] = await Promise.all([
+  const floorNames = [...Object.values(FLOOR_MIX), ...TOWN_FLOOR];
+  const [knight, ...rest] = await Promise.all([
     load("characters/Knight"),
-    load("dungeon/floor_tile_large"),
-    load("dungeon/floor_tile_small_broken_A"),
-    load("dungeon/floor_dirt_large"),
+    ...floorNames.map(load),
     ...monsterFiles.map((file) => load(`characters/${file}`)),
     ...LOOT_MODELS.map((file) => load(file)),
   ]);
-  const monsterGltfs = rest.slice(0, monsterFiles.length);
-  const lootGltfs = rest.slice(monsterFiles.length);
+  const floorGltfs = rest.slice(0, floorNames.length);
+  const monsterGltfs = rest.slice(
+    floorNames.length,
+    floorNames.length + monsterFiles.length,
+  );
+  const lootGltfs = rest.slice(floorNames.length + monsterFiles.length);
   const monsters: MonsterModels = {};
   monsterFiles.forEach((file, i) => {
     monsters[file] = monsterGltfs[i];
     // A draw call for a body rather than for each limb.
     mergeSkinned(monsterGltfs[i].scene);
   });
-  const floorPieces = {
-    plain: plain.scene,
-    broken: broken.scene,
-    dirt: dirt.scene,
-  };
-  for (const piece of Object.values(floorPieces)) toonShade(piece, LOOKS.stone);
+  const floorPieces: FloorPieces = {};
+  floorNames.forEach((name, i) => {
+    floorPieces[name] = floorGltfs[i].scene;
+    toonShade(floorGltfs[i].scene, lookOf(name));
+  });
   const hero = heroActorOf(knight);
   world3d.scene.add(hero.root);
   const loot: Record<string, Instances> = {};
@@ -185,7 +211,7 @@ function showFloor(world3d: World3d, area: Area) {
   if (world3d.shown?.area === area || !world3d.models) return;
   const { shown, scene } = world3d;
   if (shown) {
-    scene.remove(shown.floor);
+    scene.remove(shown.floor, shown.exits.group);
     if (shown.scenery) {
       scene.remove(
         shown.scenery.walls.group,
@@ -195,8 +221,17 @@ function showFloor(world3d: World3d, area: Area) {
     }
   }
   const floor = floorOf(area, world3d.models.floorPieces);
-  scene.add(floor);
-  world3d.shown = { area, floor, scenery: null };
+  const exits = exitMeshesOf(
+    area.exits.map(({ x, y, width, height, area: to }) => ({
+      x,
+      y,
+      width,
+      height,
+      to,
+    })),
+  );
+  scene.add(floor, exits.group);
+  world3d.shown = { area, floor, exits, scenery: null };
 }
 
 /**
@@ -301,6 +336,32 @@ function poseMinions(world3d: World3d, view: WorldView, dt: number) {
   }
 }
 
+/**
+ * Puts an NPC actor in the scene for each of Town's NPCs in `view`, posed as
+ * it says, and takes away those of an Area left behind.
+ */
+function poseNpcs(world3d: World3d, view: WorldView, dt: number) {
+  const { models, npcs, scene } = world3d;
+  if (!models) return;
+  const seen = new Set<number>();
+  for (const npc of view.npcs) {
+    seen.add(npc.id);
+    let actor = npcs.get(npc.id);
+    if (!actor) {
+      actor = monsterActorOf(NPC_LOOKS[npc.name], models.monsters);
+      npcs.set(npc.id, actor);
+      scene.add(actor.root);
+    }
+    poseMonster(actor, npc, dt);
+  }
+  for (const [id, actor] of npcs) {
+    if (seen.has(id)) continue;
+    scene.remove(actor.root);
+    for (const material of actor.materials) material.dispose();
+    npcs.delete(id);
+  }
+}
+
 /** Puts the Ground Items on the floor and the Projectiles in the air. */
 function showLoot(models: Models, view: WorldView) {
   const placed: Record<string, Placement[]> = {};
@@ -355,10 +416,13 @@ export function drawWorld3d(
   if (world3d.models) poseHero(world3d.models.hero, view.hero, dt);
   poseMonsters(world3d, view, dt);
   poseMinions(world3d, view, dt);
+  poseNpcs(world3d, view, dt);
   if (world3d.models) showLoot(world3d.models, view);
   const seconds = nowMs / 1000;
   world3d.shown?.scenery?.torches.show(view.torches, seconds);
-  lightScene(world3d.lighting, view, seconds);
+  lightScene(world3d.lighting, view, seconds, scene);
+  world3d.townPortals.show(view.townPortals, seconds);
+  world3d.shown?.exits.update(seconds);
   driftEmbers(world3d.atmosphere, view.hero.pos, dt, view.combat);
   showMarkers(world3d.markers, view);
   placeCamera(world3d.camera, camera);

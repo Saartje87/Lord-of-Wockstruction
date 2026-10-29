@@ -207,9 +207,9 @@ import {
 import { tooltipRect } from "./tooltip";
 import { touchControlsLayout, touchControlsShown } from "./touchControls";
 import {
+  shownTownPortals,
   townPortalCloseScale,
   townPortalGlow,
-  townPortalOpenScale,
   townPortalPixels,
   townPortalSparks,
 } from "./townPortalLook";
@@ -848,6 +848,15 @@ export function createRenderer(
   let townPortalOpenedAtMs: number | null = null;
   /** Town Portal ends shrinking away, each in its Area from when it closed. */
   const closingTownPortals: { area: string; pos: Vec; atMs: number }[] = [];
+  /** The Town Portal ends to draw in the active Area at `nowMs`. */
+  const portalsShown = (world: World, nowMs: number) =>
+    shownTownPortals({
+      end: townPortalIn(world),
+      openedAtMs: townPortalOpenedAtMs,
+      closing: closingTownPortals,
+      area: world.areaName,
+      nowMs,
+    });
   /** Corpses bursting in the active Area, each over its radius (tiles). */
   const bursts: { pos: Vec; radius: number; atMs: number }[] = [];
   /** Curses cast in the active Area, each over its radius (tiles). */
@@ -1090,7 +1099,7 @@ export function createRenderer(
      * What the 3D World shows that lasts milliseconds: each hit Monster's
      * flash and how long ago each killed Monster died.
      */
-    effectsAt(nowMs: number): Effects {
+    effectsAt(nowMs: number, world: World): Effects {
       const flashes = new Map<MonsterId, number>();
       const deadForMs = new Map<MonsterId, number>();
       for (const [id, view] of monsters) {
@@ -1098,7 +1107,7 @@ export function createRenderer(
         if (left > 0) flashes.set(id, FLASH_STRENGTH * left);
         if (view.diedAtMs !== null) deadForMs.set(id, nowMs - view.diedAtMs);
       }
-      return { flashes, deadForMs };
+      return { flashes, deadForMs, portals: portalsShown(world, nowMs) };
     },
 
     /**
@@ -1359,30 +1368,10 @@ export function createRenderer(
       }
 
       // The open end bursting open or standing, then any shrinking away.
-      const shownTownPortals: { pos: Vec; scale: number; msOpen: number }[] =
-        [];
-      const townPortalEnd = townPortalIn(world);
-      if (townPortalEnd) {
-        const msOpen =
-          townPortalOpenedAtMs === null
-            ? Number.POSITIVE_INFINITY
-            : nowMs - townPortalOpenedAtMs;
-        shownTownPortals.push({
-          pos: townPortalEnd,
-          scale: townPortalOpenScale(msOpen),
-          msOpen,
-        });
-      }
+      const shownTownPortals = portalsShown(world, nowMs);
       for (let i = closingTownPortals.length - 1; i >= 0; i--) {
-        const closing = closingTownPortals[i];
-        const scale = townPortalCloseScale(nowMs - closing.atMs);
-        if (scale === 0) closingTownPortals.splice(i, 1);
-        else if (closing.area === world.areaName) {
-          shownTownPortals.push({
-            pos: closing.pos,
-            scale,
-            msOpen: Number.POSITIVE_INFINITY,
-          });
+        if (townPortalCloseScale(nowMs - closingTownPortals[i].atMs) === 0) {
+          closingTownPortals.splice(i, 1);
         }
       }
       while (townPortals.length < shownTownPortals.length) {

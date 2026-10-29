@@ -10,7 +10,11 @@ const NO_POINTER: PointerState = {
   click: null,
   highlight: null,
 };
-const NO_EFFECTS: Effects = { flashes: new Map(), deadForMs: new Map() };
+const NO_EFFECTS: Effects = {
+  flashes: new Map(),
+  deadForMs: new Map(),
+  portals: [],
+};
 
 const withSkeleton = () => {
   const world = arenaWith([{ x: 12, y: 10 }], { combat: true });

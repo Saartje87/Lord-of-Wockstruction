@@ -1,4 +1,5 @@
 import type { CharacterId } from "../render/hover";
+import type { ShownTownPortal } from "../render/townPortalLook";
 import { type Area, type Placed, TOWN } from "../sim/area";
 import type { ItemId } from "../sim/inventory";
 import { minionRecoveryProgress, minionWindUpProgress } from "../sim/minions";
@@ -85,6 +86,31 @@ export type MinionView = {
   highlighted: boolean;
 };
 
+/** One of Town's NPCs as the 3D World shows it. */
+export type NpcView = {
+  /** Its place in the Area's NPCs, which keeps its actor. */
+  id: number;
+  name: string;
+  /** In tile units. */
+  pos: Vec;
+  /** Radians in tile space: towards a Hero who is near, else the camera. */
+  facing: number;
+  animation: MonsterAnimation;
+  highlighted: false;
+};
+
+/** An Exit out of the Area: a zone of tiles, leading to the Area `to`. */
+export type ExitView = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  to: string;
+};
+
+/** A lantern standing in Town, which gives light like a torch. */
+export type Lamp = { pos: Vec };
+
 /**
  * What the 3D World shows that the World doesn't hold, because it lasts
  * milliseconds rather than steps: kept by the renderer from the events.
@@ -94,6 +120,8 @@ export type Effects = {
   flashes: ReadonlyMap<MonsterId, number>;
   /** How long ago (ms) each Monster just killed died; others lie still. */
   deadForMs: ReadonlyMap<MonsterId, number>;
+  /** The Town Portal ends of the Area, bursting open, standing or closing. */
+  portals: ShownTownPortal[];
 };
 
 /** A Projectile in flight as the 3D World shows it. */
@@ -128,6 +156,12 @@ export type WorldView = {
   monsters: MonsterView[];
   /** The Hero's living Minions. */
   minions: MinionView[];
+  /** The Area's NPCs: Town's. */
+  npcs: NpcView[];
+  /** The Town Portal ends in the Area. */
+  townPortals: ShownTownPortal[];
+  /** The Exits out of the Area. */
+  exits: ExitView[];
   projectiles: ProjectileView[];
   groundItems: GroundItemView[];
   clickMarker: ClickMarkerView | null;
@@ -142,12 +176,36 @@ export type WorldView = {
    * lowered; the scene gives its light to the lit ones nearest the Hero.
    */
   torches: (Torch & { lit: boolean })[];
+  /** The Area's standing lanterns, each lit all the time. */
+  lamps: Lamp[];
   /** Whether the Area is a Combat Area, which has embers and a vignette. */
   combat: boolean;
 };
 
 /** An Area's torches, worked out once. */
 const torchCache = new WeakMap<Area, Torch[]>();
+
+/** The piece of Town's standing lanterns. */
+const LANTERN_PIECE = "halloween/lantern_standing";
+
+/** How close the Hero must be (tiles) for an NPC to turn to them. */
+const NPC_NOTICE = 4;
+
+/** The way an NPC faces by default: down the camera's line of sight. */
+const TOWARDS_CAMERA = Math.PI / 4;
+
+const lampCache = new WeakMap<Area, Lamp[]>();
+
+function lampsIn(area: Area): Lamp[] {
+  let lamps = lampCache.get(area);
+  if (!lamps) {
+    lamps = area.props
+      .filter((prop) => prop.piece === LANTERN_PIECE)
+      .map((prop) => ({ pos: { x: prop.x + 0.5, y: prop.y + 0.5 } }));
+    lampCache.set(area, lamps);
+  }
+  return lamps;
+}
 
 function torchesIn(area: Area): Torch[] {
   let torches = torchCache.get(area);
@@ -185,7 +243,11 @@ export function worldViewOf(
   world: World,
   alpha: number,
   pointer: PointerState,
-  effects: Effects = { flashes: new Map(), deadForMs: new Map() },
+  effects: Effects = {
+    flashes: new Map(),
+    deadForMs: new Map(),
+    portals: [],
+  },
 ): WorldView {
   const { hero } = world;
   const pos = {
@@ -220,6 +282,28 @@ export function worldViewOf(
     minions: world.minions.map((minion) =>
       minionViewOf(world, minion, alpha, pointer.highlight),
     ),
+    npcs: area.npcs.map((npc, id): NpcView => {
+      const apart = Math.hypot(pos.x - npc.pos.x, pos.y - npc.pos.y);
+      return {
+        id,
+        name: npc.name,
+        pos: npc.pos,
+        facing:
+          apart <= NPC_NOTICE
+            ? Math.atan2(pos.y - npc.pos.y, pos.x - npc.pos.x)
+            : TOWARDS_CAMERA,
+        animation: { clip: "idle", seconds: (world.tick * STEP_MS) / 1000 },
+        highlighted: false,
+      };
+    }),
+    townPortals: effects.portals,
+    exits: area.exits.map(({ x, y, width, height, area: to }) => ({
+      x,
+      y,
+      width,
+      height,
+      to,
+    })),
     projectiles: world.projectiles.map((projectile) => ({
       kind: projectile.kind,
       pos: {
@@ -244,6 +328,7 @@ export function worldViewOf(
       ...torch,
       lit: !loweredWalls.includes(torch.wall),
     })),
+    lamps: lampsIn(area),
     combat: world.areaName !== TOWN,
   };
 }

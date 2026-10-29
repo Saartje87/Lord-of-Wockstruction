@@ -170,3 +170,38 @@ export function townPortalGlow(scale: number): PortalGlowRing[] {
     };
   });
 }
+
+/** A Town Portal end drawn, at `scale` of its full size, `msOpen` after opening. */
+export type ShownTownPortal = { pos: Vec; scale: number; msOpen: number };
+
+/**
+ * The Town Portal ends to draw in `area` at `nowMs`: the open end
+ * (`openedAtMs` is when it burst open, null for one already standing),
+ * then any `closing` ends of the Area still shrinking away.
+ */
+export function shownTownPortals(input: {
+  end: Vec | null;
+  openedAtMs: number | null;
+  closing: { area: string; pos: Vec; atMs: number }[];
+  area: string;
+  nowMs: number;
+}): ShownTownPortal[] {
+  const { end, openedAtMs, closing, area, nowMs } = input;
+  const shown: ShownTownPortal[] = [];
+  if (end) {
+    const msOpen =
+      openedAtMs === null ? Number.POSITIVE_INFINITY : nowMs - openedAtMs;
+    shown.push({ pos: end, scale: townPortalOpenScale(msOpen), msOpen });
+  }
+  for (const shrinking of closing) {
+    const scale = townPortalCloseScale(nowMs - shrinking.atMs);
+    if (scale > 0 && shrinking.area === area) {
+      shown.push({
+        pos: shrinking.pos,
+        scale,
+        msOpen: Number.POSITIVE_INFINITY,
+      });
+    }
+  }
+  return shown;
+}

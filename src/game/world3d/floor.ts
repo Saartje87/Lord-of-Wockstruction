@@ -1,4 +1,5 @@
 import {
+  Box3,
   Group,
   InstancedMesh,
   Matrix4,
@@ -18,25 +19,33 @@ export const PIECE_SCALE = 0.25;
 /** The floor is drawn in blocks this many tiles square, culled by block. */
 const CHUNK = 12;
 
-/** The floor pieces an Area's floor is made of. */
-export type FloorPieces = {
-  /** The plain 4×4 piece most cells get. */
-  plain: Object3D;
-  /** A cracked 2×2 piece, scaled up to a tile. */
-  broken: Object3D;
-  /** A 4×4 piece of bare dirt. */
-  dirt: Object3D;
-};
+/** The loaded floor pieces, by KayKit piece name (`dungeon/floor_tile_large`). */
+export type FloorPieces = Record<string, Object3D>;
 
 /**
- * Which of the loaded floor pieces draws each KayKit floor piece an Area
- * names. Other floor pieces, and Areas that name none, get a mix.
+ * The dungeon pieces an Area gets a mix of when its floor doesn't name them:
+ * the plain 4×4 piece most cells get, a cracked one and one of bare dirt.
  */
-const FLOOR_KIND: Record<string, keyof FloorPieces> = {
-  "dungeon/floor_tile_large": "plain",
-  "dungeon/floor_tile_small_broken_A": "broken",
-  "dungeon/floor_dirt_large": "dirt",
+export const FLOOR_MIX = {
+  plain: "dungeon/floor_tile_large",
+  broken: "dungeon/floor_tile_small_broken_A",
+  dirt: "dungeon/floor_dirt_large",
 };
+
+/** Town's floor: bare Halloween dirt, crossed by four kinds of path. */
+export const TOWN_FLOOR = [
+  "halloween/floor_dirt",
+  "halloween/path_A",
+  "halloween/path_B",
+  "halloween/path_C",
+  "halloween/path_D",
+];
+
+/** The scale at which `piece` covers one tile: pieces differ in size. */
+function fitOf(piece: Object3D): number {
+  const size = new Box3().setFromObject(piece).getSize(new Vector3());
+  return 1 / Math.max(size.x, size.z);
+}
 
 /** A steady 0..1 for a cell and a salt, so an Area always looks the same. */
 export function hash(x: number, y: number, salt: number): number {
@@ -51,34 +60,43 @@ export function hash(x: number, y: number, salt: number): number {
  * per cell.
  */
 export function floorOf(area: Area, pieces: FloorPieces): Group {
-  const cells: Record<keyof FloorPieces, Matrix4[]> = {
-    plain: [],
-    broken: [],
-    dirt: [],
-  };
+  const cells = new Map<string, Matrix4[]>();
+  const fits = new Map<string, number>();
   const up = new Vector3(0, 1, 0);
   for (let y = 0; y < area.height; y++) {
     for (let x = 0; x < area.width; x++) {
       if (!area.floor[y * area.width + x]) continue;
-      const named = FLOOR_KIND[area.floorPieces[y * area.width + x] ?? ""];
+      const named = area.floorPieces[y * area.width + x] ?? "";
       const pick = hash(x, y, 1);
-      const kind =
-        named ?? (pick < 0.08 ? "broken" : pick < 0.16 ? "dirt" : "plain");
+      const name =
+        named && pieces[named]
+          ? named
+          : pick < 0.08
+            ? FLOOR_MIX.broken
+            : pick < 0.16
+              ? FLOOR_MIX.dirt
+              : FLOOR_MIX.plain;
+      if (!pieces[name]) continue;
+      let scale = fits.get(name);
+      if (scale === undefined) {
+        scale = fitOf(pieces[name]);
+        fits.set(name, scale);
+      }
       const turn = Math.floor(hash(x, y, 2) * 4) * (Math.PI / 2);
-      // The broken piece is 2×2 natively, so it's drawn twice the scale.
-      const scale = kind === "broken" ? PIECE_SCALE * 2 : PIECE_SCALE;
-      cells[kind].push(
+      const placements = cells.get(name) ?? [];
+      placements.push(
         new Matrix4().compose(
           new Vector3(x + 0.5, 0, y + 0.5),
           new Quaternion().setFromAxisAngle(up, turn),
           new Vector3(scale, scale, scale),
         ),
       );
+      cells.set(name, placements);
     }
   }
   const floor = new Group();
-  for (const kind of Object.keys(cells) as (keyof FloorPieces)[]) {
-    floor.add(...instanced(pieces[kind], cells[kind]));
+  for (const [name, placements] of cells) {
+    floor.add(...instanced(pieces[name], placements));
   }
   return floor;
 }

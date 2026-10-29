@@ -145,6 +145,25 @@ const GOLEM = {
 };
 
 /**
+ * Town's NPCs: Series 6 characters on `Rig_Medium`, which has the free rig's
+ * deform bones under the same names. They come with no clips; the idles come
+ * from the pack's `Rig_Medium` files, and the retarget drops any track whose
+ * joint the character lacks (the free rig's IK bones).
+ */
+const NPCS = {
+  files: [
+    "12 - June 2026 - Farmers/characters/Farmer_A",
+    "12 - June 2026 - Farmers/characters/Farmer_B",
+    "1 - July 2025 - Lorekeeper/characters/Lorekeeper",
+    "3 - September 2025 - Cleric/characters/Cleric",
+    "8 - February 2026 - Hoarder/characters/Hoarder",
+  ],
+  rigClips: {
+    "Animations/gltf/Rig_Medium/Rig_Medium_General.glb": ["Idle_A", "Idle_B"],
+  },
+};
+
+/**
  * Ground Items' models, written to `public/assets/models/loot/`: Adventurers
  * weapons and shields (glTF with a texture each), an arrow and Dungeon
  * Remastered's bottles. Item kinds without one get a stand-in drawn in code.
@@ -293,8 +312,17 @@ if (existsSync(MYSTERY.dir)) {
       })),
     ],
   });
+  for (const path of NPCS.files) {
+    await importRiggedCharacter({
+      from: `${MYSTERY.dir}/${path}.glb`,
+      to: `${out.characters}/${path.split("/").pop()}.glb`,
+      clips: Object.entries(NPCS.rigClips).flatMap(([file, names]) =>
+        names.map((name) => ({ from: `${MYSTERY.dir}/${file}`, name })),
+      ),
+    });
+  }
 } else {
-  console.log(`No ${MYSTERY.dir}: keeping the committed ${GOLEM.file}.glb`);
+  console.log(`No ${MYSTERY.dir}: keeping the committed models of the pack`);
 }
 for (const source of PIECES) {
   const [from] = filesOf(source);
@@ -335,6 +363,10 @@ writeFileSync(
 const imported = [
   `| \`${knightPath}\` | the Hero, and the Golem's attack |`,
   `| ${MYSTERY.name}: \`${GOLEM.path.split("/").pop()}\` | the Golem |`,
+  ...NPCS.files.map(
+    (path) =>
+      `| ${MYSTERY.name}: \`${path.split("/").pop()}.glb\` | Town's NPCs |`,
+  ),
   ...EXTRA_DUNGEON.map(
     (name) =>
       `| \`${PACKS.dungeon.root}/Assets/gltf/${name}.gltf.glb\` | Wall torches |`,
@@ -375,7 +407,8 @@ ${Object.values(PACKS)
 **Changes:** the Knight is cut down to the animations Wiablo uses and to
 the 1-handed sword and the round shield. The Monstrosity gets the
 \`Rig_Large\` animations Wiablo uses and the Knight's 2-handed chop,
-retargeted onto its rig. Halloween Bits and Medieval Hexagon
+retargeted onto its rig. Town's NPCs get the \`Rig_Medium\` idles, with no
+animation track for a bone they lack. Halloween Bits and Medieval Hexagon
 pieces, which come as glTF with a binary and a texture, are packed into one
 glb each. Nothing is recoloured.
 

@@ -28,6 +28,8 @@ export type Look = { saturation: number; tint: number };
 export const LOOKS = {
   /** Floors and Walls: cold, dark, almost grey stone. */
   stone: { saturation: 0.18, tint: 0x7e8cba },
+  /** Town's dirt and paths: dusk light on earth, with its colour left. */
+  dusk: { saturation: 0.6, tint: 0xbcc0e4 },
   /** Props: a little of their own colour left, still cold. */
   prop: { saturation: 0.4, tint: 0x9aa4c8 },
   /** Characters keep their colours, which carry who they are. */
@@ -42,6 +44,9 @@ export const LOOKS = {
 export function lookOf(piece: string): Look {
   const name = piece.slice(piece.indexOf("/") + 1);
   if (/torch|candle|lantern|pumpkin/.test(name)) return LOOKS.warm;
+  if (piece.startsWith("halloween/") && /^(floor|path)/.test(name)) {
+    return LOOKS.dusk;
+  }
   if (/^(floor|wall|pillar|column|path|fence|rubble)/.test(name)) {
     return LOOKS.stone;
   }

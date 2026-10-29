@@ -9,7 +9,7 @@ import {
 } from "three";
 import { describe, expect, it } from "vitest";
 import type { Placed } from "../sim/area";
-import { propMeshesOf } from "./propMeshes";
+import { propMeshesOf, scaleOf } from "./propMeshes";
 
 function piece() {
   const group = new Group();
@@ -22,6 +22,42 @@ const propAt = (x: number, y: number, name: string): Placed => ({
   y,
   piece: name,
   blocks: true,
+});
+
+describe("the size of Town's Props", () => {
+  // The Hero stands 0.9 of a tile tall.
+  const HERO = 0.9;
+  const heights: Record<string, number> = {
+    "halloween/tree_dead_large": 4.8,
+    "halloween/lantern_standing": 0.93,
+    "hexagon/building_tavern_red": 1.4,
+    "hexagon/building_home_B_blue": 1.28,
+    "halloween/crypt": 8,
+  };
+
+  it("draws trees, houses and the crypt taller than the Hero", () => {
+    for (const piece of [
+      "halloween/tree_dead_large",
+      "hexagon/building_tavern_red",
+      "hexagon/building_home_B_blue",
+      "halloween/crypt",
+    ]) {
+      expect(heights[piece] * scaleOf(piece)).toBeGreaterThan(HERO * 1.8);
+    }
+  });
+
+  it("draws a standing lantern about as tall as the Hero's waist", () => {
+    const lantern =
+      heights["halloween/lantern_standing"] *
+      scaleOf("halloween/lantern_standing");
+    expect(lantern).toBeGreaterThan(HERO * 0.5);
+    expect(lantern).toBeLessThan(HERO * 1.1);
+  });
+
+  it("draws a house about two tiles wide", () => {
+    expect(0.88 * scaleOf("hexagon/building_home_B_blue")).toBeGreaterThan(1.6);
+    expect(0.88 * scaleOf("hexagon/building_home_B_blue")).toBeLessThan(2.4);
+  });
 });
 
 describe("the 3D World's Props", () => {

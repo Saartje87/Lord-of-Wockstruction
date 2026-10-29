@@ -173,7 +173,8 @@ licence (CC0). Crediting him is not required, and we do.
 **Changes:** the Knight is cut down to the animations Wiablo uses and to
 the 1-handed sword and the round shield. The Monstrosity gets the
 `Rig_Large` animations Wiablo uses and the Knight's 2-handed chop,
-retargeted onto its rig. Halloween Bits and Medieval Hexagon
+retargeted onto its rig. Town's NPCs get the `Rig_Medium` idles, with no
+animation track for a bone they lack. Halloween Bits and Medieval Hexagon
 pieces, which come as glTF with a binary and a texture, are packed into one
 glb each. Nothing is recoloured.
 
@@ -183,6 +184,11 @@ glb each. Nothing is recoloured.
 |---|---|
 | `addons/kaykit_character_pack_adventures/Characters/gltf/Knight.glb` | the Hero, and the Golem's attack |
 | Mystery Monthly Series 6: `Monstrosity.glb` | the Golem |
+| Mystery Monthly Series 6: `Farmer_A.glb` | Town's NPCs |
+| Mystery Monthly Series 6: `Farmer_B.glb` | Town's NPCs |
+| Mystery Monthly Series 6: `Lorekeeper.glb` | Town's NPCs |
+| Mystery Monthly Series 6: `Cleric.glb` | Town's NPCs |
+| Mystery Monthly Series 6: `Hoarder.glb` | Town's NPCs |
 | `addons/kaykit_dungeon_remastered/Assets/gltf/torch_mounted.gltf.glb` | Wall torches |
 | `addons/kaykit_character_pack_adventures/Assets/gltf/sword_1handed.gltf` | Ground Items and Arrows |
 | `addons/kaykit_character_pack_adventures/Assets/gltf/axe_1handed.gltf` | Ground Items and Arrows |

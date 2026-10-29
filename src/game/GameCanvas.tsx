@@ -653,7 +653,7 @@ export default function GameCanvas() {
               world,
               alpha,
               pointerState,
-              renderer.effectsAt(now),
+              renderer.effectsAt(now, world),
             ),
             camera: worldCamera,
             nowMs: now,

@@ -11,14 +11,22 @@ import type { Placed } from "../sim/area";
 import { hash, PIECE_SCALE } from "./floor";
 
 /**
- * Pieces drawn at other than tile scale (a multiple of `PIECE_SCALE`):
- * Dungeon Remastered's crates and barrels are a little small next to a
- * Knight, and Medieval Hexagon's buildings come at about a quarter of the
- * size of the other packs.
+ * Pieces drawn at other than tile scale (a multiple of `PIECE_SCALE`): KayKit's
+ * packs are drawn to different sizes, and next to a Knight 0.9 of a tile tall
+ * some of Town's pieces want growing: Halloween Bits' trees, lanterns and
+ * graves, and Medieval Hexagon's houses, which come at about a quarter of
+ * the size of the other packs.
  */
 export function scaleOf(piece: string): number {
-  if (piece.startsWith("hexagon/")) return 1.25;
+  if (piece === "hexagon/building_well_red") return 1.6;
+  if (piece.startsWith("hexagon/")) return 2.2;
   if (/barrel|chest|crates/.test(piece)) return PIECE_SCALE * 1.2;
+  if (/tree_dead/.test(piece)) return PIECE_SCALE * 2;
+  if (piece === "halloween/lantern_standing") return PIECE_SCALE * 2.4;
+  if (piece === "halloween/crypt") return PIECE_SCALE * 1.2;
+  if (/grave|gravestone|gravemarker/.test(piece)) return PIECE_SCALE * 1.5;
+  if (/pumpkin/.test(piece)) return PIECE_SCALE * 2;
+  if (/skull|bone/.test(piece)) return PIECE_SCALE * 1.2;
   return PIECE_SCALE;
 }
 

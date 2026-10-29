@@ -17,10 +17,11 @@ describe("devOptionsOf", () => {
     expect(devOptionsOf("?area=crypt&entry=start", true).stats).toBe(false);
   });
 
-  it("ignores both outside dev builds", () => {
-    expect(devOptionsOf("?renderer=3d&stats", false)).toEqual({
-      world: "2d",
-      stats: false,
-    });
+  it("draws the 3D World for ?renderer=3d in production builds too", () => {
+    expect(devOptionsOf("?renderer=3d", false).world).toBe("3d");
+  });
+
+  it("shows no stats panel outside dev builds", () => {
+    expect(devOptionsOf("?renderer=3d&stats", false).stats).toBe(false);
   });
 });

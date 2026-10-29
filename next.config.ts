@@ -3,8 +3,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   /* config options here */
   env: {
-    // Vercel preview builds honour the dev options too (see `devOptionsOf`),
-    // so the 3D World and `?stats` can be tried on a phone.
+    // Vercel preview builds honour `?stats` too (see `devOptionsOf`), so the
+    // 60 fps rule can be checked on a phone.
     WIABLO_PREVIEW: process.env.VERCEL_ENV === "preview" ? "true" : "false",
   },
   cacheComponents: true,

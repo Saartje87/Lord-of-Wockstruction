@@ -111,7 +111,8 @@ export default function GameCanvas() {
     if (!container) return;
 
     const app = new Application();
-    // Dev builds and Vercel previews can draw the 3D World and show stats.
+    // Any build can draw the 3D World; dev builds and Vercel previews can
+    // also show stats.
     const dev = devOptionsOf(
       window.location.search,
       process.env.NODE_ENV === "development" ||

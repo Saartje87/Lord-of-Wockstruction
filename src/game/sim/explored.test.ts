@@ -221,7 +221,7 @@ describe("Explored", () => {
     expect(seen(w, 17, 3)).toBe(true);
   });
 
-  it("is forgotten on taking an Exit, the Area rebuilt fresh", () => {
+  it("is kept on taking an Exit and coming back", () => {
     const w = inCave();
     walkTo(w, { x: 12.5, y: 3.5 });
     expect(seen(w, 12, 3)).toBe(true);
@@ -231,7 +231,7 @@ describe("Explored", () => {
     leave(w, { x: 7.5, y: 1.5 });
 
     expect(w.areaName).toBe("cave");
-    expect(seen(w, 12, 3)).toBe(false);
+    expect(seen(w, 12, 3)).toBe(true);
     expect(seen(w, 1, 3)).toBe(true);
   });
 
@@ -268,7 +268,7 @@ describe("Explored", () => {
     expect(seen(w, 1, 3)).toBe(true);
   });
 
-  it("is forgotten once the Town Portal closes", () => {
+  it("is kept once the Town Portal has closed", () => {
     const w = inCave();
     walkTo(w, { x: 12.5, y: 3.5 });
     // Facing north, so the Town Portal opens off the way to the Exit.
@@ -282,7 +282,7 @@ describe("Explored", () => {
     leave(w, { x: 0.5, y: 0.5 });
 
     expect(w.areaName).toBe("cave");
-    expect(seen(w, 12, 3)).toBe(false);
+    expect(seen(w, 12, 3)).toBe(true);
   });
 
   it("is never kept by the Save", () => {

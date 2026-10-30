@@ -329,14 +329,13 @@ export type Death = {
 
 /**
  * The Hero's one Town Portal: its end in Combat Area `area` stands at `pos`,
- * its Town end at Town's Town Portal spot. `area` is the Kept Area: `kept`
- * holds what it held as the Hero left it, while they are away.
+ * its Town end at Town's Town Portal spot.
  */
-export type TownPortal = { area: string; pos: Vec; kept: KeptArea | null };
+export type TownPortal = { area: string; pos: Vec };
 
 /**
- * What the Kept Area held as the Hero left it, set aside unchanged: nothing
- * in it is stepped until they arrive there again (ADR 0003).
+ * What an Area held as the Hero left it, set aside unchanged: nothing in it
+ * is stepped until they arrive there again (ADR 0005).
  */
 export type KeptArea = Pick<
   World,
@@ -355,8 +354,7 @@ export type Corpse = {
 };
 
 /**
- * An Item lying in the active Area, until picked up or the Hero leaves, but
- * for the Kept Area.
+ * An Item lying in the active Area, until picked up or the Session ends.
  */
 export type GroundItem = { item: Item; pos: Vec };
 
@@ -395,6 +393,11 @@ export type World = {
    * The Hero's living Minions, oldest first; never kept by the Save.
    */
   minions: Minion[];
+  /**
+   * Every Area the Hero has left this Session, by name, as they left it;
+   * never kept by the Save. The active Area is not in it.
+   */
+  keptAreas: Record<string, KeptArea>;
   /** The Hero's Town Portal, if open; never kept by the Save. */
   townPortal: TownPortal | null;
   /** The id the next Monster gets. */
@@ -738,6 +741,7 @@ export function createWorld(options: {
     // All of Town is Explored from the start.
     explored: new Array(town.width * town.height).fill(true),
     minions: [],
+    keptAreas: {},
     townPortal: null,
     nextMonsterId: 1,
     nextMinionId: 1,
@@ -1027,6 +1031,12 @@ function startAreaChange(
   events: SimEvent[],
 ) {
   world.areaChange = { area, entry, elapsed: 0 };
+  // Monsters in pursuit give up, as on Death, and head home once stepped.
+  for (const monster of world.monsters) {
+    if (["chase", "windup", "recover"].includes(monster.state)) {
+      sendHome(monster);
+    }
+  }
   // A hit landed on this step stops for the fade instead.
   world.hitstop = 0;
   stopHero(world.hero);
@@ -1053,9 +1063,9 @@ function stepAreaChange(world: World, change: AreaChange, events: SimEvent[]) {
 }
 
 /**
- * Makes the target Area the active one, fresh from its definition: its
- * Monsters back at their spawns, and no Projectiles or Corpses. The Kept
- * Area instead comes back just as the Hero left it, and leaving it, by any
+ * Makes the target Area the active one: fresh from its definition on the
+ * first arrival this Session (its Monsters at their spawns, no Projectiles
+ * or Corpses), else just as the Hero left it. Leaving an Area, by any
  * route, sets aside what it holds.
  *
  * The Hero carries over to the target Entry, facing away from the Area's
@@ -1081,18 +1091,17 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
     hero.combat = 0;
   }
   world.death = null;
-  const { townPortal } = world;
-  if (townPortal?.area === world.areaName) {
-    const { monsters, projectiles, corpses, groundItems, explored } = world;
-    townPortal.kept = { monsters, projectiles, corpses, groundItems, explored };
-  }
+  const { monsters, projectiles, corpses, groundItems, explored } = world;
+  world.keptAreas[world.areaName] = {
+    monsters,
+    projectiles,
+    corpses,
+    groundItems,
+    explored,
+  };
   world.areaName = area.name;
-  let kept: KeptArea | null = null;
-  if (townPortal?.area === area.name) {
-    kept = townPortal.kept;
-    // Back in the Kept Area, it holds its own state again.
-    townPortal.kept = null;
-  }
+  const kept = world.keptAreas[area.name];
+  delete world.keptAreas[area.name];
   world.monsters = kept?.monsters ?? [];
   world.projectiles = kept?.projectiles ?? [];
   world.corpses = kept?.corpses ?? [];
@@ -1227,7 +1236,7 @@ function openTownPortal(world: World, events: SimEvent[]) {
   const at = summonPoint(area, ahead, heroTuning.radius);
   if (!at) return;
   closeTownPortal(world, events);
-  world.townPortal = { area: area.name, pos: at, kept: null };
+  world.townPortal = { area: area.name, pos: at };
   events.push({ type: "TownPortalOpened", area: area.name, pos: { ...at } });
 }
 

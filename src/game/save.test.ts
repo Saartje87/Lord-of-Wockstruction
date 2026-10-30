@@ -269,10 +269,10 @@ describe("stored text", () => {
 
   it("loads a Save from before Weaken with Weaken at Skill Level 0", () => {
     const loaded = parseSave(
-      v10({ skillPoints: 0, skillLevels: { amplifyDamage: 2 } }),
+      v10({ skillPoints: 0, skillLevels: { golem: 1 } }),
     );
 
-    expect(loaded?.progress.skillLevels.amplifyDamage).toBe(2);
+    expect(loaded?.progress.skillLevels.golem).toBe(1);
     expect(loaded?.progress.skillLevels.weaken).toBe(0);
   });
 

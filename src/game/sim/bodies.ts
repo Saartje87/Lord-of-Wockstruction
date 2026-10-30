@@ -126,14 +126,40 @@ export function separateBodies(world: World) {
       }
     }
   }
+
+  // The shoves within a side can push a Monster back into the other side, or
+  // fail against a wall, so settle the pairs left overlapping: the Monster
+  // gives way, and a Minion only where the Monster can't (never the Hero).
+  for (let pass = 0; pass < SETTLE_PASSES; pass++) {
+    for (const monster of bodies) {
+      if (monster.kind !== "monster") continue;
+      for (const other of bodies) {
+        if (other.kind === "monster") continue;
+        const overlap =
+          monster.radius +
+          other.radius -
+          distance(monster.creature.pos, other.creature.pos);
+        if (overlap <= 1e-6) continue;
+        const out = away(other.creature.pos, monster.creature.pos, monster.id);
+        const moved = push(area, monster, scaled(out, overlap));
+        if (other.kind === "minion") {
+          push(area, other, scaled(out, -(overlap - moved)));
+        }
+      }
+    }
+  }
 }
+
+/** How many times the pairs on opposite sides are settled at a step's end. */
+const SETTLE_PASSES = 2;
 
 /**
  * Moves a Body by `by`, or along whichever axis of it is open where a wall
- * is in the way; not at all where neither fits.
+ * is in the way; not at all where neither fits. Returns how far along `by`
+ * it got.
  */
-function push(area: Area, body: Body, by: Vec) {
-  if (by.x === 0 && by.y === 0) return;
+function push(area: Area, body: Body, by: Vec): number {
+  if (by.x === 0 && by.y === 0) return 0;
   const { x, y } = body.creature.pos;
   const radius = wallRadius(body.radius);
   const to = [
@@ -141,7 +167,10 @@ function push(area: Area, body: Body, by: Vec) {
     { x: x + by.x, y },
     { x, y: y + by.y },
   ].find((point) => fitsAt(area, point, radius));
-  if (to) body.creature.pos = to;
+  if (!to) return 0;
+  body.creature.pos = to;
+  const length = Math.hypot(by.x, by.y);
+  return Math.max(0, ((to.x - x) * by.x + (to.y - y) * by.y) / length);
 }
 
 /**

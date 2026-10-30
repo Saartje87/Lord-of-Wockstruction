@@ -454,11 +454,17 @@ function walkOrTeleport(
   goToward(area, minion, gait, to, stepped.speed, limit);
   // A walk ending at the follow distance or in reach is over before this
   // adds up.
-  if (distance(from, minion.pos) < stepped.stuckStride) minion.stuck += 1;
-  else minion.stuck = 0;
-  if (minion.stuck >= stepped.stuckSteps && !isFighting(world, minion)) {
-    placeBesideHero(world, minion);
+  // While fighting it is held, not stuck, so the count starts over once the
+  // fight is done instead of teleporting it the moment that happens.
+  if (
+    isFighting(world, minion) ||
+    distance(from, minion.pos) >= stepped.stuckStride
+  ) {
+    minion.stuck = 0;
+  } else {
+    minion.stuck += 1;
   }
+  if (minion.stuck >= stepped.stuckSteps) placeBesideHero(world, minion);
 }
 
 /** How far past its reach a Monster still counts as a fight (tiles). */

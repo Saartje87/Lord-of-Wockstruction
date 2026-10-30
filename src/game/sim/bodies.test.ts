@@ -610,6 +610,27 @@ describe("Minions and Monsters blocking each other", () => {
     }
   });
 
+  it("ends no step with a Monster pressed into a Minion by the pack behind it", () => {
+    const w = world([
+      "##########",
+      "#H.S.....#",
+      "#...SSS..#",
+      "#..SS....#",
+      "##########",
+    ]);
+    const line = addSkeleton(w, { x: 3.5, y: 2.5 });
+    // Rooted, so only the pack moves and the Minion never gives way by walking.
+    line.state = "recover";
+    line.attackSteps = 1000;
+    for (const [i, monster] of w.monsters.entries()) {
+      monster.pos = { x: 4.1 + (i % 2) * 0.05, y: 2.5 + (i % 3) * 0.02 };
+    }
+    for (let i = 0; i < 60; i++) {
+      step(w, []);
+      expect(overlaps(w)).toBe(0);
+    }
+  });
+
   it("walks a Returning Monster around Minions in the open on its way home", () => {
     const w = world([
       "S...........",

@@ -15,6 +15,7 @@ import {
   settleCursor,
 } from "./cursor";
 import { devOptionsOf } from "./devOptions";
+import { buildSave, type SaveOptions } from "./devSave";
 import { devStartOf, skipsStartScreen } from "./devStart";
 import { devStateOf } from "./devState";
 import { browserFullscreen, fullscreenPointerEvent } from "./fullscreen";
@@ -99,6 +100,7 @@ import {
   removeSave,
   saveOf,
   writeSave,
+  writeSaveText,
 } from "./save";
 import { isFloor, TOWN } from "./sim/area";
 import { cursorItemOf } from "./sim/inventory";
@@ -235,6 +237,10 @@ export default function GameCanvas() {
       if (process.env.NODE_ENV === "development") {
         window.__wockstruction = {
           state: () => devStateOf(world, drawnTarget),
+          loadSave: (options?: SaveOptions) => {
+            writeSaveText(storage, buildSave(options));
+            window.location.reload();
+          },
         };
       }
 

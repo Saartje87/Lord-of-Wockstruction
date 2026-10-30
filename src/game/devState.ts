@@ -1,3 +1,4 @@
+import type { SaveOptions } from "./devSave";
 import type { Vec } from "./sim/vec";
 import {
   type BoneWard,
@@ -51,7 +52,11 @@ export type DevState = {
 declare global {
   interface Window {
     /** Dev builds only: see `GameCanvas`. */
-    __wockstruction?: { state: () => DevState };
+    __wockstruction?: {
+      state: () => DevState;
+      /** Writes the Save `options` describe, then reloads. */
+      loadSave: (options?: SaveOptions) => void;
+    };
   }
 }
 

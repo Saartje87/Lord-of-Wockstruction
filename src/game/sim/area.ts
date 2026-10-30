@@ -35,9 +35,15 @@ export type Area = {
   floor: boolean[];
   /**
    * Row-major, `width * height` long; true where the Hero can stand: floor
-   * that nothing blocks.
+   * that nothing blocks, and is not Water.
    */
   walkable: boolean[];
+  /**
+   * Row-major, `width * height` long; true where the floor is a Water tile.
+   * Water is not walkable, but Projectiles and sight pass over it: only
+   * walking reads `walkable`.
+   */
+  water: boolean[];
   /**
    * Row-major, `width * height` long: the KayKit piece (its model's name)
    * on each floor cell, or null where there is no floor or the cell's tile
@@ -173,6 +179,11 @@ export function isFloor(area: Area, point: Vec): boolean {
   return cellAt(area, area.floor, point);
 }
 
+/** Whether a point in tile units is on a Water tile. */
+export function isWater(area: Area, point: Vec): boolean {
+  return cellAt(area, area.water, point);
+}
+
 /** The Exit whose zone holds a point in tile units, if any. */
 export function exitAt(area: Area, point: Vec): Exit | undefined {
   return area.exits.find(
@@ -242,12 +253,15 @@ export function loadArea(
   const overrides = tilesOf("blocking override");
   const pieces = piecesOf(tileset);
   const floor = floorLayer.data.map((gid) => gid !== 0);
+  const water = floorLayer.data.map(
+    (gid) => pieces.get(gid & GID_MASK)?.kind === "water",
+  );
   const walkable = floor.map((hasFloor, i) => {
     const override = (overrides?.[i] ?? 0) & GID_MASK;
     const blocked = override
       ? blocks.has(override)
       : blocks.has((walls?.[i] ?? 0) & GID_MASK);
-    return hasFloor && !blocked;
+    return hasFloor && !blocked && !water[i];
   });
 
   // Tiled measures objects on isometric maps in tileheight units on both axes.
@@ -325,6 +339,7 @@ export function loadArea(
     walls: wallPieces,
     props,
     walkable,
+    water,
     entries,
     spawns,
     exits,

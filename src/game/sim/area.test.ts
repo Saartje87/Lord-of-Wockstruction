@@ -10,6 +10,7 @@ const kaykit = {
     tile(1, "wall", "wall", true),
     tile(2, "barrel_large", "prop", true),
     tile(3, "candle", "prop", false),
+    tile(4, "water", "water", false),
   ],
 };
 
@@ -84,5 +85,21 @@ describe("an Area whose tileset has no pieces", () => {
     expect(area.floorPieces).toEqual([null, null, null, null, null, null]);
     expect(area.walls).toEqual([]);
     expect(area.props).toEqual([]);
+  });
+});
+
+describe("an Area with Water", () => {
+  // Floor, Water (gid 5) in the middle of the top row, a Prop on the bottom.
+  const area = loadArea("pond", map([1, 5, 1, 1, 1, 1], [0, 0, 0, 0, 3, 0]), {
+    kaykit,
+  });
+
+  it("keeps a grid of which tiles are Water", () => {
+    expect(area.water).toEqual([false, true, false, false, false, false]);
+  });
+
+  it("makes Water floor that is not walkable", () => {
+    expect(area.floor[1]).toBe(true);
+    expect(area.walkable).toEqual([true, false, true, true, false, true]);
   });
 });

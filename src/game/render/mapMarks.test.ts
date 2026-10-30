@@ -11,7 +11,8 @@ import {
 } from "./mapMarks";
 
 /**
- * An Area drawn row by row: `.` floor, `#` a wall on floor, and a space void.
+ * An Area drawn row by row: `.` floor, `~` Water, `#` a wall on floor, and a
+ * space void.
  * Only the shape matters to the maps.
  */
 function areaOf(rows: string[]): Area {
@@ -21,6 +22,7 @@ function areaOf(rows: string[]): Area {
     height: rows.length,
     floor: cells.map((cell) => cell !== " "),
     walkable: cells.map((cell) => cell === "."),
+    water: cells.map((cell) => cell === "~"),
     exits: [],
     npcs: [],
   } as unknown as Area;
@@ -50,6 +52,31 @@ function mapMarks(
 }
 
 describe("mapMarks", () => {
+  it("fills each Explored Water tile, and not the Water unexplored", () => {
+    const area = areaOf(["~~", ".."]);
+
+    const { water } = mapMarks({
+      area,
+      explored: [true, false, true, true],
+      heroAt: HERO,
+    });
+
+    expect(water).toEqual([{ x: 0, y: 0 }]);
+  });
+
+  it("draws no edge where floor meets Water, which is filled instead", () => {
+    const area = areaOf(["~~~", "~.~", "~~~"]);
+
+    const { edges, water } = mapMarks({
+      area,
+      explored: all(area),
+      heroAt: HERO,
+    });
+
+    expect(edges).toEqual([]);
+    expect(water).toHaveLength(8);
+  });
+
   it("draws a wall line on each side of a floor tile that meets a wall", () => {
     const area = areaOf(["###", "#.#", "###"]);
 
@@ -248,6 +275,7 @@ describe("mapMarks of what stands on the Area", () => {
       "minions",
       "npcs",
       "townPortal",
+      "water",
       "waypoint",
     ]);
   });

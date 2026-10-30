@@ -40,6 +40,21 @@ describe("the 3D World's floor", () => {
     expect(instances).toBe(cells);
   });
 
+  it("has no floor under Water, which is drawn as its own plane", () => {
+    const world = arenaWith([]);
+    const base = world.areas[world.areaName];
+    const water = base.water.map((_, i) => i < 3);
+    const area = { ...base, water };
+
+    const floor = floorOf(area, dungeon());
+
+    const instances = floor.children.reduce(
+      (total, mesh) => total + (mesh as InstancedMesh).count,
+      0,
+    );
+    expect(instances).toBe(base.floor.filter(Boolean).length - 3);
+  });
+
   it("also has floor under each Wall, so no gap shows beside it", () => {
     const world = arenaWith([]);
     const base = world.areas[world.areaName];

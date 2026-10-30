@@ -58,7 +58,8 @@ export function hash(x: number, y: number, salt: number): number {
  * The Area's floor: one instanced piece on each floor cell and under each
  * Wall (a Wall is thinner than its cell, and without a floor beside it a gap
  * shows), a few cracked or bare, each turned a quarter at random. One draw
- * per mesh of a piece, not per cell.
+ * per mesh of a piece, not per cell. Water cells have none: a pond is its
+ * own plane (see `waterMeshesOf`).
  */
 export function floorOf(area: Area, pieces: FloorPieces): Group {
   const cells = new Map<string, Matrix4[]>();
@@ -68,6 +69,7 @@ export function floorOf(area: Area, pieces: FloorPieces): Group {
   for (let y = 0; y < area.height; y++) {
     for (let x = 0; x < area.width; x++) {
       const cell = y * area.width + x;
+      if (area.water[cell]) continue;
       if (!area.floor[cell] && !underWalls.has(cell)) continue;
       const named = area.floorPieces[cell] ?? "";
       const pick = hash(x, y, 1);

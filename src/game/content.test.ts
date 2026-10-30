@@ -7,9 +7,9 @@ import {
   tilesets,
 } from "./content";
 import { encodeSave, parseSave, saveOf } from "./save";
-import type { Area, Exit, Spawn } from "./sim/area";
+import { type Area, type Exit, isWalkable, type Spawn } from "./sim/area";
 import { type MonsterOfLevel, monsterExperience } from "./sim/monsters";
-import { findPath } from "./sim/path";
+import { canReach, findPath } from "./sim/path";
 import { validateActs, validateQuests } from "./sim/validate";
 import type { Vec } from "./sim/vec";
 import {
@@ -727,6 +727,71 @@ describe("the shipped Areas' pieces", () => {
   });
 });
 
+describe("Water in the shipped Areas", () => {
+  const shipped = () => shippedWorld().areas;
+  const hasWater = (area: Area) => area.water.some(Boolean);
+
+  it("lies in the Cozy Plains as one small pond, and not in the Wockyard or Wockville", () => {
+    const { "cozy-plains": plains, wockyard, town } = shipped();
+
+    const tiles = plains.water.filter(Boolean).length;
+    expect(tiles).toBeGreaterThanOrEqual(6);
+    expect(tiles).toBeLessThanOrEqual(16);
+    expect(hasWater(wockyard)).toBe(false);
+    expect(hasWater(town)).toBe(false);
+  });
+
+  it("is never walkable, though it is floor", () => {
+    for (const area of Object.values(shipped())) {
+      area.water.forEach((isWater, i) => {
+        if (!isWater) return;
+        expect(area.floor[i]).toBe(true);
+        expect(area.walkable[i]).toBe(false);
+      });
+    }
+  });
+
+  it("leaves every Entry, Exit, spawn, Waypoint, Bone Altar, Unique Monster and NPC reachable from each Entry", () => {
+    for (const area of Object.values(shipped())) {
+      const wanted: Vec[] = [
+        ...area.exits.map(centreOf),
+        ...area.spawns.map((spawn) => spawn.pos),
+        ...area.boneAltars,
+        ...area.uniques.map((unique) => unique.pos),
+        ...area.npcs.map((npc) => npc.pos),
+        ...(area.waypoint ? [area.waypoint] : []),
+        ...(area.actBoss ? [area.actBoss.pos] : []),
+      ];
+      for (const entry of Object.values(area.entries)) {
+        expect(isWalkable(area, entry)).toBe(true);
+        for (const target of wanted) {
+          expect(canReach(area, entry, target)).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("keeps the Cozy Plains' pond clear of its Exits, Entries and spawns", () => {
+    const { "cozy-plains": plains } = shipped();
+    const near = (point: Vec) => {
+      for (let dy = -2; dy <= 2; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          const x = Math.floor(point.x) + dx;
+          const y = Math.floor(point.y) + dy;
+          if (plains.water[y * plains.width + x]) return true;
+        }
+      }
+      return false;
+    };
+
+    for (const entry of Object.values(plains.entries)) {
+      expect(near(entry)).toBe(false);
+    }
+    for (const spawn of plains.spawns) expect(near(spawn.pos)).toBe(false);
+    for (const exit of plains.exits) expect(near(centreOf(exit))).toBe(false);
+  });
+});
+
 describe("the KayKit tileset", () => {
   type Tile = {
     id: number;
@@ -742,17 +807,26 @@ describe("the KayKit tileset", () => {
     for (const tile of tiles) {
       expect(typeof property(tile, "piece")).toBe("string");
       expect(typeof property(tile, "blocks")).toBe("boolean");
-      expect(["floor", "wall", "prop"]).toContain(property(tile, "kind"));
+      expect(["floor", "wall", "prop", "water"]).toContain(
+        property(tile, "kind"),
+      );
     }
   });
 
-  it("has a thumbnail and an imported model for every tile", () => {
+  it("has a thumbnail and an imported model for every tile, but for Water, which is drawn in code", () => {
     for (const tile of tiles) {
       expect(existsSync(`content/tilesets/${tile.image}`)).toBe(true);
+      if (property(tile, "kind") === "water") continue;
       expect(
         existsSync(`public/assets/models/${property(tile, "piece")}.glb`),
       ).toBe(true);
     }
+  });
+
+  it("has a Water tile that does not block, as walking is decided by the Area", () => {
+    const water = tiles.filter((tile) => property(tile, "kind") === "water");
+    expect(water).toHaveLength(1);
+    expect(property(water[0], "blocks")).toBe(false);
   });
 
   it("never lets a floor block", () => {

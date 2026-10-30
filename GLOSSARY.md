@@ -1,4 +1,4 @@
-# Wiablo
+# Lord of Wockstruction
 
 A single-player, browser-based hack and slash action RPG inspired by Diablo 1 and 2.
 

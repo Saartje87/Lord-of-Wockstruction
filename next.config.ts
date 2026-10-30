@@ -5,7 +5,8 @@ const nextConfig: NextConfig = {
   env: {
     // Vercel preview builds honour `?stats` too (see `devOptionsOf`), so the
     // 60 fps rule can be checked on a phone.
-    WIABLO_PREVIEW: process.env.VERCEL_ENV === "preview" ? "true" : "false",
+    WOCKSTRUCTION_PREVIEW:
+      process.env.VERCEL_ENV === "preview" ? "true" : "false",
   },
   cacheComponents: true,
   partialPrefetching: true,

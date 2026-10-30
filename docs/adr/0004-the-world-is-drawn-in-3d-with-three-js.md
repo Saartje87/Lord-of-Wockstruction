@@ -1,6 +1,6 @@
 # The World is drawn in 3D with three.js, the HUD stays in Pixi
 
-Wiablo's look is to be gothic cartoon, in the vein of Torchlight, and the Flare sprites (realistic pre-rendered art, CC-BY-SA) can't get there. A throwaway prototype (branch `prototype/3d-renderer`, PR #28) drew the real simulation in 3D with three.js and KayKit's CC0 models, and ran at a steady 60 fps on desktop and on a Pixel 7a. So the World is drawn in 3D with three.js, under a fixed isometric camera at the 2D game's angle and World zoom, while the HUD, panels and screen-space labels stay in Pixi, drawn on top through one shared canvas and WebGL context. The simulation doesn't change (ADR 0001).
+Lord of Wockstruction's look is to be gothic cartoon, in the vein of Torchlight, and the Flare sprites (realistic pre-rendered art, CC-BY-SA) can't get there. A throwaway prototype (branch `prototype/3d-renderer`, PR #28) drew the real simulation in 3D with three.js and KayKit's CC0 models, and ran at a steady 60 fps on desktop and on a Pixel 7a. So the World is drawn in 3D with three.js, under a fixed isometric camera at the 2D game's angle and World zoom, while the HUD, panels and screen-space labels stay in Pixi, drawn on top through one shared canvas and WebGL context. The simulation doesn't change (ADR 0001).
 
 ## Considered Options
 

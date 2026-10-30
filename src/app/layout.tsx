@@ -6,11 +6,11 @@ import "./globals.css";
  * Safari around it, and the status bar drawn over black.
  */
 export const metadata: Metadata = {
-  title: "Wiablo",
+  title: "Lord of Wockstruction",
   description: "A browser hack and slash action RPG",
   appleWebApp: {
     capable: true,
-    title: "Wiablo",
+    title: "Lord of Wockstruction",
     statusBarStyle: "black-translucent",
   },
 };

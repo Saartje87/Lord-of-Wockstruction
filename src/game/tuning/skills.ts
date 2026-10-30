@@ -196,7 +196,7 @@ export const skillTuning: Record<Skill, SkillTuning> = {
       share: [0.4, 0.7],
     },
   },
-  // Diablo 2's Bone Spear's 16–24 scaled to Wiablo's Life: a Level 6 Hero
+  // Diablo 2's Bone Spear's 16–24 scaled to the game's Life: a Level 6 Hero
   // kills an own-Level Skeleton (135 Life) in two casts, now and then three.
   // Its growth stays Diablo 2's 8, about half the 15 Life a Skeleton gains
   // each Monster Level, so two casts keep up. Diablo 2's Mana; its range

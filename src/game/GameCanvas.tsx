@@ -121,12 +121,13 @@ export default function GameCanvas() {
     const dev = devOptionsOf(
       window.location.search,
       process.env.NODE_ENV === "development" ||
-        process.env.WIABLO_PREVIEW === "true",
+        process.env.WOCKSTRUCTION_PREVIEW === "true",
     );
     // Pixi and the 3D World draw on one canvas, made up front.
     const shared = createSharedCanvas();
     if (!shared) {
-      container.textContent = "Wiablo needs a browser with WebGL 2.";
+      container.textContent =
+        "Lord of Wockstruction needs a browser with WebGL 2.";
       return;
     }
     /** The 3D World, once it is made. */
@@ -219,7 +220,9 @@ export default function GameCanvas() {
       // Playtests read the game from here instead of by eye. Production
       // builds don't have it.
       if (process.env.NODE_ENV === "development") {
-        window.__wiablo = { state: () => devStateOf(world, drawnTarget) };
+        window.__wockstruction = {
+          state: () => devStateOf(world, drawnTarget),
+        };
       }
 
       // Each input event tells the Active Input the way it came by, first,
@@ -679,7 +682,7 @@ export default function GameCanvas() {
       cancelled = true;
       cancelAnimationFrame(frame);
       listeners.abort();
-      delete window.__wiablo;
+      delete window.__wockstruction;
       // A failed `init()` already surfaces through the chain above.
       // The context is shared, so it goes last: three.js frees it.
       const disposeWorld3d = () => {

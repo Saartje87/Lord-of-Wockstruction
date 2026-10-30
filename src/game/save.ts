@@ -41,7 +41,7 @@ export function saveOf(world: World): HeroSave {
 }
 
 /** The one key the Save is stored under. */
-const SAVE_KEY = "wiablo.save";
+const SAVE_KEY = "wockstruction.save";
 
 /**
  * Where the Save is kept: the browser's storage in the game, a Map in

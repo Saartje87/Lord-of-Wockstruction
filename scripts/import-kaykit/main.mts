@@ -1,9 +1,9 @@
 /**
- * Imports the KayKit models Wiablo uses from pinned commits of KayKit's
+ * Imports the KayKit models the game uses from pinned commits of KayKit's
  * GitHub repos into committed files, so the build never needs the network:
  *
  * - `public/assets/models/characters/`: characters, cut down to the
- *   animations and weapons Wiablo uses.
+ *   animations and weapons the game uses.
  * - `public/assets/models/{dungeon,halloween,hexagon}/`: the pieces Areas are
  *   painted with (see `pieces.mts`), each as one glb.
  * - `content/tilesets/kaykit.tsj`: the Tiled tileset of those pieces. Its
@@ -69,8 +69,8 @@ const PACKS = {
 };
 
 /**
- * The Hero's clips of the Knight's 76 that Wiablo plays, and the nodes it
- * drops: the Knight carries every sword and shield, and Wiablo's Hero has
+ * The Hero's clips of the Knight's 76 that the game plays, and the nodes it
+ * drops: the Knight carries every sword and shield, and the game's Hero has
  * the 1-handed sword and the round shield.
  */
 const KNIGHT = {
@@ -404,9 +404,9 @@ ${Object.values(PACKS)
   .join("\n")}
 - ${MYSTERY.name}: [itch.io](${MYSTERY.url}), paid and CC0
 
-**Changes:** the Knight is cut down to the animations Wiablo uses and to
+**Changes:** the Knight is cut down to the animations the game uses and to
 the 1-handed sword and the round shield. The Monstrosity gets the
-\`Rig_Large\` animations Wiablo uses and the Knight's 2-handed chop,
+\`Rig_Large\` animations the game uses and the Knight's 2-handed chop,
 retargeted onto its rig. Town's NPCs get the \`Rig_Medium\` idles, with no
 animation track for a bone they lack. Halloween Bits and Medieval Hexagon
 pieces, which come as glTF with a binary and a texture, are packed into one

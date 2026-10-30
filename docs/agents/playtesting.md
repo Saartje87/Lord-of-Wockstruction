@@ -22,10 +22,10 @@ Parallel agents share one Chrome and often one machine.
 
 ## Skip the grind
 
-The Save lives in `localStorage` under `wiablo.save` as JSON. Write one and reload to start at any Level; `parseSave` in `src/game/save.ts` lists the fields and the checks a Save must pass (points raised plus unspent equal 5 × (Level − 1); Skill Levels plus unspent Skill Points equal Level − 1; Items on the grid, not overlapping, and in slots of their kind). For example, a Level 3 Hero with 10 unspent points and 2 unspent Skill Points:
+The Save lives in `localStorage` under `wockstruction.save` as JSON. Write one and reload to start at any Level; `parseSave` in `src/game/save.ts` lists the fields and the checks a Save must pass (points raised plus unspent equal 5 × (Level − 1); Skill Levels plus unspent Skill Points equal Level − 1; Items on the grid, not overlapping, and in slots of their kind). For example, a Level 3 Hero with 10 unspent points and 2 unspent Skill Points:
 
 ```js
-localStorage.setItem("wiablo.save", JSON.stringify({
+localStorage.setItem("wockstruction.save", JSON.stringify({
   version: 7, level: 3, experience: 2000,
   strength: 20, dexterity: 20, vitality: 20, energy: 20, attributePoints: 10,
   // Skills are the keys of `skillTuning` in src/game/tuning/skills.ts.
@@ -41,7 +41,7 @@ localStorage.setItem("wiablo.save", JSON.stringify({
 location.reload();
 ```
 
-A Save at 450 Experience levels up on the next Skeleton kill. For fights, use Level 30 or more with Vitality raised: Monster Level comes from the Combat Area, not the Hero, so a Level 1 to 10 Hero dies to the first Skeleton group while you take screenshots. **New Hero** in the Esc menu, or `localStorage.removeItem("wiablo.save")`, puts things back. A Save written on a port belongs to that port only.
+A Save at 450 Experience levels up on the next Skeleton kill. For fights, use Level 30 or more with Vitality raised: Monster Level comes from the Combat Area, not the Hero, so a Level 1 to 10 Hero dies to the first Skeleton group while you take screenshots. **New Hero** in the Esc menu, or `localStorage.removeItem("wockstruction.save")`, puts things back. A Save written on a port belongs to that port only.
 
 ### Start in an Area
 
@@ -55,10 +55,10 @@ In dev builds and Vercel previews, `?stats` (alone or beside `?area=…`) shows 
 
 ## Read the game state
 
-Screenshots are JPEGs, and walls, the low-Life tint or Monsters standing on each other can hide what a criterion asks about. In dev builds, `window.__wiablo.state()` returns what the game holds right now, as plain data (`DevState` in `src/game/devState.ts`). Call it from `javascript_exec`, before and after an action:
+Screenshots are JPEGs, and walls, the low-Life tint or Monsters standing on each other can hide what a criterion asks about. In dev builds, `window.__wockstruction.state()` returns what the game holds right now, as plain data (`DevState` in `src/game/devState.ts`). Call it from `javascript_exec`, before and after an action:
 
 ```js
-window.__wiablo.state();
+window.__wockstruction.state();
 // {
 //   area: "catacombs",
 //   hero: {
@@ -81,7 +81,7 @@ window.__wiablo.state();
 - **`facing`** is in radians in tile space, `atan2(dy, dx)`: 0 is +x, π/2 is +y.
 - **Each call is a fresh copy.** Changing it changes nothing in the game, so call again after each step you take.
 
-Production builds don't have `window.__wiablo`.
+Production builds don't have `window.__wockstruction`.
 
 ## Touch screen
 
@@ -106,4 +106,4 @@ const touch = (type, id, x, y) => canvas.dispatchEvent(new PointerEvent(type, {
 
 ## Deploys
 
-`main` deploys to https://wiablo.vercel.app through Vercel's GitHub integration. When something works locally but not there, check the deploy before the code: `gh api repos/Saartje87/diablo/commits/<sha>/status` on `main`'s tip. No `Vercel` context means production never deployed; the user redeploys from the Vercel dashboard.
+`main` deploys to https://wiablo.vercel.app through Vercel's GitHub integration. When something works locally but not there, check the deploy before the code: `gh api repos/Saartje87/Lord-of-Wockstruction/commits/<sha>/status` on `main`'s tip. No `Vercel` context means production never deployed; the user redeploys from the Vercel dashboard.

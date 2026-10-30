@@ -7,13 +7,18 @@ import manifest from "./manifest";
 describe("the manifest that makes the game an Installed game", () => {
   const declared = manifest();
 
-  it("names it Wiablo and starts it at the usual start page", () => {
+  it("names it Lord of Wockstruction and starts it at the usual start page", () => {
     expect(declared).toMatchObject({
-      name: "Wiablo",
-      short_name: "Wiablo",
+      name: "Lord of Wockstruction",
+      short_name: "Wockstruction",
       start_url: "/",
       scope: "/",
     });
+  });
+
+  it("names it as the website does", () => {
+    expect(metadata.title).toBe(declared.name);
+    expect(metadata.appleWebApp).toMatchObject({ title: declared.name });
   });
 
   it("describes it as the website does", () => {

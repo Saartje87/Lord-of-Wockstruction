@@ -8,8 +8,8 @@ import type { MetadataRoute } from "next";
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Wiablo",
-    short_name: "Wiablo",
+    name: "Lord of Wockstruction",
+    short_name: "Wockstruction",
     description: "A browser hack and slash action RPG",
     start_url: "/",
     scope: "/",

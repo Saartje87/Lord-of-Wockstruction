@@ -18,9 +18,9 @@ licence (CC0). Crediting him is not required, and we do.
 - Medieval Hexagon 1.0: [KayKit-Medieval-Hexagon-Pack-1.0](https://github.com/KayKit-Game-Assets/KayKit-Medieval-Hexagon-Pack-1.0) (commit `84fa4e9`)
 - Mystery Monthly Series 6: [itch.io](https://kaylousberg.itch.io/kaykit-series-6), paid and CC0
 
-**Changes:** the Knight is cut down to the animations Wiablo uses and to
+**Changes:** the Knight is cut down to the animations the game uses and to
 the 1-handed sword and the round shield. The Monstrosity gets the
-`Rig_Large` animations Wiablo uses and the Knight's 2-handed chop,
+`Rig_Large` animations the game uses and the Knight's 2-handed chop,
 retargeted onto its rig. Town's NPCs get the `Rig_Medium` idles, with no
 animation track for a bone they lack. Halloween Bits and Medieval Hexagon
 pieces, which come as glTF with a binary and a texture, are packed into one

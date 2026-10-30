@@ -51,7 +51,7 @@ export type DevState = {
 declare global {
   interface Window {
     /** Dev builds only: see `GameCanvas`. */
-    __wiablo?: { state: () => DevState };
+    __wockstruction?: { state: () => DevState };
   }
 }
 

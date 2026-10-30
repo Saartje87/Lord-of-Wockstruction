@@ -103,6 +103,7 @@ function progress(
     touchedWaypoints: [...FRESH_PROGRESS.touchedWaypoints],
     quests: structuredClone(FRESH_PROGRESS.quests),
     smithService: "locked",
+    gold: 0,
   };
 }
 
@@ -341,7 +342,7 @@ describe("stored text", () => {
 
   it("carries a version number", () => {
     expect(JSON.parse(encodeSave(save(progress(1, 0))))).toMatchObject({
-      version: 11,
+      version: 12,
     });
   });
 
@@ -499,7 +500,7 @@ describe("stored text", () => {
 
   it("gives no Save for another version", () => {
     expect(parseSave(stored(5, fields(progress(2, 500))))).toBeNull();
-    expect(parseSave(stored(11, fields(progress(2, 500))))).toBeNull();
+    expect(parseSave(stored(13, fields(progress(2, 500))))).toBeNull();
   });
 
   // What Saves before Waypoints held: the Hero loads with only Wockville's
@@ -879,5 +880,7 @@ function v10(changes: Record<string, unknown>) {
 
 /** Stored text of `version` holding `fields`. */
 function stored(version: number | undefined, fields: object): string {
-  return JSON.stringify({ version, ...fields });
+  // Gold came with version 12; older text must not hold it.
+  const { gold: _gold, ...older } = fields as { gold?: number };
+  return JSON.stringify({ version, ...(version === undefined ? fields : older) });
 }

@@ -42,7 +42,7 @@ import { questTuning } from "./tuning/quests";
  * fresh instead of loading something misread; text of the versions between
  * loads through `ADDED_FIELDS`.
  */
-export const SAVE_VERSION = 11;
+export const SAVE_VERSION = 12;
 
 /** The oldest version whose text still loads (the one before the Belt). */
 const OLDEST_LOADABLE_VERSION = 6;
@@ -67,6 +67,8 @@ const ADDED_FIELDS: readonly {
   },
   // Every Quest Not given.
   { since: 9, field: "quests", fresh: freshQuests },
+  // No Gold.
+  { since: 12, field: "gold", fresh: () => 0 },
 ];
 
 /**
@@ -126,6 +128,7 @@ const SAVE_CHANGING_EVENTS: readonly SimEvent["type"][] = [
   "SkillLevelRaised",
   "SkillBarChanged",
   "ItemPickedUp",
+  "GoldPickedUp",
   "InventoryChanged",
   "ItemEquipped",
   "ItemUnequipped",
@@ -267,6 +270,7 @@ export function parseSave(text: string | null): HeroSave | null {
     quests,
     smithService,
   } as Progress;
+  if (progress.gold < 0) return null;
   if (!fitsTable(progress.level, progress.experience)) return null;
   if (!fitsPoints(progress)) return null;
   if (!fitsSkillPoints(progress)) return null;

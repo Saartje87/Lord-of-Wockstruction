@@ -44,8 +44,8 @@ function tampered(change: (text: Record<string, any>) => void) {
 }
 
 describe("the Save of Magic Items", () => {
-  it("is version 11", () => {
-    expect(SAVE_VERSION).toBe(11);
+  it("is version 12", () => {
+    expect(SAVE_VERSION).toBe(12);
   });
 
   it("round-trips Rarity, Affixes (kind, grade, value) and the Smith bonus", () => {
@@ -155,6 +155,7 @@ describe("older Saves", () => {
     const text = JSON.stringify({
       ...textOf({ inventory: [], equipment: {}, belt: emptyBelt() }),
       version: 10,
+      gold: undefined,
       inventory: [
         {
           type: "chainMail",
@@ -185,6 +186,7 @@ describe("older Saves", () => {
     const text = JSON.stringify({
       ...textOf({ inventory: [], equipment: {}, belt: emptyBelt() }),
       version: 10,
+      gold: undefined,
       inventory: [{ ...MAGIC_CHAIN, cell: { column: 2, row: 1 } }],
     });
 

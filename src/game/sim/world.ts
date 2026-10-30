@@ -1,6 +1,7 @@
 import { areaTuning } from "../tuning/areas";
 import { boneAltarTuning } from "../tuning/boneAltars";
 import { graveWockingtonTuning } from "../tuning/graveWockington";
+import { goldTuning } from "../tuning/gold";
 import { heroTuning } from "../tuning/hero";
 import {
   type Bonus,
@@ -390,6 +391,7 @@ export type KeptArea = Pick<
   | "projectiles"
   | "corpses"
   | "groundItems"
+  | "goldPiles"
   | "explored"
   | "boneAltars"
 >;
@@ -409,6 +411,15 @@ export type Corpse = {
  * An Item lying in the active Area, until picked up or the Session ends.
  */
 export type GroundItem = { item: Item; pos: Vec };
+
+/** Identifies a Gold Pile among the others in the World. */
+export type GoldPileId = number;
+
+/**
+ * Gold lying in the active Area, until the Hero walks near it or the Session
+ * ends: never an Item, never kept by the Save.
+ */
+export type GoldPile = { id: GoldPileId; amount: number; pos: Vec };
 
 export type World = {
   seed: number;
@@ -438,6 +449,10 @@ export type World = {
   corpses: Corpse[];
   /** The Ground Items in the active Area, never kept by the Save. */
   groundItems: GroundItem[];
+  /** The Gold Piles in the active Area, never kept by the Save. */
+  goldPiles: GoldPile[];
+  /** The id the next Gold Pile gets. */
+  nextGoldPileId: GoldPileId;
   /**
    * Which tiles of the active Area are Explored, row by row like
    * `Area.floor`; never kept by the Save.
@@ -649,6 +664,10 @@ export type SimEvent =
   | { type: "BoneAltarDestroyed"; altar: MonsterId; area: string; pos: Vec }
   /** A dying Monster or the Hero dropped `item`, which now lies at `pos`. */
   | { type: "ItemDropped"; item: Item; pos: Vec }
+  /** A dying Monster dropped Gold Pile `pile` of `amount` at `pos`. */
+  | { type: "GoldDropped"; pile: GoldPileId; amount: number; pos: Vec }
+  /** The Hero picked up a Gold Pile of `amount`, which went into their Gold. */
+  | { type: "GoldPickedUp"; amount: number }
   /** The Hero picked up `item`, which now has its top-left at `cell`. */
   | { type: "ItemPickedUp"; item: Item; cell: Cell }
   /** The Hero picked up the Potion `item` into the top of Belt Column `column`. */
@@ -768,6 +787,8 @@ export type Progress = {
    * unlocked until the Hero uses it on an Item, and used after.
    */
   smithService: SmithService;
+  /** The Hero's money: a whole number, never below 0, kept through Death. */
+  gold: number;
 };
 
 /** Where the Smith's one-time service stands. */
@@ -791,6 +812,7 @@ export const FRESH_PROGRESS: Progress = {
   touchedWaypoints: [TOWN],
   quests: freshQuests(),
   smithService: "locked",
+  gold: 0,
 };
 
 /** A copy of `progress` sharing nothing with it. */
@@ -876,6 +898,8 @@ export function createWorld(options: {
     projectiles: [],
     corpses: [],
     groundItems: [],
+    goldPiles: [],
+    nextGoldPileId: 1,
     // All of Town is Explored from the start.
     explored: new Array(town.width * town.height).fill(true),
     minions: [],
@@ -1246,12 +1270,13 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   }
   world.death = null;
   const { monsters, projectiles, corpses, groundItems, explored } = world;
-  const { boneAltars } = world;
+  const { boneAltars, goldPiles } = world;
   world.keptAreas[world.areaName] = {
     monsters,
     projectiles,
     corpses,
     groundItems,
+    goldPiles,
     explored,
     boneAltars,
   };
@@ -1262,6 +1287,7 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   world.projectiles = kept?.projectiles ?? [];
   world.corpses = kept?.corpses ?? [];
   world.groundItems = kept?.groundItems ?? [];
+  world.goldPiles = kept?.goldPiles ?? [];
   world.boneAltars = kept?.boneAltars ?? [];
   world.explored =
     kept?.explored ??
@@ -1819,6 +1845,7 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   touchWaypoint(world, events);
   approach(world);
   reachGroundItem(world, events);
+  reachGoldPiles(world, events);
   reachNpc(world, events);
   // Before the Monsters, so an Arrow first shows where it is loosed.
   landProjectiles(world, events);
@@ -2629,6 +2656,24 @@ function reachGroundItem(world: World, events: SimEvent[]) {
   });
 }
 
+/**
+ * Picks up every Gold Pile the Hero has come within `goldTuning.pickupReach`
+ * of, with no Order, whatever the Inventory holds. Never during Death.
+ */
+function reachGoldPiles(world: World, events: SimEvent[]) {
+  if (world.death) return;
+  const { hero } = world;
+  const reached = world.goldPiles.filter(
+    (pile) => distance(hero.pos, pile.pos) <= goldTuning.pickupReach,
+  );
+  if (reached.length === 0) return;
+  world.goldPiles = world.goldPiles.filter((pile) => !reached.includes(pile));
+  for (const { amount } of reached) {
+    hero.progress.gold += amount;
+    events.push({ type: "GoldPickedUp", amount });
+  }
+}
+
 function startSwing(hero: Hero, monster: MonsterId | null, toward: Vec) {
   faceToward(hero, toward);
   hero.swing = { elapsed: 0, landed: false, monster };
@@ -2931,6 +2976,35 @@ function rollDrop(
       pos: { ...pos },
     });
   }
+  rollGold(world, pos, events, monsterLevel);
+}
+
+/**
+ * Rolls a dying Monster's Gold Pile, apart from its Items: by
+ * `goldTuning.chance` one pile where it died, holding an amount from
+ * `goldTuning.perMonsterLevel` times `monsterLevel`. Rolled last, so the
+ * Item rolls stay as they were.
+ */
+function rollGold(
+  world: World,
+  pos: Vec,
+  events: SimEvent[],
+  monsterLevel: number,
+) {
+  if (goldTuning.chance < 1 && random(world.rng) >= goldTuning.chance) return;
+  const [least, most] = goldTuning.perMonsterLevel;
+  const amount = randomInt(world.rng, [
+    least * monsterLevel,
+    most * monsterLevel,
+  ]);
+  const pile = { id: world.nextGoldPileId++, amount, pos: { ...pos } };
+  world.goldPiles.push(pile);
+  events.push({
+    type: "GoldDropped",
+    pile: pile.id,
+    amount,
+    pos: { ...pos },
+  });
 }
 
 /**

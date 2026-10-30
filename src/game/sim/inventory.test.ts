@@ -54,6 +54,7 @@ function strongerBy(strength: number): Progress {
     skillBar: emptySkillBar(),
     touchedWaypoints: [...FRESH_PROGRESS.touchedWaypoints],
     smithService: "locked",
+    gold: 0,
     quests: structuredClone(FRESH_PROGRESS.quests),
   };
 }

@@ -96,6 +96,7 @@ function withPoints(points: number): World {
     skillBar: emptySkillBar(),
     touchedWaypoints: [...FRESH_PROGRESS.touchedWaypoints],
     smithService: "locked",
+    gold: 0,
     quests: structuredClone(FRESH_PROGRESS.quests),
   });
 }
@@ -245,6 +246,7 @@ describe("heroSheet", () => {
       skillBar: emptySkillBar(),
       touchedWaypoints: [...FRESH_PROGRESS.touchedWaypoints],
       smithService: "locked",
+      gold: 0,
       quests: structuredClone(FRESH_PROGRESS.quests),
     });
     step(w, [{ type: "SpendAttributePoints", points: { dexterity: 1 } }]);
@@ -405,6 +407,7 @@ describe("a click on the Hero panel and the Level Up button", () => {
       skillBar: emptySkillBar(),
       touchedWaypoints: [...FRESH_PROGRESS.touchedWaypoints],
       smithService: "locked",
+      gold: 0,
       quests: structuredClone(FRESH_PROGRESS.quests),
     });
 

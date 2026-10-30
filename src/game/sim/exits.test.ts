@@ -254,7 +254,7 @@ describe("Exits", () => {
     expect(w.hero.life).toBe(life);
   });
 
-  it("rebuilds the cave fresh on re-entry: every Monster back, no Corpses", () => {
+  it("keeps the cave on re-entry: no Monster back, its Corpse still there", () => {
     const w = world();
     walkThrough(w, { x: 3.5, y: 1.5 });
     const [skeleton] = w.monsters;
@@ -271,10 +271,8 @@ describe("Exits", () => {
     walkThrough(w, { x: 3.5, y: 1.5 });
 
     expect(w.areaName).toBe("cave");
-    expect(w.monsters).toHaveLength(1);
-    expect(w.monsters[0].life).toBe(60);
-    expect(w.monsters[0].pos).toEqual({ x: 5.5, y: 2.5 });
-    expect(w.corpses).toEqual([]);
+    expect(w.monsters).toEqual([]);
+    expect(w.corpses).toHaveLength(1);
   });
 
   // A swing's landed hit allows a move out of its follow-through on the same

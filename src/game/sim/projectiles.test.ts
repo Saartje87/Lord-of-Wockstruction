@@ -319,13 +319,14 @@ describe("an Arrow and the Hero's Death", () => {
 });
 
 describe("Arrows and Exits", () => {
-  it("leaves no Projectiles once the Hero walks through an Exit, and none on returning", () => {
+  it("sets Projectiles aside once the Hero walks through an Exit, and has them again on returning", () => {
     const w = inField([
       "EN.....A....", //
       "............",
       "...........H",
     ]);
     untilLoosed(w);
+    const loosed = w.projectiles.length;
 
     walkThroughExit(w);
     expect(w.areaName).toBe("town");
@@ -333,7 +334,7 @@ describe("Arrows and Exits", () => {
 
     walkThroughExit(w);
     expect(w.areaName).toBe("field");
-    expect(w.projectiles).toEqual([]);
+    expect(w.projectiles).toHaveLength(loosed);
   });
 });
 

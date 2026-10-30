@@ -45,12 +45,14 @@ import {
   areaFade,
   DEATH_STEPS,
   groundItemsOf,
+  hasQuestToDeal,
   inTown,
   isInCombat,
   isRegenerating,
   type MinionId,
   type Monster,
   type MonsterId,
+  npcsIn,
   type SimEvent,
   townPortalFlash,
   townPortalIn,
@@ -67,6 +69,7 @@ import { tileToScreen, type WorldCamera } from "../world3d/camera";
 import { CRUMBLE_SECONDS } from "../world3d/crumble";
 import { groundSpotsOf } from "../world3d/groundSpots";
 import { MONSTER_LOOKS } from "../world3d/monsterLook";
+import { NPC_LOOKS } from "../world3d/npcLook";
 import { npcPickablesOf, pickablesOf } from "../world3d/pickables";
 import { characterUnder3d, type Pickable3d } from "../world3d/picking";
 import type { DepartedMinion, Effects } from "../world3d/view";
@@ -169,6 +172,8 @@ import {
   PAUSE_MENU_LAYOUT,
   pauseMenuLayout,
 } from "./pauseMenu";
+import { QUEST_MARK, questMarkBob } from "./questMark";
+import { QUEST_PANEL, questPanelLayout, questPanelSheet } from "./questPanel";
 import {
   ROTATE_NOTICE_LAYOUT,
   rotateNoticeChoiceAt,
@@ -454,6 +459,8 @@ const PANEL_BUTTON_STYLE = {
     inventory: { w: 20, h: 17, y: -5, corner: 4, strapW: 10, strapH: 6 },
     /** A root node linked to two leaves. */
     skillTree: { rootY: -9, leafX: 8, leafY: 8, node: 4 },
+    /** A scroll: a page `w` by `h` with `lines` lines of text on it, `lineGap` apart. */
+    quest: { w: 16, h: 20, lines: 3, lineGap: 5, inset: 3 },
   },
   /**
    * The Town Portal button's icon: an upright green oval `w` by `h` with a
@@ -593,6 +600,8 @@ export function createRenderer(
   app.stage.addChild(inventoryPanel.layer);
   const skillTreePanel = skillTreePanelView(activeInput);
   app.stage.addChild(skillTreePanel.layer);
+  const questPanel = questPanelView(activeInput);
+  app.stage.addChild(questPanel.layer);
   const waypointList = waypointListView(activeInput, areaDisplayNames);
   app.stage.addChild(waypointList.layer);
   const dialoguePanel = dialoguePanelView(activeInput);
@@ -702,6 +711,7 @@ export function createRenderer(
     heroPanelOpen: false,
     inventoryOpen: false,
     skillTreeOpen: false,
+    questOpen: false,
     waypointsOpen: false,
     dialogueOpen: false,
     dialogueNpc: 0,
@@ -1094,6 +1104,7 @@ export function createRenderer(
         heroPanelOpen: menus.heroPanelOpen,
         inventoryOpen: menus.inventoryOpen,
         skillTreeOpen: menus.skillTreeOpen,
+        questOpen: menus.questOpen,
         waypointsOpen: menus.waypointsOpen,
         dialogueOpen: menus.dialogueOpen,
         dialogueNpc: menus.dialogueNpc,
@@ -1172,6 +1183,16 @@ export function createRenderer(
         if (!monster.curse) continue;
         const anchor = barAnchor(monster);
         curseMark(overheads, anchor.x, anchor.y, markAlpha);
+      }
+      // A mark over each NPC with a Quest to give or take back.
+      for (const npc of npcsIn(world)) {
+        if (!hasQuestToDeal(world, npc.id)) continue;
+        const head = tileToScreen(camera, npc.pos, NPC_LOOKS[npc.name].height);
+        questMark(
+          overheads,
+          head.x / camera.zoom,
+          head.y / camera.zoom - QUEST_MARK.lift - questMarkBob(nowMs),
+        );
       }
       for (const monster of world.monsters) {
         const life = monsterMaxLife(monster);
@@ -1262,6 +1283,7 @@ export function createRenderer(
           lerp(minion.prevPos, minion.pos, alpha),
         ),
         townPortal: townPortalIn(world),
+        npcs: npcsIn(world),
         displayNames: areaDisplayNames,
       };
       mapOverlay.draw(viewport, mapInputs, menus.mapOpen);
@@ -1291,6 +1313,7 @@ export function createRenderer(
       const touching = activeInput.way === "touch";
       const skillTooltipAt = (focus || touching) && !heldSkill ? pointer : null;
       skillTreePanel.draw(viewport, world, menus.skillTreeOpen, skillTooltipAt);
+      questPanel.draw(viewport, world, menus.questOpen);
       waypointList.draw(viewport, world, menus.waypointsOpen);
       dialoguePanel.draw(
         viewport,
@@ -1351,6 +1374,30 @@ export function createRenderer(
       notice.draw(viewport, menus.fullscreen);
     },
   };
+}
+
+/**
+ * The mark over an NPC with a Quest: an exclamation mark centred on `x`, its
+ * foot at `bottom`.
+ */
+function questMark(graphics: Graphics, x: number, bottom: number) {
+  const { colour, outline, outlineWidth, barWidth, barHeight, dot, gap } =
+    QUEST_MARK;
+  const dotTop = bottom - dot;
+  graphics
+    .roundRect(x - dot / 2, dotTop, dot, dot, dot / 2)
+    .fill(colour)
+    .stroke({ color: outline, width: outlineWidth });
+  graphics
+    .roundRect(
+      x - barWidth / 2,
+      dotTop - gap - barHeight,
+      barWidth,
+      barHeight,
+      barWidth / 2,
+    )
+    .fill(colour)
+    .stroke({ color: outline, width: outlineWidth });
 }
 
 /**
@@ -2022,6 +2069,17 @@ function panelIcon(
       .fill(fill)
       .rect(x - bag.strapW / 2, y + bag.y - bag.strapH, bag.strapW, bag.strapH)
       .stroke(line);
+  }
+  if (panel === "quest") {
+    const { w, h, lines, lineGap, inset } = atUiScale(icon.quest, scale);
+    graphics.rect(x - w / 2, y - h / 2, w, h).stroke(line);
+    for (let i = 0; i < lines; i += 1) {
+      const lineY = y - h / 2 + inset * 2 + i * lineGap;
+      graphics
+        .moveTo(x - w / 2 + inset, lineY)
+        .lineTo(x + w / 2 - inset, lineY)
+        .stroke(line);
+    }
   }
   if (panel === "skillTree") {
     const { rootY, leafX, leafY, node } = atUiScale(icon.skillTree, scale);
@@ -2980,6 +3038,95 @@ function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
           (size, gap) => tooltipRect(rect, size, screen, gap),
         );
       }
+    },
+  };
+}
+
+/**
+ * The Quest panel, in the Hero panel's look: a row for each of the Act's
+ * Quests with its name at the left and its state at the right, and under it,
+ * for a Quest that is Given, what to do next. A Quest ready to hand in is lit
+ * and a Done one greyed.
+ */
+function questPanelView(activeInput: Readonly<ActiveInput>) {
+  const style = HERO_PANEL_STYLE;
+  const layer = new Container();
+  const graphics = new Graphics();
+  layer.addChild(graphics);
+  layer.visible = false;
+  const texts = scaledTexts();
+  const text = (fill: number, size = style.textSize) => {
+    const t = new Text({
+      text: "",
+      style: { fill, fontSize: size, fontFamily: SERIF },
+    });
+    layer.addChild(t);
+    return texts.add(t, size);
+  };
+
+  const title = text(style.title, style.titleSize);
+  title.text = "Quests";
+  title.anchor.set(0.5, 0);
+  const hint = text(style.hint, style.hintSize);
+  hint.anchor.set(0.5, 1);
+  /** Made as the sheet first lists them. */
+  const rows: { name: Text; state: Text; next: Text }[] = [];
+
+  return {
+    layer,
+    draw(screen: Viewport, world: World, open: boolean) {
+      layer.visible = open;
+      if (!open) return;
+      hint.text = panelCloseHint("quest", activeInput.way);
+      const sheet = questPanelSheet(world);
+      const layout = questPanelLayout(screen, sheet.length);
+      const { panel } = layout;
+      const scale = screen.uiScale;
+      const { padding } = atUiScale(QUEST_PANEL, scale);
+
+      graphics.clear();
+      graphics
+        .rect(panel.x, panel.y, panel.w, panel.h)
+        .fill({ color: style.fill, alpha: style.alpha })
+        .stroke({ color: style.edge, width: 2 });
+      closeButton(graphics, layout.closeButton, scale);
+      title.position.set(panel.x + panel.w / 2, panel.y + padding);
+      hint.position.set(panel.x + panel.w / 2, panel.y + panel.h - padding);
+
+      sheet.forEach((quest, index) => {
+        if (!rows[index]) {
+          const next = text(style.hint, style.hintSize);
+          next.style.wordWrap = true;
+          rows[index] = {
+            name: text(style.name),
+            state: text(style.value),
+            next,
+          };
+          rows[index].name.anchor.set(0, 0);
+          rows[index].state.anchor.set(1, 0);
+        }
+        const shown = rows[index];
+        const row = layout.rows[index];
+        const lit = quest.state === "ready";
+        const done = quest.state === "done";
+        shown.name.text = quest.name;
+        shown.name.style.fill = lit ? style.title : style.name;
+        shown.name.alpha = done ? 0.6 : 1;
+        shown.name.position.set(row.x, row.y);
+        shown.state.text = quest.stateName;
+        shown.state.style.fill = lit ? style.title : style.value;
+        shown.state.alpha = done ? 0.6 : 1;
+        shown.state.position.set(row.x + row.w, row.y);
+        shown.next.visible = quest.nextStep !== null;
+        shown.next.text = quest.nextStep ?? "";
+        shown.next.style.wordWrapWidth = row.w;
+        shown.next.position.set(row.x, row.y + 24 * scale);
+        graphics
+          .rect(row.x, row.y + row.h - 4 * scale, row.w, 1)
+          .fill(style.edge);
+      });
+      // Rows made this draw too.
+      texts.size(scale);
     },
   };
 }

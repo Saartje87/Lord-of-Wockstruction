@@ -12,6 +12,7 @@ import {
 } from "./render/inventoryPanel";
 import type { MiniMapHit } from "./render/miniMap";
 import type { PanelButtonHit } from "./render/panelButtons";
+import type { QuestPanelHit } from "./render/questPanel";
 import type { SkillBarHit } from "./render/skillBar";
 import type { SkillTreeHit } from "./render/skillTreePanel";
 import type { WaypointListHit } from "./render/waypointList";
@@ -51,6 +52,7 @@ export type Cursor = {
 export type CursorHit =
   | PanelHit
   | SkillTreeHit
+  | QuestPanelHit
   | WaypointListHit
   | DialogueHit
   | SkillBarHit

@@ -13,6 +13,7 @@ import type { Vec } from "../sim/vec";
 import { atUiScale, type Viewport } from "../viewport";
 import { COMPACT_LAYOUT } from "./compactLayout";
 import { townPortalTooltip } from "./hints";
+import { orbsLayout } from "./orbs";
 import { BELT_STRIP, SKILL_BAR, skillBarLayout } from "./skillBar";
 import { tooltipRect } from "./tooltip";
 
@@ -40,7 +41,8 @@ export function topRightEdge(screen: Viewport): number {
  * starting as far right of the Skill Bar as the Belt strip ends left of it.
  * In the Compact Layout, where the bottom has no room for them, they stack
  * down the screen's top-right corner instead, `margin` in, clear of the
- * panels. The Town Portal button is centred on the slot it would take.
+ * panels. The Town Portal button is centred on the slot it would take, or,
+ * where that would reach the Mana orb, sits above the last Panel button.
  */
 export function panelButtonsLayout(screen: Viewport): {
   buttons: Record<Panel, Rect>;
@@ -65,11 +67,35 @@ export function panelButtonsLayout(screen: Viewport): {
   }
   const { size } = atUiScale(TOWN_PORTAL_BUTTON, screen.uiScale);
   // After the last Panel button by the same gap, centred across the column
-  // or on the row.
+  // or on the row; on a screen too narrow for the row to clear the Mana orb,
+  // above the last Panel button instead.
   const after = at(PANELS.length);
-  const townPortal = screen.compact
-    ? { x: after.x + (slot - size) / 2, y: after.y, w: size, h: size }
-    : { x: after.x, y: after.y + (slot - size) / 2, w: size, h: size };
+  const last = at(PANELS.length - 1);
+  const orb = orbsLayout(screen).mana;
+  const fitsRow = after.x + size < orb.x - orb.radius - orb.rim;
+  let townPortal: Rect;
+  if (screen.compact) {
+    townPortal = {
+      x: after.x + (slot - size) / 2,
+      y: after.y,
+      w: size,
+      h: size,
+    };
+  } else if (fitsRow) {
+    townPortal = {
+      x: after.x,
+      y: after.y + (slot - size) / 2,
+      w: size,
+      h: size,
+    };
+  } else {
+    townPortal = {
+      x: last.x + (slot - size) / 2,
+      y: last.y - gap - size,
+      w: size,
+      h: size,
+    };
+  }
   return {
     buttons: Object.fromEntries(
       PANELS.map((panel, index) => [panel, at(index)]),
@@ -149,6 +175,7 @@ const PANEL_NAMES: Record<Panel, string> = {
   hero: "Hero",
   inventory: "Inventory",
   skillTree: "Skill Tree",
+  quest: "Quests",
 };
 
 /** What the Panel buttons show, from left to right. */

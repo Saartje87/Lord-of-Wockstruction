@@ -19,6 +19,7 @@ import {
   followHero,
   loadingScreen,
   type Menus,
+  PANELS,
   panelOpen,
   pauseForLostController,
   pressKey,
@@ -272,14 +273,24 @@ describe("the keys", () => {
     expect(menus.heroPanelOpen).toBe(false);
   });
 
-  it("leave any other key, N, Q and Y included, to the game while it runs", () => {
+  it("leave any other key, N and Y included, to the game while it runs", () => {
     const menus = createMenus();
 
     expect(pressKey(menus, "n", 1000, alive)).toBeNull();
-    expect(pressKey(menus, "q", 1000, alive)).toBeNull();
     expect(pressKey(menus, "y", 1000, alive)).toBeNull();
     expect(pressKey(menus, "x", 1000, alive)).toBeNull();
     expect(menus.pause.paused).toBe(false);
+  });
+
+  it("open and shut the Quest panel on Q, shutting the Skill Tree and Inventory", () => {
+    const menus = createMenus();
+    pressKey(menus, "t", 1000, alive);
+
+    expect(pressKey(menus, "q", 1000, alive)).toBe("handled");
+    expect(menus.questOpen).toBe(true);
+    expect(menus.skillTreeOpen).toBe(false);
+    pressKey(menus, "q", 1000, alive);
+    expect(menus.questOpen).toBe(false);
   });
 
   it("quit to the Start Screen on Q with no confirm, resuming", () => {
@@ -918,11 +929,9 @@ describe("the Compact Layout", () => {
     return menus;
   }
 
-  /** Which of the three panels are open, by name. */
+  /** Which of the panels are open, by name. */
   function openPanels(menus: ReturnType<typeof createMenus>) {
-    return (["hero", "inventory", "skillTree"] as const).filter((panel) =>
-      panelOpen(menus, panel),
-    );
+    return PANELS.filter((panel) => panelOpen(menus, panel));
   }
 
   it("shuts the Inventory or Skill Tree panel as C opens the Hero panel, and the other way round", () => {
@@ -1212,11 +1221,9 @@ describe("the Rotate Notice", () => {
 });
 
 describe("the controller", () => {
-  /** Which of the three panels are open, by name. */
+  /** Which of the panels are open, by name. */
   function openPanels(menus: Menus) {
-    return (["hero", "inventory", "skillTree"] as const).filter((panel) =>
-      panelOpen(menus, panel),
-    );
+    return PANELS.filter((panel) => panelOpen(menus, panel));
   }
 
   /** Menus with the pause menu opened by Menu, at real time 1000. */
@@ -1336,6 +1343,8 @@ describe("the controller", () => {
       pressPad(menus, "rb", 1000, alive);
       expect(openPanels(menus)).toEqual(["skillTree"]);
       pressPad(menus, "rb", 1000, alive);
+      expect(openPanels(menus)).toEqual(["quest"]);
+      pressPad(menus, "rb", 1000, alive);
       expect(openPanels(menus)).toEqual(["hero"]);
     });
 
@@ -1344,9 +1353,9 @@ describe("the controller", () => {
       pressKey(menus, "c", 1000, alive);
 
       expect(pressPad(menus, "lb", 1000, alive)).toBe("handled");
-      expect(openPanels(menus)).toEqual(["skillTree"]);
+      expect(openPanels(menus)).toEqual(["quest"]);
       pressPad(menus, "lb", 1000, alive);
-      expect(openPanels(menus)).toEqual(["inventory"]);
+      expect(openPanels(menus)).toEqual(["skillTree"]);
     });
 
     it("moves on from the panel opened last, leaving the Hero panel beside it", () => {

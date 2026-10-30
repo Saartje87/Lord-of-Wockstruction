@@ -316,7 +316,8 @@ describe("A", () => {
 describe("A near an NPC", () => {
   /** Stands NPC `name` at `pos` in the Area. */
   function stand(world: World, name: string, pos: Vec) {
-    world.areas[world.areaName].npcs.push({ name, pos });
+    const { npcs } = world.areas[world.areaName];
+    world.standing.push(npcs.push({ name, pos, stands: null }) - 1);
   }
 
   it("with no Target talks to the nearest NPC within reach", () => {

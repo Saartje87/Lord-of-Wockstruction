@@ -66,6 +66,10 @@ export function pressButton(
       // showing over the fade.
       clickClose(menus, "waypoints");
       return heroDead ? [] : [{ type: "TravelToWaypoint", area: button.area }];
+    case "acceptQuest":
+      return heroDead ? [] : [{ type: "AcceptQuest", quest: button.quest }];
+    case "handInQuest":
+      return heroDead ? [] : [{ type: "HandInQuest", quest: button.quest }];
     case "goodbye":
       clickClose(menus, "dialogue");
       return [];

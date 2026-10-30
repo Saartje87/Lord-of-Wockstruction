@@ -241,3 +241,40 @@ describe("a press on the Mini Map", () => {
     expect(orders).toEqual([]);
   });
 });
+
+describe("a press on a Quest button of the Dialogue panel", () => {
+  it("orders the Quest accepted and keeps the panel open", () => {
+    const menus = createMenus();
+    menus.dialogueOpen = true;
+
+    const orders = pressButton(menus, worldWith({}), {
+      type: "acceptQuest",
+      quest: "lost-wanderer",
+    });
+
+    expect(orders).toEqual([{ type: "AcceptQuest", quest: "lost-wanderer" }]);
+    expect(menus.dialogueOpen).toBe(true);
+  });
+
+  it("orders the Quest handed in and keeps the panel open", () => {
+    const menus = createMenus();
+    menus.dialogueOpen = true;
+
+    const orders = pressButton(menus, worldWith({}), {
+      type: "handInQuest",
+      quest: "lost-wanderer",
+    });
+
+    expect(orders).toEqual([{ type: "HandInQuest", quest: "lost-wanderer" }]);
+    expect(menus.dialogueOpen).toBe(true);
+  });
+
+  it("orders nothing while the Hero lies dead", () => {
+    const orders = pressButton(createMenus(), dead(worldWith({})), {
+      type: "acceptQuest",
+      quest: "lost-wanderer",
+    });
+
+    expect(orders).toEqual([]);
+  });
+});

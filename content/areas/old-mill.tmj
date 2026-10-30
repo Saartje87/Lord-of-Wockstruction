@@ -3473,6 +3473,30 @@
        "value": "zombie"
       }
      ]
+    },
+    {
+     "id": 12,
+     "name": "Wanderer",
+     "type": "npc",
+     "x": 1584,
+     "y": 816,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true,
+     "properties": [
+      {
+       "name": "quest",
+       "type": "string",
+       "value": "lost-wanderer"
+      },
+      {
+       "name": "questReady",
+       "type": "bool",
+       "value": false
+      }
+     ]
     }
    ],
    "opacity": 1,
@@ -3483,7 +3507,7 @@
   }
  ],
  "nextlayerid": 4,
- "nextobjectid": 12,
+ "nextobjectid": 13,
  "orientation": "isometric",
  "renderorder": "right-down",
  "tiledversion": "1.11.2",

@@ -11,6 +11,7 @@ import { inventoryPanelLayout } from "./inventoryPanel";
 import { miniMapLayout } from "./miniMap";
 import { type OrbCircle, orbsLayout } from "./orbs";
 import { panelButtonsLayout } from "./panelButtons";
+import { questPanelLayout } from "./questPanel";
 import { skillBarLayout } from "./skillBar";
 import { skillTreePanelLayout } from "./skillTreePanel";
 import { touchControlsLayout, touchControlsShown } from "./touchControls";
@@ -55,6 +56,7 @@ const OPEN = {
   hero: "heroPanelOpen",
   inventory: "inventoryOpen",
   skillTree: "skillTreeOpen",
+  quest: "questOpen",
 } as const;
 
 /** Every touch control as laid out on `viewport`, by name. */
@@ -161,6 +163,7 @@ describe("the touch controls with a panel open", () => {
       ["Hero panel", heroPanelLayout(viewport).panel],
       ["Inventory panel", inventoryPanelLayout(viewport, 1).panel],
       ["Skill Tree panel", skillTreePanelLayout(viewport).panel],
+      ["Quest panel", questPanelLayout(viewport, 4).panel],
     ] as [string, Rect][];
   }
 

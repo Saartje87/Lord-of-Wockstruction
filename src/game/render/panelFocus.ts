@@ -5,6 +5,7 @@ import type { Viewport } from "../viewport";
 import { dialogueFocusSpots } from "./dialoguePanel";
 import { heroFocusSpots } from "./heroPanel";
 import { inventoryFocusSpots } from "./inventoryPanel";
+import { questFocusSpots } from "./questPanel";
 import { skillTreeFocusSpots } from "./skillTreePanel";
 import { waypointListFocusSpots } from "./waypointList";
 
@@ -26,6 +27,8 @@ export function panelFocusSpots(
       return inventoryFocusSpots(world, screen);
     case "skillTree":
       return skillTreeFocusSpots(world, screen);
+    case "quest":
+      return questFocusSpots(world, screen);
     case "dialogue":
       return dialogueFocusSpots(world, screen, dialogueNpc);
     case "waypoints":

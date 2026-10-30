@@ -8,6 +8,7 @@ import type { Vec } from "./sim/vec";
 import {
   createWorld,
   FRESH_PROGRESS,
+  npcsIn,
   type Order,
   type SimEvent,
   step,
@@ -797,5 +798,77 @@ describe("the shipped Waypoints", () => {
     }
     expect(world.areaName).toBe("soggy-bog");
     expect(waypointUnderHero(world)).toBeNull();
+  });
+});
+
+describe('the shipped "Lost Wanderer" Quest', () => {
+  const withWanderer = (state: "notGiven" | "ready" | "done") => ({
+    ...FRESH_PROGRESS,
+    quests: {
+      ...FRESH_PROGRESS.quests,
+      "lost-wanderer": { state, count: 0 },
+    },
+  });
+  const inOldMill = (state: "notGiven" | "ready" | "done" = "notGiven") =>
+    createWorld({
+      areas,
+      tilesets,
+      seed: 1,
+      start: { area: "old-mill", entry: "start" },
+      progress: withWanderer(state),
+    });
+
+  it("leaves the Wanderer out of Wockville until rescued", () => {
+    const names = npcsIn(shippedWorld()).map(({ name }) => name);
+
+    expect(names.sort()).toEqual(["Elder", "Smith", "Trader"]);
+  });
+
+  it("stands the Wanderer in the Old Mill, on open ground among its Monsters", () => {
+    const world = inOldMill();
+    const [wanderer] = npcsIn(world);
+
+    expect(wanderer.name).toBe("Wanderer");
+    expect(
+      findPath(world.areas["old-mill"], world.hero.pos, wanderer.pos, 0.3)
+        .length,
+    ).toBeGreaterThan(0);
+    const nearest = Math.min(
+      ...world.areas["old-mill"].spawns.map((spawn) =>
+        Math.hypot(spawn.pos.x - wanderer.pos.x, spawn.pos.y - wanderer.pos.y),
+      ),
+    );
+    expect(nearest).toBeLessThanOrEqual(6);
+  });
+
+  it("sends the Wanderer home when talked to: gone from the Old Mill, Quest Ready", () => {
+    const world = inOldMill();
+    world.monsters = [];
+    const [wanderer] = npcsIn(world);
+
+    let ready = false;
+    for (let i = 0; i < 1200; i++) {
+      const orders: Order[] =
+        i === 0 ? [{ type: "Talk", npc: wanderer.id }] : [];
+      for (const event of step(world, orders)) {
+        if (event.type === "QuestReady") ready = true;
+      }
+    }
+
+    expect(ready).toBe(true);
+    expect(npcsIn(world)).toEqual([]);
+  });
+
+  it("puts the Wanderer in Wockville and not the Old Mill once rescued", () => {
+    for (const state of ["ready", "done"] as const) {
+      expect(npcsIn(inOldMill(state))).toEqual([]);
+      const home = createWorld({
+        areas,
+        tilesets,
+        seed: 1,
+        progress: withWanderer(state),
+      });
+      expect(npcsIn(home).map(({ name }) => name)).toContain("Wanderer");
+    }
   });
 });

@@ -42,6 +42,7 @@ function mapMarks(
   return marksOf({
     minions: [],
     townPortal: null,
+    npcs: of.area.npcs,
     displayNames: NAMES,
     ...of,
   });

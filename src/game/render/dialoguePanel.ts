@@ -1,6 +1,8 @@
+import { type QuestId, questsOf } from "../sim/quests";
 import { inside, middleOf, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
 import type { World } from "../sim/world";
+import { questTuning } from "../tuning/quests";
 import { atUiScale, type Viewport } from "../viewport";
 import { type CloseButton, closeButtonRect, closeHitAt } from "./closeButton";
 import { compactPanelRect } from "./compactLayout";
@@ -20,20 +22,20 @@ export const DIALOGUE = {
   hintHeight: 28,
 };
 
-/** What each NPC says, by their name in the map: a line of their own. */
+/** What an NPC without a Quest says, by their name in the map: a line of their own. */
 export const NPC_LINES: Readonly<Record<string, string>> = {
-  Smith:
-    "Steel doesn't forgive, Hero. Keep your blade clean and your back to a wall.",
-  Elder:
-    "The Wock has stirred beneath the old stones. We have waited a long time for someone brave enough to listen.",
-  Trader:
-    "Coin buys many things out here, friend, but never a quiet night. Come back when your pockets are heavy.",
   Wanderer:
-    "I have walked every road in this land, and not one of them led anywhere kind.",
+    "I have walked every road in this land, and not one of them led anywhere kind, until you came.",
 };
 
-/** The button on the open Dialogue panel (besides ×): end the talk. */
-export type DialogueButton = { type: "goodbye" };
+/**
+ * The button on the open Dialogue panel (besides ×): end the talk, or take
+ * on or hand in a Quest.
+ */
+export type DialogueButton =
+  | { type: "goodbye" }
+  | { type: "acceptQuest"; quest: QuestId }
+  | { type: "handInQuest"; quest: QuestId };
 
 /** What the Dialogue panel shows of the NPC the Hero talks to. */
 export type DialogueSheet = {
@@ -45,17 +47,51 @@ export type DialogueSheet = {
 };
 
 /**
+ * The Quest an NPC's talk is about: one of theirs to hand in first, else
+ * one to give, else one Given, else their last, which is Done; null for an
+ * NPC with no Quest.
+ */
+function questTalkedAbout(world: World, name: string): QuestId | null {
+  const mine = questsOf(name);
+  const { quests } = world.hero.progress;
+  for (const state of ["ready", "notGiven", "given"] as const) {
+    const found = mine.find((id) => quests[id].state === state);
+    if (found) return found;
+  }
+  return mine.at(-1) ?? null;
+}
+
+/**
  * What the Dialogue panel shows for NPC `npc` of the active Area, or null
- * for an NPC the Area doesn't have. Quests add their lines and buttons here,
- * ahead of Goodbye.
+ * for an NPC the Area doesn't have. An NPC with Quests speaks of one at a
+ * time, as it stands, and offers to give or take it back ahead of Goodbye.
  */
 export function dialogueSheet(world: World, npc: number): DialogueSheet | null {
   const there = world.areas[world.areaName].npcs[npc];
   if (!there) return null;
+  const goodbye = { label: "Goodbye", button: { type: "goodbye" } } as const;
+  const quest = questTalkedAbout(world, there.name);
+  if (quest === null) {
+    return {
+      name: there.name,
+      lines: [NPC_LINES[there.name] ?? "..."],
+      buttons: [goodbye],
+    };
+  }
+  const { name, lines } = questTuning[quest];
+  const { state } = world.hero.progress.quests[quest];
+  const offer =
+    state === "notGiven"
+      ? { label: `Accept "${name}"`, button: { type: "acceptQuest", quest } }
+      : state === "ready"
+        ? { label: `Hand in "${name}"`, button: { type: "handInQuest", quest } }
+        : null;
   return {
     name: there.name,
-    lines: [NPC_LINES[there.name] ?? "..."],
-    buttons: [{ label: "Goodbye", button: { type: "goodbye" } }],
+    lines: [lines[state]],
+    buttons: offer
+      ? [offer as DialogueSheet["buttons"][number], goodbye]
+      : [goodbye],
   };
 }
 

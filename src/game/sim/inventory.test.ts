@@ -53,6 +53,7 @@ function strongerBy(strength: number): Progress {
     skillLevels: { ...FRESH_PROGRESS.skillLevels, golem: 0 },
     skillBar: emptySkillBar(),
     touchedWaypoints: [...FRESH_PROGRESS.touchedWaypoints],
+    quests: structuredClone(FRESH_PROGRESS.quests),
   };
 }
 

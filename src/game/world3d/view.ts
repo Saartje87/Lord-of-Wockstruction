@@ -15,10 +15,12 @@ import {
   FLINCH_STEPS,
   HERO_FLINCH_STEPS,
   HIT_STEP,
+  hasQuestToDeal,
   type Minion,
   type MinionId,
   type Monster,
   type MonsterId,
+  npcsIn,
   OPENING_STEPS,
   SWING_STEPS,
   type World,
@@ -107,6 +109,8 @@ export type NpcView = {
   facing: number;
   animation: MonsterAnimation;
   highlighted: false;
+  /** Whether a Quest mark floats over its head: a Quest to give or take back. */
+  questMark: boolean;
 };
 
 /** An Exit out of the Area: a zone of tiles, leading to the Area `to`. */
@@ -360,7 +364,8 @@ export function worldViewOf(
         crumblingMinionOf(world, minion),
       ),
     ],
-    npcs: area.npcs.map((npc, id): NpcView => {
+    npcs: npcsIn(world).map((npc): NpcView => {
+      const { id } = npc;
       const apart = Math.hypot(pos.x - npc.pos.x, pos.y - npc.pos.y);
       return {
         id,
@@ -372,6 +377,7 @@ export function worldViewOf(
             : TOWARDS_CAMERA,
         animation: { clip: "idle", seconds: (world.tick * STEP_MS) / 1000 },
         highlighted: false,
+        questMark: hasQuestToDeal(world, id),
       };
     }),
     townPortals: effects.portals,

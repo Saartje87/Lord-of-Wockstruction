@@ -180,7 +180,11 @@ import {
   miniMapShown,
   miniMapTooltipRect,
 } from "./miniMap";
-import { minionFrameLayout, minionFrameRows } from "./minionFrame";
+import {
+  MINION_FRAME,
+  minionFrameLayout,
+  minionFrameRows,
+} from "./minionFrame";
 import {
   heroHitShows,
   type Orb,
@@ -2692,12 +2696,15 @@ function minionFrameView() {
   const graphics = new Graphics();
   layer.addChild(graphics);
   layer.eventMode = "none";
+  // One count label per row, made as rows first need them.
+  const counts: Text[] = [];
 
   return {
     layer,
     draw(screen: Viewport, world: World) {
       graphics.clear();
       const rows = minionFrameRows(world);
+      for (const label of counts) label.visible = false;
       const laidOut = minionFrameLayout(screen, rows).rows;
       laidOut.forEach((row, index) => {
         const look = MINION_FRAME_STYLE;
@@ -2707,6 +2714,23 @@ function minionFrameView() {
           .fill({ color: look.box, alpha: look.boxAlpha })
           .stroke({ width: 1, color: look.edge });
         MINION_ICONS[row.kind](graphics, row.icon);
+        const { cap, count } = rows[index];
+        if (row.count && cap !== null) {
+          let label = counts[index];
+          if (!label) {
+            label = new Text({
+              text: "",
+              style: { fill: look.bone, fontFamily: SERIF },
+            });
+            label.anchor.set(0, 0.5);
+            counts[index] = label;
+            layer.addChild(label);
+          }
+          label.visible = true;
+          label.text = `${count}/${cap}`;
+          sizeText(label, MINION_FRAME.countSize * screen.uiScale, 2);
+          label.position.set(row.count.x, row.count.y + row.count.h / 2);
+        }
         row.bars.forEach((rect, bar) => {
           lifeBar(graphics, {
             x: rect.x,

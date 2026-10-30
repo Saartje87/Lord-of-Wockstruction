@@ -29,6 +29,7 @@ const town = {
 /** A World whose Hero has `types` as Minions, oldest first, at Skill Level 1. */
 function withMinions(...types: MinionType[]): World {
   const w = createWorld({ areas: { town }, seed: 1 });
+  w.hero.progress.skillLevels.raiseSkeleton = 1;
   for (const type of types) {
     const skill = type === "golem" ? "golem" : "raiseSkeleton";
     w.minions.push(
@@ -39,6 +40,40 @@ function withMinions(...types: MinionType[]): World {
 }
 
 describe("minionFrameRows", () => {
+  it("counts Raised Skeletons against the cap at the Raise Skeleton Skill Level", () => {
+    const w = withMinions("raisedSkeleton", "raisedSkeleton");
+    w.hero.progress.skillLevels.raiseSkeleton = 3;
+    expect(minionFrameRows(w)[0]).toMatchObject({ count: 2, cap: 2 });
+
+    // A Skill Point into Raise Skeleton that earns a Minion raises the cap.
+    w.hero.progress.skillLevels.raiseSkeleton = 4;
+    expect(minionFrameRows(w)[0]).toMatchObject({ count: 2, cap: 3 });
+  });
+
+  it("gives a Raised Archer row its own count and cap", () => {
+    const w = withMinions("raisedSkeleton");
+    w.minions.push(
+      newMinion(
+        w.nextMinionId++,
+        "raisedArcher",
+        "raiseArcher",
+        1,
+        {
+          x: 1.5,
+          y: 0.5,
+        },
+        0,
+      ),
+    );
+    w.hero.progress.skillLevels.raiseSkeleton = 1;
+    w.hero.progress.skillLevels.raiseArcher = 4;
+
+    expect(minionFrameRows(w).map(({ count, cap }) => [count, cap])).toEqual([
+      [1, 2],
+      [1, 3],
+    ]);
+  });
+
   it("gives no rows to a Hero without Minions", () => {
     expect(minionFrameRows(withMinions())).toEqual([]);
   });
@@ -48,7 +83,12 @@ describe("minionFrameRows", () => {
     w.minions[0].life /= 4;
 
     expect(minionFrameRows(w)).toEqual([
-      { kind: "golem", bars: [{ id: w.minions[0].id, fraction: 0.25 }] },
+      {
+        kind: "golem",
+        count: 1,
+        cap: null,
+        bars: [{ id: w.minions[0].id, fraction: 0.25 }],
+      },
     ]);
   });
 
@@ -60,6 +100,8 @@ describe("minionFrameRows", () => {
     expect(minionFrameRows(w)).toEqual([
       {
         kind: "raisedSkeleton",
+        count: 2,
+        cap: 2,
         bars: [
           { id: oldest.id, fraction: 1 },
           { id: newest.id, fraction: 0.5 },
@@ -114,6 +156,8 @@ describe("minionFrameRows", () => {
 function rowsOf(...counts: number[]) {
   return counts.map((count, i) => ({
     kind: (["golem", "raisedSkeleton", "raisedArcher"] as const)[i],
+    count,
+    cap: i === 0 ? null : 99,
     bars: Array.from({ length: count }, (_, id) => ({ id, fraction: 1 })),
   }));
 }
@@ -141,6 +185,20 @@ describe("minionFrameLayout", () => {
     );
     expect(second.bars[0].x).toBeGreaterThanOrEqual(
       second.icon.x + second.icon.w,
+    );
+  });
+
+  it("puts a count between the icon and the bars of rows with a cap only", () => {
+    const screen = viewportOf({ width: 1280, height: 720 });
+    const [golem, skeletons] = minionFrameLayout(screen, rowsOf(1, 3)).rows;
+
+    expect(golem.count).toBeNull();
+    if (!skeletons.count) throw new Error("No count");
+    expect(skeletons.count.x).toBeGreaterThanOrEqual(
+      skeletons.icon.x + skeletons.icon.w,
+    );
+    expect(skeletons.bars[0].x).toBeGreaterThanOrEqual(
+      skeletons.count.x + skeletons.count.w,
     );
   });
 

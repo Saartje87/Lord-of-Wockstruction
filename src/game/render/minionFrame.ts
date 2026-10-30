@@ -1,5 +1,11 @@
 import type { Rect } from "../sim/rect";
-import { type MinionType, minionMaxLife, type World } from "../sim/world";
+import {
+  type MinionType,
+  minionMaxLife,
+  raiseCount,
+  type World,
+} from "../sim/world";
+import { skillTuning } from "../tuning/skills";
 import { atUiScale, type Viewport } from "../viewport";
 
 /**
@@ -15,8 +21,17 @@ export const MINION_KINDS: Record<MinionType, { place: number }> = {
 /** One Minion's Life bar: who it is and how much Life it has left (0..1). */
 export type MinionBar = { id: number; fraction: number };
 
-/** A Minion kind's row of the Minion Frame, its bars oldest first. */
-export type MinionRow = { kind: MinionType; bars: MinionBar[] };
+/**
+ * A Minion kind's row of the Minion Frame, its bars oldest first: `count`
+ * Minions alive of the `cap` the Hero can have, no cap for a kind that
+ * isn't raised, such as the Golem.
+ */
+export type MinionRow = {
+  kind: MinionType;
+  count: number;
+  cap: number | null;
+  bars: MinionBar[];
+};
 
 /**
  * The Minion Frame's rows: one per Minion kind with any alive, in the kinds'
@@ -24,16 +39,32 @@ export type MinionRow = { kind: MinionType; bars: MinionBar[] };
  * them. None for a Hero without Minions.
  */
 export function minionFrameRows(world: World): MinionRow[] {
-  const rows = new Map<MinionType, MinionBar[]>();
+  const rows = new Map<MinionType, MinionRow>();
+  const { skillLevels } = world.hero.progress;
   for (const minion of world.minions) {
-    const bars = rows.get(minion.type) ?? [];
+    // The cap is the sim's own rule for replacing the oldest, at the Skill
+    // Level the Hero has now.
+    const { effect } = skillTuning[minion.skill];
+    const row = rows.get(minion.type) ?? {
+      kind: minion.type,
+      count: 0,
+      cap:
+        effect.type === "raise"
+          ? raiseCount(effect, skillLevels[minion.skill])
+          : null,
+      bars: [],
+    };
     const fraction = minion.life / minionMaxLife(minion);
-    bars.push({ id: minion.id, fraction: Math.min(1, Math.max(0, fraction)) });
-    rows.set(minion.type, bars);
+    row.bars.push({
+      id: minion.id,
+      fraction: Math.min(1, Math.max(0, fraction)),
+    });
+    row.count = row.bars.length;
+    rows.set(minion.type, row);
   }
-  return [...rows]
-    .map(([kind, bars]) => ({ kind, bars }))
-    .sort((a, b) => MINION_KINDS[a.kind].place - MINION_KINDS[b.kind].place);
+  return [...rows.values()].sort(
+    (a, b) => MINION_KINDS[a.kind].place - MINION_KINDS[b.kind].place,
+  );
 }
 
 /**
@@ -46,6 +77,8 @@ export const MINION_FRAME = {
   margin: 12,
   icon: 24,
   iconGap: 6,
+  countWidth: 40,
+  countSize: 12,
   barWidth: 16,
   barHeight: 5,
   barGap: 3,
@@ -56,7 +89,12 @@ export const MINION_FRAME = {
 export const BARS_PER_LINE = 10;
 
 /** Where one row's icon and bars are drawn. */
-export type MinionRowLayout = { kind: MinionType; icon: Rect; bars: Rect[] };
+export type MinionRowLayout = {
+  kind: MinionType;
+  icon: Rect;
+  count: Rect | null;
+  bars: Rect[];
+};
 
 /**
  * Where the Minion Frame is drawn: at the top left, `rows` stacked down. Its
@@ -68,11 +106,15 @@ export function minionFrameLayout(
 ): { frame: Rect | null; rows: MinionRowLayout[] } {
   if (rows.length === 0) return { frame: null, rows: [] };
   const size = atUiScale(MINION_FRAME, screen.uiScale);
-  const barsLeft = size.margin + size.icon + size.iconGap;
+  const countLeft = size.margin + size.icon + size.iconGap;
+  // The bars of every row line up after the count, when any row has one.
+  const barsLeft = rows.some((row) => row.cap !== null)
+    ? countLeft + size.countWidth + size.iconGap
+    : countLeft;
   const stride = size.barHeight + size.barGap;
   let y = size.margin;
   let right = barsLeft;
-  const laidOut = rows.map(({ kind, bars }) => {
+  const laidOut = rows.map(({ kind, cap, bars }) => {
     const lines = Math.max(1, Math.ceil(bars.length / BARS_PER_LINE));
     const barsHeight = lines * stride - size.barGap;
     const height = Math.max(size.icon, barsHeight);
@@ -88,6 +130,10 @@ export function minionFrameLayout(
     const row = {
       kind,
       icon: { x: size.margin, y, w: size.icon, h: size.icon },
+      count:
+        cap === null
+          ? null
+          : { x: countLeft, y, w: size.countWidth, h: height },
       bars: rects,
     };
     y += height + size.rowGap;

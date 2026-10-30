@@ -77,6 +77,12 @@ function centre(rect: Rect) {
 function fullestMinionRows(): MinionRow[] {
   const bars = (count: number) =>
     Array.from({ length: count }, (_, id) => ({ id, fraction: 1 }));
+  const row = (kind: MinionRow["kind"], count: number, cap: number | null) => ({
+    kind,
+    count,
+    cap,
+    bars: bars(count),
+  });
   const mostSkillLevel = heroTuning.experienceTable.length;
   const most = (skill: "raiseSkeleton" | "raiseArcher") => {
     const { effect } = skillTuning[skill];
@@ -84,9 +90,9 @@ function fullestMinionRows(): MinionRow[] {
     return raiseCount(effect, mostSkillLevel);
   };
   return [
-    { kind: "golem", bars: bars(1) },
-    { kind: "raisedSkeleton", bars: bars(most("raiseSkeleton")) },
-    { kind: "raisedArcher", bars: bars(most("raiseArcher")) },
+    row("golem", 1, null),
+    row("raisedSkeleton", most("raiseSkeleton"), most("raiseSkeleton")),
+    row("raisedArcher", most("raiseArcher"), most("raiseArcher")),
   ];
 }
 

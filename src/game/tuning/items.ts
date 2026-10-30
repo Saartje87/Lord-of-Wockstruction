@@ -252,18 +252,30 @@ export const RARITIES: readonly Rarity[] = ["normal", "magic", "rare"];
 
 /**
  * Rarity odds and Affix counts, as weights. A non-Potion drop rolls its
- * Rarity from `rarity`; a Magic Item rolls one or two Affixes by
- * `magicAffixes`, a Rare Item three or four by `rareAffixes`, and a Rare
- * Item is named by a word of each list in `rareNames`.
+ * Rarity from `rarity`, a Unique Monster's from `uniqueRarity`; a Magic Item
+ * rolls one or two Affixes by `magicAffixes`, a Rare Item three or four by
+ * `rareAffixes`, and a Rare Item is named by a word of each list in
+ * `rareNames`. `affixCounts` is the fewest and most Affixes of each Rarity
+ * and `perSide` the most on one side (Prefix or Suffix); `sideOdds` weighs
+ * the side a lone Magic Affix, or a Rare Item's doubled side, takes.
  */
 export const rarityTuning: {
   rarity: Record<Rarity, number>;
+  uniqueRarity: Record<Rarity, number>;
+  affixCounts: Record<Rarity, [number, number]>;
+  perSide: Record<Rarity, number>;
+  sideOdds: Record<"prefix" | "suffix", number>;
   magicAffixes: { one: number; two: number };
   rareAffixes: { three: number; four: number };
   rareNames: { first: readonly string[]; second: readonly string[] };
 } = {
   // 70% Normal, 25% Magic and 5% Rare.
   rarity: { normal: 70, magic: 25, rare: 5 },
+  // 30% Normal, 45% Magic and 25% Rare.
+  uniqueRarity: { normal: 30, magic: 45, rare: 25 },
+  affixCounts: { normal: [0, 0], magic: [1, 2], rare: [3, 4] },
+  perSide: { normal: 0, magic: 1, rare: 2 },
+  sideOdds: { prefix: 1, suffix: 1 },
   magicAffixes: { one: 60, two: 40 },
   rareAffixes: { three: 60, four: 40 },
   rareNames: {

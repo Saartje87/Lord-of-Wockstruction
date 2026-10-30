@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { goldTuning } from "../tuning/gold";
 import type { MonsterType } from "../tuning/monsters";
 import { tuningReport } from "./tuningReport";
 
@@ -144,12 +145,14 @@ describe("tuningReport", () => {
     it("is the Gold Pile chance times the mean amount at the Area Level, times the kills the Level takes", () => {
       const { levels } = tuningReport("skeleton", places);
 
-      // Chance 0.5 and 2 to 5 a Monster Level: 1.75 Gold a kill per Level.
+      // A kill is worth the chance times the mean amount a Monster Level.
       // Level 1 plays Area Level 1, and 5 kills reach Level 2.
+      const [least, most] = goldTuning.perMonsterLevel;
+      const perLevel = (goldTuning.chance * (least + most)) / 2;
       expect(levels[0].gold).toEqual({
         areaLevel: 1,
-        perKill: 1.75,
-        total: 8.75,
+        perKill: perLevel,
+        total: perLevel * 5,
       });
     });
 
@@ -167,8 +170,9 @@ describe("tuningReport", () => {
     it("grows with the Area Levels a Level plays in", () => {
       const { levels } = tuningReport("skeleton", places);
 
-      expect(levels[3].gold?.perKill).toBe(7);
-      expect(levels[7].gold?.perKill).toBe(14);
+      const perLevel = levels[0].gold?.perKill ?? 0;
+      expect(levels[3].gold?.perKill).toBe(perLevel * 4);
+      expect(levels[7].gold?.perKill).toBe(perLevel * 8);
     });
 
     it("starts a Hero below the shallowest Area there", () => {

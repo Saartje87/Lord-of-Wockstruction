@@ -4,7 +4,7 @@ import { ITEM_TYPES, type ItemType, isPotion, itemOf } from "../tuning/items";
 import { valueTuning, vendorTuning } from "../tuning/vendor";
 import { belongingsOf, cursorItemOf, type Item } from "./inventory";
 import { itemValue } from "./value";
-import { goodsOf } from "./vendor";
+import { goodsOf, valueSoldFor } from "./vendor";
 import {
   createWorld,
   type Order,
@@ -60,7 +60,14 @@ function row(cells: string, exitTo = "") {
   };
 }
 
+/** A World in Town with Trade open, as when the Vendor panel is. */
 function newWorld(seed = 1): World {
+  const world = closedWorld(seed);
+  step(world, [{ type: "OpenTrade" }]);
+  return world;
+}
+
+function closedWorld(seed = 1): World {
   return createWorld({
     areas: {
       town: row("HE..", "field"),
@@ -365,14 +372,12 @@ describe("selling", () => {
     run(world, [{ type: "LiftItem", from: { column: 0, row: 0 } }]);
   }
 
-  it("pays a quarter of the Value, rounded down, and the Item is gone", () => {
+  it("pays the tuned share of the Value, rounded down, and the Item is gone", () => {
     const world = newWorld();
     withHeld(world, { type: "shortSword" });
     const before = goodsOf(world);
     const events = run(world, [{ type: "SellItem" }]);
-    expect(world.hero.progress.gold).toBe(
-      Math.floor(itemValue({ type: "shortSword" }) / 4),
-    );
+    expect(world.hero.progress.gold).toBe(valueSoldFor({ type: "shortSword" }));
     expect(cursorItemOf(world)).toBeNull();
     expect(belongingsOf(world).inventory).toEqual([]);
     expect(goodsOf(world)).toEqual(before);
@@ -412,16 +417,14 @@ describe("selling", () => {
     run(world, [{ type: "LiftItem", from: { beltColumn: 0, row: 0 } }]);
     run(world, [{ type: "SellItem" }]);
     expect(world.hero.progress.gold).toBe(
-      gold + Math.floor(itemValue({ type: "manaPotion" }) / 4),
+      gold + valueSoldFor({ type: "manaPotion" }),
     );
     expect(belongingsOf(world).belt[0] ?? []).toEqual([]);
   });
 
   it("always loses Gold when a bought Item is sold back", () => {
     for (const type of ITEM_TYPES) {
-      expect(Math.floor(itemValue({ type }) / 4)).toBeLessThan(
-        itemValue({ type }),
-      );
+      expect(valueSoldFor({ type })).toBeLessThan(itemValue({ type }));
     }
     const world = newWorld();
     world.hero.progress.gold = 1000;
@@ -457,5 +460,57 @@ describe("selling", () => {
     leave(away);
     run(away, [{ type: "SellItem" }]);
     expect(away.hero.progress.gold).toBe(0);
+  });
+});
+
+describe("Trade", () => {
+  it("must be open to lift a good, buy or sell", () => {
+    const world = closedWorld();
+    world.hero.progress.gold = 1000;
+    const cell = cellOf(world, "lifePotion");
+    run(world, [{ type: "LiftGood", from: cell }]);
+    expect(cursorItemOf(world)).toBeNull();
+    run(world, [{ type: "OpenTrade" }]);
+    run(world, [{ type: "LiftGood", from: cell }]);
+    expect(cursorItemOf(world)).not.toBeNull();
+    // Shutting it gives the held good back.
+    run(world, [{ type: "CloseTrade" }]);
+    expect(cursorItemOf(world)).toBeNull();
+    expect(world.hero.progress.gold).toBe(1000);
+    world.hero.inventory.push({
+      item: { id: 900, type: "shortSword", rarity: "normal", affixes: [] },
+      cell: { column: 0, row: 0 },
+    });
+    run(world, [{ type: "LiftItem", from: { column: 0, row: 0 } }]);
+    run(world, [{ type: "SellItem" }]);
+    expect(world.hero.progress.gold).toBe(1000);
+  });
+
+  it("is not opened in Death, and ends in Death and on leaving Town", () => {
+    const dead = closedWorld();
+    dead.death = { elapsed: 0 };
+    run(dead, [{ type: "OpenTrade" }]);
+    expect(dead.trading).toBe(false);
+    const away = newWorld();
+    expect(away.trading).toBe(true);
+    leave(away);
+    expect(away.trading).toBe(false);
+    run(away, [{ type: "OpenTrade" }]);
+    expect(away.trading).toBe(false);
+  });
+
+  it("refuses to sell an Item lifted from an Equipment slot", () => {
+    const world = newWorld();
+    world.hero.equipment.weapon = {
+      id: 901,
+      type: "shortSword",
+      rarity: "normal",
+      affixes: [],
+    };
+    run(world, [{ type: "LiftItem", from: "weapon" }]);
+    expect(cursorItemOf(world)).not.toBeNull();
+    run(world, [{ type: "SellItem" }]);
+    expect(world.hero.progress.gold).toBe(0);
+    expect(cursorItemOf(world)).not.toBeNull();
   });
 });

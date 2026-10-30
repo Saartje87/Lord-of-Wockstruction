@@ -1,9 +1,11 @@
 import { ITEM_TYPES, type ItemType, isPotion, itemOf } from "../tuning/items";
-import { vendorTuning } from "../tuning/vendor";
+import { valueTuning, vendorTuning } from "../tuning/vendor";
 import { TOWN } from "./area";
 import { beltRows, isBeltCell } from "./belt";
 import {
   type Cell,
+  covers,
+  firstFreeCell,
   fitsAt,
   type Item,
   type ItemSpot,
@@ -15,8 +17,7 @@ import {
   storedOf,
 } from "./inventory";
 import { createRng, type Rng, randomInt } from "./random";
-import { overlaps } from "./rect";
-import { itemValue } from "./value";
+import { itemValue, type Valued } from "./value";
 import type { Order, SimEvent, World } from "./world";
 
 /** One of the Vendor's goods, with `cell` its top-left cell on their grid. */
@@ -29,9 +30,12 @@ export type Good = { item: Item; cell: Cell };
  */
 export type Vendor = { goods: Good[]; rng: Rng };
 
+/** Mixed into the World's seed, so the Vendor's stream is its own. */
+const VENDOR_SEED_SALT = 0x5ee0d0;
+
 /** A Vendor with nothing yet, stocking from `seed`. */
 export function newVendor(seed: number): Vendor {
-  return { goods: [], rng: createRng(seed ^ 0x5ee0d0) };
+  return { goods: [], rng: createRng(seed ^ VENDOR_SEED_SALT) };
 }
 
 /** The Vendor's goods, each with its top-left cell. */
@@ -51,48 +55,8 @@ export function goodAt(world: World, cell: Cell): Good | null {
 /** The one of `goods` covering `cell`, if any. */
 function covering(goods: readonly Good[], cell: Cell): Good | null {
   return (
-    goods.find(({ item, cell: at }) => {
-      const { columns, rows } = itemOf(item.type).size;
-      return (
-        cell.column >= at.column &&
-        cell.column < at.column + columns &&
-        cell.row >= at.row &&
-        cell.row < at.row + rows
-      );
-    }) ?? null
+    goods.find(({ item, cell: at }) => covers(item.type, at, cell)) ?? null
   );
-}
-
-/** The cells a placed type covers, as a box. */
-function box({ type, cell }: PlacedType) {
-  const { columns, rows } = itemOf(type).size;
-  return { x: cell.column, y: cell.row, w: columns, h: rows };
-}
-
-/** Whether an Item of `type` fits at `at` on the Vendor's grid among `placed`. */
-function fitsOnGrid(
-  placed: readonly PlacedType[],
-  type: ItemType,
-  at: Cell,
-): boolean {
-  const { columns, rows } = itemOf(type).size;
-  const within =
-    at.column >= 0 &&
-    at.row >= 0 &&
-    at.column + columns <= vendorTuning.grid.columns &&
-    at.row + rows <= vendorTuning.grid.rows;
-  const mine = { x: at.column, y: at.row, w: columns, h: rows };
-  return within && !placed.some((other) => overlaps(box(other), mine));
-}
-
-/** The first spot an Item of `type` fits on the Vendor's grid, column by column. */
-function firstFree(placed: readonly PlacedType[], type: ItemType): Cell | null {
-  for (let column = 0; column < vendorTuning.grid.columns; column++) {
-    for (let row = 0; row < vendorTuning.grid.rows; row++) {
-      if (fitsOnGrid(placed, type, { column, row })) return { column, row };
-    }
-  }
-  return null;
 }
 
 /**
@@ -113,7 +77,7 @@ export function restockVendor(world: World, events: SimEvent[]) {
   }
   const placed: PlacedType[] = [];
   for (const type of types) {
-    const cell = firstFree(placed, type);
+    const cell = firstFreeCell(placed, type, vendorTuning.grid);
     if (!cell) continue;
     placed.push({ type, cell });
     vendor.goods.push({ item: itemFrom(world, { type }), cell });
@@ -121,9 +85,16 @@ export function restockVendor(world: World, events: SimEvent[]) {
   events.push({ type: "VendorRestocked" });
 }
 
+/** Ends Trade, a held good going back to the Vendor at no cost. */
+export function closeTrade(world: World, events: SimEvent[]) {
+  world.trading = false;
+  const { cursor } = world.hero;
+  if (cursor && isGoodSpot(cursor.from)) returnCursorItem(world, events);
+}
+
 /**
- * Applies an order lifting or buying a Vendor's good, returning whether it
- * was one: lifting a good, or putting down, dropping or returning one held.
+ * Applies an order opening or shutting Trade, or lifting or buying a
+ * Vendor's good, returning whether it was one: lifting a good, or putting down, dropping or returning one held.
  * These happen at once, whatever the Hero is doing.
  */
 export function moveGood(
@@ -132,6 +103,14 @@ export function moveGood(
   events: SimEvent[],
 ): boolean {
   const { hero } = world;
+  if (order.type === "OpenTrade") {
+    world.trading = world.areaName === TOWN && !world.death;
+    return true;
+  }
+  if (order.type === "CloseTrade") {
+    closeTrade(world, events);
+    return true;
+  }
   if (order.type === "LiftGood") {
     liftGood(world, order.from, events);
     return true;
@@ -153,22 +132,25 @@ export function moveGood(
   return false;
 }
 
-/** What the Vendor pays for an Item: a quarter of its Value, rounded down. */
-export function sellPrice(item: Parameters<typeof itemValue>[0]): number {
-  return Math.floor(itemValue(item) / 4);
+/**
+ * The Gold the Vendor pays for an Item: its Value times
+ * `valueTuning.buyShare`, rounded down.
+ */
+export function valueSoldFor(item: Valued): number {
+  return Math.floor(itemValue(item) * valueTuning.buyShare);
 }
 
 /**
  * Sells the Hero's Held Item: it is gone, never among the goods, and its
- * price is added to Gold. Refused in Death, outside Town, with nothing held
- * and for a held good.
+ * price is added to Gold. Refused without Trade open, in Death, with
+ * nothing held, for a held good and for an Item lifted from an Equipment slot.
  */
 function sellItem(world: World, events: SimEvent[]) {
   const { hero } = world;
   const { cursor } = hero;
-  if (!cursor || isGoodSpot(cursor.from)) return;
-  if (world.death || world.areaName !== TOWN) return;
-  const value = sellPrice(cursor.item);
+  if (!cursor || isGoodSpot(cursor.from) || isSlot(cursor.from)) return;
+  if (!world.trading || world.death) return;
+  const value = valueSoldFor(cursor.item);
   hero.progress.gold += value;
   hero.cursor = null;
   events.push({ type: "ItemSold", item: { ...cursor.item }, value });
@@ -182,7 +164,7 @@ function sellItem(world: World, events: SimEvent[]) {
  */
 function liftGood(world: World, from: Cell, events: SimEvent[]) {
   const { hero, vendor } = world;
-  if (hero.cursor || world.areaName !== TOWN) return;
+  if (hero.cursor || !world.trading) return;
   const good = covering(vendor.goods, from);
   if (!good) return;
   const value = itemValue(good.item);
@@ -202,13 +184,15 @@ function liftGood(world: World, from: Cell, events: SimEvent[]) {
 }
 
 /**
- * Whether the held good could be bought by putting it down at `to`: an
+ * Whether the held good could be bought by putting it down at `to` with
+ * Trade open: an
  * Inventory cell for its top-left, or a Belt Column cell for a Potion. It
  * must fit in free room, swapping nothing, and the Hero must afford it.
  */
 export function buyable(world: World, to: ItemSpot): boolean {
   const { hero } = world;
   const { cursor } = hero;
+  if (!world.trading) return false;
   if (!cursor || !isGoodSpot(cursor.from) || isSlot(to)) return false;
   const { item } = cursor;
   if (hero.progress.gold < itemValue(item)) return false;

@@ -25,16 +25,6 @@ export type ItemRoll = {
   rareName?: string;
 };
 
-/** The most Affixes of each Rarity, as `[fewest, most]`. */
-const AFFIX_COUNTS: Record<Rarity, [number, number]> = {
-  normal: [0, 0],
-  magic: [1, 2],
-  rare: [3, 4],
-};
-
-/** The most Affixes on one side (Prefix or Suffix) of an Item of each Rarity. */
-const PER_SIDE: Record<Rarity, number> = { normal: 0, magic: 1, rare: 2 };
-
 const RARITY_ORDER: readonly Rarity[] = ["normal", "magic", "rare"];
 
 /** Picks an index by `weights`, advancing `rng` once. */
@@ -88,34 +78,37 @@ function rollAffix(
  * Rare by `rarityTuning` (a Ring or Amulet never Normal). A Magic Item gets one or two Affixes, at most one
  * Prefix and one Suffix; a Rare Item three or four, at most two of each
  * side, and a two-word name. Never two of a kind, each in a grade
- * `monsterLevel` reaches.
+ * `monsterLevel` reaches. A Unique Monster's drop rolls its Rarity by
+ * `rarityTuning.uniqueRarity`.
  */
 export function rollItem(
   rng: Rng,
   type: ItemType,
   monsterLevel: number,
+  unique = false,
 ): ItemRoll {
   if (isPotion(type)) return { rarity: "normal", affixes: [] };
-  const { normal, magic, rare } = rarityTuning.rarity;
+  const { normal, magic, rare } = unique
+    ? rarityTuning.uniqueRarity
+    : rarityTuning.rarity;
   // A Ring or Amulet re-rolls Normal: it drops Magic or Rare.
   const never = itemOf(type).kind === "ring" || itemOf(type).kind === "amulet";
   const rarity =
     RARITY_ORDER[pickWeighted(rng, [never ? 0 : normal, magic, rare])];
   if (rarity === "normal") return { rarity, affixes: [] };
+  const { prefix: prefixOdds, suffix: suffixOdds } = rarityTuning.sideOdds;
+  const coin = () => pickWeighted(rng, [prefixOdds, suffixOdds]);
   let sides: AffixSide[];
   if (rarity === "magic") {
     const { one, two } = rarityTuning.magicAffixes;
     const count = pickWeighted(rng, [one, two]) + 1;
     sides =
-      count === 2
-        ? ["prefix", "suffix"]
-        : [pickWeighted(rng, [1, 1]) === 0 ? "prefix" : "suffix"];
+      count === 2 ? ["prefix", "suffix"] : [coin() === 0 ? "prefix" : "suffix"];
   } else {
     const { three, four } = rarityTuning.rareAffixes;
     const count = pickWeighted(rng, [three, four]) + 3;
     // Three Affixes are two of one side and one of the other.
-    const more: AffixSide =
-      pickWeighted(rng, [1, 1]) === 0 ? "prefix" : "suffix";
+    const more: AffixSide = coin() === 0 ? "prefix" : "suffix";
     const less: AffixSide = more === "prefix" ? "suffix" : "prefix";
     sides =
       count === 4
@@ -143,16 +136,19 @@ function gradeName(affix: RolledAffix): string {
   return affixOf(affix.kind).grades[affix.grade].name;
 }
 
+/** What names an Item: its type, Affixes and Rare name. */
+export type Titled = {
+  type: ItemType;
+  affixes?: readonly RolledAffix[];
+  rareName?: string;
+};
+
 /**
  * An Item's name: a Rare Item's Rare name; a Magic Item's Prefix grade
  * name, then its type's name, then its Suffix grade name; a Normal Item's
  * is its type's.
  */
-export function itemTitle(item: {
-  type: ItemType;
-  affixes?: readonly RolledAffix[];
-  rareName?: string;
-}): string {
+export function itemTitle(item: Titled): string {
   if (item.rareName) return item.rareName;
   const affixes = item.affixes ?? [];
   const prefix = affixes.find((a) => affixOf(a.kind).side === "prefix");
@@ -185,7 +181,7 @@ export function affixTotal(
 
 /** Whether `rarity` is a Rarity there is. */
 export function isRarity(rarity: unknown): rarity is Rarity {
-  return Object.hasOwn(AFFIX_COUNTS, rarity as string);
+  return Object.hasOwn(rarityTuning.affixCounts, rarity as string);
 }
 
 /**
@@ -207,7 +203,7 @@ export function isValidRoll(
   } else if (rareName !== undefined) {
     return false;
   }
-  const [fewest, most] = AFFIX_COUNTS[rarity];
+  const [fewest, most] = rarityTuning.affixCounts[rarity];
   if (affixes.length < fewest || affixes.length > most) return false;
   const kind = itemOf(type).kind;
   const seen: unknown[] = [];
@@ -221,7 +217,7 @@ export function isValidRoll(
     const tuning = affixOf(affixKind as AffixKind);
     if (!tuning.rollsOn.includes(kind)) return false;
     perSide[tuning.side]++;
-    if (perSide[tuning.side] > PER_SIDE[rarity]) return false;
+    if (perSide[tuning.side] > rarityTuning.perSide[rarity]) return false;
     if (!Number.isInteger(grade)) return false;
     const rolled = tuning.grades[grade as number];
     if (!rolled || !Number.isInteger(value)) return false;

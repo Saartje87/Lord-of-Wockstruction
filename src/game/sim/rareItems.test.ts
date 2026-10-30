@@ -9,7 +9,8 @@ import {
   potionDropTuning,
   rarityTuning,
 } from "../tuning/items";
-import { itemTitle } from "./affixes";
+import { itemTitle, rollItem } from "./affixes";
+import { createRng } from "./random";
 import { createWorld, FRESH_PROGRESS, step } from "./world";
 
 /** A Town with the Hero at `H` and one Skeleton at `S`. */
@@ -151,5 +152,25 @@ describe("Rare Items", () => {
     const item = rares[0];
 
     expect(itemTitle(item)).toBe(item.rareName);
+  });
+});
+
+describe("a Unique Monster's drops", () => {
+  const rarest = (unique: boolean) => {
+    const rng = createRng(7);
+    const rolls = Array.from({ length: 2000 }, () =>
+      rollItem(rng, "shortSword", 10, unique),
+    );
+    return (rarity: string) => rolls.filter((r) => r.rarity === rarity).length;
+  };
+
+  it("roll Rarity by their own odds, better than an ordinary Monster's", () => {
+    const ordinary = rarest(false);
+    const unique = rarest(true);
+    expect(unique("rare")).toBeGreaterThan(ordinary("rare") * 2);
+    expect(unique("normal")).toBeLessThan(ordinary("normal"));
+    const { uniqueRarity } = rarityTuning;
+    const total = uniqueRarity.normal + uniqueRarity.magic + uniqueRarity.rare;
+    expect(unique("rare") / 2000).toBeCloseTo(uniqueRarity.rare / total, 1);
   });
 });

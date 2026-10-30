@@ -78,34 +78,19 @@ export const LOOT_LOOKS: Record<ItemType, Look> = {
 /**
  * How each size of Gold Pile lies on the floor: Resource Bits' coin stacks,
  * which are small (a stack is a quarter of a tile across), so they are drawn
- * bigger. `Gold_Nugget_*` is the fallback should they read badly.
+ * bigger.
  */
-export const GOLD_LOOKS: Record<GoldPileSize, Look> = {
-  single: {
-    model: "loot/Money_Coins_Stack_Single",
-    scale: 1.3,
-    lay: [0, 0, 0],
-    tint: null,
-  },
-  small: {
-    model: "loot/Money_Coins_Stack_Small",
-    scale: 1.3,
-    lay: [0, 0, 0],
-    tint: null,
-  },
-  medium: {
-    model: "loot/Money_Coins_Stack_Medium",
-    scale: 1.3,
-    lay: [0, 0, 0],
-    tint: null,
-  },
-  large: {
-    model: "loot/Money_Coins_Stack_Large",
-    scale: 1.3,
-    lay: [0, 0, 0],
-    tint: null,
-  },
-};
+export const GOLD_LOOKS = Object.fromEntries(
+  GOLD_PILE_SIZES.map((size) => [
+    size,
+    {
+      model: `loot/Money_Coins_Stack_${size[0].toUpperCase()}${size.slice(1)}`,
+      scale: 1.3,
+      lay: [0, 0, 0],
+      tint: null,
+    } satisfies Look,
+  ]),
+) as Record<GoldPileSize, Look>;
 
 /** How a Projectile flies: the model, and the pale glow and trail if any. */
 export type ProjectileLook = Look & {

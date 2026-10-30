@@ -487,6 +487,8 @@ export type World = {
    * never kept by the Save.
    */
   vendor: Vendor;
+  /** Whether Trade is open: the Vendor panel is, in Town. Never saved. */
+  trading: boolean;
 };
 
 /** Input reaching the simulation. */
@@ -521,9 +523,18 @@ export type Order =
    */
   | { type: "LiftGood"; from: Cell }
   /**
+   * Open Trade, as the Vendor panel opens: only in Town and not in Death.
+   * Buying and selling need it. It ends by itself with `CloseTrade`, the
+   * Hero leaving Town or dying.
+   */
+  | { type: "OpenTrade" }
+  /** End Trade, as the Vendor panel shuts any way; a held good goes back. */
+  | { type: "CloseTrade" }
+  /**
    * Sell the cursor Item to the Vendor, put down on their grid: it is gone
-   * and a quarter of its Value, rounded down, is added to Gold. Only in
-   * Town, never in Death, and never a held good.
+   * and a share of its Value, set by tuning, is added to Gold. Only with
+   * Trade open, never in Death, and never a held good or an Item lifted
+   * from an Equipment slot.
    */
   | { type: "SellItem" }
   /**
@@ -937,6 +948,7 @@ export function createWorld(options: {
     nextMinionId: 1,
     nextItemId: 1,
     vendor: newVendor(options.seed),
+    trading: false,
   };
   giveBelongings(world, belongings);
   restockVendor(world, []);
@@ -1307,6 +1319,7 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
     restockVendor(world, events);
   }
   world.death = null;
+  world.trading = false;
   const { monsters, projectiles, corpses, groundItems, explored } = world;
   const { boneAltars, goldPiles } = world;
   world.keptAreas[world.areaName] = {
@@ -3005,7 +3018,7 @@ function rollDrop(
     const item: Item = {
       id: world.nextItemId++,
       type,
-      ...rollItem(world.rng, type, monsterLevel),
+      ...rollItem(world.rng, type, monsterLevel, unique),
     };
     world.groundItems.push({ item, pos: { ...pos } });
     events.push({
@@ -3147,6 +3160,7 @@ function removeMinion(world: World, minion: Minion) {
  */
 function die(world: World, events: SimEvent[]) {
   world.death = { elapsed: 0 };
+  world.trading = false;
   world.hero.potionEffects = [];
   world.hero.boneWard = null;
   for (const minion of world.minions) crumbleMinion(world, minion, events);

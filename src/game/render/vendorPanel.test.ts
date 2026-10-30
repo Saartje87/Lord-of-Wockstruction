@@ -9,7 +9,7 @@ import { createMenus } from "../menus";
 import { belongingsOf, cursorItemOf, type Item } from "../sim/inventory";
 import { inside, middleOf, overlaps, type Rect } from "../sim/rect";
 import { itemValue } from "../sim/value";
-import { goodsOf } from "../sim/vendor";
+import { goodsOf, valueSoldFor } from "../sim/vendor";
 import { createWorld, step, type World } from "../sim/world";
 import { isPotion } from "../tuning/items";
 import { type Viewport, viewportOf } from "../viewport";
@@ -43,6 +43,8 @@ const town = {
 function newWorld(gold = 1000): World {
   const world = createWorld({ areas: { town }, seed: 4 });
   world.hero.progress.gold = gold;
+  // The panel is shown open, so Trade is.
+  world.trading = true;
   return world;
 }
 
@@ -314,9 +316,7 @@ describe("selling through the panel", () => {
       y: layout.goods.y + 5.5 * layout.cell,
     });
     expect(cursorItemOf(world)).toBeNull();
-    expect(world.hero.progress.gold).toBe(
-      Math.floor(itemValue({ type: "shortSword" }) / 4),
-    );
+    expect(world.hero.progress.gold).toBe(valueSoldFor({ type: "shortSword" }));
     expect(belongingsOf(world).inventory).toEqual([]);
     expect(goodsOf(world)).toEqual(goods);
   });
@@ -361,7 +361,7 @@ describe("a Hero's Item tooltip", () => {
       rarity: "normal",
       affixes: [],
     };
-    const price = Math.floor(itemValue(item) / 4);
+    const price = valueSoldFor(item);
     expect(sellTooltip(item).at(-1)).toBe(`Sells for: ${price} Gold`);
   });
 });

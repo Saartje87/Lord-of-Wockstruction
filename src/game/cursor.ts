@@ -335,7 +335,10 @@ function asItemSpot(hit: CursorHit | null): CursorHit | null {
   return { inventory: { beltColumn: hit.beltColumn, row: 0 } };
 }
 
-/** Whether two spots are the same slot, cell or Belt Column cell. */
+/**
+ * Whether two spots are the same slot, cell or Belt Column cell; a good's
+ * spot on the Vendor's grid is never the same as an Item's.
+ */
 function sameSpot(a: ItemSpot, b: CursorSpot): boolean {
   if (isGoodSpot(b)) return false;
   if (isSlot(a) || isSlot(b)) return a === b;

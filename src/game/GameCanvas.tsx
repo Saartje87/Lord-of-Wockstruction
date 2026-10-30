@@ -107,6 +107,7 @@ import {
   type MonsterId,
   type Order,
   step,
+  type World,
   waypointUnderHero,
   withinNpcReach,
 } from "./sim/world";
@@ -680,7 +681,11 @@ export default function GameCanvas() {
         const { steps, alpha } = advance(clock, now - last);
         last = now;
         for (let i = 0; i < steps; i++) {
-          const events = step(world, [...orders, ...walking]);
+          const events = step(world, [
+            ...tradeOrders(world, menus),
+            ...orders,
+            ...walking,
+          ]);
           if (changesSave(events)) writeSave(storage, saveOf(world));
           renderer.react(events, now);
           // The Hero's Death closes the panels. The World has already put
@@ -904,6 +909,15 @@ export default function GameCanvas() {
   }, []);
 
   return <div ref={host} />;
+}
+
+/**
+ * The order bringing Trade in step with the Vendor panel: open as the panel
+ * opens, shut as it shuts any way.
+ */
+function tradeOrders(world: World, menus: Menus): Order[] {
+  if (menus.vendorOpen === world.trading) return [];
+  return [{ type: menus.vendorOpen ? "OpenTrade" : "CloseTrade" }];
 }
 
 /**

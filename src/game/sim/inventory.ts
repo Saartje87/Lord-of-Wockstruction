@@ -205,16 +205,26 @@ export function covers(type: ItemType, at: Cell, cell: Cell): boolean {
   );
 }
 
-/** Whether an Item of `type` with its top-left at `at` stays on the grid. */
-export function onGrid(type: ItemType, at: Cell): boolean {
+/** A grid's size in cells. */
+export type GridSize = { columns: number; rows: number };
+
+/**
+ * Whether an Item of `type` with its top-left at `at` stays on a grid, the
+ * Inventory's unless `grid` says another.
+ */
+export function onGrid(
+  type: ItemType,
+  at: Cell,
+  grid: GridSize = inventoryTuning,
+): boolean {
   const { columns, rows } = itemTuning[type].size;
   return (
     Number.isInteger(at.column) &&
     Number.isInteger(at.row) &&
     at.column >= 0 &&
     at.row >= 0 &&
-    at.column + columns <= inventoryTuning.columns &&
-    at.row + rows <= inventoryTuning.rows
+    at.column + columns <= grid.columns &&
+    at.row + rows <= grid.rows
   );
 }
 
@@ -236,28 +246,32 @@ export function inTheWay<T extends PlacedType>(
 
 /**
  * Whether an Item of `type` with its top-left at `at` stays on the grid
- * without overlapping any of `placed`.
+ * without overlapping any of `placed`, on the Inventory's grid unless
+ * `grid` says another.
  */
 export function fitsAt(
   placed: readonly PlacedType[],
   type: ItemType,
   at: Cell,
+  grid: GridSize = inventoryTuning,
 ): boolean {
-  return onGrid(type, at) && inTheWay(placed, type, at).length === 0;
+  return onGrid(type, at, grid) && inTheWay(placed, type, at).length === 0;
 }
 
 /**
  * Where an Item of `type` would go among `placed` Items: the first spot it
  * fits, scanning column by column from the top-left, or null when none.
+ * On the Inventory's grid unless `grid` says another.
  */
 export function firstFreeCell(
   placed: readonly PlacedType[],
   type: ItemType,
+  grid: GridSize = inventoryTuning,
 ): Cell | null {
-  for (let column = 0; column < inventoryTuning.columns; column++) {
-    for (let row = 0; row < inventoryTuning.rows; row++) {
+  for (let column = 0; column < grid.columns; column++) {
+    for (let row = 0; row < grid.rows; row++) {
       const cell = { column, row };
-      if (fitsAt(placed, type, cell)) return cell;
+      if (fitsAt(placed, type, cell, grid)) return cell;
     }
   }
   return null;

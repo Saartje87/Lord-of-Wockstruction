@@ -14,7 +14,7 @@ export const goldTuning: {
   pickupReach: number;
 } = {
   chance: 0.5,
-  perMonsterLevel: [2, 5],
+  perMonsterLevel: [12, 28],
   pickupReach: 0.8,
 };
 

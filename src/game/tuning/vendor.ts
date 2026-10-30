@@ -19,12 +19,15 @@ export const vendorTuning: {
 /**
  * What an Item is worth in Gold (its Value): a base for each Item type,
  * multiplied by its Rarity's factor and by one plus a share for each of its
- * Affixes, by grade, weakest first. The Vendor sells at the Value.
+ * Affixes, by grade, weakest first. The Vendor sells at the Value and buys
+ * for `buyShare` of it.
  */
 export const valueTuning: {
   base: Record<ItemType, number>;
   rarity: Record<Rarity, number>;
   affixShare: readonly number[];
+  /** The share of an Item's Value the Vendor pays for it, rounded down. */
+  buyShare: number;
 } = {
   base: {
     shortSword: 40,
@@ -36,10 +39,11 @@ export const valueTuning: {
     sash: 30,
     heavyBelt: 60,
     platedBelt: 100,
-    lifePotion: 15,
-    manaPotion: 15,
-    rejuvenationPotion: 35,
+    lifePotion: 25,
+    manaPotion: 25,
+    rejuvenationPotion: 60,
   },
   rarity: { normal: 1, magic: 2, rare: 4 },
   affixShare: [0.25, 0.5, 1],
+  buyShare: 0.25,
 };

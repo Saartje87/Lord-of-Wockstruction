@@ -8,7 +8,7 @@ import {
 import { inside, middleOf, type Rect } from "../sim/rect";
 import { itemValue } from "../sim/value";
 import type { Vec } from "../sim/vec";
-import { goodAt, sellPrice } from "../sim/vendor";
+import { goodAt, valueSoldFor } from "../sim/vendor";
 import type { Order, World } from "../sim/world";
 import { type ItemType, inventoryTuning, itemOf } from "../tuning/items";
 import { vendorTuning } from "../tuning/vendor";
@@ -204,7 +204,7 @@ export function vendorOrder(
 
 /** The lines of a Hero's Item tooltip: the Item's own, then what it sells for. */
 export function sellTooltip(item: Item): string[] {
-  return [...itemTooltip(item), `Sells for: ${sellPrice(item)} Gold`];
+  return [...itemTooltip(item), `Sells for: ${valueSoldFor(item)} Gold`];
 }
 
 /**

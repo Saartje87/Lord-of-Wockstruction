@@ -8301,7 +8301,7 @@
       {
        "name": "area",
        "type": "string",
-       "value": "catacombs"
+       "value": "soggy-bog"
       },
       {
        "name": "entry",
@@ -8336,7 +8336,7 @@
     },
     {
      "id": 5,
-     "name": "from-catacombs",
+     "name": "from-soggy-bog",
      "type": "entry",
      "x": 5424.0,
      "y": 1296.0,

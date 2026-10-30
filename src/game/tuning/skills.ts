@@ -81,7 +81,9 @@ export type ExplodeEffect = {
  * Curse every Monster within `radius` of the cast point, and
  * `radiusPerSkillLevel` more each Skill Level past the first (tiles), for
  * `durationMs`, and `durationMsPerSkillLevel` more each Skill Level past the
- * first. A Cursed Monster takes `damageTaken` times the damage.
+ * first. What the Curse does depends on its `kind`: a Monster with Amplify
+ * Damage takes `damageTaken` times the damage; one with Weaken deals
+ * `damageDealt` times the damage of its swings and Arrows.
  */
 export type CurseEffect = {
   type: "curse";
@@ -89,8 +91,10 @@ export type CurseEffect = {
   radiusPerSkillLevel: number;
   durationMs: number;
   durationMsPerSkillLevel: number;
-  damageTaken: number;
-};
+} & (
+  | { kind: "amplifyDamage"; damageTaken: number }
+  | { kind: "weaken"; damageDealt: number }
+);
 
 /**
  * Loose a `projectile` from the Hero toward the cast point, flying `speed`
@@ -145,6 +149,7 @@ export type Skill =
   | "golem"
   | "raiseSkeleton"
   | "amplifyDamage"
+  | "weaken"
   | "boneWard"
   | "corpseExplosion"
   | "boneSpear";
@@ -207,6 +212,7 @@ export const skillTuning: Record<Skill, SkillTuning> = {
     castMs: 400,
     effect: {
       type: "curse",
+      kind: "amplifyDamage",
       radius: 2,
       radiusPerSkillLevel: 0.5,
       durationMs: 8000,
@@ -214,6 +220,29 @@ export const skillTuning: Record<Skill, SkillTuning> = {
       damageTaken: 1.5,
     },
     synergies: [],
+  },
+  // Diablo 2's Weaken (its -33% damage dealt rising to -40%), with Amplify
+  // Damage's radius and a little less of its duration: a Weakened
+  // own-Level Skeleton's swings fall from 6-13 to 4-8, an Archer's Arrows
+  // from 3-6 to 2-4, enough to tell in a pack without making it harmless.
+  weaken: {
+    name: "Weaken",
+    branch: "curses",
+    prerequisite: "amplifyDamage",
+    requiredLevel: 5,
+    manaCost: 7,
+    manaCostPerSkillLevel: 0,
+    castMs: 400,
+    effect: {
+      type: "curse",
+      kind: "weaken",
+      radius: 2,
+      radiusPerSkillLevel: 0.5,
+      durationMs: 8000,
+      durationMsPerSkillLevel: 2000,
+      damageDealt: 0.6,
+    },
+    synergies: [{ skill: "amplifyDamage", percentPerSkillLevel: 8 }],
   },
   // Diablo 2's Bone Armor, and its Mana, scaled by starting Life (a Diablo 2
   // Necromancer's 45 to the Hero's 100): 45 soaks about five swings of a

@@ -86,7 +86,13 @@ import {
 import { beltStripLayout, beltStripSheet } from "./beltStrip";
 import { CLOSE_BUTTON } from "./closeButton";
 import { corpseBurst } from "./corpseBurst";
-import { CURSE_MARK, curseCircle, curseMarkAlpha } from "./curse";
+import {
+  CURSE_MARK,
+  type CurseLook,
+  curseCircle,
+  curseLook,
+  curseMarkAlpha,
+} from "./curse";
 import { cursorHitAt, type ShownPanels } from "./cursorHit";
 import {
   DAMAGE_NUMBER,
@@ -708,7 +714,12 @@ export function createRenderer(
   /** Corpses bursting in the active Area, each over its radius (tiles). */
   const bursts: { pos: Vec; radius: number; atMs: number }[] = [];
   /** Curses cast in the active Area, each over its radius (tiles). */
-  const curses: { pos: Vec; radius: number; atMs: number }[] = [];
+  const curses: {
+    skill: Skill;
+    pos: Vec;
+    radius: number;
+    atMs: number;
+  }[] = [];
   /** When the Hero last arrived in an Area, for the Area Banner. */
   let arrivedAtMs: number | null = null;
   /** Starts the Area Banner showing `displayName`, as of `nowMs`. */
@@ -905,7 +916,10 @@ export function createRenderer(
         deadForMs,
         portals,
         bursts: bursts.map(ageOf),
-        curses: curses.map(ageOf),
+        curses: curses.map((curse) => ({
+          ...ageOf(curse),
+          skill: curse.skill,
+        })),
         levelUpAgoMs: levelAtMs === null ? null : nowMs - levelAtMs,
         departedMinions: departing.map(({ atMs, ...minion }) => ({
           ...minion,
@@ -1073,7 +1087,12 @@ export function createRenderer(
           bursts.push({ pos: event.pos, radius: event.radius, atMs: nowMs });
         }
         if (event.type === "CurseCast") {
-          curses.push({ pos: event.pos, radius: event.radius, atMs: nowMs });
+          curses.push({
+            skill: event.skill,
+            pos: event.pos,
+            radius: event.radius,
+            atMs: nowMs,
+          });
         }
         if (event.type === "TownPortalClosed") {
           closingTownPortals.push({
@@ -1204,7 +1223,13 @@ export function createRenderer(
       for (const monster of world.monsters) {
         if (!monster.curse) continue;
         const anchor = barAnchor(monster);
-        curseMark(overheads, anchor.x, anchor.y, markAlpha);
+        curseMark(
+          overheads,
+          anchor.x,
+          anchor.y,
+          markAlpha,
+          curseLook(monster.curse.skill),
+        );
       }
       // A mark over each NPC with a Quest to give or take back.
       for (const npc of npcsIn(world)) {
@@ -1437,29 +1462,35 @@ function questMark(graphics: Graphics, x: number, bottom: number) {
 }
 
 /**
- * The mark over a Cursed Monster: a diamond centred on `x`, its foot `gap`
- * above `lifeBarTop`, where its Life bar's top is or would be.
+ * The mark over a Cursed Monster, in its Curse's `look`: centred on `x`, its
+ * foot `gap` above `lifeBarTop`, where its Life bar's top is or would be.
  */
 function curseMark(
   graphics: Graphics,
   x: number,
   lifeBarTop: number,
   alpha: number,
+  look: CurseLook,
 ) {
-  const { size, gap, colour, outline, outlineWidth } = CURSE_MARK;
+  const { size, gap, outline, outlineWidth } = CURSE_MARK;
+  const colour = look.mark;
   const half = size / 2;
   const bottom = lifeBarTop - gap;
+  const shape =
+    look.shape === "triangle"
+      ? [x - half, bottom - size, x + half, bottom - size, x, bottom]
+      : [
+          x,
+          bottom - size,
+          x + half,
+          bottom - half,
+          x,
+          bottom,
+          x - half,
+          bottom - half,
+        ];
   graphics
-    .poly([
-      x,
-      bottom - size,
-      x + half,
-      bottom - half,
-      x,
-      bottom,
-      x - half,
-      bottom - half,
-    ])
+    .poly(shape)
     .fill({ color: colour, alpha })
     .stroke({ color: outline, width: outlineWidth, alpha });
 }

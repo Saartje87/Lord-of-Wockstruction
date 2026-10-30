@@ -358,7 +358,7 @@ describe("Branches and Prerequisites", () => {
     expect(branchSkills).toEqual({
       bone: ["boneWard", "corpseExplosion", "boneSpear"],
       summoning: ["raiseSkeleton", "golem"],
-      curses: ["amplifyDamage"],
+      curses: ["amplifyDamage", "weaken"],
     });
     for (const branch of BRANCHES) {
       branchSkills[branch].forEach((skill, index) => {

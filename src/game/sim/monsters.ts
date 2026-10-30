@@ -6,6 +6,7 @@ import {
   monsterTuning,
   type RangedTuning,
 } from "../tuning/monsters";
+import { skillTuning } from "../tuning/skills";
 import { uniqueTuning } from "../tuning/uniqueMonsters";
 import { attackSpot, heroSideBodies, wallRadius } from "./bodies";
 import { faceToward, lands } from "./melee";
@@ -171,12 +172,36 @@ export function killExperience(
   return Math.round(monsterExperience(monster) * factor);
 }
 
-/** The numbers a Monster's attacks roll with at its Monster Level. */
-export function monsterAttack(monster: MonsterOfLevel): AttackNumbers {
+/**
+ * The numbers a Monster's attacks roll with at its Monster Level, its damage
+ * cut by a Weaken Curse. This is the one place Monster damage is Weakened:
+ * a swing and an Arrow (whose numbers are fixed as it is loosed) both take
+ * their numbers from here.
+ */
+export function monsterAttack(
+  monster: MonsterOfLevel & { curse?: Monster["curse"] },
+): AttackNumbers {
+  const [least, most] = monsterDamageRange(monster);
+  const dealt = damageDealt(monster.curse);
   return {
     attackRating: monsterAttackRating(monster),
-    damage: monsterDamageRange(monster),
+    damage:
+      dealt === 1
+        ? [least, most]
+        : [
+            Math.max(1, Math.round(least * dealt)),
+            Math.max(1, Math.round(most * dealt)),
+          ],
   };
+}
+
+/** How many times its usual damage a Monster with `curse` deals. */
+function damageDealt(curse: Monster["curse"] | undefined): number {
+  if (!curse) return 1;
+  const { effect } = skillTuning[curse.skill];
+  return effect.type === "curse" && effect.kind === "weaken"
+    ? effect.damageDealt
+    : 1;
 }
 
 /** A Monster's attack landing on its target this step. */

@@ -267,6 +267,15 @@ describe("stored text", () => {
     });
   });
 
+  it("loads a Save from before Weaken with Weaken at Skill Level 0", () => {
+    const loaded = parseSave(
+      v10({ skillPoints: 0, skillLevels: { amplifyDamage: 2 } }),
+    );
+
+    expect(loaded?.progress.skillLevels.amplifyDamage).toBe(2);
+    expect(loaded?.progress.skillLevels.weaken).toBe(0);
+  });
+
   // Prerequisites gate only spending: loading never checks them.
   it("loads a Save with Golem learned and Raise Skeleton at 0 unchanged", () => {
     const kept = save({

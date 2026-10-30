@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { arenaWith } from "../input/testArena";
 import { CORPSE_BURST } from "../render/corpseBurst";
-import { CURSE_CIRCLE } from "../render/curse";
+import { CURSE_CIRCLE, curseLook } from "../render/curse";
 import { LEVEL_UP } from "../render/levelUp";
 import { msToSteps } from "../sim/units";
 import { monsterTuning } from "../tuning/monsters";
@@ -80,23 +80,56 @@ describe("the 3D World view of the floor effects", () => {
     it("shows a cast Curse over its radius, fading as it plays", () => {
       const early = viewOf(world(), {
         ...NO_EFFECTS,
-        curses: [{ pos: { x: 8, y: 9 }, radius: 3, ageMs: 0 }],
+        curses: [
+          { skill: "amplifyDamage", pos: { x: 8, y: 9 }, radius: 3, ageMs: 0 },
+        ],
       }).curses;
       const late = viewOf(world(), {
         ...NO_EFFECTS,
-        curses: [{ pos: { x: 8, y: 9 }, radius: 3, ageMs: 600 }],
+        curses: [
+          {
+            skill: "amplifyDamage",
+            pos: { x: 8, y: 9 },
+            radius: 3,
+            ageMs: 600,
+          },
+        ],
       }).curses;
 
-      expect(early).toEqual([{ pos: { x: 8, y: 9 }, radius: 3, alpha: 1 }]);
+      expect(early).toEqual([
+        {
+          pos: { x: 8, y: 9 },
+          radius: 3,
+          alpha: 1,
+          colour: curseLook("amplifyDamage").circle,
+        },
+      ]);
       expect(late[0].alpha).toBeLessThan(early[0].alpha);
       expect(late[0].alpha).toBeGreaterThan(0);
+    });
+
+    it("colours each Curse's circle by the Curse", () => {
+      const [circle] = viewOf(world(), {
+        ...NO_EFFECTS,
+        curses: [{ skill: "weaken", pos: { x: 8, y: 9 }, radius: 3, ageMs: 0 }],
+      }).curses;
+
+      expect(circle.colour).toBe(curseLook("weaken").circle);
+      expect(curseLook("weaken").circle).not.toBe(
+        curseLook("amplifyDamage").circle,
+      );
     });
 
     it("drops a Curse once its circle has played", () => {
       const played = viewOf(world(), {
         ...NO_EFFECTS,
         curses: [
-          { pos: { x: 8, y: 9 }, radius: 3, ageMs: CURSE_CIRCLE.ms + 1 },
+          {
+            skill: "amplifyDamage",
+            pos: { x: 8, y: 9 },
+            radius: 3,
+            ageMs: CURSE_CIRCLE.ms + 1,
+          },
         ],
       });
 

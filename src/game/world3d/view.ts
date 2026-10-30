@@ -1,5 +1,5 @@
 import { corpseBurst, tileRadiusOf } from "../render/corpseBurst";
-import { curseCircle } from "../render/curse";
+import { curseCircle, curseLook } from "../render/curse";
 import type { CharacterId } from "../render/hover";
 import { LEVEL_UP, levelRing, levelUpLeft } from "../render/levelUp";
 import type { ShownTownPortal } from "../render/townPortalLook";
@@ -31,6 +31,7 @@ import type { ItemType } from "../tuning/items";
 import type { MinionType } from "../tuning/minions";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import type { ProjectileKind } from "../tuning/projectiles";
+import type { Skill } from "../tuning/skills";
 import type { BoneAltarView } from "./boneAltarMeshes";
 import { ATTACK_CONTACT, type HeroClip } from "./clips";
 import { type Crumble, crumbleOf } from "./crumble";
@@ -141,7 +142,7 @@ export type Effects = {
   /** The Corpse bursts so far, with how long ago each began. */
   bursts: AgedCircle[];
   /** The Curses cast so far, with how long ago each was cast. */
-  curses: AgedCircle[];
+  curses: (AgedCircle & { skill: Skill })[];
   /** How long ago (ms) the Hero reached a Level, if the ring may still show. */
   levelUpAgoMs: number | null;
   /**
@@ -186,7 +187,7 @@ export type FloorCircle = { radius: number; alpha: number };
 /** What the World draws flat on the floor, apart from its pieces. */
 export type FloorEffectsView = {
   telegraphs: TelegraphView[];
-  curses: (FloorCircle & { pos: Vec })[];
+  curses: (FloorCircle & { pos: Vec; colour: number })[];
   /** A flash disc and a spreading ring round a burst Corpse. */
   bursts: { pos: Vec; flash: FloorCircle; ring: FloorCircle }[];
   /** The gold ring round the Hero's feet on a Level-Up. */
@@ -451,9 +452,12 @@ function floorEffectsOf(
     });
   }
   const curses: FloorEffectsView["curses"] = [];
-  for (const { pos, radius, ageMs } of effects.curses) {
+  for (const { pos, radius, ageMs, skill } of effects.curses) {
     const circle = curseCircle(ageMs, radius);
-    if (circle) curses.push({ pos, radius, alpha: circle.alpha });
+    if (circle) {
+      const { circle: colour } = curseLook(skill);
+      curses.push({ pos, radius, alpha: circle.alpha, colour });
+    }
   }
   const bursts: FloorEffectsView["bursts"] = [];
   for (const { pos, radius, ageMs } of effects.bursts) {

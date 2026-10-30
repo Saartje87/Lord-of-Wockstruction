@@ -2314,9 +2314,14 @@ export function curseRadius(effect: CurseEffect, skillLevel: number): number {
 }
 
 /** How long `effect` lasts at `skillLevel` (steps). */
-export function curseSteps(effect: CurseEffect, skillLevel: number): number {
+export function curseSteps(
+  effect: CurseEffect,
+  skillLevel: number,
+  synergy = 1,
+): number {
   return msToSteps(
-    effect.durationMs + effect.durationMsPerSkillLevel * (skillLevel - 1),
+    (effect.durationMs + effect.durationMsPerSkillLevel * (skillLevel - 1)) *
+      synergy,
   );
 }
 
@@ -2334,7 +2339,11 @@ function curse(
 ) {
   const radius = curseRadius(effect, skillLevel);
   events.push({ type: "CurseCast", skill, pos: { ...target }, radius });
-  const left = curseSteps(effect, skillLevel);
+  const left = curseSteps(
+    effect,
+    skillLevel,
+    synergyMultiplier(world.hero.progress.skillLevels, skill),
+  );
   for (const monster of world.monsters) {
     if (distance(monster.pos, target) <= radius) {
       monster.curse = { skill, left };
@@ -2785,7 +2794,9 @@ function takeDamage(
 function damageTaken(monster: Monster): number {
   if (!monster.curse) return 1;
   const { effect } = skillTuning[monster.curse.skill];
-  return effect.type === "curse" ? effect.damageTaken : 1;
+  return effect.type === "curse" && effect.kind === "amplifyDamage"
+    ? effect.damageTaken
+    : 1;
 }
 
 /**

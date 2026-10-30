@@ -113,8 +113,8 @@ export function floorEffectMeshesOf(): FloorEffectMeshes {
   });
 
   const curses = Array.from({ length: POOL.curses }, () => {
-    const fill = disc(glow(CURSE_CIRCLE.colour));
-    const edge = ring(glow(CURSE_CIRCLE.colour));
+    const fill = disc(glow(0xffffff));
+    const edge = ring(glow(0xffffff));
     fill.renderOrder = edge.renderOrder = 4;
     group.add(fill, edge);
     return { fill, edge };
@@ -160,6 +160,10 @@ export function floorEffectMeshesOf(): FloorEffectMeshes {
         if (!shown) return;
         place(fill, shown.pos, shown.radius);
         place(edge, shown.pos, shown.radius);
+        // Pooled meshes take the colour of whichever Curse they show.
+        for (const mesh of [fill, edge]) {
+          (mesh.material as MeshBasicMaterial).color.setHex(shown.colour);
+        }
         opacity(fill, CURSE_CIRCLE.fillAlpha * shown.alpha);
         opacity(edge, shown.alpha);
       });

@@ -41,7 +41,7 @@ A Combat Area in an Act that is not on its Main Path, reached from one of the Ma
 _Avoid_: Side dungeon, optional area, branch
 
 **Act Boss**:
-The one named Monster at the end of an Act's Main Path; killing it while the Act's last Quest isn't Done completes the Act, shown across the screen, and makes that Quest Ready to hand in. It is back, like every Monster, in each new Session.
+The one named Monster at the end of an Act's Main Path; killing it while the Act's last Quest isn't Done completes the Act, shown across the screen, and makes that Quest Ready to hand in. It is back, like every Monster, in each new Session. Act 1's has a Fire attack.
 _Avoid_: Final boss, end boss
 
 **Waypoint**:
@@ -73,7 +73,7 @@ A two-way gateway the Hero opens a step ahead of them anywhere outside Town, its
 _Avoid_: Portal on its own, TP, waypoint, gate
 
 **Session**:
-One stretch of play, from Continue or New Hero on the Start Screen until Quit to Start Screen or the game is closed. Every Area starts fresh in a new Session, all its Monsters back where they were placed, except what a Done Quest has put away for good, such as its Bone Altars. From then until the Session ends, each Area stands still while the Hero is away and is just as they left it when they come back, by any way in: its Monsters, Corpses and Ground Items where they were, and what of it is Explored. The Hero's Death doesn't end a Session.
+One stretch of play, from Continue or New Hero on the Start Screen until Quit to Start Screen or the game is closed. Every Area starts fresh in a new Session, all its Monsters back where they were placed, except what a Done Quest has put away for good, such as its Bone Altars. From then until the Session ends, each Area stands still while the Hero is away and is just as they left it when they come back, by any way in: its Monsters, Corpses, Ground Items and Gold Piles where they were, and what of it is Explored. The Hero's Death doesn't end a Session.
 _Avoid_: Game, run, instance
 
 **Explored**:
@@ -81,7 +81,7 @@ The part of an Area the Hero has come near enough to see, the only part the Map 
 _Avoid_: Revealed, discovered, fog of war
 
 **Map Overlay**:
-The Explored part of the current Area drawn see-through over the World, centred on the Hero, while play goes on underneath: wall and floor edges, the Hero, their Minions, Exits named for the Area they lead to, the Town Portal and, in Town, NPCs by name; never Monsters, Corpses or Ground Items. It shows the Area's display name, never its Area Level, stays open through Exits and Town Portals, and closes on the Hero's Death.
+The Explored part of the current Area drawn see-through over the World, centred on the Hero, while play goes on underneath: wall and floor edges, the Hero, their Minions, Exits named for the Area they lead to, the Town Portal and, in Town, NPCs by name; never Monsters, Corpses, Ground Items or Gold Piles. It shows the Area's display name, never its Area Level, stays open through Exits and Town Portals, and closes on the Hero's Death.
 _Avoid_: Automap, map, full map
 
 **Mini Map**:
@@ -100,9 +100,29 @@ _Avoid_: Title card, zone text, toast
 A hostile creature that attacks the Hero and their Minions and can be killed.
 _Avoid_: Enemy, mob, NPC
 
+**Monster type**:
+What kind of Monster one is, such as the Skeleton or the Wockwolf: its name, look, way of fighting and numbers at each Monster Level. The undead types (Skeleton, Skeleton Archer, Zombie) grow more common toward the Wockyard and below it; the living ones (Wockwolf, Bog Spitter, Wockbrute) belong to the outdoor Areas.
+_Avoid_: Monster kind, species, class
+
+**Wockwolf**:
+A fast, fragile Monster type that comes in packs and surrounds the Hero, most common in the Cozy Plains; like every Monster, it never runs from a fight unless Fleeing.
+_Avoid_: Wolf, werewolf
+
+**Bog Spitter**:
+A plant Monster type that lobs muck at where the Hero stands, most common in the Soggy Bog.
+_Avoid_: Plant, spitter, Mucksprout
+
+**Wockbrute**:
+A big, slow Monster type whose Slam hits everything of the Hero's around it, most common in the Old Mill and never in the Cozy Plains.
+_Avoid_: Brute, orc, ogre
+
 **Unique Monster**:
-A named Monster, one of its kind, placed by hand in an Area: tougher than its Monster type and dropping better Items. The Act Boss is one, with a Monster type of its own.
+A named Monster, one of its kind, placed by hand in an Area: a bigger, tougher version of its Monster type that gives more Experience and always drops a Rare Item and a Magic or better one, its name shown in a gold colour no Item's name uses. It has no powers its type lacks. The Act Boss is one, with a Monster type of its own.
 _Avoid_: Boss (except the Act Boss), champion, elite, rare
+
+**Bruckle**:
+The Unique Monster, a Wockbrute, who has taken over the Spa, guarded by a pack of Wockwolves; killing him is the task of "Spa Day".
+_Avoid_: Spa boss
 
 **Bone Altar**:
 A Prop with Life that raises a Monster beside it every so often, up to a limit, until the Hero destroys it with attacks or Skills; Monsters leave it be.
@@ -115,6 +135,10 @@ _Avoid_: Level (that's the Hero's), tier, difficulty
 **Leash**:
 How far a Monster will chase the Hero or their Minion from where it was placed before it gives up and starts Returning.
 _Avoid_: Tether, chase range, aggro range
+
+**Body**:
+The room the Hero, a Monster or a Minion takes up while alive, its size set by its Monster type or Minion kind, a Unique Monster's bigger than its type's. Bodies on opposite sides block each other: Monsters can hem the Hero in and Minions can hold a line against them. Bodies on the same side shove each other apart instead, never staying stacked, and the Hero's Minions always give way to the Hero. Every Body fits wherever the Hero's does; a Corpse, a Ground Item or a Gold Pile has none.
+_Avoid_: Footprint, hitbox, collider, radius
 
 **Returning**:
 A Monster walking back to where it was placed after giving up on the Hero or their Minion, ignoring both on the way and healing to full on arrival; it happens past the Leash or on the Hero's Death.
@@ -146,7 +170,7 @@ _Avoid_: Aggro, engaged
 
 **Corpse**:
 What remains of a dead Monster, lying in its Area until the Hero leaves or a Skill uses it up. A Skill that needs one takes the nearest Corpse a short way from where it is cast, and with none there the cast does nothing and costs nothing.
-_Avoid_: Body, remains
+_Avoid_: Body (that's the living creature's room), dead body, remains
 
 **Experience**:
 What the Hero earns when they or their Minions kill Monsters, less for a Monster whose Monster Level is well below the Hero's Level; enough of it raises the Hero's Level.
@@ -177,12 +201,24 @@ An Attribute Point the player has put on an Attribute in the Hero panel but not 
 _Avoid_: Planned point, draft point
 
 **Skill**:
-Something the Hero casts, spending Mana; it can't be cast in Town. Every Hero can learn the same Skills, from the one Skill Tree. Damage a Skill deals always hits: it is never a Miss.
+Something the Hero learns on the Skill Tree: most are cast, spending Mana, and can't be cast in Town; a Passive Skill never is. Every Hero can learn the same Skills, from the one Skill Tree. Damage a Skill deals always hits: it is never a Miss.
 _Avoid_: Spell, ability, power
 
+**Passive Skill**:
+A Skill that is never cast, costs no Mana and only works by being learned, making the Hero or what their other Skills do stronger for as long as it has a Skill Level. Each Branch ends in one; it never goes on the Skill Bar or becomes a Held Skill, and it neither gives nor gets Synergies.
+_Avoid_: Mastery, aura, trait
+
 **Skill Tree**:
-All the Skills the Hero can learn, and how far each has been learned.
+All the Skills the Hero can learn, in three Branches, and how far each has been learned.
 _Avoid_: Talent tree, spellbook
+
+**Branch**:
+One of the three themed parts of the Skill Tree, Bone, Summoning and Curses, each Skill belonging to exactly one.
+_Avoid_: Tab, school, tree (that's the whole Skill Tree)
+
+**Prerequisite**:
+The Skill above a Skill in its Branch, which must have a Skill Level before a Skill Point can be spent on the one below; a Skill also needs the Hero to have reached its own Level. It only holds back spending Skill Points: a Skill Level already learned can always be cast.
+_Avoid_: Requirement, unlock
 
 **Skill Point**:
 What the Hero gains one of on each new Level, kept until the player spends it to raise a Skill's Skill Level by one; a spent point can't be taken back.
@@ -191,6 +227,10 @@ _Avoid_: Talent point
 **Skill Level**:
 How far the Hero has learned a Skill: 0 until the first Skill Point is spent on it, when it can first be cast; each higher Skill Level makes it stronger.
 _Avoid_: Rank (and never the Hero's Level)
+
+**Synergy**:
+A lasting bonus one cast Skill gets from each Skill Level the Hero has in another, of any Branch, however that Skill Level was gained, so raising one makes the other stronger too; the receiving Skill's tooltip lists its Synergies and what they add now.
+_Avoid_: Combo, interaction, bonus skill
 
 **Skill Bar**:
 The row of five slots holding the Skills the player casts, each slot cast by its own button: the right mouse button or a key, a controller button, or an on-screen button; a Skill is cast at the cursor, or at the Target when there is no cursor.
@@ -209,12 +249,24 @@ The Minion summoned by the Golem Skill: the Hero has at most one, which follows 
 _Avoid_: Golum
 
 **Curse**:
-A mark a Skill puts on every Monster in a circle where it is cast, for a while; a Monster has at most one, a new one replacing the old, and one Returning loses it on reaching home. Amplify Damage's makes the Monster take more damage from everything.
+A mark a Skill puts on every Monster in a circle where it is cast, for a while; a Monster has at most one, a new one replacing the old, and one Returning loses it on reaching home. Amplify Damage's makes the Monster take more damage from everything, Weaken's makes it deal less, Leaden Limbs' makes it walk and swing or shoot more slowly, and Dread's sets it Fleeing.
 _Avoid_: Debuff, hex
+
+**Fleeing**:
+A Monster under Dread's Curse running away from the Hero without attacking, even when hit, until the Curse ends and it comes back to the fight.
+_Avoid_: Fear, routing, Returning (that's going home)
 
 **Raised Skeleton**:
 The Minion the Raise Skeleton Skill raises from a Corpse, using it up, whatever Monster the Corpse was. The Hero has a few at once, more at a higher Skill Level, raising one more past that replacing the oldest; otherwise it follows the Golem's rules. Never just "Skeleton": that is the Monster.
 _Avoid_: Skeleton (that's the Monster), skelly, undead
+
+**Raised Archer**:
+The Minion the Raise Archer Skill raises from a Corpse, which shoots Arrows; the Hero has a few of them, counted apart from Raised Skeletons, by the same rules. Never just "Archer": the Skeleton Archer is a Monster.
+_Avoid_: Archer, Skeleton Archer (that's the Monster), skeletal mage
+
+**Bone Wall**:
+The short line of bone the Bone Wall Skill raises where it is cast, standing for a while as Props with Life: no one can walk through it, Hero and Minions included, a Monster's Projectile stops at it, Muck aside, and the Hero's flies through, and a Monster that can't reach the Hero breaks it with attacks.
+_Avoid_: Barricade, Bone Prison
 
 **Bone Ward**:
 What the Bone Ward Skill puts on the Hero: an amount of damage it soaks up before their Life, until used up; casting it again fills it back up. A hit it soaks whole is still a hit, not a Miss: the Hero has taken it, so it keeps them In Combat and can flinch them, though their Life is untouched. It stays on through Exits and Town Portals and is gone on the Hero's Death or when the Save is loaded.
@@ -232,9 +284,41 @@ _Avoid_: Armor (that's the Item), AC, evasion
 A swing that plays out in full but deals no damage because it failed its chance to hit.
 _Avoid_: Dodge, whiff
 
+**Damage Type**:
+The kind of a share of damage: Physical, or one of the Elements. One hit can carry several Damage Types, each reduced on its own, and Life loses their sum.
+_Avoid_: Damage school, element (when Physical is meant)
+
+**Physical**:
+The Damage Type of weapon blows, arrows and bone. The Hero has no Resistance to it: Defense, which decides whether they are hit at all, is their guard against it.
+_Avoid_: Normal damage, plain damage
+
+**Element**:
+Fire, Cold or Lightning: the Damage Types that a Resistance reduces.
+_Avoid_: Magic, elemental type
+
+**Resistance**:
+How much of one Element's damage the Hero, a Monster or a Minion shrugs off once a hit has landed, given as a percentage, before Bone Ward soaks up anything and before Amplify Damage adds to it. It can be negative, adding to the damage. The Hero's starts at 0%, comes only from Affixes and never helps their Minions; each Monster type and Minion kind has its own, the same at every Monster Level and always below 100%. Only the Hero's is shown, in the Hero panel. It is what makes the Hero hunt for gear as the game gets harder.
+_Avoid_: Resist, res, elemental defense, immunity
+
+**Maximum Resistance**:
+The most of one Element's damage a Resistance can take off the Hero's hits, 75%. Resistance above it still counts toward the Hero's total, shown as capped, so a Resistance Penalty eats into the excess first.
+_Avoid_: Resist cap, max res
+
+**Resistance Penalty**:
+What each Act past the first takes off every one of the Hero's Resistances while they are in it; the Hero panel shows Resistances with it already taken off. Act 1 has none.
+_Avoid_: Difficulty penalty, curse (that's a Skill's mark)
+
 **Projectile**:
-Something loosed by an attack or a Skill that flies in a straight line through an Area until it meets a wall or runs out of range. A Monster's hits the first Hero or Minion it touches and flies through Monsters; the Skeleton Archer's is the Arrow. The Hero's flies through Minions and hits every Monster on its way, each once; Bone Spear's is one.
+Something loosed by an attack or a Skill that flies in a straight line through an Area until it meets a wall or runs out of range, Muck aside. A Monster's hits the first Hero or Minion it touches and flies through Monsters; the Skeleton Archer's is the Arrow. The Hero's flies through Minions and hits every Monster on its way, each once; Bone Spear's is one, and Splinter Volley looses a fan of them at once, each hitting on its own.
 _Avoid_: Missile, bullet, shot
+
+**Muck**:
+The Bog Spitter's Projectile: lobbed over Props and Walls alike at where the Hero stood when it was loosed, its landing spot marked on the ground from then on, it hits every Hero and Minion within a small circle there when it lands, and nothing on the way. Its damage is Cold.
+_Avoid_: Glob, spit, bomb
+
+**Slam**:
+The Wockbrute's attack: after a long wind-up that hitting it can't stop, it hits every Hero and Minion within a circle around it, whichever way it faces; never Monsters.
+_Avoid_: Stomp, smash, area attack
 
 **Save**:
 The Hero's kept progress (Level, Experience, Attributes, unspent Attribute Points, Skill Levels, unspent Skill Points, the Skill Bar, Belongings and Gold), written whenever it changes; there is only one, and loading it starts the Hero in Town.
@@ -249,7 +333,7 @@ A one-line name an Item type also has, short enough to read inside the Item's bo
 _Avoid_: Abbreviation, label, nickname
 
 **Ground Item**:
-An Item lying in an Area, dropped by a Monster or by the player, until the Hero picks it up or leaves the Area.
+An Item lying in an Area, dropped by a Monster or by the player, until the Hero picks it up or the Session ends.
 _Avoid_: Drop, loot
 
 **Rarity**:
@@ -269,7 +353,7 @@ The Rarity of an Item with three or four Affixes, at most two Prefixes and two S
 _Avoid_: Yellow, epic
 
 **Affix**:
-An extra bonus a Magic or Rare Item rolled when it dropped, always shown; how strong it can roll grows with the Monster Level of what dropped it.
+An extra bonus a Magic or Rare Item rolled when it dropped, always shown, never two of one kind on an Item; how strong it can roll grows with the Monster Level of what dropped it, and its name says how strong it is, as *of the Badger* is weaker than *of the Bear*.
 _Avoid_: Mod, enchantment, property, stat
 
 **Prefix**:
@@ -285,15 +369,19 @@ The money the Hero earns from kills and selling Items and spends at the Vendor; 
 _Avoid_: Coins, money, currency
 
 **Gold Pile**:
-Gold lying in an Area, dropped by a Monster, which the Hero picks up just by walking over it.
+Gold lying in an Area, dropped by a Monster and labelled with its amount, until the Hero picks it up just by walking near it or the Session ends; it is never the Item in Reach, never shown on the Map Overlay or Mini Map, and the Save never keeps one.
 _Avoid_: Gold drop, coins
 
 **Vendor**:
 Trader, the NPC in Town who sells the Hero Items for Gold and buys the Hero's Items for Gold. They always have every Potion, and a few Normal Weapons, Armour and Belts that change each time the Hero comes back to Town; never a Magic or Rare Item.
 _Avoid_: Shop, merchant, store
 
+**Value**:
+What an Item is worth in Gold, set by its type and raised by its Rarity and Affixes: the Vendor sells it for its Value and buys it for a quarter of that.
+_Avoid_: Price, cost, worth
+
 **Vendor panel**:
-The panel opened by talking to the Vendor, showing the Vendor's goods and the Hero's Inventory together; Equipped Items aren't in it.
+The panel opened by picking Trade in the Vendor's Dialogue panel, showing the Vendor's goods and the Hero's Inventory together; Equipped Items aren't in it. A good lifted as the Held Item is bought, its Value taken from Gold, when put down in the Inventory or a Belt Column; one the Hero can't afford can't be lifted. A Held Item of the Hero's, from the Inventory or a Belt Column, put down on the Vendor's side is sold at once and is gone. The World plays on while it is open; it shuts as the Inventory panel does, when the Hero walks away, and when another panel opens, a held good going back to the Vendor at no cost.
 _Avoid_: Shop screen, trade window, store
 
 **Inventory**:
@@ -312,8 +400,12 @@ _Avoid_: Gear, loot, possessions
 The one Item the player has lifted onto the cursor to move; it still counts as where it was lifted from until it's put down.
 _Avoid_: Cursor Item, dragged Item
 
+**Drag**:
+Lifting a Held Item or Held Skill and putting it down in one press, the mouse button or a finger held down from where it's lifted to where it's let go, which then acts just as a second click or tap there would: putting down, swapping, dropping into the World, selling or landing in a Skill Bar slot. Either way of moving works everywhere, click and click or Drag, except the Belt strip on a touch screen, which only drinks. A Drag let go over where it was lifted from keeps it held for a mouse, but puts it back for a finger; a finger already holding something puts it down where it lifts.
+_Avoid_: Drag and drop, swipe
+
 **Weapon**:
-The Item kind Equipped in the Weapon slot, setting the Hero's damage.
+The Item kind Equipped in the Weapon slot, setting the Hero's damage: Physical, plus any Elements its Affixes add, which count for the Hero's attacks and never for a Skill's damage.
 _Avoid_: Sword (that's one Weapon)
 
 **Armour**:
@@ -409,7 +501,7 @@ The touch button that opens the pause menu as Esc and Menu do: top right below t
 _Avoid_: Menu button (that's the controller's), settings button
 
 **Long press**:
-A touch held still on an Item or Skill for a moment, which shows its tooltip instead of lifting it.
+A touch held still on an Item or Skill for a moment, which shows its tooltip instead of lifting it; lifted without moving, it lifts nothing, but moving it at any time starts a Drag and hides the tooltip.
 _Avoid_: Hold, press and hold, hover
 
 **Touch hit area**:

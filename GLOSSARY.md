@@ -301,7 +301,7 @@ The on-screen stick, bottom left on a touch screen, that walks the Hero the way 
 _Avoid_: Joystick, d-pad, thumbstick
 
 **Touch controls**:
-What a touch screen plays the World with, standing in for a controller: the Virtual Stick, the attack button, the Skill buttons and the pause button.
+What a touch screen plays the World with, standing in for a controller: the Virtual Stick, the attack button, the Skill buttons and the pause button. They take touches only during play: never on the Start Screen, the Loading Screen or the Hero's Death.
 _Avoid_: On-screen controls, virtual gamepad, overlay
 
 **Attack button**:
@@ -349,5 +349,5 @@ The game opened from its icon on the home screen or desktop instead of in a brow
 _Avoid_: PWA, app, standalone, home-screen app
 
 **Active Input**:
-The way the player last played, mouse and keyboard, controller or touch, which decides what the game shows: touch controls only for touch, and each hint and tooltip naming that way's buttons. A controller disconnecting while it is the Active Input opens the pause menu.
+The way the player last played, mouse and keyboard, controller or touch, which decides what the game shows: touch controls only for touch, and each hint and tooltip naming that way's buttons. It starts as touch on a device whose main pointer is a finger, and as mouse and keyboard otherwise. A controller disconnecting while it is the Active Input opens the pause menu.
 _Avoid_: Input mode, device, control scheme

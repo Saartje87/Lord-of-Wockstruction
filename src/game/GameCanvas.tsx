@@ -251,7 +251,7 @@ export default function GameCanvas() {
         app.canvas,
         (at) =>
           menus.mapOpen &&
-          touchControlsShown(activeInput.way, menus) &&
+          touchControlsShown(activeInput.way, menus, world.death !== null) &&
           !renderer.panelAt(at) &&
           renderer.groundLabelAt(at) === null &&
           !touchOnButton(
@@ -267,7 +267,7 @@ export default function GameCanvas() {
         app.canvas,
         touch,
         (at) =>
-          touchControlsShown(activeInput.way, menus) &&
+          touchControlsShown(activeInput.way, menus, world.death !== null) &&
           !renderer.panelAt(at) &&
           renderer.groundLabelAt(at) === null
             ? touchControlsLayout(viewportOf(app.screen), menus)

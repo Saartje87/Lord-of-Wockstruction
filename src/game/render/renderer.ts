@@ -1692,7 +1692,11 @@ function touchControlsView(
   return {
     layer,
     draw(screen: Viewport, world: World, menus: Menus) {
-      layer.visible = touchControlsShown(activeInput.way, menus);
+      layer.visible = touchControlsShown(
+        activeInput.way,
+        menus,
+        world.death !== null,
+      );
       if (!layer.visible) return;
       const layout = touchControlsLayout(screen, menus);
       const scale = screen.uiScale;

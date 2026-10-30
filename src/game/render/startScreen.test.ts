@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { NO_FULLSCREEN } from "../fullscreen";
 import { startScreen } from "../menus";
-import type { Rect } from "../sim/rect";
+import { overlaps, type Rect } from "../sim/rect";
 import { viewportOf } from "../viewport";
 import { startChoiceAt, startScreenLayout } from "./startScreen";
+import { touchControlsLayout } from "./touchControls";
 
 const screen = viewportOf({ width: 1280, height: 720 });
 const keys = "mouseAndKeyboard";
@@ -189,5 +190,23 @@ describe("touching the Start Screen", () => {
 
     expect(touchAt({ x: middle - 1, y })).toBeNull();
     expect(touchAt({ x: gapStart + 1, y })).toBeNull();
+  });
+});
+
+describe("the Start Screen under the touch controls", () => {
+  // Why the touch controls take no touches off play: they'd take a tap on
+  // Continue's left part on a phone held sideways (a Pixel 7a).
+  it("puts Continue partly in the Virtual Stick zone on a 915×412 screen", () => {
+    const phone = viewportOf({ width: 915, height: 412 });
+    const { buttons } = startScreenLayout(
+      phone,
+      startScreen(true),
+      "touch",
+      available,
+    );
+    const { stickZone } = touchControlsLayout(phone);
+
+    expect(buttons[0].choice).toBe("continue");
+    expect(overlaps(buttons[0].rect, stickZone)).toBe(true);
   });
 });

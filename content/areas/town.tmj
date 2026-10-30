@@ -2196,7 +2196,19 @@
      "height": 0,
      "rotation": 0,
      "visible": true,
-     "point": true
+     "point": true,
+     "properties": [
+      {
+       "name": "quest",
+       "type": "string",
+       "value": "lost-wanderer"
+      },
+      {
+       "name": "questReady",
+       "type": "bool",
+       "value": true
+      }
+     ]
     },
     {
      "id": 8,

@@ -1664,6 +1664,66 @@ describe("the shipped Bog Spitters", () => {
   });
 });
 
+describe("the shipped Wockbrutes", () => {
+  const brutes = (area: Area) => sum(packsOf(area, "wockbrute"));
+
+  it("are the most common Monster in the Old Mill, and more of them than in any other Area", () => {
+    const { areas } = shippedWorld();
+    const mill = areas["old-mill"];
+    const count = (monster: MonsterType) => sum(packsOf(mill, monster));
+
+    for (const other of [
+      "skeleton",
+      "zombie",
+      "wockwolf",
+      "bog_spitter",
+      "skeleton_archer",
+    ] as const) {
+      expect(count("wockbrute")).toBeGreaterThan(count(other));
+    }
+    for (const [name, area] of Object.entries(areas)) {
+      if (name !== "old-mill") {
+        expect(brutes(mill)).toBeGreaterThan(brutes(area));
+      }
+    }
+  });
+
+  it("are a few in the Soggy Bog and the odd one in the Wockyard", () => {
+    const { areas } = shippedWorld();
+
+    expect(brutes(areas["soggy-bog"])).toBeGreaterThan(0);
+    expect(brutes(areas.wockyard)).toBeGreaterThan(0);
+    expect(brutes(areas.wockyard)).toBeLessThan(brutes(areas["soggy-bog"]));
+  });
+
+  it("guard the Wockyard's way in", () => {
+    const world = worldEntering("wockyard", "from-soggy-bog");
+    const yard = world.areas.wockyard;
+    const [guard] = yard.spawns.filter((s) => s.monster === "wockbrute");
+
+    expect(
+      Math.hypot(
+        guard.pos.x - world.hero.pos.x,
+        guard.pos.y - world.hero.pos.y,
+      ),
+    ).toBeLessThan(15);
+  });
+
+  it("are never in the Cozy Plains, the Town nor underground", () => {
+    const { areas } = shippedWorld();
+
+    for (const name of [
+      "cozy-plains",
+      "town",
+      "catacombs",
+      "crypt",
+      "ossuary",
+    ]) {
+      expect(brutes(areas[name])).toBe(0);
+    }
+  });
+});
+
 describe("the shipped Wockwolf packs", () => {
   const wolves = (area: Area) => sum(packsOf(area, "wockwolf"));
 

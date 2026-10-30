@@ -173,6 +173,24 @@ describe("tuningReport", () => {
     expect(areas[1]).toMatchObject({ areaLevel: 3 });
   });
 
+  it("gives the Wockbrute's numbers in the Areas that place it, and not elsewhere", () => {
+    const { levels, areas } = tuningReport("wockbrute", [
+      area("soggy-bog", 3, ["wockbrute", "bog_spitter"]),
+      area("old-mill", 4, ["wockbrute", "skeleton"]),
+      area("cozy-plains", 1, ["wockwolf", "skeleton"]),
+    ]);
+
+    // 500 to go at 350 a kill: the second kill gets there.
+    expect(levels[0]).toMatchObject({
+      level: 1,
+      toNext: 500,
+      killExperience: 350,
+      kills: 2,
+    });
+    expect(areas.map((row) => row.area)).toEqual(["soggy-bog", "old-mill"]);
+    expect(areas[0]).toMatchObject({ areaLevel: 3 });
+  });
+
   describe("Gold earned per Hero Level", () => {
     const places = [
       area("town", null, []),

@@ -16,7 +16,7 @@
   {
    "name": "areaLevel",
    "type": "int",
-   "value": 1
+   "value": 7
   },
   {
    "name": "act",
@@ -8273,7 +8273,7 @@
       {
        "name": "area",
        "type": "string",
-       "value": "cozy-plains"
+       "value": "wockyard"
       },
       {
        "name": "entry",
@@ -8296,7 +8296,7 @@
     },
     {
      "id": 3,
-     "name": "from-cozy-plains",
+     "name": "from-wockyard",
      "type": "entry",
      "x": 528,
      "y": 528,

@@ -168,6 +168,8 @@ describe("the shipped Areas", () => {
     );
     expect(areaDisplayNames.town).toBe("Wockville");
     expect(areaDisplayNames["cozy-plains"]).toBe("Cozy Plains");
+    expect(areaDisplayNames["soggy-bog"]).toBe("Soggy Bog");
+    expect(areaDisplayNames.wockyard).toBe("Wockyard");
     expect(areaDisplayNames.catacombs).toBe("Catacombs");
     expect(areaDisplayNames.crypt).toBe("Crypt");
     for (const name of Object.values(areaDisplayNames)) {
@@ -223,16 +225,16 @@ describe("the shipped Areas", () => {
     expectAbout(combat.height, 64, 8);
   });
 
-  it("carry Act 1 on every Area, and the open sky only on the Cozy Plains", () => {
+  it("carry Act 1 on every Area, and the open sky only on the outdoor Areas", () => {
     const shipped = Object.values(shippedWorld().areas);
 
     for (const area of shipped) expect(area.act).toBe(1);
     expect(
       shipped.filter((area) => area.outdoors).map((area) => area.name),
-    ).toEqual(["cozy-plains"]);
+    ).toEqual(["cozy-plains", "soggy-bog", "wockyard"]);
   });
 
-  it("give the Cozy Plains Area Level 1, Skeleton and Zombie groups, and its Exits to Wockville and the Catacombs", () => {
+  it("give the Cozy Plains Area Level 1, Skeleton and Zombie groups, and its Exits to Wockville and the Soggy Bog", () => {
     const world = worldEntering("cozy-plains", "from-town");
     const plains = world.areas["cozy-plains"];
     const packs = [
@@ -245,7 +247,11 @@ describe("the shipped Areas", () => {
     expect(packsOf(plains, "zombie").length).toBeGreaterThan(0);
     expect(world.monsters.every(isAtMonsterLevel(1))).toBe(true);
     expect(exitTo(plains, "town").entry).toBe("from-cozy-plains");
-    expect(exitTo(plains, "catacombs").entry).toBe("from-cozy-plains");
+    expect(exitTo(plains, "soggy-bog").entry).toBe("from-cozy-plains");
+    expect(plains.exits.map((exit) => exit.area).sort()).toEqual([
+      "soggy-bog",
+      "town",
+    ]);
   });
 
   it("arrive in the Cozy Plains next to its Exit back to Wockville, and in Wockville next to its Exit", () => {
@@ -262,27 +268,119 @@ describe("the shipped Areas", () => {
     ).toBeLessThan(4);
   });
 
-  it("lead from the Cozy Plains to the Catacombs, arriving next to their Exit back", () => {
-    const world = worldEntering("cozy-plains", "from-catacombs");
-    const onward = exitTo(world.areas["cozy-plains"], "catacombs");
+  it("lead from the Cozy Plains to the Soggy Bog, arriving next to their Exit back", () => {
+    const world = worldEntering("cozy-plains", "from-soggy-bog");
+    const onward = exitTo(world.areas["cozy-plains"], "soggy-bog");
+
+    expect(heroDistanceTo(world, onward)).toBeLessThan(4);
+    const arrived = walkThrough(world, onward);
+
+    expect(arrived?.area).toBe("soggy-bog");
+    expect(
+      heroDistanceTo(world, exitTo(world.areas["soggy-bog"], "cozy-plains")),
+    ).toBeLessThan(4);
+  });
+
+  it("lead from the Soggy Bog to the Wockyard, arriving next to their Exit back", () => {
+    const world = worldEntering("soggy-bog", "from-wockyard");
+    const onward = exitTo(world.areas["soggy-bog"], "wockyard");
+
+    expect(heroDistanceTo(world, onward)).toBeLessThan(4);
+    const arrived = walkThrough(world, onward);
+
+    expect(arrived?.area).toBe("wockyard");
+    expect(
+      heroDistanceTo(world, exitTo(world.areas.wockyard, "soggy-bog")),
+    ).toBeLessThan(4);
+  });
+
+  it("lead from the Wockyard down to the Catacombs, arriving next to their Exit back up", () => {
+    const world = worldEntering("wockyard", "from-catacombs");
+    const onward = exitTo(world.areas.wockyard, "catacombs");
 
     expect(heroDistanceTo(world, onward)).toBeLessThan(4);
     const arrived = walkThrough(world, onward);
 
     expect(arrived?.area).toBe("catacombs");
     expect(
-      heroDistanceTo(world, exitTo(world.areas.catacombs, "cozy-plains")),
+      heroDistanceTo(world, exitTo(world.areas.catacombs, "wockyard")),
     ).toBeLessThan(4);
   });
 
-  it("let the Hero walk the Cozy Plains from Wockville's Exit to the Catacombs' Exit", () => {
-    const world = worldEntering("cozy-plains", "from-town");
-    const plains = world.areas["cozy-plains"];
-    const onward = centreOf(exitTo(plains, "catacombs"));
+  it("give the Main Path's Areas their Area Levels and link the Catacombs only to the Wockyard and the Crypt", () => {
+    const { areas: shipped } = shippedWorld();
+    const levels = [
+      "cozy-plains",
+      "soggy-bog",
+      "wockyard",
+      "catacombs",
+      "crypt",
+      "ossuary",
+    ].map((name) => shipped[name].areaLevel);
 
-    expect(
-      findPath(plains, world.hero.pos, onward, 0.3).length,
-    ).toBeGreaterThan(0);
+    expect(levels).toEqual([1, 3, 5, 7, 9, 11]);
+    expect(shipped.town.areaLevel).toBeNull();
+    expect(exitTo(shipped.catacombs, "wockyard").entry).toBe("from-catacombs");
+    expect(shipped.catacombs.exits.map((exit) => exit.area).sort()).toEqual([
+      "crypt",
+      "wockyard",
+    ]);
+  });
+
+  it("let the Hero walk each outdoor Area from its entry to its Exits", () => {
+    for (const [name, entry] of [
+      ["cozy-plains", "from-town"],
+      ["soggy-bog", "from-cozy-plains"],
+      ["wockyard", "from-soggy-bog"],
+    ]) {
+      const world = worldEntering(name, entry);
+      const area = world.areas[name];
+
+      for (const exit of area.exits) {
+        expect(
+          findPath(area, world.hero.pos, centreOf(exit), 0.3).length,
+        ).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("make Zombies and Skeletons more and more of the outdoor Areas the closer they are to the Wockyard", () => {
+    const { areas: shipped } = shippedWorld();
+    const undead = (name: string) =>
+      sum(
+        shipped[name].spawns
+          .filter((s) => ["zombie", "skeleton"].includes(s.monster))
+          .map((s) => s.count),
+      );
+    const plains = undead("cozy-plains");
+    const bog = undead("soggy-bog");
+    const yard = undead("wockyard");
+
+    expect(plains).toBeLessThan(bog);
+    expect(bog).toBeLessThan(yard);
+    for (const name of ["cozy-plains", "soggy-bog", "wockyard"]) {
+      expect(packsOf(shipped[name], "zombie").length).toBeGreaterThan(0);
+      expect(packsOf(shipped[name], "skeleton").length).toBeGreaterThan(0);
+    }
+  });
+
+  it("raise graves in the Wockyard", () => {
+    const yard = shippedWorld().areas.wockyard;
+    const graves = yard.props.filter((prop) => /grave/.test(prop.piece));
+
+    expect(graves.length).toBeGreaterThan(10);
+  });
+
+  it("spawn each outdoor Area's Monsters at its Monster Level", () => {
+    for (const [name, entry, level] of [
+      ["soggy-bog", "from-cozy-plains", 3],
+      ["wockyard", "from-soggy-bog", 5],
+    ] as const) {
+      const world = worldEntering(name, entry);
+
+      expect(world.monsters.length).toBeGreaterThan(0);
+      expect(world.monsters.every(isAtMonsterLevel(level))).toBe(true);
+    }
   });
 
   it("fill the Catacombs with 3–4 Skeleton groups, one about 7 strong, and 1–2 Zombie groups", () => {
@@ -297,7 +395,7 @@ describe("the shipped Areas", () => {
   });
 
   it("place Zombies in the Catacombs once the Hero gets there", () => {
-    const world = worldEntering("catacombs", "from-cozy-plains");
+    const world = worldEntering("catacombs", "from-wockyard");
 
     expect(world.areaName).toBe("catacombs");
     expect(world.monsters.some((monster) => monster.type === "zombie")).toBe(
@@ -305,14 +403,14 @@ describe("the shipped Areas", () => {
     );
   });
 
-  it("give the Catacombs Area Level 1, so its Monsters spawn at Monster Level 1", () => {
-    const world = worldEntering("catacombs", "from-cozy-plains");
+  it("give the Catacombs Area Level 7, so its Monsters spawn at Monster Level 7", () => {
+    const world = worldEntering("catacombs", "from-wockyard");
 
     expect(world.areas.town.areaLevel).toBeNull();
-    expect(world.areas.catacombs.areaLevel).toBe(1);
+    expect(world.areas.catacombs.areaLevel).toBe(7);
     expect(world.areaName).toBe("catacombs");
     expect(world.monsters.length).toBeGreaterThan(0);
-    expect(world.monsters.every(isAtMonsterLevel(1))).toBe(true);
+    expect(world.monsters.every(isAtMonsterLevel(7))).toBe(true);
   });
 
   it("lead from the Catacombs down to the Crypt, arriving next to its Exit back up", () => {
@@ -339,12 +437,12 @@ describe("the shipped Areas", () => {
     expect(heroDistanceTo(world, down)).toBeLessThan(4);
   });
 
-  it("give the Crypt Area Level 4, so its Monsters spawn at Monster Level 4", () => {
+  it("give the Crypt Area Level 9, so its Monsters spawn at Monster Level 9", () => {
     const world = worldEntering("crypt", "start");
 
-    expect(world.areas.crypt.areaLevel).toBe(4);
+    expect(world.areas.crypt.areaLevel).toBe(9);
     expect(world.monsters.length).toBeGreaterThan(0);
-    expect(world.monsters.every(isAtMonsterLevel(4))).toBe(true);
+    expect(world.monsters.every(isAtMonsterLevel(9))).toBe(true);
   });
 
   it("build the Crypt about the Catacombs' size, with somewhat bigger Skeleton packs", () => {
@@ -407,10 +505,10 @@ describe("the shipped Areas", () => {
     ).toBe(true);
   });
 
-  it("give the Ossuary Area Level 8 and only an Exit back up to the Crypt", () => {
+  it("give the Ossuary Area Level 11 and only an Exit back up to the Crypt", () => {
     const { ossuary } = shippedWorld().areas;
 
-    expect(ossuary.areaLevel).toBe(8);
+    expect(ossuary.areaLevel).toBe(11);
     expect(ossuary.exits).toHaveLength(1);
     expect(exitTo(ossuary, "crypt").entry).toBe("from-ossuary");
   });
@@ -438,11 +536,11 @@ describe("the shipped Areas", () => {
     expect(heroDistanceTo(world, down)).toBeLessThan(4);
   });
 
-  it("spawn the Ossuary's Monsters at Monster Level 8", () => {
+  it("spawn the Ossuary's Monsters at Monster Level 11", () => {
     const world = worldEntering("ossuary", "start");
 
     expect(world.monsters.length).toBeGreaterThan(0);
-    expect(world.monsters.every(isAtMonsterLevel(8))).toBe(true);
+    expect(world.monsters.every(isAtMonsterLevel(11))).toBe(true);
   });
 
   it("build the Ossuary about the Catacombs' size, with more Monsters than the Crypt", () => {
@@ -489,7 +587,7 @@ describe("the shipped Areas", () => {
     }
   });
 
-  it("let the Hero walk from Wockville across the Cozy Plains and down through the Catacombs and the Crypt to the Ossuary, and back up to Wockville", () => {
+  it("let the Hero walk from Wockville across the Cozy Plains, the Soggy Bog and the Wockyard and down through the Catacombs and the Crypt to the Ossuary, and back up to Wockville", () => {
     // Sturdy and strong enough to fight through every pack on the way.
     const progress = { ...FRESH_PROGRESS, strength: 200, vitality: 1000 };
     const world = createWorld({
@@ -500,12 +598,16 @@ describe("the shipped Areas", () => {
     });
     const route: [from: string, to: string][] = [
       ["town", "cozy-plains"],
-      ["cozy-plains", "catacombs"],
+      ["cozy-plains", "soggy-bog"],
+      ["soggy-bog", "wockyard"],
+      ["wockyard", "catacombs"],
       ["catacombs", "crypt"],
       ["crypt", "ossuary"],
       ["ossuary", "crypt"],
       ["crypt", "catacombs"],
-      ["catacombs", "cozy-plains"],
+      ["catacombs", "wockyard"],
+      ["wockyard", "soggy-bog"],
+      ["soggy-bog", "cozy-plains"],
       ["cozy-plains", "town"],
     ];
 
@@ -544,7 +646,15 @@ describe("the Item types", () => {
 });
 
 describe("the shipped Areas' pieces", () => {
-  const names = ["town", "cozy-plains", "catacombs", "crypt", "ossuary"];
+  const names = [
+    "town",
+    "cozy-plains",
+    "soggy-bog",
+    "wockyard",
+    "catacombs",
+    "crypt",
+    "ossuary",
+  ];
   const kaykit = (name: string) => shippedWorld().areas[name];
 
   it.each(

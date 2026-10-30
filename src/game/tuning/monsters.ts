@@ -84,6 +84,13 @@ export type MeleeTuning = {
   reachGrace: number;
   /** An attack hits its target within this of the facing it wound up in. */
   arcDegrees: number;
+  /**
+   * Set for a Slam: on the hit it ignores `reachGrace` and `arcDegrees` and
+   * hits every Hero and Minion within `radius` of the Monster (tiles),
+   * whichever way it faces. `reach` is then how near its target must be to
+   * start winding up.
+   */
+  slam?: { radius: number };
 };
 
 /**
@@ -124,6 +131,7 @@ export type MonsterType =
   | "skeleton_archer"
   | "wockwolf"
   | "bog_spitter"
+  | "wockbrute"
   | "grave_wockington";
 
 export const monsterTuning: Record<MonsterType, MonsterTuning> = {
@@ -362,6 +370,56 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
     flinchChance: 0.5,
     flinchMs: 200,
     flinchInterrupts: true,
+    // The Skeleton's rates.
+    growth: {
+      life: 0.25,
+      damage: 0.2,
+      attackRating: 0.1,
+      defense: 0.15,
+      experience: 3,
+    },
+  },
+  // The outdoors' bruiser: big, slow and sturdy, its Slam hits everything of
+  // the Hero's in a circle after a long wind-up that hitting it can't stop, so
+  // stepping out is the only counter. Set against the Skeleton's numbers
+  // (T472); expected to move in playtesting.
+  wockbrute: {
+    name: "Wockbrute",
+    life: 300,
+    // About 3.5 Skeletons' worth.
+    experience: 350,
+    speed: 1.2,
+    damage: [10, 18],
+    defense: 130,
+    attackRating: 30,
+    radius: 0.55,
+    wanderRadius: 1.5,
+    wanderSpeed: 0.35,
+    wanderPauseMs: [2000, 5000],
+    aggroRadius: 7,
+    replanMs: 400,
+    needsSight: true,
+    spreadRadius: 1.5,
+    // It starts winding up with the Hero a body's width inside the circle.
+    attack: {
+      kind: "melee",
+      reach: 1.6,
+      reachGrace: 0,
+      arcDegrees: 0,
+      slam: { radius: 2 },
+    },
+    windUpMs: 1200,
+    rootMs: 400,
+    recoveryMs: 1600,
+    jitterMs: 400,
+    maxAttackers: 0,
+    leash: 14,
+    returnSpeed: 1.2,
+    graceMs: 2000,
+    // Hits never flinch it, so its Slam always comes.
+    flinchChance: 0,
+    flinchMs: 200,
+    flinchInterrupts: false,
     // The Skeleton's rates.
     growth: {
       life: 0.25,

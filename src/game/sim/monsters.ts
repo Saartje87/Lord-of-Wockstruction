@@ -65,19 +65,26 @@ const STEPPED = Object.fromEntries(
  * a ranged one's Projectile speed in tiles per step.
  */
 type SteppedAttack =
-  | { kind: "melee"; reach: number; reachGrace: number; arc: number }
+  | {
+      kind: "melee";
+      reach: number;
+      reachGrace: number;
+      arc: number;
+      slam?: { radius: number };
+    }
   | (Omit<RangedTuning, "projectileSpeed"> & { projectileSpeed: number });
 
 function steppedAttack(attack: MeleeTuning | RangedTuning): SteppedAttack {
   if (attack.kind === "ranged") {
     return { ...attack, projectileSpeed: perStep(attack.projectileSpeed) };
   }
-  const { reach, reachGrace, arcDegrees } = attack;
+  const { reach, reachGrace, arcDegrees, slam } = attack;
   return {
     kind: "melee",
     reach,
     reachGrace,
     arc: (arcDegrees * Math.PI) / 180,
+    slam,
   };
 }
 
@@ -250,11 +257,16 @@ export function stepMonsters(world: World): Strike[] {
     }
     if (monster.state === "windup") {
       if (windUp(world, monster)) {
-        strikes.push({
-          monster,
-          target: monster.target,
-          wall: attackedWall(world, monster),
-        });
+        const { attack } = STEPPED[monster.type];
+        const wall = attackedWall(world, monster);
+        if (attack.kind === "melee" && attack.slam && !wall) {
+          // A Slam hits everything of the Hero's in its circle.
+          for (const target of slammed(world, monster, attack.slam.radius)) {
+            strikes.push({ monster, target, wall: null });
+          }
+        } else {
+          strikes.push({ monster, target: monster.target, wall });
+        }
       }
       continue;
     }
@@ -646,6 +658,7 @@ function windUp(world: World, monster: Monster): boolean {
       )
     );
   }
+  if (attack.kind === "melee" && attack.slam) return true;
   const at = targetPos(world, monster.target);
   if (!at) return false;
   if (attack.kind === "ranged") {
@@ -653,6 +666,25 @@ function windUp(world: World, monster: Monster): boolean {
     return false;
   }
   return lands(monster, at, attack.reach + attack.reachGrace, attack.arc);
+}
+
+/**
+ * What a Slam by `monster` hits: the Hero, unless in Death, and each Minion
+ * within `radius` of it, whichever way it faces.
+ */
+function slammed(
+  world: World,
+  monster: Monster,
+  radius: number,
+): MonsterTarget[] {
+  const targets: MonsterTarget[] = [];
+  if (!world.death && distance(monster.pos, world.hero.pos) <= radius) {
+    targets.push("hero");
+  }
+  for (const minion of world.minions) {
+    if (distance(monster.pos, minion.pos) <= radius) targets.push(minion.id);
+  }
+  return targets;
 }
 
 /** Looses a ranged Monster's Projectile from where it stands at `at`. */

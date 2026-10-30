@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { type FocusSpot, moveFocus } from "../input/focus";
 import { DIRECTIONS } from "../input/pad";
 import { createMenus } from "../menus";
+import type { QuestId, QuestState } from "../sim/quests";
 import { inside, middleOf } from "../sim/rect";
 import { createWorld, type World } from "../sim/world";
+import { questTuning } from "../tuning/quests";
 import { type Viewport, viewportOf } from "../viewport";
 import { compactPanelRect } from "./compactLayout";
 import { cursorHitAt } from "./cursorHit";
@@ -63,23 +65,111 @@ const SCREENS: [string, Viewport][] = [
   ["compact", COMPACT],
 ];
 
+const SMITH = 0;
+const ELDER = 1;
+const TRADER = 2;
+const WANDERER = 3;
+
+/** A World whose Quests stand as `states` says, the rest Not given. */
+function worldWith(states: Partial<Record<QuestId, QuestState>>): World {
+  const w = world();
+  for (const [id, state] of Object.entries(states)) {
+    w.hero.progress.quests[id as QuestId].state = state as QuestState;
+  }
+  return w;
+}
+
 describe("the Dialogue panel's sheet", () => {
-  it("gives the NPC's name and a line of their own", () => {
+  it("gives each NPC's name", () => {
     const w = world();
     const names = ["Smith", "Elder", "Trader", "Wanderer"];
 
     names.forEach((name, npc) => {
-      const sheet = dialogueSheet(w, npc);
-      expect(sheet?.name).toBe(name);
-      expect(sheet?.lines).toEqual([NPC_LINES[name]]);
+      expect(dialogueSheet(w, npc)?.name).toBe(name);
     });
-    expect(new Set(Object.values(NPC_LINES)).size).toBe(4);
   });
 
-  it("ends in a Goodbye button", () => {
-    expect(dialogueSheet(world(), 0)?.buttons).toEqual([
+  it("gives an NPC without a Quest a line of their own and only Goodbye", () => {
+    const sheet = dialogueSheet(world(), WANDERER);
+
+    expect(sheet?.lines).toEqual([NPC_LINES.Wanderer]);
+    expect(sheet?.buttons).toEqual([
       { label: "Goodbye", button: { type: "goodbye" } },
     ]);
+  });
+
+  it("offers a Quest Not given to accept, ahead of Goodbye, with its line", () => {
+    const sheet = dialogueSheet(world(), TRADER);
+
+    expect(sheet?.lines).toEqual([questTuning["bog-off"].lines.notGiven]);
+    expect(sheet?.buttons).toEqual([
+      {
+        label: 'Accept "Bog Off"',
+        button: { type: "acceptQuest", quest: "bog-off" },
+      },
+      { label: "Goodbye", button: { type: "goodbye" } },
+    ]);
+  });
+
+  it("says something else while the Quest is Given, with only Goodbye", () => {
+    const sheet = dialogueSheet(worldWith({ "bog-off": "given" }), TRADER);
+
+    expect(sheet?.lines).toEqual([questTuning["bog-off"].lines.given]);
+    expect(sheet?.buttons.map(({ button }) => button.type)).toEqual([
+      "goodbye",
+    ]);
+  });
+
+  it("offers a Quest Ready to hand in, with its line", () => {
+    const sheet = dialogueSheet(worldWith({ "bog-off": "ready" }), TRADER);
+
+    expect(sheet?.lines).toEqual([questTuning["bog-off"].lines.ready]);
+    expect(sheet?.buttons[0]).toEqual({
+      label: 'Hand in "Bog Off"',
+      button: { type: "handInQuest", quest: "bog-off" },
+    });
+  });
+
+  it("says something else once the Quest is Done, with only Goodbye", () => {
+    const sheet = dialogueSheet(worldWith({ "bog-off": "done" }), TRADER);
+
+    expect(sheet?.lines).toEqual([questTuning["bog-off"].lines.done]);
+    expect(sheet?.buttons.map(({ button }) => button.type)).toEqual([
+      "goodbye",
+    ]);
+  });
+
+  it("deals with one of an NPC's Quests at a time, the one to hand in first", () => {
+    const first = dialogueSheet(world(), ELDER);
+    expect(first?.buttons[0].button).toEqual({
+      type: "acceptQuest",
+      quest: "lost-wanderer",
+    });
+
+    const second = dialogueSheet(
+      worldWith({ "lost-wanderer": "given" }),
+      ELDER,
+    );
+    expect(second?.buttons[0].button).toEqual({
+      type: "acceptQuest",
+      quest: "act-boss",
+    });
+
+    const ready = dialogueSheet(
+      worldWith({ "lost-wanderer": "ready", "act-boss": "given" }),
+      ELDER,
+    );
+    expect(ready?.buttons[0].button).toEqual({
+      type: "handInQuest",
+      quest: "lost-wanderer",
+    });
+  });
+
+  it("keeps the Smith's own Quest for him", () => {
+    expect(dialogueSheet(world(), SMITH)?.buttons[0].button).toEqual({
+      type: "acceptQuest",
+      quest: "spa-day",
+    });
   });
 
   it("is none for an NPC the Area doesn't have", () => {
@@ -119,7 +209,7 @@ describe("the Dialogue panel's layout", () => {
 });
 
 describe("a click on the Dialogue panel", () => {
-  const sheet = dialogueSheet(world(), 0);
+  const sheet = dialogueSheet(world(), WANDERER);
   const { buttons, closeButton } = dialogueLayout(WIDE, 1);
 
   it("presses Goodbye", () => {
@@ -149,24 +239,35 @@ describe("a click on the Dialogue panel", () => {
 
 describe("the Dialogue panel's Focus spots", () => {
   const w = world();
-  const open = { ...createMenus(), dialogueOpen: true, dialogueNpc: 0 };
+  const open = { ...createMenus(), dialogueOpen: true, dialogueNpc: WANDERER };
 
   it.each(SCREENS)("are each button and the × (%s)", (_, screen) => {
-    const spots = panelFocusSpots("dialogue", w, screen, undefined, 0);
+    const spots = panelFocusSpots("dialogue", w, screen, undefined, WANDERER);
     expect(spots.map((spot) => spot.hit)).toEqual([
       { button: { type: "goodbye" } },
       { button: { type: "close", panel: "dialogue" } },
     ]);
   });
 
+  it.each(
+    SCREENS,
+  )("start with the Quest button for an NPC with one to give (%s)", (_, screen) => {
+    const spots = panelFocusSpots("dialogue", w, screen, undefined, SMITH);
+    expect(spots.map((spot) => spot.hit)).toEqual([
+      { button: { type: "acceptQuest", quest: "spa-day" } },
+      { button: { type: "goodbye" } },
+      { button: { type: "close", panel: "dialogue" } },
+    ]);
+  });
+
   it.each(SCREENS)("each point where a click hits it (%s)", (_, screen) => {
-    for (const spot of dialogueFocusSpots(w, screen, 0)) {
+    for (const spot of dialogueFocusSpots(w, screen, WANDERER)) {
       expect(cursorHitAt(screen, spot.at, w, open)).toEqual(spot.hit);
     }
   });
 
   it.each(SCREENS)("are each reachable from any other (%s)", (_, screen) => {
-    const spots: FocusSpot[] = dialogueFocusSpots(w, screen, 0);
+    const spots: FocusSpot[] = dialogueFocusSpots(w, screen, WANDERER);
     for (const from of spots) {
       const reached = new Set<FocusSpot>([from]);
       const next: FocusSpot[] = [from];
@@ -186,7 +287,7 @@ describe("the Dialogue panel's Focus spots", () => {
 
 describe("the Dialogue panel on touch", () => {
   const w = world();
-  const open = { ...createMenus(), dialogueOpen: true, dialogueNpc: 1 };
+  const open = { ...createMenus(), dialogueOpen: true, dialogueNpc: WANDERER };
 
   it.each(SCREENS)("takes a tap on Goodbye as a click (%s)", (_, screen) => {
     const { buttons } = dialogueLayout(screen, 1);

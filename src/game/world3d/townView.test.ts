@@ -22,12 +22,11 @@ describe("the 3D World view of Town", () => {
       "Elder",
       "Smith",
       "Trader",
-      "Wanderer",
     ]);
     const smith = npcs.find((npc) => npc.name === "Smith");
     expect(smith?.pos).toEqual({ x: 12.5, y: 15.5 });
     const models = npcs.map((npc) => NPC_LOOKS[npc.name].model);
-    expect(new Set(models).size).toBe(4);
+    expect(new Set(models).size).toBe(3);
   });
 
   it("turns an NPC towards a Hero who is near, else to the camera", () => {

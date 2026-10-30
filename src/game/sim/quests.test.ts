@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { combatArea } from "./testAreas";
 import {
-  AREA_CHANGE_STEPS,
   createWorld,
   FRESH_PROGRESS,
   hasQuestToDeal,

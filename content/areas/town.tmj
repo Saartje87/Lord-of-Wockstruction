@@ -2117,7 +2117,7 @@
       {
        "name": "area",
        "type": "string",
-       "value": "catacombs"
+       "value": "cozy-plains"
       },
       {
        "name": "entry",
@@ -2140,7 +2140,7 @@
     },
     {
      "id": 3,
-     "name": "from-catacombs",
+     "name": "from-cozy-plains",
      "type": "entry",
      "x": 2448,
      "y": 1488,
@@ -2211,6 +2211,13 @@
      "point": true
     }
    ]
+  }
+ ],
+ "properties": [
+  {
+   "name": "act",
+   "type": "int",
+   "value": 1
   }
  ]
 }

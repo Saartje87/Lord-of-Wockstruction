@@ -55,6 +55,17 @@ describe("the 3D World view of Town", () => {
     expect(worldViewOf(world, 1, NO_POINTER).npcs).toEqual([]);
   });
 
+  it("lights the Cozy Plains by day, as outdoors, and the Catacombs in the dark of a Combat Area", () => {
+    const world = shipped();
+    expect(worldViewOf(world, 1, NO_POINTER).combat).toBe(false);
+
+    world.areaName = "cozy-plains";
+    expect(worldViewOf(world, 1, NO_POINTER).combat).toBe(false);
+
+    world.areaName = "catacombs";
+    expect(worldViewOf(world, 1, NO_POINTER).combat).toBe(true);
+  });
+
   it("hangs a light on each of Town's lanterns, and none in a Combat Area", () => {
     const world = shipped();
 

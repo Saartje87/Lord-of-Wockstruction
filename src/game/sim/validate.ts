@@ -5,7 +5,7 @@ import { tileOf } from "./vec";
 /**
  * Checks that Areas fit together, throwing with a message naming the Area
  * and the problem: each needs a `start` Entry, each Combat Area an Area
- * Level and Town none, Exits must lead to an Entry
+ * Level and an Act and Town no Level, Exits must lead to an Entry
  * that exists and be reachable from `start`, spawns must be on tiles the
  * Monsters can stand on, and only Town may have a Town Portal spot, which
  * must be reachable from `start` too. A Town without one opens no Town
@@ -23,6 +23,10 @@ export function validateAreas(areas: Record<string, Area>) {
       throw new Error(
         `Area "${area.name}" is a Combat Area without an Area Level`,
       );
+    }
+
+    if (area.name !== TOWN && area.act === null) {
+      throw new Error(`Area "${area.name}" is a Combat Area without an Act`);
     }
 
     if (area.townPortal && area.name !== TOWN) {

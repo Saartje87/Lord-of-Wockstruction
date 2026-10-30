@@ -1,5 +1,5 @@
 /**
- * A test map made a Combat Area by giving it the `areaLevel` map property.
+ * A test map made a Combat Area by giving it the `areaLevel` and `act` map properties.
  * The Area Level is unchecked here, so tests can hand it bad ones.
  */
 export function combatArea<Map extends object>(
@@ -8,6 +8,9 @@ export function combatArea<Map extends object>(
 ): Map & { properties: { name: string; type: string; value: unknown }[] } {
   return {
     ...map,
-    properties: [{ name: "areaLevel", type: "int", value: areaLevel }],
+    properties: [
+      { name: "areaLevel", type: "int", value: areaLevel },
+      { name: "act", type: "int", value: 1 },
+    ],
   };
 }

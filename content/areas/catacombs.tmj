@@ -17,6 +17,11 @@
    "name": "areaLevel",
    "type": "int",
    "value": 1
+  },
+  {
+   "name": "act",
+   "type": "int",
+   "value": 1
   }
  ],
  "tilesets": [
@@ -8268,7 +8273,7 @@
       {
        "name": "area",
        "type": "string",
-       "value": "town"
+       "value": "cozy-plains"
       },
       {
        "name": "entry",
@@ -8291,7 +8296,7 @@
     },
     {
      "id": 3,
-     "name": "from-town",
+     "name": "from-cozy-plains",
      "type": "entry",
      "x": 528,
      "y": 528,

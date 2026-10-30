@@ -74,6 +74,14 @@ describe("validateActs", () => {
     );
   });
 
+  it("rejects a Waypoint in an Area that belongs to no Act", () => {
+    const stray = loadArea("stray", map([start, waypoint], []));
+
+    expect(() =>
+      validateActs(areas(townWith(waypoint), ossuary(boss), stray)),
+    ).toThrow(/Area "stray" has a Waypoint but belongs to no Act/);
+  });
+
   it("does not take a Waypoint in a Combat Area for one in the Town", () => {
     expect(() =>
       validateActs(areas(townWith(), ossuary(boss, waypoint))),

@@ -4,7 +4,7 @@ import { Application } from "pixi.js";
 import { useEffect, useRef } from "react";
 import { pressButton } from "./buttonPress";
 import { advance, createClock } from "./clock";
-import { areaDisplayNames, areas, tilesets } from "./content";
+import { areaDisplayNames, createShippedWorld } from "./content";
 import {
   type CursorPoint,
   clickCursor,
@@ -104,7 +104,6 @@ import { isFloor, TOWN } from "./sim/area";
 import { cursorItemOf } from "./sim/inventory";
 import { tileOf, type Vec } from "./sim/vec";
 import {
-  createWorld,
   type MonsterId,
   type Order,
   step,
@@ -177,9 +176,7 @@ export default function GameCanvas() {
       const development = process.env.NODE_ENV === "development";
       // The Save's Hero, or a fresh one when there's no Save.
       const save = readSave(storage);
-      let world = createWorld({
-        areas,
-        tilesets,
+      let world = createShippedWorld({
         seed: Date.now(),
         progress: save?.progress,
         belongings: save?.belongings,
@@ -551,9 +548,7 @@ export default function GameCanvas() {
           // after any load, so the Town Portal, every kept Area, Minions and Bone
           // Ward are gone. Nothing is simulated until Continue.
           const saved = readSave(storage);
-          world = createWorld({
-            areas,
-            tilesets,
+          world = createShippedWorld({
             seed: Date.now(),
             progress: saved?.progress,
             belongings: saved?.belongings,
@@ -805,7 +800,7 @@ export default function GameCanvas() {
         } else if (asked === "continue" || asked === "newHero") {
           if (asked === "newHero") {
             removeSave(storage);
-            world = createWorld({ areas, tilesets, seed: Date.now() });
+            world = createShippedWorld({ seed: Date.now() });
             orders = [];
           }
           frame = requestAnimationFrame(tick);

@@ -8,6 +8,8 @@ import spa from "../../content/areas/spa.tmj";
 import town from "../../content/areas/town.tmj";
 import wockyard from "../../content/areas/wockyard.tmj";
 import kaykit from "../../content/tilesets/kaykit.tsj";
+import { validateActs, validateQuests } from "./sim/validate";
+import { createWorld, type World } from "./sim/world";
 
 /** Every shipped Area's raw `.tmj` content, by Area name, painted with KayKit's pieces. */
 export const areas: Record<string, unknown> = {
@@ -39,3 +41,25 @@ export const areaDisplayNames: Record<string, string> = {
   crypt: "Crypt",
   ossuary: "Ossuary",
 };
+
+/**
+ * A World made from the shipped Areas (or `content`), after checking that
+ * their Acts and Quests are whole (`validateActs`, `validateQuests`), which
+ * `createWorld` leaves to its callers because small test maps make Acts that
+ * are not whole. Throws, naming the Act or Quest, when they are not.
+ */
+export function createShippedWorld(
+  options: Omit<Parameters<typeof createWorld>[0], "areas" | "tilesets">,
+  content: {
+    areas: Record<string, unknown>;
+    tilesets: Record<string, unknown>;
+  } = {
+    areas,
+    tilesets,
+  },
+): World {
+  const world = createWorld({ ...options, ...content });
+  validateActs(world.areas);
+  validateQuests(world.areas);
+  return world;
+}

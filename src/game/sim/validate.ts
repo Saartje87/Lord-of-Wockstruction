@@ -104,14 +104,20 @@ export function validateAreas(areas: Record<string, Area>) {
 
 /**
  * Checks that each Act is whole, throwing with a message naming it: exactly
- * one Act Boss spawn in its Areas and a Waypoint in its Town. Apart from
- * `validateAreas` because small test maps make Acts that are not whole;
- * the content tests run it on the shipped Areas.
+ * one Act Boss spawn in its Areas and a Waypoint in its Town, and every
+ * Waypoint's Area in an Act. Apart from `validateAreas` because small test
+ * maps make Acts that are not whole; `createShippedWorld` runs it on the
+ * shipped Areas.
  */
 export function validateActs(areas: Record<string, Area>) {
   const acts = new Set<number>();
   for (const area of Object.values(areas)) {
     if (area.act !== null) acts.add(area.act);
+    else if (area.waypoint) {
+      throw new Error(
+        `Area "${area.name}" has a Waypoint but belongs to no Act`,
+      );
+    }
   }
   for (const act of acts) {
     const inAct = Object.values(areas).filter((area) => area.act === act);
@@ -130,7 +136,7 @@ export function validateActs(areas: Record<string, Area>) {
  * Checks that every Quest's objects exist in the Areas it names, throwing
  * with a message naming the Quest: its giver in its Act's Town, and its
  * Bone Altars, Unique Monster, NPC to talk to or Act Boss where its trigger
- * asks. Run on the shipped Areas by the content tests.
+ * asks. Run on the shipped Areas by `createShippedWorld`.
  */
 export function validateQuests(areas: Record<string, Area>) {
   for (const id of QUEST_IDS) {

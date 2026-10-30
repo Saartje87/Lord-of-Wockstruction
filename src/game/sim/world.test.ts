@@ -164,6 +164,35 @@ describe("createWorld", () => {
     );
   });
 
+  it("throws naming a Combat Area without an Act", () => {
+    const town = tmj([start]);
+    const cave = {
+      ...tmj([start]),
+      properties: [{ name: "areaLevel", type: "int", value: 1 }],
+    };
+
+    expect(() => createWorld({ areas: { town, cave }, seed: 1 })).toThrow(
+      'Area "cave" is a Combat Area without an Act',
+    );
+  });
+
+  it("throws naming the Area when its Act isn't a whole number from 1", () => {
+    const town = tmj([start]);
+
+    for (const bad of [0, 1.5, "1"]) {
+      const cave = {
+        ...tmj([start]),
+        properties: [
+          { name: "areaLevel", type: "int", value: 1 },
+          { name: "act", type: "int", value: bad },
+        ],
+      };
+      expect(() => createWorld({ areas: { town, cave }, seed: 1 })).toThrow(
+        `Area "cave" has a bad Act: ${bad}`,
+      );
+    }
+  });
+
   it("throws naming Town when it has an Area Level", () => {
     const town = combatArea(tmj([start]), 1);
 

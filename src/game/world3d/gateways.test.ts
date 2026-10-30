@@ -17,7 +17,7 @@ describe("Exits in the 3D World", () => {
     const world = createWorld({ areas, tilesets, seed: 1 });
 
     expect(worldViewOf(world, 1, NO_POINTER).exits).toEqual([
-      { x: 27, y: 14, width: 2, height: 2, to: "catacombs" },
+      { x: 27, y: 14, width: 2, height: 2, to: "cozy-plains" },
     ]);
 
     world.areaName = "crypt";

@@ -241,7 +241,10 @@ export type WorldView = {
   torches: (Torch & { lit: boolean })[];
   /** The Area's standing lanterns, each lit all the time. */
   lamps: Lamp[];
-  /** Whether the Area is a Combat Area, which has embers and a vignette. */
+  /**
+   * Whether the Area is an indoor Combat Area, which has embers, a vignette
+   * and a dark mood; Town and outdoor Areas are lit by day.
+   */
   combat: boolean;
   floorEffects: FloorEffectsView;
 };
@@ -404,7 +407,7 @@ export function worldViewOf(
       lit: !loweredWalls.includes(torch.wall),
     })),
     lamps: lampsIn(area),
-    combat: world.areaName !== TOWN,
+    combat: world.areaName !== TOWN && !area.outdoors,
     floorEffects: floorEffectsOf(world, alpha, effects, pos),
   };
 }

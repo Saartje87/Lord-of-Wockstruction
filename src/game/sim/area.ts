@@ -12,6 +12,16 @@ export type Area = {
    * Null for Town, which has none.
    */
   areaLevel: number | null;
+  /**
+   * The Act the Area belongs to, from 1. Null when the map doesn't say:
+   * every Combat Area must (see `validateAreas`).
+   */
+  act: number | null;
+  /**
+   * Whether the Area lies under the open sky, not in a cave or crypt: the
+   * 3D World lights it by day. From the map's `outdoors` property.
+   */
+  outdoors: boolean;
   width: number;
   height: number;
   /** Row-major, `width * height` long; true where there is floor. */
@@ -247,6 +257,9 @@ export function loadArea(
   return {
     name,
     areaLevel: readAreaLevel(name, tmj),
+    act: readAct(name, tmj),
+    outdoors:
+      tmj.properties?.find((p) => p.name === "outdoors")?.value === true,
     width: tmj.width,
     height: tmj.height,
     floor,
@@ -278,6 +291,16 @@ function readAreaLevel(name: string, tmj: Tmj): number | null {
     throw new Error(`Area "${name}" has a bad Area Level: ${level}`);
   }
   return level;
+}
+
+/** The map's `act` property: a whole number from 1, or null when it has none. */
+function readAct(name: string, tmj: Tmj): number | null {
+  const act = tmj.properties?.find((p) => p.name === "act")?.value;
+  if (act === undefined) return null;
+  if (typeof act !== "number" || !Number.isInteger(act) || act < 1) {
+    throw new Error(`Area "${name}" has a bad Act: ${act}`);
+  }
+  return act;
 }
 
 /** An `exit` object's zone and its `area` and `entry` properties. */

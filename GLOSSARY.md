@@ -68,6 +68,10 @@ _Avoid_: Wall tile, barrier, obstacle
 An object standing on an Area's floor, such as a barrel, a gravestone or a candle; some block the way and some don't.
 _Avoid_: Decoration, doodad, object
 
+**Water**:
+Tiles of an outdoor Area that nothing walks into, though Projectiles fly over them; the Spa's are hot springs.
+_Avoid_: Lake, pond tile, river (except as a place's description)
+
 **Town Portal**:
 A two-way gateway the Hero opens a step ahead of them anywhere outside Town, its other end at a fixed place in Town; the Hero goes through by walking into it, as with an Exit, and nothing else does. The Hero has at most one: opening another closes the old, and going back through it from Town closes it. It stays open through the Hero's Death and through Exits, and the Save never keeps one.
 _Avoid_: Portal on its own, TP, waypoint, gate

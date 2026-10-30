@@ -1,7 +1,7 @@
 /**
  * How far into KayKit's attack clips the weapon makes contact, as a fraction
- * of the clip (the Chop's downswing, from the weapon hand's speed along the clip). A swing is
- * scrubbed so this frame falls on the step its hit lands.
+ * of the clip (the Chop's downswing, from the weapon hand's speed along the
+ * clip). A swing is scrubbed so this frame falls on the step its hit lands.
  */
 export const ATTACK_CONTACT = 0.57;
 

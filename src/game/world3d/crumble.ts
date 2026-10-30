@@ -15,24 +15,3 @@ export function crumbleOf(seconds: number): Crumble {
     sink: progress * SINK_TILES,
   };
 }
-
-/**
- * The crumbling Minions after `dt` seconds: how long ago each began, by id.
- * Those in `previous` but not in `current` just left the World and begin;
- * those that have run their course are dropped.
- */
-export function crumblesAfter(
-  crumbling: ReadonlyMap<number, number>,
-  previous: ReadonlySet<number>,
-  current: ReadonlySet<number>,
-  dt: number,
-): Map<number, number> {
-  const next = new Map<number, number>();
-  for (const [id, seconds] of crumbling) {
-    if (seconds + dt < CRUMBLE_SECONDS) next.set(id, seconds + dt);
-  }
-  for (const id of previous) {
-    if (!current.has(id) && !next.has(id)) next.set(id, 0);
-  }
-  return next;
-}

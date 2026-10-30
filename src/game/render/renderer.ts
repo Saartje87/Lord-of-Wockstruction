@@ -57,16 +57,18 @@ import {
 } from "../sim/world";
 import { heroTuning } from "../tuning/hero";
 import { type ItemType, itemOf } from "../tuning/items";
+import type { MinionType } from "../tuning/minions";
 import type { MonsterType } from "../tuning/monsters";
 import { type Skill, skillTuning } from "../tuning/skills";
 import { townPortalLook } from "../tuning/townPortalLook";
 import { atUiScale, type Viewport, viewportOf } from "../viewport";
 import { tileToScreen, type WorldCamera } from "../world3d/camera";
+import { CRUMBLE_SECONDS } from "../world3d/crumble";
 import { groundSpotsOf } from "../world3d/groundSpots";
 import { MONSTER_LOOKS } from "../world3d/monsterLook";
 import { pickablesOf } from "../world3d/pickables";
 import { characterUnder3d, type Pickable3d } from "../world3d/picking";
-import type { Effects } from "../world3d/view";
+import type { DepartedMinion, Effects } from "../world3d/view";
 import {
   areaBannerLayout,
   arrivedInDisplayName,
@@ -624,6 +626,13 @@ export function createRenderer(
   /** Where the Hero and each living Minion stood as last drawn (tile units). */
   let heroTile: Vec = { x: 0, y: 0 };
   const minionTiles = new Map<MinionId, Vec>();
+  /** Each living Minion as last drawn, for it to crumble where it stood. */
+  const minionLooks = new Map<
+    MinionId,
+    { type: MinionType; pos: Vec; facing: number }
+  >();
+  /** The Minions crumbling away, with when each left the World. */
+  const departing: (Omit<DepartedMinion, "ageMs"> & { atMs: number })[] = [];
   let hurtAtMs: number | null = null;
   let levelAtMs: number | null = null;
   /** When the Hero's Town Portal last opened, for its burst. */
@@ -694,6 +703,8 @@ export function createRenderer(
     monsters.clear();
     // Minion ids start over too.
     minionTiles.clear();
+    minionLooks.clear();
+    departing.length = 0;
     // Item ids start over too.
     for (const text of labelTexts.values()) text.destroy();
     labelTexts.clear();
@@ -783,8 +794,8 @@ export function createRenderer(
     /**
      * What the 3D World shows that lasts milliseconds: each hit Monster's
      * flash, how long ago each killed Monster died, the Town Portal ends,
-     * and the Corpse bursts, Curses and Level Up ring, which are dropped
-     * here once they are over.
+     * and the Corpse bursts, Curses, Level Up ring and crumbling Minions,
+     * which are dropped here once they are over.
      */
     effectsAt(nowMs: number, world: World): Effects {
       const flashes = new Map<MonsterId, number>();
@@ -813,6 +824,11 @@ export function createRenderer(
         radius,
         ageMs: nowMs - atMs,
       });
+      for (let i = departing.length - 1; i >= 0; i--) {
+        if ((nowMs - departing[i].atMs) / 1000 >= CRUMBLE_SECONDS) {
+          departing.splice(i, 1);
+        }
+      }
       return {
         flashes,
         deadForMs,
@@ -820,6 +836,10 @@ export function createRenderer(
         bursts: bursts.map(ageOf),
         curses: curses.map(ageOf),
         levelUpAgoMs: levelAtMs === null ? null : nowMs - levelAtMs,
+        departedMinions: departing.map(({ atMs, ...minion }) => ({
+          ...minion,
+          ageMs: nowMs - atMs,
+        })),
       };
     },
 
@@ -912,6 +932,16 @@ export function createRenderer(
         }
         if (event.type === "MinionCrumbled" || event.type === "MinionDied") {
           minionTiles.delete(event.minion);
+          const look = minionLooks.get(event.minion);
+          if (look) {
+            departing.push({
+              id: event.minion,
+              ...look,
+              pos: event.pos,
+              atMs: nowMs,
+            });
+          }
+          minionLooks.delete(event.minion);
         }
         if (event.type === "LevelReached") levelAtMs = nowMs;
         if (event.type === "TownPortalOpened") townPortalOpenedAtMs = nowMs;
@@ -1006,8 +1036,15 @@ export function createRenderer(
         if (!seen.has(id)) monsters.delete(id);
       }
       minionTiles.clear();
+      minionLooks.clear();
       for (const minion of world.minions) {
-        minionTiles.set(minion.id, lerp(minion.prevPos, minion.pos, alpha));
+        const at = lerp(minion.prevPos, minion.pos, alpha);
+        minionTiles.set(minion.id, at);
+        minionLooks.set(minion.id, {
+          type: minion.type,
+          pos: at,
+          facing: minion.facing,
+        });
       }
 
       overheads.clear();

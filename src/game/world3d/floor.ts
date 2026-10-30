@@ -67,12 +67,9 @@ export function floorOf(area: Area, pieces: FloorPieces): Group {
   const underWalls = new Set(area.walls.map(({ x, y }) => y * area.width + x));
   for (let y = 0; y < area.height; y++) {
     for (let x = 0; x < area.width; x++) {
-      if (
-        !area.floor[y * area.width + x] &&
-        !underWalls.has(y * area.width + x)
-      )
-        continue;
-      const named = area.floorPieces[y * area.width + x] ?? "";
+      const cell = y * area.width + x;
+      if (!area.floor[cell] && !underWalls.has(cell)) continue;
+      const named = area.floorPieces[cell] ?? "";
       const pick = hash(x, y, 1);
       const name =
         named && pieces[named]

@@ -67,7 +67,8 @@ export function instancesOf(file: string, scene: Object3D | null): Instances {
   const glow = glowOf(file);
   // Bottles are drawn in their tint alone: their brown glass would turn blue
   // to grey, so the texture is dropped and the tint lifted a little.
-  const boost = file.includes("bottle") ? BOTTLE_BOOST : 1;
+  const isBottle = file.includes("bottle");
+  const boost = isBottle ? BOTTLE_BOOST : 1;
   const group = new Group();
   model.updateMatrixWorld(true);
   const parts: { mesh: InstancedMesh; local: Matrix4 }[] = [];
@@ -75,7 +76,7 @@ export function instancesOf(file: string, scene: Object3D | null): Instances {
     const source = node as Mesh;
     if (!source.isMesh) return;
     const material = source.material as MeshToonMaterial;
-    if (file.includes("bottle")) {
+    if (isBottle) {
       material.map = null;
       material.needsUpdate = true;
     }

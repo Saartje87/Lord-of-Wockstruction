@@ -1,4 +1,5 @@
 import type { MinionType } from "../tuning/minions";
+import { ATTACK_CONTACT } from "./clips";
 import { type MonsterLook, STANDING } from "./monsterLook";
 
 /** What each Minion type looks like. */
@@ -28,7 +29,7 @@ export const MINION_LOOKS: Record<MinionType, MonsterLook> = {
     scale: 0.36,
     height: 0.9,
     clips: { ...STANDING, attack: "1H_Melee_Attack_Chop" },
-    contact: 0.57,
+    contact: ATTACK_CONTACT,
     look: "raised",
     weapons: [],
   },

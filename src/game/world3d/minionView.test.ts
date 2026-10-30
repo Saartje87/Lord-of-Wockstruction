@@ -3,9 +3,10 @@ import { arenaWith } from "../input/testArena";
 import { newMinion } from "../sim/minions";
 import { msToSteps } from "../sim/units";
 import { type MinionType, minionTuning } from "../tuning/minions";
+import { CRUMBLE_SECONDS } from "./crumble";
 import { MINION_LOOKS } from "./minionLook";
 import { pickablesOf } from "./pickables";
-import { type PointerState, worldViewOf } from "./view";
+import { type Effects, type PointerState, worldViewOf } from "./view";
 
 const NO_POINTER: PointerState = {
   hoverTile: null,
@@ -136,5 +137,56 @@ describe("what can be picked", () => {
       MINION_LOOKS.raisedSkeleton.height,
     );
     expect(picked.some((one) => one.id === world.monsters[0].id)).toBe(true);
+  });
+});
+
+describe("the 3D World view of crumbling Minions", () => {
+  const departed = (ageMs: number) => ({
+    id: 3,
+    type: "golem" as const,
+    pos: { x: 4, y: 5 },
+    facing: 1,
+    ageMs,
+  });
+  const NO_EFFECTS: Effects = {
+    flashes: new Map(),
+    deadForMs: new Map(),
+    portals: [],
+    bursts: [],
+    curses: [],
+    levelUpAgoMs: null,
+    departedMinions: [],
+  };
+  const viewWith = (ageMs: number) => {
+    const { world } = withMinion("raisedSkeleton");
+    return worldViewOf(world, 1, NO_POINTER, {
+      ...NO_EFFECTS,
+      departedMinions: [departed(ageMs)],
+    }).minions;
+  };
+
+  it("shows a living Minion whole", () => {
+    const { world } = withMinion("golem");
+    expect(minionView(world).crumble).toEqual({ scale: 1, sink: 0 });
+  });
+
+  it("keeps a departed Minion where it stood, after the living", () => {
+    const [living, gone] = viewWith(0);
+    expect(living.id).toBe(7);
+    expect(gone).toMatchObject({
+      id: 3,
+      type: "golem",
+      pos: { x: 4, y: 5 },
+      facing: 1,
+      highlighted: false,
+    });
+  });
+
+  it("shrinks and sinks a departed Minion as it ages", () => {
+    const early = viewWith(CRUMBLE_SECONDS * 250)[1].crumble;
+    const late = viewWith(CRUMBLE_SECONDS * 750)[1].crumble;
+    expect(early.scale).toBeLessThan(1);
+    expect(late.scale).toBeLessThan(early.scale);
+    expect(late.sink).toBeGreaterThan(early.sink);
   });
 });

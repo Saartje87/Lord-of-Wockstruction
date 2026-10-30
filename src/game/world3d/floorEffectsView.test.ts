@@ -19,6 +19,7 @@ const NO_EFFECTS: Effects = {
   bursts: [],
   curses: [],
   levelUpAgoMs: null,
+  departedMinions: [],
 };
 
 const viewOf = (world: ReturnType<typeof arenaWith>, effects = NO_EFFECTS) =>

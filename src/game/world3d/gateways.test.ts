@@ -46,13 +46,13 @@ describe("Exits in the 3D World", () => {
 });
 
 describe("glows that must not hide", () => {
-  it("draws an Exit's pool over Props and above Town's raised paths", () => {
+  it("lifts an Exit pool above Town's raised paths", () => {
     const [exit] = exitMeshesOf([
       { x: 27, y: 14, width: 2, height: 2, to: "catacombs" },
     ]).group.children;
     const pool = exit.children[0] as Mesh;
 
-    expect((pool.material as Material).depthTest).toBe(false);
+    expect((pool.material as Material).depthTest).toBe(true);
     expect(pool.position.y).toBeGreaterThan(0.05);
   });
 
@@ -62,7 +62,7 @@ describe("glows that must not hide", () => {
     const floor = gateway.children[1] as Mesh;
 
     expect(floor.position.y).toBeGreaterThan(0.05);
-    expect((floor.material as Material).depthTest).toBe(false);
+    expect((floor.material as Material).depthTest).toBe(true);
   });
 });
 

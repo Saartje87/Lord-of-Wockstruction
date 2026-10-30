@@ -24,8 +24,10 @@ const HALF_HEIGHT = 0.72;
 /** The sparks that drift up off the rim. */
 const SPARKS = 14;
 
-/** The pool of light on the floor, as many times as bright as tuned and wide. */
+/** How many times brighter than tuned the pool of light on the floor is. */
 const POOL_BOOST = 4;
+
+/** How many times wider than tuned the pool of light on the floor is. */
 const POOL_WIDEN = 1.5;
 
 const hex = (colour: number) =>
@@ -74,8 +76,6 @@ function poolMaterial(): ShaderMaterial {
       }`,
     transparent: true,
     depthWrite: false,
-    // Drawn over the floor's raised paths and cobbles, which would hide it.
-    depthTest: false,
     blending: AdditiveBlending,
     toneMapped: false,
   });
@@ -109,7 +109,6 @@ function gatewayOf(swirl: ShaderMaterial, pool: ShaderMaterial): Gateway {
   );
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = 0.14;
-  floor.renderOrder = 4;
   const sparks = new Points(
     new BufferGeometry().setAttribute(
       "position",

@@ -32,6 +32,8 @@ const PHASE_SECONDS_PER_ID = 0.37;
 const TURN_RATE = 14;
 /** How bright a fully flashed Monster glows. */
 const FLASH_GLOW = 0.9;
+/** The colour a hit Monster flashes. */
+const FLASH_COLOUR = 0xffffff;
 /** The outline's width, in tiles. */
 const OUTLINE = 0.022;
 
@@ -123,7 +125,11 @@ export function poseMonster(actor: MonsterActor, monster: Posed, dt: number) {
     actor.turn = turnTowards(actor.turn, monster.facing, dt, TURN_RATE);
   }
   actor.root.rotation.y = actor.turn ?? 0;
-  glowMaterials(actor.materials, 0xffffff, (monster.flash ?? 0) * FLASH_GLOW);
+  glowMaterials(
+    actor.materials,
+    FLASH_COLOUR,
+    (monster.flash ?? 0) * FLASH_GLOW,
+  );
   if (monster.highlighted !== actor.highlighted) {
     actor.highlighted = monster.highlighted;
     const ink = monster.highlighted ? actor.inks.highlight : actor.inks.ink;

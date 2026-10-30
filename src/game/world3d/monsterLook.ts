@@ -1,4 +1,5 @@
 import type { MonsterType } from "../tuning/monsters";
+import { ATTACK_CONTACT } from "./clips";
 import type { LOOKS } from "./toon";
 
 /** The Monster animations as the 3D World view names them. */
@@ -47,7 +48,7 @@ export const MONSTER_LOOKS: Record<MonsterType, MonsterLook> = {
     scale: 0.36,
     height: 0.9,
     clips: { ...STANDING, attack: "1H_Melee_Attack_Chop" },
-    contact: 0.57,
+    contact: ATTACK_CONTACT,
     weapons: [
       { slot: "handslot.r", model: "Skeleton_Blade" },
       { slot: "handslot.l", model: "Skeleton_Shield_Small_A" },
@@ -75,7 +76,7 @@ export const MONSTER_LOOKS: Record<MonsterType, MonsterLook> = {
       run: "Walking_D_Skeletons",
       attack: "1H_Melee_Attack_Chop",
     },
-    contact: 0.57,
+    contact: ATTACK_CONTACT,
     weapons: [],
   },
 };

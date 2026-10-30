@@ -12,7 +12,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ### Issue tracker
 
-Tickets live in the Tandembike project `Wiablo`, handled through the `tandembike` MCP tools. See `docs/agents/issue-tracker.md`.
+Tickets live in the Tandembike project `Lord of Wockstruction`, handled through the `tandembike` MCP tools. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

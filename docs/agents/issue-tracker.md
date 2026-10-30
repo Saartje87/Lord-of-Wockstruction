@@ -1,10 +1,10 @@
 # Issue tracker: Tandembike
 
-Issues and specs for this repo live as Tickets in the Tandembike project **Wiablo** (projectId 2). Use the `tandembike` MCP tools for every operation; never call the database or write requests by hand. Refer to Tickets as `T<number>`; `#<number>` is a GitHub PR.
+Issues and specs for this repo live as Tickets in the Tandembike project **Lord of Wockstruction** (projectId 2). Use the `tandembike` MCP tools for every operation; never call the database or write requests by hand. Refer to Tickets as `T<number>`; `#<number>` is a GitHub PR.
 
 ## Conventions
 
-- **Create a ticket**: `create_ticket` with `projectName: "Wiablo"`. Put acceptance criteria in the `acceptanceCriteria` field, never as a checklist in the description.
+- **Create a ticket**: `create_ticket` with `projectName: "Lord of Wockstruction"`. Put acceptance criteria in the `acceptanceCriteria` field, never as a checklist in the description.
 - **Create several related tickets**: `create_tickets`, listed in dependency order, with `blockedByPositions` for blockers.
 - **Read a ticket**: `get_ticket`, plus `list_comments` for discussion.
 - **List tickets**: `list_tickets` filtered by `status`, labels, `blocked`, `claimed`, `cycleId`.
@@ -23,7 +23,7 @@ Issues and specs for this repo live as Tickets in the Tandembike project **Wiabl
 
 ## When a skill says "publish to the issue tracker"
 
-Create a Tandembike ticket in Wiablo.
+Create a Tandembike ticket in Lord of Wockstruction.
 
 ## When a skill says "fetch the relevant ticket"
 

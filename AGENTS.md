@@ -34,6 +34,10 @@ Seeing the game run (on-screen criteria, dev servers in worktrees, starting at a
 
 On tuning tickets, `npm run tuning:report` prints Experience, kills per Level and each Combat Area's Monster numbers from live tuning. See `docs/agents/tuning.md`.
 
+### 3D models
+
+When suggesting models for something in the game, browse `vendor/kaykit/` (the paid KayKit Mystery Monthly packs, gitignored) alongside the KayKit packs already listed in `CREDITS.md`. Only the packs wired into `scripts/import-kaykit/main.mts` get imported, so a suggestion from another pack also means adding that pack to the import. See README's "Art and credits".
+
 ### From grilling to tickets
 
 When a grilling session reaches a shared understanding, stop once the glossary is updated. Ask the user to type `/mattpocock-skills:to-spec` and then `/mattpocock-skills:to-tickets`. Agents can't call these skills themselves, so never write the spec or tickets by hand instead.

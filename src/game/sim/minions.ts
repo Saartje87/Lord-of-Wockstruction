@@ -3,9 +3,10 @@ import {
   type MinionType,
   minionTuning,
 } from "../tuning/minions";
+import { monsterTuning } from "../tuning/monsters";
 import type { Skill } from "../tuning/skills";
 import { isWalkable } from "./area";
-import { freeSpot, wallRadius } from "./bodies";
+import { freeSpot, monsterBodies, wallRadius } from "./bodies";
 import { altarRadiusOf, type BoneAltar, targetsOf } from "./boneAltars";
 import { faceToward, lands } from "./melee";
 import { isClear } from "./path";
@@ -316,7 +317,7 @@ function chase(world: World, minion: Minion, monster: Monster | BoneAltar) {
     if (minion.cooldown === 0) startWindUp(minion, monster.pos);
     return;
   }
-  walkOrTeleport(world, minion, monster.pos, gap - reach);
+  walkOrTeleport(world, minion, monster.pos, gap - reach, monster);
 }
 
 /** Starts winding up an attack, facing its Monster at `at`. */
@@ -379,17 +380,47 @@ function follow(world: World, minion: Minion) {
 }
 
 /**
- * Walks up to `limit` towards `to`, and teleports next to the Hero once it
- * has hardly moved for a while: stuck where it can't walk to `to`.
+ * Walks up to `limit` towards `to`, around the Monsters in the way bar
+ * `going`, the one it walks up to. It teleports next to the Hero once it has
+ * hardly moved for a while: stuck where it can't walk to `to`, unless it is
+ * fighting, so a Minion holding a line stays in it.
  */
-function walkOrTeleport(world: World, minion: Minion, to: Vec, limit: number) {
+function walkOrTeleport(
+  world: World,
+  minion: Minion,
+  to: Vec,
+  limit: number,
+  going: Monster | BoneAltar | null = null,
+) {
   const area = world.areas[world.areaName];
   const stepped = STEPPED[minion.type];
   const from = minion.pos;
-  goToward(area, minion, stepped.gait, to, stepped.speed, limit);
+  const gait: Gait = {
+    ...stepped.gait,
+    body: {
+      radius: minionTuning[minion.type].radius,
+      obstacles: monsterBodies(world, going),
+    },
+  };
+  goToward(area, minion, gait, to, stepped.speed, limit);
   // A walk ending at the follow distance or in reach is over before this
   // adds up.
   if (distance(from, minion.pos) < stepped.stuckStride) minion.stuck += 1;
   else minion.stuck = 0;
-  if (minion.stuck >= stepped.stuckSteps) placeBesideHero(world, minion);
+  if (minion.stuck >= stepped.stuckSteps && !isFighting(world, minion)) {
+    placeBesideHero(world, minion);
+  }
+}
+
+/** How far past its reach a Monster still counts as a fight (tiles). */
+const FIGHT_RANGE = 1;
+
+/** Whether a Monster is close enough to the Minion to be fighting it. */
+function isFighting(world: World, minion: Minion): boolean {
+  const { reach, radius } = minionTuning[minion.type];
+  return world.monsters.some(
+    (monster) =>
+      distance(minion.pos, monster.pos) <=
+      reach + monsterTuning[monster.type].radius + radius + FIGHT_RANGE,
+  );
 }

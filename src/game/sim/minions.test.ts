@@ -556,7 +556,7 @@ describe("Monsters fighting the Golem", () => {
     expect(distance(golem.pos, skeleton.pos)).toBeGreaterThanOrEqual(apart);
     // Each gave way.
     expect(golem.pos).not.toEqual(at);
-    expect(skeleton.pos).not.toEqual(at);
+    expect(skeleton.pos).toEqual(at);
   });
 
   it("give up on the Golem past the Leash and walk home ignoring both it and the Hero", () => {

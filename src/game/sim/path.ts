@@ -3,6 +3,40 @@ import { tileOf, type Vec } from "./vec";
 
 const EDGE_SLACK = 1e-6;
 
+/** A round Body in the way: where it stands and how big it is. */
+export type Obstacle = { pos: Vec; radius: number };
+
+/**
+ * Whether a body of `radius` can walk the straight line from `a` to `b`
+ * without touching any of the `obstacles` it doesn't already touch at `a`.
+ */
+export function clearOfBodies(
+  a: Vec,
+  b: Vec,
+  radius: number,
+  obstacles: readonly Obstacle[],
+): boolean {
+  return obstacles.every((o) => {
+    const apart = o.radius + radius - EDGE_SLACK;
+    if (Math.hypot(o.pos.x - a.x, o.pos.y - a.y) < apart) return true;
+    return distanceToSegment(o.pos, a, b) >= apart;
+  });
+}
+
+function distanceToSegment(p: Vec, a: Vec, b: Vec): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const lengthSquared = dx * dx + dy * dy;
+  const t =
+    lengthSquared === 0
+      ? 0
+      : Math.min(
+          1,
+          Math.max(0, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSquared),
+        );
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+}
+
 /**
  * Plans a walk from `from` to `to` as waypoints in tile units, not including
  * `from`. Tiles are joined in 8 directions without cutting a blocked corner,
@@ -11,14 +45,20 @@ const EDGE_SLACK = 1e-6;
  *
  * When `to` can't be reached, the walk ends at the reachable point nearest to
  * it, kept `radius` inside its tile.
+ *
+ * `obstacles` are Bodies in the way: tiles they touch (other than the first
+ * and last) are not walked through, and a walk of a body of `bodyRadius`
+ * never cuts across one.
  */
 export function findPath(
   area: Area,
   from: Vec,
   to: Vec,
   radius: number,
+  obstacles: readonly Obstacle[] = [],
+  bodyRadius = radius,
 ): Vec[] {
-  const { tiles, reached } = astar(area, tileOf(from), to);
+  const { tiles, reached } = astar(area, tileOf(from), to, obstacles);
   const end = reached ? to : clampInto(tiles[tiles.length - 1], to, radius);
 
   // The start tile is where we already are; aim at the end in the last one.
@@ -29,7 +69,11 @@ export function findPath(
   while (i < points.length) {
     // Neighbouring tiles always join in a straight line, so `i` is safe.
     let j = i;
-    while (j + 1 < points.length && isClear(area, at, points[j + 1], radius)) {
+    while (
+      j + 1 < points.length &&
+      isClear(area, at, points[j + 1], radius) &&
+      clearOfBodies(at, points[j + 1], bodyRadius, obstacles)
+    ) {
       j++;
     }
     path.push(points[j]);
@@ -53,11 +97,23 @@ function astar(
   area: Area,
   start: Vec,
   to: Vec,
+  obstacles: readonly Obstacle[] = [],
 ): { tiles: Vec[]; reached: boolean } {
   const { width } = area;
   const goal = tileOf(to);
   const key = (x: number, y: number) => y * width + x;
-  const open = (x: number, y: number) => isWalkable(area, { x, y });
+  const taken = (x: number, y: number) =>
+    !(x === start.x && y === start.y) &&
+    !(x === goal.x && y === goal.y) &&
+    obstacles.some(
+      (o) =>
+        Math.hypot(
+          o.pos.x - Math.min(x + 1, Math.max(x, o.pos.x)),
+          o.pos.y - Math.min(y + 1, Math.max(y, o.pos.y)),
+        ) < o.radius,
+    );
+  const open = (x: number, y: number) =>
+    isWalkable(area, { x, y }) && !taken(x, y);
   const h = (x: number, y: number) => {
     const dx = Math.abs(x - goal.x);
     const dy = Math.abs(y - goal.y);

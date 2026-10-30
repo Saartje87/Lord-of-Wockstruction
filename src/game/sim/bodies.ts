@@ -2,7 +2,7 @@ import { heroTuning } from "../tuning/hero";
 import { minionTuning } from "../tuning/minions";
 import { monsterTuning } from "../tuning/monsters";
 import { type Area, isWalkable } from "./area";
-import { fitsAt, isClear } from "./path";
+import { fitsAt, isClear, type Obstacle } from "./path";
 import { distance, type Vec } from "./vec";
 import type { World } from "./world";
 
@@ -32,6 +32,35 @@ const SHARES: Record<BodyKind, Record<BodyKind, [number, number] | null>> = {
  */
 export function wallRadius(radius: number): number {
   return Math.min(radius, heroTuning.radius);
+}
+
+/**
+ * The Bodies a Monster can't walk through: the Hero's Minions, bar `except`
+ * (the one it is going after, which it walks up to).
+ */
+export function minionBodies(world: World, except?: object | null): Obstacle[] {
+  return world.minions
+    .filter((minion) => minion !== except)
+    .map((minion) => ({
+      pos: minion.pos,
+      radius: minionTuning[minion.type].radius,
+    }));
+}
+
+/**
+ * The Bodies a Minion can't walk through: the Monsters, bar `except` (the
+ * one it is going after, which it walks up to).
+ */
+export function monsterBodies(
+  world: World,
+  except?: object | null,
+): Obstacle[] {
+  return world.monsters
+    .filter((monster) => monster !== except)
+    .map((monster) => ({
+      pos: monster.pos,
+      radius: monsterTuning[monster.type].radius,
+    }));
 }
 
 /**
@@ -69,16 +98,23 @@ export function separateBodies(world: World) {
     })),
   ];
 
-  for (const [i, a] of bodies.entries()) {
-    for (const b of bodies.slice(i + 1)) {
-      const shares = SHARES[a.kind][b.kind];
-      if (!shares) continue;
-      const overlap =
-        a.radius + b.radius - distance(a.creature.pos, b.creature.pos);
-      if (overlap <= 0) continue;
-      const out = away(a.creature.pos, b.creature.pos, b.id);
-      push(area, a, scaled(out, -overlap * shares[0]));
-      push(area, b, scaled(out, overlap * shares[1]));
+  // Pairs on opposite sides first, so the shoves within a side, which come
+  // last, are what a step ends on.
+  for (const crossing of [true, false]) {
+    for (const [i, a] of bodies.entries()) {
+      for (const b of bodies.slice(i + 1)) {
+        if (((a.kind === "monster") !== (b.kind === "monster")) !== crossing) {
+          continue;
+        }
+        const shares = SHARES[a.kind][b.kind];
+        if (!shares) continue;
+        const overlap =
+          a.radius + b.radius - distance(a.creature.pos, b.creature.pos);
+        if (overlap <= 0) continue;
+        const out = away(a.creature.pos, b.creature.pos, b.id);
+        push(area, a, scaled(out, -overlap * shares[0]));
+        push(area, b, scaled(out, overlap * shares[1]));
+      }
     }
   }
 }

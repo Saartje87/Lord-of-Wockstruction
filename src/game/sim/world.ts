@@ -37,7 +37,7 @@ import {
   TOWN,
 } from "./area";
 import { type BeltColumns, emptyBelt, putInBelt } from "./belt";
-import { separateBodies, wallRadius } from "./bodies";
+import { freeSpot, monsterBodies, separateBodies, summonPoint } from "./bodies";
 import {
   altarRadiusOf,
   type BoneAltar,
@@ -76,7 +76,6 @@ import {
   newMinion,
   placeBesideHero,
   stepMinions,
-  summonPoint,
 } from "./minions";
 import {
   killExperience,
@@ -129,7 +128,7 @@ import { giveSmithBonus, SMITH } from "./smith";
 import { msToSteps, perStep } from "./units";
 import { validateAreas } from "./validate";
 import { distance, type Vec } from "./vec";
-import { stepInDirection } from "./walking";
+import { holdBack, slideAround, stepInDirection } from "./walking";
 
 const EXPERIENCE_TABLE = heroTuning.experienceTable;
 /** The most Experience the Hero can have: what the last Level needs. */
@@ -1266,7 +1265,9 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
     new Array(area.width * area.height).fill(area.name === TOWN);
   world.standing = standingIn(world, area);
   revealAround(world);
-  for (const minion of world.minions) placeBesideHero(world, minion);
+  world.minions.forEach((minion, index) => {
+    placeBesideHero(world, minion, world.minions.slice(index + 1));
+  });
   world.heldOrders = [];
   if (!kept) {
     for (const spawn of area.spawns) placePack(world, area, spawn);
@@ -1648,7 +1649,8 @@ type Raising = {
 /**
  * Prunes `raiser`'s dead, and when `active` counts its cooldown down and,
  * once due and with room under the limit, raises up to `raising.size`
- * Monsters round it, restarting the cooldown. With no room to stand them it
+ * Monsters round it, each at the nearest free spot to its place, restarting
+ * the cooldown. With no room to stand them it
  * tries again next step.
  */
 function raiseWhenDue(
@@ -1665,10 +1667,14 @@ function raiseWhenDue(
   if (count <= 0) return [];
   const area = world.areas[world.areaName];
   const spots = spotsAround(world, area, raising.from, raising.distance, count);
-  const made = spots.map((spot) => ({
-    monster: placeMonster(world, area, raising.type(), spot),
-    spot,
-  }));
+  // One at a time, so each sees the ones raised before it.
+  const made: { monster: Monster; spot: Vec }[] = [];
+  for (const asked of spots) {
+    const type = raising.type();
+    const spot = freeSpot(world, asked, monsterTuning[type].radius);
+    if (spot)
+      made.push({ monster: placeMonster(world, area, type, spot), spot });
+  }
   if (made.length === 0) return [];
   raiser.raised.push(...made.map((m) => m.monster.id));
   raiser.cooldown = raising.cooldown;
@@ -1787,7 +1793,7 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   // Swing from where the Hero stands if already in reach, or once walked
   // into it.
   approach(world);
-  walk(hero);
+  walkHero(world);
   revealAround(world);
   const area = world.areas[world.areaName];
   const exit = exitAt(area, hero.pos);
@@ -2080,7 +2086,7 @@ function give(world: World, order: Order, events: SimEvent[]) {
       hero.attacking = null;
       hero.pickingUp = null;
       hero.talkingTo = null;
-      hero.path = findPath(area, hero.pos, order.target, heroTuning.radius);
+      hero.path = routeHero(world, order.target);
       break;
     case "Walk":
       walkInDirection(world, order.direction);
@@ -2091,7 +2097,7 @@ function give(world: World, order: Order, events: SimEvent[]) {
       hero.attacking = target.id;
       hero.pickingUp = null;
       hero.talkingTo = null;
-      hero.path = findPath(area, hero.pos, target.pos, heroTuning.radius);
+      hero.path = routeHero(world, target.pos, target);
       break;
     }
     case "PickUp": {
@@ -2100,7 +2106,7 @@ function give(world: World, order: Order, events: SimEvent[]) {
       hero.attacking = null;
       hero.talkingTo = null;
       hero.pickingUp = lying.item.id;
-      hero.path = findPath(area, hero.pos, lying.pos, heroTuning.radius);
+      hero.path = routeHero(world, lying.pos);
       break;
     }
     case "Talk": {
@@ -2109,7 +2115,7 @@ function give(world: World, order: Order, events: SimEvent[]) {
       hero.attacking = null;
       hero.pickingUp = null;
       hero.talkingTo = order.npc;
-      hero.path = findPath(area, hero.pos, npc.pos, heroTuning.radius);
+      hero.path = routeHero(world, npc.pos);
       break;
     }
     case "SwingAt":
@@ -2208,8 +2214,8 @@ function nearestCorpse(world: World, point: Vec): Corpse | null {
 }
 
 /**
- * Brings a fresh Minion at full Life at `target`, or the nearest point to it
- * a Minion can stand on, crumbling away the one `skill` brought before: the
+ * Brings a fresh Minion at full Life at `target`, or the nearest free spot to
+ * it a Minion can stand on, crumbling away the one `skill` brought before: the
  * Hero has at most one of each summoned Minion.
  */
 function summon(
@@ -2220,12 +2226,11 @@ function summon(
   target: Vec,
   events: SimEvent[],
 ) {
-  const area = world.areas[world.areaName];
-  const pos = summonPoint(area, target, wallRadius(minionTuning[type].radius));
+  // The one it replaces is about to crumble, so is no Body in the way.
+  const replaced = world.minions.filter((minion) => minion.skill === skill);
+  const pos = freeSpot(world, target, minionTuning[type].radius, replaced);
   if (!pos) return;
-  for (const minion of world.minions) {
-    if (minion.skill === skill) crumbleMinion(world, minion, events);
-  }
+  for (const minion of replaced) crumbleMinion(world, minion, events);
   bringMinion(world, skill, type, skillLevel, pos, events);
 }
 
@@ -2249,7 +2254,9 @@ function raise(
   for (const minion of raised.slice(0, Math.max(0, over))) {
     crumbleMinion(world, minion, events);
   }
-  bringMinion(world, skill, effect.minion, skillLevel, corpse.pos, events);
+  const pos = freeSpot(world, corpse.pos, minionTuning[effect.minion].radius);
+  if (!pos) return;
+  bringMinion(world, skill, effect.minion, skillLevel, pos, events);
 }
 
 /** How far `effect` reaches from its Corpse at `skillLevel` (tiles). */
@@ -2421,7 +2428,15 @@ function walkInDirection(world: World, direction: Vec) {
     WALK_PER_STEP,
     heroTuning.radius,
   );
-  if (to) hero.pos = to;
+  if (to) {
+    hero.pos = slideAround(
+      area,
+      hero.pos,
+      to,
+      heroTuning.radius,
+      monsterBodies(world),
+    );
+  }
 }
 
 /** Swings at the Monster the Hero walks to once it is in reach. */
@@ -3047,6 +3062,43 @@ function targetById(
 
 function monsterById(world: World, id: MonsterId): Monster | undefined {
   return world.monsters.find((monster) => monster.id === id);
+}
+
+/**
+ * The path for the Hero to walk to `to`, around the Monsters in the way bar
+ * `except`, the one it walks up to.
+ */
+function routeHero(world: World, to: Vec, except?: object): Vec[] {
+  const radius = heroTuning.radius;
+  return findPath(
+    world.areas[world.areaName],
+    world.hero.pos,
+    to,
+    radius,
+    monsterBodies(world, except),
+    radius,
+  );
+}
+
+/**
+ * Walks the Hero a step along their path. A step that runs into a Monster
+ * is undone (sliding along it where the way is open), and the Hero plans a
+ * new route around it to where the path was going.
+ */
+function walkHero(world: World) {
+  const { hero } = world;
+  if (hero.path.length === 0) return;
+  const before = hero.pos;
+  const goal = hero.path[hero.path.length - 1];
+  const except =
+    hero.attacking === null ? null : monsterById(world, hero.attacking);
+  const obstacles = monsterBodies(world, except);
+  walk(hero);
+  const radius = heroTuning.radius;
+  const gait = { radius, replanSteps: 1, body: { radius, obstacles } };
+  if (holdBack(world.areas[world.areaName], hero, before, gait)) {
+    hero.path = routeHero(world, goal, except ?? undefined);
+  }
 }
 
 /** Moves the Hero one step along its path, carrying over past waypoints. */

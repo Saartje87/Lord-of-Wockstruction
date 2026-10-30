@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { encodeSave, parseSave, saveOf } from "../save";
+import { heroTuning } from "../tuning/hero";
 import { minionTuning } from "../tuning/minions";
 import { monsterTuning } from "../tuning/monsters";
 import {
@@ -278,7 +279,7 @@ describe("the Golem going through Exits", () => {
     expect(distance(golemOf(w).pos, w.hero.pos)).toBeLessThanOrEqual(1 + 1e-9);
   });
 
-  it("brings every Minion along, each next to the Hero", () => {
+  it("brings every Minion along, each next to the Hero but in a spot of its own", () => {
     const w = inField();
     summonAt(w, { x: 3.5, y: 4.5 });
     w.minions.push(anotherMinion(w, { x: 12.5, y: 3.5 }));
@@ -288,7 +289,7 @@ describe("the Golem going through Exits", () => {
 
     expect(w.minions.map((minion) => minion.id)).toEqual(ids);
     for (const minion of w.minions) {
-      expect(distance(minion.pos, w.hero.pos)).toBeLessThanOrEqual(1 + 1e-9);
+      expect(distance(minion.pos, w.hero.pos)).toBeLessThanOrEqual(3);
     }
   });
 });
@@ -365,22 +366,34 @@ describe("the Golem and the Save", () => {
 });
 
 describe("the Hero and the Golem", () => {
-  it("walks straight through the Golem", () => {
+  it("shoves the Golem aside walking through, never moved or slowed", () => {
+    const target = { x: 7.5, y: 0.5 };
+    const empty = inField();
+    step(empty, [{ type: "MoveTo", target }]);
+    let alone = 0;
+    stepUntil(empty, () => {
+      alone++;
+      return empty.hero.path.length === 0;
+    });
+
     const w = inField();
     // On the Hero's way, within its follow distance, so it stands there.
     summonAt(w, { x: 4.5, y: 0.5 });
     const golem = { ...golemOf(w).pos };
 
-    let nearest = Number.POSITIVE_INFINITY;
-    step(w, [{ type: "MoveTo", target: { x: 7.5, y: 0.5 } }]);
+    let taken = 0;
+    step(w, [{ type: "MoveTo", target }]);
     stepUntil(w, () => {
-      nearest = Math.min(nearest, distance(w.hero.pos, golem));
+      taken++;
       return w.hero.path.length === 0;
     });
 
-    expect(golemOf(w).pos).toEqual(golem);
-    expect(nearest).toBeLessThan(0.1);
-    expect(w.hero.pos).toEqual({ x: 7.5, y: 0.5 });
+    expect(taken).toBe(alone);
+    expect(w.hero.pos).toEqual(target);
+    expect(golemOf(w).pos).not.toEqual(golem);
+    expect(distance(golemOf(w).pos, w.hero.pos)).toBeGreaterThanOrEqual(
+      heroTuning.radius + minionTuning.golem.radius - 1e-6,
+    );
   });
 });
 
@@ -543,7 +556,7 @@ describe("Monsters fighting the Golem", () => {
     expect(distance(golem.pos, skeleton.pos)).toBeGreaterThanOrEqual(apart);
     // Each gave way.
     expect(golem.pos).not.toEqual(at);
-    expect(skeleton.pos).not.toEqual(at);
+    expect(skeleton.pos).toEqual(at);
   });
 
   it("give up on the Golem past the Leash and walk home ignoring both it and the Hero", () => {

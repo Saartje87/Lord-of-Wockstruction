@@ -3,9 +3,10 @@ import {
   type MinionType,
   minionTuning,
 } from "../tuning/minions";
+import { monsterTuning } from "../tuning/monsters";
 import type { Skill } from "../tuning/skills";
-import { type Area, isWalkable } from "./area";
-import { wallRadius } from "./bodies";
+import { isWalkable } from "./area";
+import { attackSpot, freeSpot, monsterBodies, wallRadius } from "./bodies";
 import { altarRadiusOf, type BoneAltar, targetsOf } from "./boneAltars";
 import { faceToward, lands } from "./melee";
 import { isClear } from "./path";
@@ -184,38 +185,17 @@ export function newMinion(
 }
 
 /**
- * Where a Minion of `radius` summoned at `point` stands: there if walkable,
- * else the nearest point to it on a walkable tile, kept `radius` inside the
- * tile's edges. Null in an Area with nowhere walkable.
- */
-export function summonPoint(
-  area: Area,
-  point: Vec,
-  radius: number,
-): Vec | null {
-  if (isWalkable(area, point)) return { ...point };
-  let nearest: Vec | null = null;
-  for (let y = 0; y < area.height; y++) {
-    for (let x = 0; x < area.width; x++) {
-      if (!isWalkable(area, { x, y })) continue;
-      const clamped = {
-        x: Math.min(x + 1 - radius, Math.max(x + radius, point.x)),
-        y: Math.min(y + 1 - radius, Math.max(y + radius, point.y)),
-      };
-      if (!nearest || distance(clamped, point) < distance(nearest, point)) {
-        nearest = clamped;
-      }
-    }
-  }
-  return nearest;
-}
-
-/**
  * Puts the Minion next to the Hero, facing their way, as if it had always
  * been there: behind them if it can walk straight there from the Hero, else
- * the nearest way round to it that it can, else on the Hero.
+ * the nearest way round to it that it can, else on the Hero; then at the
+ * nearest free spot to that, so no Body is under it. Minions in `pending`
+ * are not there yet (still to be placed), so don't count.
  */
-export function placeBesideHero(world: World, minion: Minion) {
+export function placeBesideHero(
+  world: World,
+  minion: Minion,
+  pending: readonly Minion[] = [],
+) {
   const area = world.areas[world.areaName];
   const { pos, facing } = world.hero;
   const { besideDistance } = minionTuning[minion.type];
@@ -230,8 +210,13 @@ export function placeBesideHero(world: World, minion: Minion) {
       .find(
         (point) => isWalkable(area, point) && isClear(area, pos, point, radius),
       ) ?? pos;
-  minion.pos = { ...at };
-  minion.prevPos = { ...at };
+  const spot =
+    freeSpot(world, at, minionTuning[minion.type].radius, [
+      minion,
+      ...pending,
+    ]) ?? at;
+  minion.pos = { ...spot };
+  minion.prevPos = { ...spot };
   minion.facing = facing;
   stopChasing(minion);
   minion.attackSteps = 0;
@@ -265,19 +250,19 @@ function stepMinion(world: World, minion: Minion): Monster | BoneAltar | null {
     if (minion.attackSteps > 0) return null;
     minion.state = "chase";
   }
-  const quarry = quarryOf(world, minion);
-  if (!quarry) {
+  const target = targetOf(world, minion);
+  if (!target) {
     if (minion.state !== "follow") stopChasing(minion);
     follow(world, minion);
     return null;
   }
-  if (minion.target !== quarry.id) {
+  if (minion.target !== target.id) {
     minion.path = [];
     minion.replan = 0;
   }
   minion.state = "chase";
-  minion.target = quarry.id;
-  chase(world, minion, quarry);
+  minion.target = target.id;
+  chase(world, minion, target);
   return null;
 }
 
@@ -287,7 +272,7 @@ function stepMinion(world: World, minion: Minion): Monster | BoneAltar | null {
  * guard radius of the Hero; failing a Monster, a Bone Altar the same way.
  * None while it is so far from the Hero that it should teleport back to them.
  */
-function quarryOf(world: World, minion: Minion): Monster | BoneAltar | null {
+function targetOf(world: World, minion: Minion): Monster | BoneAltar | null {
   const tuning = minionTuning[minion.type];
   const hero = world.hero.pos;
   if (distance(minion.pos, hero) > tuning.teleportDistance) return null;
@@ -332,7 +317,56 @@ function chase(world: World, minion: Minion, monster: Monster | BoneAltar) {
     if (minion.cooldown === 0) startWindUp(minion, monster.pos);
     return;
   }
-  walkOrTeleport(world, minion, monster.pos, gap - reach);
+  const radius = minionTuning[minion.type].radius;
+  const spot = attackSpot(world, minion, radius, monster.pos, reach, [monster]);
+  if (spot) {
+    walkOrTeleport(world, minion, spot, distance(minion.pos, spot), monster);
+    return;
+  }
+  // No spot free round it: another Monster within guard range, else wait
+  // nearby, a body's width off the ones in reach.
+  const other = anotherTarget(world, minion, monster);
+  if (other) {
+    minion.target = other.id;
+    minion.path = [];
+    minion.replan = 0;
+    chase(world, minion, other);
+    return;
+  }
+  const wait = reach + 2 * radius;
+  if (gap <= wait) {
+    minion.path = [];
+    minion.stuck = 0;
+    return;
+  }
+  walkOrTeleport(world, minion, monster.pos, gap - wait, monster);
+}
+
+/**
+ * The nearest to `minion` of the Monsters within its guard radius of the
+ * Hero, bar `except`, that has a free attack spot round it.
+ */
+function anotherTarget(
+  world: World,
+  minion: Minion,
+  except: Monster | BoneAltar,
+): Monster | null {
+  const { guardRadius, reach, radius } = minionTuning[minion.type];
+  let nearest: Monster | null = null;
+  for (const monster of world.monsters) {
+    if (monster === except) continue;
+    if (distance(monster.pos, world.hero.pos) > guardRadius) continue;
+    if (
+      nearest &&
+      distance(minion.pos, monster.pos) >= distance(minion.pos, nearest.pos)
+    ) {
+      continue;
+    }
+    if (attackSpot(world, minion, radius, monster.pos, reach, [monster])) {
+      nearest = monster;
+    }
+  }
+  return nearest;
 }
 
 /** Starts winding up an attack, facing its Monster at `at`. */
@@ -395,17 +429,50 @@ function follow(world: World, minion: Minion) {
 }
 
 /**
- * Walks up to `limit` towards `to`, and teleports next to the Hero once it
- * has hardly moved for a while: stuck where it can't walk to `to`.
+ * Walks up to `limit` towards `to`, around the Monsters in the way bar
+ * `going`, the one it walks up to. It teleports next to the Hero once it has
+ * hardly moved for a while: stuck where it can't walk to `to`, unless it is
+ * fighting, so a Minion holding a line stays in it.
  */
-function walkOrTeleport(world: World, minion: Minion, to: Vec, limit: number) {
+function walkOrTeleport(
+  world: World,
+  minion: Minion,
+  to: Vec,
+  limit: number,
+  going: Monster | BoneAltar | null = null,
+) {
   const area = world.areas[world.areaName];
   const stepped = STEPPED[minion.type];
   const from = minion.pos;
-  goToward(area, minion, stepped.gait, to, stepped.speed, limit);
+  const gait: Gait = {
+    ...stepped.gait,
+    body: {
+      radius: minionTuning[minion.type].radius,
+      obstacles: monsterBodies(world, going),
+    },
+  };
+  goToward(area, minion, gait, to, stepped.speed, limit);
   // A walk ending at the follow distance or in reach is over before this
   // adds up.
-  if (distance(from, minion.pos) < stepped.stuckStride) minion.stuck += 1;
-  else minion.stuck = 0;
+  // While fighting it is held, not stuck, so the count starts over once the
+  // fight is done instead of teleporting it the moment that happens.
+  if (
+    isFighting(world, minion) ||
+    distance(from, minion.pos) >= stepped.stuckStride
+  ) {
+    minion.stuck = 0;
+  } else {
+    minion.stuck += 1;
+  }
   if (minion.stuck >= stepped.stuckSteps) placeBesideHero(world, minion);
+}
+
+/** Whether a Monster is close enough to the Minion to be fighting it. */
+function isFighting(world: World, minion: Minion): boolean {
+  const { reach, radius, fightRange } = minionTuning[minion.type];
+  return world.monsters.some(
+    (monster) =>
+      distance(minion.pos, monster.pos) <=
+      reach + monsterTuning[monster.type].radius + radius + fightRange,
+  );
 }

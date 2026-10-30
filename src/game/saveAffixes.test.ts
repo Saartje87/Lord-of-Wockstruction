@@ -107,7 +107,7 @@ describe("the Save of Magic Items", () => {
       "a Normal Item with Affixes",
       (t: any) => (t.inventory[0].rarity = "normal"),
     ],
-    ["an unknown Rarity", (t: any) => (t.inventory[0].rarity = "rare")],
+    ["an unknown Rarity", (t: any) => (t.inventory[0].rarity = "legendary")],
     [
       "a grade that doesn't exist",
       (t: any) => (t.inventory[0].affixes[0].grade = 3),

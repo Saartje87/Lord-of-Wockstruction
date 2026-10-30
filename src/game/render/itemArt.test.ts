@@ -128,4 +128,13 @@ describe("a Rarity's colour", () => {
     const blue = rarityColour("magic");
     expect(blue & 0xff).toBeGreaterThan((blue >> 16) & 0xff);
   });
+
+  it("is yellow for Rare, with more red and green than blue", () => {
+    const yellow = rarityColour("rare");
+
+    expect(yellow).not.toBe(rarityColour("magic"));
+    expect(yellow).not.toBe(rarityColour("normal"));
+    expect((yellow >> 16) & 0xff).toBeGreaterThan((yellow & 0xff) + 100);
+    expect((yellow >> 8) & 0xff).toBeGreaterThan((yellow & 0xff) + 100);
+  });
 });

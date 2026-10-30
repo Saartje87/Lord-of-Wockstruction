@@ -42,6 +42,8 @@ export type Item = {
   type: ItemType;
   rarity: Rarity;
   affixes: RolledAffix[];
+  /** A Rare Item's two-word name. */
+  rareName?: string;
   smithBonus?: SmithBonus;
 };
 
@@ -53,6 +55,7 @@ export type StoredItem = {
   type: ItemType;
   rarity?: Rarity;
   affixes?: RolledAffix[];
+  rareName?: string;
   smithBonus?: SmithBonus;
 };
 
@@ -61,11 +64,12 @@ export type StoredItem = {
  * Normal Rarity and no Affixes, which a stored Item has by default.
  */
 export function storedOf(item: StoredItem): StoredItem {
-  const { rarity = "normal", affixes = [], smithBonus } = item;
+  const { rarity = "normal", affixes = [], rareName, smithBonus } = item;
   return {
     type: item.type,
     ...(rarity !== "normal" && { rarity }),
     ...(affixes.length > 0 && { affixes: affixes.map((a) => ({ ...a })) }),
+    ...(rareName !== undefined && { rareName }),
     ...(smithBonus && { smithBonus: { ...smithBonus } }),
   };
 }
@@ -88,6 +92,7 @@ export function itemFrom(world: World, stored: StoredItem): Item {
     type: stored.type,
     rarity: stored.rarity ?? "normal",
     affixes: (stored.affixes ?? []).map((a) => ({ ...a })),
+    ...(stored.rareName !== undefined && { rareName: stored.rareName }),
     ...(stored.smithBonus && { smithBonus: { ...stored.smithBonus } }),
   };
 }
@@ -266,7 +271,12 @@ export function isValidBelongings(belongings: Belongings): boolean {
   const { inventory, equipment, belt } = belongings;
   const itemFine = (stored: StoredItem) =>
     known(stored.type) &&
-    isValidRoll(stored.type, stored.rarity ?? "normal", stored.affixes ?? []) &&
+    isValidRoll(
+      stored.type,
+      stored.rarity ?? "normal",
+      stored.affixes ?? [],
+      stored.rareName,
+    ) &&
     (stored.smithBonus === undefined ||
       (isSmithable(stored.type) && isValidSmithBonus(stored.smithBonus)));
   const placedFine = inventory.every(

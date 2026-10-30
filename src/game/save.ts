@@ -360,12 +360,13 @@ function parseBelongings(
  */
 function parseStoredItem(entry: unknown, older: boolean): StoredItem | null {
   if (typeof entry !== "object" || entry === null) return null;
-  const { type, rarity, affixes, smithBonus } = entry as Record<
+  const { type, rarity, affixes, rareName, smithBonus } = entry as Record<
     string,
     unknown
   >;
   if (older) {
-    if (rarity !== undefined || affixes !== undefined) return null;
+    if (rarity !== undefined || affixes !== undefined || rareName !== undefined)
+      return null;
   } else if (rarity === undefined || !Array.isArray(affixes)) {
     return null;
   }
@@ -377,6 +378,7 @@ function parseStoredItem(entry: unknown, older: boolean): StoredItem | null {
       const { kind, grade, value } = (affix ?? {}) as Record<string, unknown>;
       return { kind, grade, value };
     }),
+    ...(rareName !== undefined && { rareName }),
     ...(smithBonus !== undefined && { smithBonus: copyBonus(smithBonus) }),
   } as StoredItem;
   return item;

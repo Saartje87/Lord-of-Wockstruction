@@ -94,7 +94,7 @@ describe("Magic Items", () => {
     for (let seed = 1; seed <= total; seed++) {
       const item = droppedAt(1, seed);
       if (item.rarity === "magic") magic++;
-      else expect(item).toMatchObject({ rarity: "normal", affixes: [] });
+      else if (item.rarity === "normal") expect(item.affixes).toEqual([]);
     }
 
     expect(magic / total).toBeGreaterThan(0.17);

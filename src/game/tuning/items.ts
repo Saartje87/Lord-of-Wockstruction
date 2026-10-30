@@ -253,23 +253,53 @@ export const potionDropTuning: { chance: number; items: readonly ItemType[] } =
   };
 
 /** How special an Item is: Normal has no Affixes, Magic has one or two. */
-export type Rarity = "normal" | "magic";
+export type Rarity = "normal" | "magic" | "rare";
 
 /** Every Rarity, plainest first. */
-export const RARITIES: readonly Rarity[] = ["normal", "magic"];
+export const RARITIES: readonly Rarity[] = ["normal", "magic", "rare"];
 
 /**
  * Rarity odds and Affix counts, as weights. A non-Potion drop rolls its
  * Rarity from `rarity`; a Magic Item rolls one or two Affixes by
- * `magicAffixes`.
+ * `magicAffixes`, a Rare Item three or four by `rareAffixes`, and a Rare
+ * Item is named by a word of each list in `rareNames`.
  */
 export const rarityTuning: {
   rarity: Record<Rarity, number>;
   magicAffixes: { one: number; two: number };
+  rareAffixes: { three: number; four: number };
+  rareNames: { first: readonly string[]; second: readonly string[] };
 } = {
-  // About 74% Normal and 26% Magic until Rare joins them.
-  rarity: { normal: 70, magic: 25 },
+  // 70% Normal, 25% Magic and 5% Rare.
+  rarity: { normal: 70, magic: 25, rare: 5 },
   magicAffixes: { one: 60, two: 40 },
+  rareAffixes: { three: 60, four: 40 },
+  rareNames: {
+    first: [
+      "Gloom",
+      "Thorn",
+      "Ash",
+      "Marrow",
+      "Cinder",
+      "Dusk",
+      "Rue",
+      "Hollow",
+      "Wrath",
+      "Briar",
+    ],
+    second: [
+      "Bane",
+      "Fang",
+      "Ward",
+      "Grip",
+      "Song",
+      "Knell",
+      "Bite",
+      "Coil",
+      "Spire",
+      "Brand",
+    ],
+  },
 };
 
 /** Whether an Affix is named before the type (Prefix) or after it (Suffix). */

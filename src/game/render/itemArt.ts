@@ -24,6 +24,7 @@ const TYPE_COLOUR: Partial<Record<ItemType, number>> = {
 
 /** The colour an Item's name is drawn in: white, or blue for Magic. */
 export function rarityColour(rarity: Rarity): number {
+  if (rarity === "rare") return 0xffe05a;
   return rarity === "magic" ? 0x6f8fff : 0xe8e0c8;
 }
 

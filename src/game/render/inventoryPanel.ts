@@ -471,11 +471,15 @@ function potionLine(effect: PotionEffectTuning): string {
 export function itemTooltip(shown: {
   type: ItemType;
   affixes?: readonly RolledAffix[];
+  rareName?: string;
   smithBonus?: SmithBonus;
 }): string[] {
   const { smithBonus } = shown;
   const item = itemOf(shown.type);
-  const lines = [itemTitle(shown)];
+  // A Rare Item shows its Rare name, then its type's name.
+  const lines = shown.rareName
+    ? [shown.rareName, item.name]
+    : [itemTitle(shown)];
   if (item.damage) {
     // Each hit rounds its own damage, so the range shows rounded too.
     const [min, max] = item.damage;

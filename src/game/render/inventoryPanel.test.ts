@@ -729,6 +729,22 @@ describe("a Magic Item's tooltip", () => {
     ]);
   });
 
+  it("shows a Rare Item's Rare name, then its type's name, then its Affix lines", () => {
+    expect(
+      itemTooltip({
+        type: "chainMail",
+        rareName: "Gloom Bane",
+        affixes: stout.affixes,
+      }),
+    ).toEqual([
+      "Gloom Bane",
+      "Chain Mail",
+      "Defense: 40",
+      "+15 to Defense",
+      "+5 to Strength",
+    ]);
+  });
+
   it("names Brutality's flat damage", () => {
     expect(
       itemTooltip({

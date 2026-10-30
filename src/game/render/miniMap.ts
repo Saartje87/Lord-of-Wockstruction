@@ -65,6 +65,7 @@ export function miniMapShown(
     | "inventoryOpen"
     | "skillTreeOpen"
     | "waypointsOpen"
+    | "dialogueOpen"
   >,
   heroDead: boolean,
 ): boolean {

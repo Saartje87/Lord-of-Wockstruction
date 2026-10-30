@@ -22,6 +22,11 @@ import {
   levelUpHitAt,
   PANEL_ROWS,
 } from "./heroPanel";
+import {
+  dialogueHitAt,
+  dialogueLayout,
+  dialogueSheet,
+} from "./dialoguePanel";
 import { inventoryHitAt, inventoryPanelLayout } from "./inventoryPanel";
 import { miniMapHitAt, miniMapLayout, miniMapShown } from "./miniMap";
 import { panelButtonHitAt, panelButtonsLayout } from "./panelButtons";
@@ -36,7 +41,7 @@ import {
 } from "./waypointList";
 
 /** The panels as drawn: which are open, and the Hero panel's Pending Attribute Points. */
-export type ShownPanels = OpenPanels & Pick<Menus, "pendingPoints" | "mapOpen">;
+export type ShownPanels = OpenPanels & Pick<Menus, "pendingPoints" | "mapOpen" | "dialogueNpc">;
 
 /**
  * What a point on the screen hits of the panels and the HUD, or null when
@@ -62,6 +67,12 @@ export function cursorHitAt(
   const holding = cursorItemOf(world) !== null;
   const waypoints = shown.waypointsOpen ? waypointListSheet(world, {}) : [];
   return (
+    dialogueHitAt(
+      screen,
+      point,
+      dialogueSheet(world, shown.dialogueNpc),
+      shown.dialogueOpen,
+    ) ??
     waypointListHitAt(screen, point, waypoints, shown.waypointsOpen) ??
     heroPanelHitAt(
       screen,
@@ -139,6 +150,14 @@ function touchTargets(
       panel: over,
     });
 
+  if (shown.dialogueOpen) {
+    const sheet = dialogueSheet(world, shown.dialogueNpc);
+    const dialogue = dialogueLayout(screen, sheet?.buttons.length ?? 0);
+    panels.push(dialogue.panel);
+    close("dialogue", dialogue.closeButton, dialogue.panel);
+    // The buttons are big enough to tap without a hit area of their own.
+    stops.push(...dialogue.buttons);
+  }
   if (shown.waypointsOpen) {
     const sheet = waypointListSheet(world, {});
     const list = waypointListLayout(screen, sheet.length);

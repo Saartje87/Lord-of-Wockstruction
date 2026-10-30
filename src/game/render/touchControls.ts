@@ -62,6 +62,7 @@ const NO_PANEL_OPEN: OpenPanels = {
   inventoryOpen: false,
   skillTreeOpen: false,
   waypointsOpen: false,
+  dialogueOpen: false,
 };
 
 /**

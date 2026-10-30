@@ -41,6 +41,9 @@ describe("the hints and labels that name buttons", () => {
     ["waypoints", "mouseAndKeyboard", "Press Esc to close"],
     ["waypoints", "controller", "Press B to close"],
     ["waypoints", "touch", ""],
+    ["dialogue", "mouseAndKeyboard", "Press Esc to close"],
+    ["dialogue", "controller", "Press B to close"],
+    ["dialogue", "touch", ""],
     ["inventory", "touch", ""],
   ] as const)("hint how to close the %s panel with %s: %j", (panel, way, hint) => {
     expect(panelCloseHint(panel, way)).toBe(hint);

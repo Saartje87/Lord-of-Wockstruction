@@ -28,6 +28,13 @@ export type Menus = {
    */
   waypointsOpen: boolean;
   /**
+   * Whether the Dialogue panel is open. A World panel: talking opens it, and
+   * it shuts with Esc, B, its ×, the Hero taking damage or walking away.
+   */
+  dialogueOpen: boolean;
+  /** The NPC (index in the Area's `npcs`) the Dialogue panel is with. */
+  dialogueNpc: number;
+  /**
    * Whether the Map Overlay is open. It is not a panel: the World runs on
    * under it, and the panels open and shut alongside it.
    */
@@ -166,6 +173,8 @@ export function createMenus(screen: Screen = { type: "playing" }): Menus {
     inventoryOpen: false,
     skillTreeOpen: false,
     waypointsOpen: false,
+    dialogueOpen: false,
+    dialogueNpc: 0,
     mapOpen: false,
     pendingPoints: noPendingPoints(),
     compact: false,
@@ -450,14 +459,18 @@ const OPEN_FLAGS = {
  * other shuts it. Esc, B and its × shut it, and so does the Hero leaving
  * whatever opened it. Later panels that talk (Dialogue, Quest) join it here.
  */
-export type WorldPanel = "waypoints";
+export type WorldPanel = "waypoints" | "dialogue";
 
 /** The World panels, the one drawn on top first. */
-export const WORLD_PANELS: readonly WorldPanel[] = ["waypoints"];
+export const WORLD_PANELS: readonly WorldPanel[] = [
+  "dialogue",
+  "waypoints",
+];
 
 /** The flag on the menus that says whether each World panel is open. */
 const WORLD_OPEN_FLAGS = {
   waypoints: "waypointsOpen",
+  dialogue: "dialogueOpen",
 } as const satisfies Record<WorldPanel, keyof Menus>;
 
 /** A panel with an × close button: one with a Panel button, or a World panel. */
@@ -492,18 +505,26 @@ function dismissWorldPanel(menus: Menus): boolean {
 function openWorldPanel(menus: Menus, panel: WorldPanel) {
   if (menus.rotateNotice || !isPlaying(menus)) return;
   for (const other of PANELS) shutPanel(menus, other);
+  for (const other of WORLD_PANELS) menus[WORLD_OPEN_FLAGS[other]] = false;
   menus[WORLD_OPEN_FLAGS[panel]] = true;
 }
 
 /**
  * Follows the Hero: the Waypoint list shuts once they are no longer
- * `standingOnWaypoint`.
+ * `standingOnWaypoint`, and the Dialogue panel once they are no longer
+ * `withinReachOf` the NPC it is with.
  */
 export function followHero(
   menus: Menus,
-  hero: { standingOnWaypoint: boolean },
+  hero: {
+    standingOnWaypoint: boolean;
+    withinReachOf: (npc: number) => boolean;
+  },
 ) {
   if (!hero.standingOnWaypoint) menus.waypointsOpen = false;
+  if (menus.dialogueOpen && !hero.withinReachOf(menus.dialogueNpc)) {
+    menus.dialogueOpen = false;
+  }
 }
 
 /** Whether `panel` is open. */
@@ -655,6 +676,7 @@ export const PANELS: readonly Panel[] = ["hero", "inventory", "skillTree"];
  */
 export function clickClose(menus: Menus, panel: ClosablePanel) {
   if (panel === "waypoints") menus.waypointsOpen = false;
+  else if (panel === "dialogue") menus.dialogueOpen = false;
   else shutPanel(menus, panel);
 }
 
@@ -723,6 +745,12 @@ export function acceptPendingPoints(menus: Menus): Order | null {
 export function reactMenus(menus: Menus, events: readonly SimEvent[]) {
   for (const event of events) {
     if (event.type === "WaypointReached") openWorldPanel(menus, "waypoints");
+    if (event.type === "Talked") {
+      openWorldPanel(menus, "dialogue");
+      if (menus.dialogueOpen) menus.dialogueNpc = event.npc;
+    }
+    // The World runs on under the panel, so it shuts to not be talked over.
+    if (event.type === "HeroHit") menus.dialogueOpen = false;
     if (event.type !== "HeroDied") continue;
     closePanels(menus);
     menus.mapOpen = false;
@@ -815,7 +843,7 @@ export function pressPad(
   const panel = currentPanel(menus);
   if (!panel) return null;
   if (button === "b" && dismissWorldPanel(menus)) return "handled";
-  if (panel === "waypoints") {
+  if (panel === "waypoints" || panel === "dialogue") {
     // Only B and the Focus work here, not LB and RB.
     return button === "lb" || button === "rb" ? "handled" : null;
   }

@@ -266,6 +266,8 @@ describe("the Hero panel's Focus spots", () => {
     inventoryOpen: false,
     skillTreeOpen: false,
     waypointsOpen: false,
+    dialogueOpen: false,
+    dialogueNpc: 0,
     pendingPoints,
   });
 
@@ -323,6 +325,8 @@ describe("the Skill Tree panel's Focus spots", () => {
     inventoryOpen: false,
     skillTreeOpen: true,
     waypointsOpen: false,
+    dialogueOpen: false,
+    dialogueNpc: 0,
     pendingPoints: noPendingPoints(),
   };
   const learnedSkills = Object.fromEntries(SKILLS.map((s) => [s, 1])) as Record<

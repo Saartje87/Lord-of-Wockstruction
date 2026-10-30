@@ -188,6 +188,8 @@ export type Hero = {
   attacking: MonsterId | null;
   /** The Ground Item the Hero is walking to, to pick up. */
   pickingUp: ItemId | null;
+  /** The NPC (index in the Area's `npcs`) the Hero is walking to, to talk to. */
+  talkingTo: number | null;
   swing: Swing | null;
   /** The cast rooting the Hero, if any. */
   cast: Cast | null;
@@ -466,6 +468,11 @@ export type Order =
   | { type: "UnequipItem"; slot: EquipmentSlot }
   /** Walk to a Ground Item and pick it up, if there's room for it. */
   | { type: "PickUp"; groundItem: ItemId }
+  /**
+   * Walk to the NPC `npc` (its index in the Area's `npcs`) and talk to it,
+   * once within reach. Ignored for an NPC the Area doesn't have.
+   */
+  | { type: "Talk"; npc: number }
   /** Go back to Town after dying. */
   | { type: "Continue" }
   /**
@@ -543,6 +550,8 @@ export type SimEvent =
    * Ward and `damage` reaching their Life.
    */
   | { type: "HeroHit"; damage: number; warded: number }
+  /** The Hero got within reach of NPC `npc`, called `name`, and talks to them. */
+  | { type: "Talked"; npc: number; name: string }
   | { type: "MonsterDied"; id: MonsterId }
   /** A dying Monster or the Hero dropped `item`, which now lies at `pos`. */
   | { type: "ItemDropped"; item: Item; pos: Vec }
@@ -747,6 +756,7 @@ export function createWorld(options: {
       facing: Math.PI / 4,
       attacking: null,
       pickingUp: null,
+      talkingTo: null,
       swing: null,
       cast: null,
       opening: null,
@@ -1069,6 +1079,7 @@ function stopHero(hero: Hero) {
   hero.path = [];
   hero.attacking = null;
   hero.pickingUp = null;
+  hero.talkingTo = null;
   hero.swing = null;
   hero.cast = null;
   hero.opening = null;
@@ -1488,6 +1499,7 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   touchWaypoint(world, events);
   approach(world);
   reachGroundItem(world, events);
+  reachNpc(world, events);
   // Before the Monsters, so an Arrow first shows where it is loosed.
   landProjectiles(world, events);
   for (const { monster, target } of stepMonsters(world)) {
@@ -1740,6 +1752,7 @@ function give(world: World, order: Order, events: SimEvent[]) {
     case "MoveTo":
       hero.attacking = null;
       hero.pickingUp = null;
+      hero.talkingTo = null;
       hero.path = findPath(area, hero.pos, order.target, heroTuning.radius);
       break;
     case "Walk":
@@ -1750,6 +1763,7 @@ function give(world: World, order: Order, events: SimEvent[]) {
       if (!monster) return;
       hero.attacking = monster.id;
       hero.pickingUp = null;
+      hero.talkingTo = null;
       hero.path = findPath(area, hero.pos, monster.pos, heroTuning.radius);
       break;
     }
@@ -1757,12 +1771,23 @@ function give(world: World, order: Order, events: SimEvent[]) {
       const lying = groundItemById(world, order.groundItem);
       if (!lying) return;
       hero.attacking = null;
+      hero.talkingTo = null;
       hero.pickingUp = lying.item.id;
       hero.path = findPath(area, hero.pos, lying.pos, heroTuning.radius);
       break;
     }
+    case "Talk": {
+      const npc = area.npcs[order.npc];
+      if (!npc) return;
+      hero.attacking = null;
+      hero.pickingUp = null;
+      hero.talkingTo = order.npc;
+      hero.path = findPath(area, hero.pos, npc.pos, heroTuning.radius);
+      break;
+    }
     case "SwingAt":
       hero.pickingUp = null;
+      hero.talkingTo = null;
       startSwing(hero, null, order.target);
       break;
     case "Cast":
@@ -1772,6 +1797,7 @@ function give(world: World, order: Order, events: SimEvent[]) {
       hero.path = [];
       hero.attacking = null;
       hero.pickingUp = null;
+      hero.talkingTo = null;
       hero.opening = { elapsed: 0 };
       break;
   }
@@ -1815,6 +1841,7 @@ function castFrom(
   hero.path = [];
   hero.attacking = null;
   hero.pickingUp = null;
+  hero.talkingTo = null;
   hero.cast = { skill, elapsed: 0 };
   events.push({ type: "SkillCast", skill, target: { ...target } });
   switch (effect.type) {
@@ -2056,6 +2083,7 @@ function walkInDirection(world: World, direction: Vec) {
   hero.path = [];
   hero.attacking = null;
   hero.pickingUp = null;
+  hero.talkingTo = null;
   if (direction.x === 0 && direction.y === 0) return;
   hero.facing = Math.atan2(direction.y, direction.x);
   const area = world.areas[world.areaName];
@@ -2083,6 +2111,35 @@ function approach(world: World) {
     // Walked as near as it can get, still out of reach.
     hero.attacking = null;
   }
+}
+
+/**
+ * Whether the Hero is close enough to the active Area's NPC `npc` to keep
+ * talking to them; false for an NPC the Area doesn't have.
+ */
+export function withinNpcReach(world: World, npc: number): boolean {
+  const there = world.areas[world.areaName].npcs[npc];
+  return !!there && distance(world.hero.pos, there.pos) <= heroTuning.talkLeave;
+}
+
+/** Talks to the NPC the Hero walks to once they are in reach. */
+function reachNpc(world: World, events: SimEvent[]) {
+  const { hero } = world;
+  if (hero.talkingTo === null) return;
+  const npc = world.areas[world.areaName].npcs[hero.talkingTo];
+  if (!npc) {
+    hero.talkingTo = null;
+    hero.path = [];
+    return;
+  }
+  if (distance(hero.pos, npc.pos) > heroTuning.talkReach) {
+    // Walked as near as it can get, still out of reach.
+    if (hero.path.length === 0) hero.talkingTo = null;
+    return;
+  }
+  events.push({ type: "Talked", npc: hero.talkingTo, name: npc.name });
+  hero.talkingTo = null;
+  hero.path = [];
 }
 
 /**
@@ -2379,6 +2436,7 @@ function hitHero(world: World, attack: AttackNumbers, events: SimEvent[]) {
   hero.opening = null;
   hero.attacking = null;
   hero.pickingUp = null;
+  hero.talkingTo = null;
   hero.path = [];
 }
 

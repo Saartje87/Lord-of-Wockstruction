@@ -66,6 +66,9 @@ export function pressButton(
       // showing over the fade.
       clickClose(menus, "waypoints");
       return heroDead ? [] : [{ type: "TravelToWaypoint", area: button.area }];
+    case "goodbye":
+      clickClose(menus, "dialogue");
+      return [];
     case "townPortal":
       return heroDead || inTown(world) ? [] : [{ type: "OpenTownPortal" }];
     default:

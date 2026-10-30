@@ -1461,3 +1461,81 @@ describe("the Wockyard's sparse grass", () => {
     expect(wockyard().water.some(Boolean)).toBe(false);
   });
 });
+
+describe("the Soggy Bog's ponds and mud", () => {
+  const bog = () => shippedWorld().areas["soggy-bog"];
+  const mud = "halloween/floor_dirt";
+
+  it("is mostly mud, with grass patches among it", () => {
+    const { floorPieces, floor, water } = bog();
+    const land = floorPieces.filter((_, i) => floor[i] && !water[i]);
+    const count = (piece: string) => land.filter((p) => p === piece).length;
+
+    expect(count(mud) / land.length).toBeGreaterThan(0.5);
+    expect(count("city/park_base")).toBeGreaterThan(100);
+  });
+
+  it("stands dead trees and some bushes", () => {
+    const pieces = bog().props.map((prop) => prop.piece);
+
+    expect(pieces.filter((p) => /tree_dead/.test(p)).length).toBeGreaterThan(
+      50,
+    );
+    expect(pieces.filter((p) => /^city\/bush/.test(p)).length).toBeGreaterThan(
+      20,
+    );
+    expect(pieces.some((p) => /^city\/tree/.test(p))).toBe(false);
+  });
+
+  it("has several ponds, and more Water than any other Area", () => {
+    const tilesOf = (area: Area) => area.water.filter(Boolean).length;
+    const areas = shippedWorld().areas;
+    const { width, water } = areas["soggy-bog"];
+
+    // Count ponds as 4-connected groups of Water tiles.
+    const seen = new Set<number>();
+    let ponds = 0;
+    water.forEach((isWater, start) => {
+      if (!isWater || seen.has(start)) return;
+      ponds++;
+      const queue = [start];
+      seen.add(start);
+      while (queue.length > 0) {
+        const at = queue.pop() as number;
+        for (const next of [at - 1, at + 1, at - width, at + width]) {
+          if (water[next] && !seen.has(next)) {
+            seen.add(next);
+            queue.push(next);
+          }
+        }
+      }
+    });
+    expect(ponds).toBeGreaterThanOrEqual(4);
+    for (const [name, area] of Object.entries(areas)) {
+      if (name !== "soggy-bog") {
+        expect(tilesOf(areas["soggy-bog"])).toBeGreaterThan(tilesOf(area));
+      }
+    }
+  });
+
+  it("keeps its Entries, Exits, Waypoint, Bone Altars and spawns dry and reachable from every Entry", () => {
+    const area = bog();
+    expect(area.boneAltars).toHaveLength(3);
+    expect(area.waypoint).toBeDefined();
+    const wanted: Vec[] = [
+      ...area.exits.map(centreOf),
+      ...area.spawns.map((spawn) => spawn.pos),
+      ...area.boneAltars,
+      ...(area.waypoint ? [area.waypoint] : []),
+    ];
+    for (const point of [...wanted, ...Object.values(area.entries)]) {
+      const at = Math.floor(point.y) * area.width + Math.floor(point.x);
+      expect(area.water[at]).toBe(false);
+    }
+    for (const entry of Object.values(area.entries)) {
+      for (const target of wanted) {
+        expect(canReach(area, entry, target)).toBe(true);
+      }
+    }
+  });
+});

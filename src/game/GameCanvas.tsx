@@ -185,8 +185,11 @@ export default function GameCanvas() {
       app.renderer.background.clearBeforeRender = false;
       container.appendChild(app.canvas);
 
-      // The way the player last played, which the hints name the buttons of.
-      const activeInput = createActiveInput();
+      // The way the player last played, which the hints name the buttons of:
+      // touch from the start where the main pointer is a finger.
+      const activeInput = createActiveInput(
+        matchMedia("(pointer: coarse)").matches,
+      );
       // What the fingers hold of the touch controls.
       const touch = createTouchControls();
       /** Where the 3D World's camera was last drawn, which input reads. */
@@ -251,7 +254,7 @@ export default function GameCanvas() {
         app.canvas,
         (at) =>
           menus.mapOpen &&
-          touchControlsShown(activeInput.way, menus) &&
+          touchControlsShown(activeInput.way, menus, world.death !== null) &&
           !renderer.panelAt(at) &&
           renderer.groundLabelAt(at) === null &&
           !touchOnButton(
@@ -267,7 +270,7 @@ export default function GameCanvas() {
         app.canvas,
         touch,
         (at) =>
-          touchControlsShown(activeInput.way, menus) &&
+          touchControlsShown(activeInput.way, menus, world.death !== null) &&
           !renderer.panelAt(at) &&
           renderer.groundLabelAt(at) === null
             ? touchControlsLayout(viewportOf(app.screen), menus)

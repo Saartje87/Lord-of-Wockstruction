@@ -1,5 +1,11 @@
 import type { InputWay } from "../input/activeInput";
-import { anyPanelOpen, type Menus, type OpenPanels, PANELS } from "../menus";
+import {
+  anyPanelOpen,
+  isPlaying,
+  type Menus,
+  type OpenPanels,
+  PANELS,
+} from "../menus";
 import type { Rect } from "../sim/rect";
 import type { SkillBarSlot } from "../sim/skillBar";
 import type { Vec } from "../sim/vec";
@@ -148,12 +154,20 @@ export function touchControlsLayout(
 
 /**
  * Whether the touch controls show, and take touches: while touch is the
- * Active Input and the game runs. With a panel open only the pause button
- * does (`pauseOnly`).
+ * Active Input and the game is in play, so never on the Start Screen, the
+ * Loading Screen or while the Hero is dead (`heroDead`). With a panel open
+ * only the pause button does (`pauseOnly`).
  */
 export function touchControlsShown(
   way: InputWay,
-  menus: Pick<Menus, "pause" | "rotateNotice">,
+  menus: Pick<Menus, "screen" | "pause" | "rotateNotice">,
+  heroDead: boolean,
 ): boolean {
-  return way === "touch" && !menus.pause.paused && !menus.rotateNotice;
+  return (
+    way === "touch" &&
+    isPlaying(menus) &&
+    !heroDead &&
+    !menus.pause.paused &&
+    !menus.rotateNotice
+  );
 }

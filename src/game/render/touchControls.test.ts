@@ -209,26 +209,53 @@ describe("the touch controls with a panel open", () => {
 
 describe("whether the touch controls show", () => {
   it("shows them while touch is the Active Input", () => {
-    expect(touchControlsShown("touch", createMenus())).toBe(true);
+    expect(touchControlsShown("touch", createMenus(), false)).toBe(true);
   });
 
   it.each([
     "mouseAndKeyboard",
     "controller",
   ] as const)("hides them while %s is the Active Input", (way) => {
-    expect(touchControlsShown(way, createMenus())).toBe(false);
+    expect(touchControlsShown(way, createMenus(), false)).toBe(false);
   });
 
   it("shows them while a panel is open, for its pause button", () => {
     const menus = { ...createMenus(), inventoryOpen: true };
 
-    expect(touchControlsShown("touch", menus)).toBe(true);
+    expect(touchControlsShown("touch", menus, false)).toBe(true);
   });
 
   it("hides them while paused", () => {
     const menus = createMenus();
     menus.pause.paused = true;
 
-    expect(touchControlsShown("touch", menus)).toBe(false);
+    expect(touchControlsShown("touch", menus, false)).toBe(false);
+  });
+
+  it.each([
+    false,
+    true,
+  ])("hides them on the Start Screen, confirming New Hero: %s", (confirming) => {
+    const menus = createMenus({ type: "start", hasSave: true, confirming });
+
+    expect(touchControlsShown("touch", menus, false)).toBe(false);
+  });
+
+  it.each([
+    false,
+    true,
+  ])("hides them on the Loading Screen, failed: %s", (failed) => {
+    const menus = createMenus({
+      type: "loading",
+      loaded: 3,
+      total: 10,
+      failed,
+    });
+
+    expect(touchControlsShown("touch", menus, false)).toBe(false);
+  });
+
+  it("hides them while the Hero is dead", () => {
+    expect(touchControlsShown("touch", createMenus(), true)).toBe(false);
   });
 });

@@ -39,7 +39,7 @@ import {
 import { monsterMaxLife } from "../sim/monsters";
 import { inside, middleOf, type Rect } from "../sim/rect";
 import type { SkillBarSlot } from "../sim/skillBar";
-import type { Vec } from "../sim/vec";
+import { cornersOf, type Vec } from "../sim/vec";
 import {
   ATTRIBUTES,
   areaFade,
@@ -2213,12 +2213,9 @@ function mapView(withNames: boolean) {
         const origin = { x: 0, y: 0 };
         // Water is filled first, so the lines draw over it.
         for (const tile of found.water) {
-          const corners = [
-            { x: tile.x, y: tile.y },
-            { x: tile.x + 1, y: tile.y },
-            { x: tile.x + 1, y: tile.y + 1 },
-            { x: tile.x, y: tile.y + 1 },
-          ].map((corner) => mapOffset(corner, origin, scale));
+          const corners = cornersOf(tile).map((corner) =>
+            mapOffset(corner, origin, scale),
+          );
           lines.poly(corners.flatMap(({ x, y }) => [x, y]));
         }
         lines.fill({

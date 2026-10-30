@@ -9,28 +9,29 @@ import {
   Points,
   PointsMaterial,
 } from "three";
-import type { Area } from "../sim/area";
+import { type Area, isWater } from "../sim/area";
+import { cornersOf, type Vec } from "../sim/vec";
 
 /**
  * How Water looks: the plane sits `depth` below the floor's top, so the
- * ground around a pond reads as a bank, in plain blue-green that swings
- * between `colour` and `glint` once every `shimmerSeconds`.
+ * ground around a pond reads as a bank, and swings between a look's `colour`
+ * and `glint` once every `shimmerSeconds`. Both are the same for plain Water
+ * and hot springs; only the colours differ.
  */
 export const WATER_LOOK = {
   depth: 0.08,
-  colour: 0x2f8fb0,
-  glint: 0x4fb3c4,
   shimmerSeconds: 3.5,
+  /** Plain blue-green. */
+  plain: { colour: 0x2f8fb0, glint: 0x4fb3c4 },
+  /** A warm turquoise. */
+  hotSprings: { colour: 0x35b8a4, glint: 0x6fd6bd },
 };
 
 /**
- * How hot springs look: a warm turquoise in place of plain blue-green, and a
- * few faint wisps of steam rising `steamHeight` above the Water, each taking
- * `steamSeconds` to rise and fade.
+ * The steam over hot springs: a few faint wisps rising `steamHeight` above the
+ * Water, each taking `steamSeconds` to rise and fade.
  */
 export const HOT_SPRINGS_LOOK = {
-  colour: 0x35b8a4,
-  glint: 0x6fd6bd,
   steamColour: 0xe8f4f0,
   steamOpacity: 0.3,
   steamSize: 14,
@@ -40,8 +41,18 @@ export const HOT_SPRINGS_LOOK = {
   steamMax: 32,
 };
 
-/** One pond: the tiles of a run of neighbouring Water, as `[x, y]` cells. */
+/**
+ * One pond: a group of Water tiles that touch along an edge, as `{x, y}`
+ * tiles. "Pond" names the group only, never a single tile.
+ */
 export type Pond = { tiles: { x: number; y: number }[] };
+
+const NEIGHBOURS = [
+  { x: 1, y: 0 },
+  { x: -1, y: 0 },
+  { x: 0, y: 1 },
+  { x: 0, y: -1 },
+];
 
 /**
  * The Area's ponds: each group of Water tiles that touch along an edge is one
@@ -49,31 +60,21 @@ export type Pond = { tiles: { x: number; y: number }[] };
  */
 export function pondsOf(area: Area): Pond[] {
   const seen = new Set<number>();
+  const keyOf = ({ x, y }: Vec) => y * area.width + x;
   const ponds: Pond[] = [];
-  const isWater = (x: number, y: number) =>
-    x >= 0 &&
-    y >= 0 &&
-    x < area.width &&
-    y < area.height &&
-    area.water[y * area.width + x];
   for (let y = 0; y < area.height; y++) {
     for (let x = 0; x < area.width; x++) {
-      if (!isWater(x, y) || seen.has(y * area.width + x)) continue;
+      const start = { x, y };
+      if (!isWater(area, start) || seen.has(keyOf(start))) continue;
       const tiles: Pond["tiles"] = [];
-      const queue = [{ x, y }];
-      seen.add(y * area.width + x);
+      const queue = [start];
+      seen.add(keyOf(start));
       for (let next = queue.pop(); next; next = queue.pop()) {
         tiles.push(next);
-        for (const [dx, dy] of [
-          [1, 0],
-          [-1, 0],
-          [0, 1],
-          [0, -1],
-        ]) {
-          const at = { x: next.x + dx, y: next.y + dy };
-          const key = at.y * area.width + at.x;
-          if (!isWater(at.x, at.y) || seen.has(key)) continue;
-          seen.add(key);
+        for (const step of NEIGHBOURS) {
+          const at = { x: next.x + step.x, y: next.y + step.y };
+          if (!isWater(area, at) || seen.has(keyOf(at))) continue;
+          seen.add(keyOf(at));
           queue.push(at);
         }
       }
@@ -97,7 +98,7 @@ export type WaterMeshes = {
  */
 export function waterMeshesOf(area: Area): WaterMeshes {
   const group = new Group();
-  const look = area.hotSprings ? HOT_SPRINGS_LOOK : WATER_LOOK;
+  const look = area.hotSprings ? WATER_LOOK.hotSprings : WATER_LOOK.plain;
   const material = new MeshBasicMaterial({
     color: look.colour,
     side: DoubleSide,
@@ -106,20 +107,9 @@ export function waterMeshesOf(area: Area): WaterMeshes {
     const positions: number[] = [];
     const indices: number[] = [];
     pond.tiles.forEach(({ x, y }, i) => {
-      positions.push(
-        x,
-        -WATER_LOOK.depth,
-        y,
-        x + 1,
-        -WATER_LOOK.depth,
-        y,
-        x + 1,
-        -WATER_LOOK.depth,
-        y + 1,
-        x,
-        -WATER_LOOK.depth,
-        y + 1,
-      );
+      for (const corner of cornersOf({ x, y })) {
+        positions.push(corner.x, -WATER_LOOK.depth, corner.y);
+      }
       const first = i * 4;
       indices.push(first, first + 2, first + 1, first, first + 3, first + 2);
     });
@@ -130,7 +120,6 @@ export function waterMeshesOf(area: Area): WaterMeshes {
     );
     geometry.setIndex(indices);
     const plane = new Mesh(geometry, material);
-    plane.userData.pond = pond;
     group.add(plane);
   }
   const base = new Color(look.colour);

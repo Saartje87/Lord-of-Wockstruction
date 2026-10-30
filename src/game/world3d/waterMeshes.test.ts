@@ -2,12 +2,7 @@ import type { BufferGeometry, Mesh, MeshBasicMaterial, Points } from "three";
 import { describe, expect, it } from "vitest";
 import { arenaWith } from "../input/testArena";
 import type { Area } from "../sim/area";
-import {
-  HOT_SPRINGS_LOOK,
-  pondsOf,
-  WATER_LOOK,
-  waterMeshesOf,
-} from "./waterMeshes";
+import { pondsOf, WATER_LOOK, waterMeshesOf } from "./waterMeshes";
 
 /** The 20×20 test Area with Water on `tiles`. */
 function areaWithWater(tiles: [number, number][]): Area {
@@ -97,7 +92,7 @@ describe("the 3D World's hot springs", () => {
 
     expect(colourOf(springs).getHex()).not.toBe(colourOf(plain).getHex());
     expect(colourOf(springs).g).toBeGreaterThan(colourOf(plain).g);
-    expect(HOT_SPRINGS_LOOK.colour).not.toBe(WATER_LOOK.colour);
+    expect(WATER_LOOK.hotSprings.colour).not.toBe(WATER_LOOK.plain.colour);
   });
 
   it("let a few faint wisps of steam rise, which plain Water does not", () => {

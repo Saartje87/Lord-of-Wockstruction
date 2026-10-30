@@ -228,7 +228,7 @@ const withLyingItem = {
       : null,
 };
 
-describe("pointer input on a Ground Item's body", () => {
+describe("pointer input on a Ground Item as drawn", () => {
   it("picks up the Ground Item clicked on the floor, with no marker", () => {
     const input = createPointerInput();
 

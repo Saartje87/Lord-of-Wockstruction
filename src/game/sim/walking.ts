@@ -13,7 +13,10 @@ export type Walker = {
   replan: number;
 };
 
-/** How a walker walks: its size and how often it re-plans around walls. */
+/**
+ * How a walker walks: its size against walls, never more than the Hero's,
+ * and how often it re-plans around walls.
+ */
 export type Gait = { radius: number; replanSteps: number };
 
 /**

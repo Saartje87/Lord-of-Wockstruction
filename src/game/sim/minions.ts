@@ -5,6 +5,7 @@ import {
 } from "../tuning/minions";
 import type { Skill } from "../tuning/skills";
 import { type Area, isWalkable } from "./area";
+import { wallRadius } from "./bodies";
 import { altarRadiusOf, type BoneAltar, targetsOf } from "./boneAltars";
 import { faceToward, lands } from "./melee";
 import { isClear } from "./path";
@@ -67,7 +68,10 @@ const STEPPED = Object.fromEntries(
       speed: perStep(tuning.speed),
       stuckSteps: msToSteps(tuning.stuckMs),
       stuckStride: perStep(tuning.speed) * tuning.stuckStride,
-      gait: { radius: tuning.radius, replanSteps: msToSteps(tuning.replanMs) },
+      gait: {
+        radius: wallRadius(tuning.radius),
+        replanSteps: msToSteps(tuning.replanMs),
+      },
       windUpSteps: msToSteps(tuning.windUpMs),
       rootSteps: msToSteps(tuning.rootMs),
       recoverySteps: msToSteps(tuning.recoveryMs),
@@ -214,7 +218,8 @@ export function summonPoint(
 export function placeBesideHero(world: World, minion: Minion) {
   const area = world.areas[world.areaName];
   const { pos, facing } = world.hero;
-  const { radius, besideDistance } = minionTuning[minion.type];
+  const { besideDistance } = minionTuning[minion.type];
+  const { radius } = STEPPED[minion.type].gait;
   const at =
     [0, 1, -1, 2, -2, 3, -3, 4]
       .map((turn) => facing + Math.PI + (turn * Math.PI) / 4)
@@ -379,7 +384,7 @@ function follow(world: World, minion: Minion) {
   }
   if (
     gap <= tuning.followDistance + 1e-9 &&
-    isClear(area, minion.pos, hero, tuning.radius)
+    isClear(area, minion.pos, hero, STEPPED[minion.type].gait.radius)
   ) {
     minion.path = [];
     minion.replan = 0;

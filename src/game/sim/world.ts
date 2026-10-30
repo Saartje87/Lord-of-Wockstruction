@@ -37,6 +37,7 @@ import {
   TOWN,
 } from "./area";
 import { type BeltColumns, emptyBelt, putInBelt } from "./belt";
+import { separateBodies, wallRadius } from "./bodies";
 import {
   altarRadiusOf,
   type BoneAltar,
@@ -1812,7 +1813,9 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   reachNpc(world, events);
   // Before the Monsters, so an Arrow first shows where it is loosed.
   landProjectiles(world, events);
-  for (const { monster, target } of stepMonsters(world)) {
+  const strikes = stepMonsters(world);
+  separateBodies(world);
+  for (const { monster, target } of strikes) {
     strike(world, target, monsterAttack(monster), events);
   }
   stepBoneAltars(world, events);
@@ -1853,6 +1856,7 @@ function stepDeath(
   // Projectiles fly on, over the dead Hero.
   landProjectiles(world, events);
   stepMonsters(world);
+  separateBodies(world);
 }
 
 /**
@@ -2217,7 +2221,7 @@ function summon(
   events: SimEvent[],
 ) {
   const area = world.areas[world.areaName];
-  const pos = summonPoint(area, target, minionTuning[type].radius);
+  const pos = summonPoint(area, target, wallRadius(minionTuning[type].radius));
   if (!pos) return;
   for (const minion of world.minions) {
     if (minion.skill === skill) crumbleMinion(world, minion, events);

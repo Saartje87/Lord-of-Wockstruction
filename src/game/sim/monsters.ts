@@ -1,5 +1,3 @@
-import { heroTuning } from "../tuning/hero";
-import { minionTuning } from "../tuning/minions";
 import {
   experienceDropOff,
   type MeleeTuning,
@@ -9,7 +7,7 @@ import {
   type RangedTuning,
 } from "../tuning/monsters";
 import { uniqueTuning } from "../tuning/uniqueMonsters";
-import { isWalkable } from "./area";
+import { wallRadius } from "./bodies";
 import { faceToward, lands } from "./melee";
 import { canSee, isClear } from "./path";
 import type { AttackNumbers } from "./projectiles";
@@ -230,7 +228,6 @@ export function stepMonsters(world: World): Strike[] {
         break;
     }
   }
-  separate(world);
   return strikes;
 }
 
@@ -328,7 +325,7 @@ function rest(world: World, monster: Monster) {
     monster.pause -= 1;
     return;
   }
-  const { wanderRadius, radius } = monsterTuning[monster.type];
+  const { wanderRadius } = monsterTuning[monster.type];
   const angle = random(world.rng) * 2 * Math.PI;
   const reach = random(world.rng) * wanderRadius;
   const goal = {
@@ -336,7 +333,7 @@ function rest(world: World, monster: Monster) {
     y: monster.home.y + reach * Math.sin(angle),
   };
   const area = world.areas[world.areaName];
-  if (!isClear(area, monster.pos, goal, radius)) return;
+  if (!isClear(area, monster.pos, goal, gaitOf(monster).radius)) return;
   monster.state = "wander";
   monster.path = [goal];
 }
@@ -347,8 +344,7 @@ function rest(world: World, monster: Monster) {
  */
 function wander(world: World, monster: Monster) {
   const area = world.areas[world.areaName];
-  const { radius } = monsterTuning[monster.type];
-  if (isClear(area, monster.pos, monster.path[0], radius)) {
+  if (isClear(area, monster.pos, monster.path[0], gaitOf(monster).radius)) {
     walkAlong(monster, monster.path, STEPPED[monster.type].wanderSpeed);
     if (monster.path.length > 0) return;
   }
@@ -497,68 +493,13 @@ function goHome(world: World, monster: Monster) {
   monster.grace = stepped.graceSteps;
 }
 
-/** A Monster walks with its type's radius and re-plan timer. */
+/**
+ * A Monster walks with its type's radius, capped at the Hero's against
+ * walls, and its type's re-plan timer.
+ */
 function gaitOf(monster: Monster): Gait {
   return {
-    radius: monsterTuning[monster.type].radius,
+    radius: wallRadius(monsterTuning[monster.type].radius),
     replanSteps: STEPPED[monster.type].replanSteps,
   };
 }
-
-/**
- * Pushes overlapping Monsters apart, out of the Hero, and apart from the
- * Hero's Minions, as circles. The Hero is never moved. A push into a wall
- * slides along it, keeping only the part along whichever axis is open.
- */
-function separate(world: World) {
-  const area = world.areas[world.areaName];
-  const hero = world.hero.pos;
-  const push = (creature: { pos: Vec }, by: Vec) => {
-    const { x, y } = creature.pos;
-    const to = [
-      { x: x + by.x, y: y + by.y },
-      { x: x + by.x, y },
-      { x, y: y + by.y },
-    ].find((point) => isWalkable(area, point));
-    if (to) creature.pos = to;
-  };
-
-  for (const [i, a] of world.monsters.entries()) {
-    const { radius } = monsterTuning[a.type];
-    const overlap = radius + heroTuning.radius - distance(a.pos, hero);
-    if (overlap > 0) push(a, scaled(away(hero, a.pos, a.id), overlap));
-
-    for (const minion of world.minions) {
-      const apart = radius + minionTuning[minion.type].radius;
-      const overlap = apart - distance(a.pos, minion.pos);
-      if (overlap > 0) {
-        const out = away(minion.pos, a.pos, a.id);
-        push(minion, scaled(out, -overlap / 2));
-        push(a, scaled(out, overlap / 2));
-      }
-    }
-
-    for (const b of world.monsters.slice(i + 1)) {
-      const apart = radius + monsterTuning[b.type].radius;
-      const overlap = apart - distance(a.pos, b.pos);
-      if (overlap <= 0) continue;
-      const out = away(a.pos, b.pos, b.id);
-      push(a, scaled(out, -overlap / 2));
-      push(b, scaled(out, overlap / 2));
-    }
-  }
-}
-
-/**
- * The unit vector from `from` to `to`, or, where they coincide, a direction
- * picked from `id` so the two still part the same way every replay.
- */
-function away(from: Vec, to: Vec, id: number): Vec {
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  const length = Math.hypot(dx, dy);
-  if (length > 0) return { x: dx / length, y: dy / length };
-  return { x: Math.cos(id), y: Math.sin(id) };
-}
-
-const scaled = (v: Vec, by: number): Vec => ({ x: v.x * by, y: v.y * by });

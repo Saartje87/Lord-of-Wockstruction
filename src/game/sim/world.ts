@@ -1,4 +1,5 @@
 import { areaTuning } from "../tuning/areas";
+import { boneAltarTuning } from "../tuning/boneAltars";
 import { heroTuning } from "../tuning/hero";
 import {
   type Bonus,
@@ -34,6 +35,7 @@ import {
   TOWN,
 } from "./area";
 import { type BeltColumns, emptyBelt, putInBelt } from "./belt";
+import { type BoneAltar, bodyRadius, isBoneAltar } from "./boneAltars";
 import {
   type Belongings,
   type Cell,
@@ -360,7 +362,12 @@ export type TownPortal = { area: string; pos: Vec };
  */
 export type KeptArea = Pick<
   World,
-  "monsters" | "projectiles" | "corpses" | "groundItems" | "explored"
+  | "monsters"
+  | "projectiles"
+  | "corpses"
+  | "groundItems"
+  | "explored"
+  | "boneAltars"
 >;
 
 /**
@@ -399,6 +406,8 @@ export type World = {
   death: Death | null;
   /** The living Monsters in the active Area. */
   monsters: Monster[];
+  /** The Bone Altars still standing in the active Area. */
+  boneAltars: BoneAltar[];
   /** The Projectiles in flight in the active Area. */
   projectiles: Projectile[];
   /** The Corpses in the active Area. */
@@ -445,7 +454,10 @@ export type Order =
    * `direction`.
    */
   | { type: "Walk"; direction: Vec }
-  /** Walk into reach of a Monster and swing at it. */
+  /**
+   * Walk into reach of a Monster, or of a Bone Altar (which has an id of the
+   * same kind), and swing at it.
+   */
   | { type: "Attack"; monster: MonsterId }
   /** Swing in place towards a point, hitting every Monster in the arc. */
   | { type: "SwingAt"; target: Vec }
@@ -592,6 +604,12 @@ export type SimEvent =
   /** The Hero handed in Quest `quest`, which paid its reward. */
   | { type: "QuestDone"; quest: QuestId }
   | { type: "MonsterDied"; id: MonsterId }
+  /** The Hero's side hit Bone Altar `altar` for `damage`. */
+  | { type: "BoneAltarHit"; altar: MonsterId; damage: number }
+  /** Bone Altar `altar` raised Monster `monster` at `pos`. */
+  | { type: "BoneAltarRaised"; altar: MonsterId; monster: MonsterId; pos: Vec }
+  /** Bone Altar `altar` in Area `area` was destroyed at `pos`. */
+  | { type: "BoneAltarDestroyed"; altar: MonsterId; area: string; pos: Vec }
   /** A dying Monster or the Hero dropped `item`, which now lies at `pos`. */
   | { type: "ItemDropped"; item: Item; pos: Vec }
   /** The Hero picked up `item`, which now has its top-left at `cell`. */
@@ -808,6 +826,7 @@ export function createWorld(options: {
       buffered: null,
     },
     monsters: [],
+    boneAltars: [],
     projectiles: [],
     corpses: [],
     groundItems: [],
@@ -1177,12 +1196,14 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   }
   world.death = null;
   const { monsters, projectiles, corpses, groundItems, explored } = world;
+  const { boneAltars } = world;
   world.keptAreas[world.areaName] = {
     monsters,
     projectiles,
     corpses,
     groundItems,
     explored,
+    boneAltars,
   };
   world.areaName = area.name;
   const kept = world.keptAreas[area.name];
@@ -1191,6 +1212,7 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   world.projectiles = kept?.projectiles ?? [];
   world.corpses = kept?.corpses ?? [];
   world.groundItems = kept?.groundItems ?? [];
+  world.boneAltars = kept?.boneAltars ?? [];
   world.explored =
     kept?.explored ??
     new Array(area.width * area.height).fill(area.name === TOWN);
@@ -1200,6 +1222,7 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   world.heldOrders = [];
   if (!kept) {
     for (const spawn of area.spawns) placePack(world, area, spawn);
+    placeBoneAltars(world, area);
   }
   events.push({ type: "AreaChanged", area: area.name, entry: change.entry });
   if (change.entry === null && !change.waypoint && area.name !== TOWN) {
@@ -1438,32 +1461,134 @@ function placePack(world: World, area: Area, spawn: Spawn) {
       y: spawn.pos.y + radius * Math.sin(angle),
     };
     const pos = i > 0 && isWalkable(area, around) ? around : { ...spawn.pos };
-    const typeAtLevel: MonsterOfLevel = {
-      type: spawn.monster,
-      monsterLevel: monsterLevelIn(area),
-    };
-    world.monsters.push({
+    placeMonster(world, area, spawn.monster, pos);
+  }
+}
+
+/** Puts a new idle Monster of `type` at `pos`, at the Area's Monster Level. */
+function placeMonster(
+  world: World,
+  area: Area,
+  type: MonsterType,
+  pos: Vec,
+): Monster {
+  const typeAtLevel: MonsterOfLevel = {
+    type,
+    monsterLevel: monsterLevelIn(area),
+  };
+  const monster: Monster = {
+    id: world.nextMonsterId++,
+    ...typeAtLevel,
+    pos: { ...pos },
+    prevPos: { ...pos },
+    life: monsterMaxLife(typeAtLevel),
+    flinch: 0,
+    state: "idle",
+    // Down the screen, as the Hero starts.
+    facing: Math.PI / 4,
+    target: "hero",
+    attack: 0,
+    cooldown: 0,
+    home: { ...pos },
+    path: [],
+    replan: 0,
+    grace: 0,
+    // So a pack doesn't set off strolling in step.
+    pause: wanderPause(world, type),
+    curse: null,
+  };
+  world.monsters.push(monster);
+  return monster;
+}
+
+/** How many steps a Bone Altar waits between raising Monsters. */
+function raiseSteps(): number {
+  return msToSteps(boneAltarTuning.raiseEveryMs);
+}
+
+/**
+ * Whether a Done Quest has put away the Bone Altars of the Area called
+ * `name` for good.
+ */
+function altarsPutAway(world: World, name: string): boolean {
+  return (Object.keys(questTuning) as QuestId[]).some((id) => {
+    const { trigger } = questTuning[id];
+    return (
+      trigger.type === "boneAltars" &&
+      trigger.area === name &&
+      world.hero.progress.quests[id].state === "done"
+    );
+  });
+}
+
+/**
+ * Stands the Area's Bone Altars where the map puts them, each blocking its
+ * tile, unless a Done Quest has put them away.
+ */
+function placeBoneAltars(world: World, area: Area) {
+  if (altarsPutAway(world, area.name)) return;
+  for (const spot of area.boneAltars) {
+    const pos = { x: Math.floor(spot.x) + 0.5, y: Math.floor(spot.y) + 0.5 };
+    area.walkable[tileIndex(area, pos)] = false;
+    world.boneAltars.push({
       id: world.nextMonsterId++,
-      ...typeAtLevel,
       pos,
-      prevPos: { ...pos },
-      life: monsterMaxLife(typeAtLevel),
-      flinch: 0,
-      state: "idle",
-      // Down the screen, as the Hero starts.
-      facing: Math.PI / 4,
-      target: "hero",
-      attack: 0,
-      cooldown: 0,
-      home: { ...pos },
-      path: [],
-      replan: 0,
-      grace: 0,
-      // So a pack doesn't set off strolling in step.
-      pause: wanderPause(world, spawn.monster),
-      curse: null,
+      life: boneAltarTuning.life,
+      raised: [],
+      cooldown: raiseSteps(),
     });
   }
+}
+
+/** The index in a row-major grid of `area` of the tile holding `point`. */
+function tileIndex(area: Area, point: Vec): number {
+  return Math.floor(point.y) * area.width + Math.floor(point.x);
+}
+
+/**
+ * Lets each Bone Altar count down and, when it is time and it has fewer
+ * living than its limit, raise a zombie or skeleton beside itself.
+ */
+function stepBoneAltars(world: World, events: SimEvent[]) {
+  const area = world.areas[world.areaName];
+  for (const altar of world.boneAltars) {
+    altar.raised = altar.raised.filter((id) => monsterById(world, id));
+    if (altar.cooldown > 0) altar.cooldown -= 1;
+    if (altar.cooldown > 0) continue;
+    if (altar.raised.length >= boneAltarTuning.raisedLimit) continue;
+    const spot = besideAltar(world, area, altar);
+    // No room beside it: try again next step.
+    if (!spot) continue;
+    const { raises } = boneAltarTuning;
+    const type = raises[randomInt(world.rng, [0, raises.length - 1])];
+    const monster = placeMonster(world, area, type, spot);
+    altar.raised.push(monster.id);
+    altar.cooldown = raiseSteps();
+    events.push({
+      type: "BoneAltarRaised",
+      altar: altar.id,
+      monster: monster.id,
+      pos: { ...spot },
+    });
+  }
+}
+
+/**
+ * Where a Monster raised by `altar` stands: at the tuned distance from it,
+ * the first walkable way round starting from a different one each time.
+ */
+function besideAltar(world: World, area: Area, altar: BoneAltar): Vec | null {
+  const turns = 8;
+  const first = randomInt(world.rng, [0, turns - 1]);
+  for (let i = 0; i < turns; i++) {
+    const angle = (2 * Math.PI * (first + i)) / turns;
+    const at = {
+      x: altar.pos.x + boneAltarTuning.raiseDistance * Math.cos(angle),
+      y: altar.pos.y + boneAltarTuning.raiseDistance * Math.sin(angle),
+    };
+    if (isWalkable(area, at)) return at;
+  }
+  return null;
 }
 
 /**
@@ -1551,6 +1676,7 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   for (const { monster, target } of stepMonsters(world)) {
     strike(world, target, monsterAttack(monster), events);
   }
+  stepBoneAltars(world, events);
   if (isRegenerating(world)) {
     hero.life = Math.min(maxLife(world), hero.life + REGEN_PER_STEP);
   }
@@ -1598,11 +1724,11 @@ function landProjectiles(world: World, events: SimEvent[]) {
   stepProjectiles(
     world,
     (projectile, target) => strike(world, target, projectile, events),
-    (projectile, monster) =>
+    (projectile, target) =>
       // A Skill's damage always hits: no roll against Defense, and no hitstop.
       heroHurts(
         world,
-        monster,
+        target,
         randomInt(world.rng, projectile.damage),
         "skill",
         events,
@@ -1809,12 +1935,12 @@ function give(world: World, order: Order, events: SimEvent[]) {
       walkInDirection(world, order.direction);
       break;
     case "Attack": {
-      const monster = monsterById(world, order.monster);
-      if (!monster) return;
-      hero.attacking = monster.id;
+      const target = targetById(world, order.monster);
+      if (!target) return;
+      hero.attacking = target.id;
       hero.pickingUp = null;
       hero.talkingTo = null;
-      hero.path = findPath(area, hero.pos, monster.pos, heroTuning.radius);
+      hero.path = findPath(area, hero.pos, target.pos, heroTuning.radius);
       break;
     }
     case "PickUp": {
@@ -2009,12 +2135,12 @@ function explode(
     Math.ceil(life * least),
     Math.floor(life * most),
   ];
-  const victims = world.monsters.filter(
-    (monster) => distance(monster.pos, corpse.pos) <= radius,
+  const victims = [...world.monsters, ...world.boneAltars].filter(
+    (target) => distance(target.pos, corpse.pos) <= radius,
   );
   // A Skill's damage always hits: no roll against Defense, and no hitstop.
-  for (const monster of victims) {
-    heroHurts(world, monster, randomInt(world.rng, range), "skill", events);
+  for (const target of victims) {
+    heroHurts(world, target, randomInt(world.rng, range), "skill", events);
   }
 }
 
@@ -2151,11 +2277,11 @@ function walkInDirection(world: World, direction: Vec) {
 function approach(world: World) {
   const { hero } = world;
   if (hero.attacking === null || hero.swing) return;
-  const monster = monsterById(world, hero.attacking);
+  const monster = targetById(world, hero.attacking);
   if (!monster) {
     hero.attacking = null;
     hero.path = [];
-  } else if (distance(hero.pos, monster.pos) <= heroTuning.reach) {
+  } else if (gapTo(hero.pos, monster) <= heroTuning.reach) {
     startSwing(hero, monster.id, monster.pos);
   } else if (hero.path.length === 0) {
     // Walked as near as it can get, still out of reach.
@@ -2370,25 +2496,34 @@ function giveBuffered(world: World, events: SimEvent[]) {
 function land(world: World, swing: Swing, events: SimEvent[]) {
   const { hero } = world;
   swing.landed = true;
-  const victims = world.monsters.filter((monster) => {
-    const gap = distance(hero.pos, monster.pos);
+  const victims = [...world.monsters, ...world.boneAltars].filter((target) => {
+    const gap = gapTo(hero.pos, target);
     if (swing.monster !== null) {
       return (
-        monster.id === swing.monster &&
+        target.id === swing.monster &&
         gap <= heroTuning.reach + heroTuning.reachGrace
       );
     }
-    return lands(hero, monster.pos, heroTuning.reach, ARC);
+    return lands(hero, target.pos, heroTuning.reach + bodyRadius(target), ARC);
   });
 
-  for (const monster of victims) {
-    if (random(world.rng) < heroChanceToHit(world, monster)) {
+  for (const target of victims) {
+    // A Bone Altar has no Defense to roll against.
+    if (isBoneAltar(target)) {
       world.hitstop = HITSTOP_STEPS;
-      hit(world, monster, events);
+      hit(world, target, events);
+    } else if (random(world.rng) < heroChanceToHit(world, target)) {
+      world.hitstop = HITSTOP_STEPS;
+      hit(world, target, events);
     } else {
-      miss(world, monster, events);
+      miss(world, target, events);
     }
   }
+}
+
+/** How far `from` is from the edge of `target` (tiles). */
+function gapTo(from: Vec, target: Monster | BoneAltar): number {
+  return Math.max(0, distance(from, target.pos) - bodyRadius(target));
 }
 
 /**
@@ -2400,9 +2535,9 @@ function miss(world: World, monster: Monster, events: SimEvent[]) {
   noticeHit(world, monster);
 }
 
-function hit(world: World, monster: Monster, events: SimEvent[]) {
+function hit(world: World, target: Monster | BoneAltar, events: SimEvent[]) {
   const damage = heroDamage(world, random(world.rng));
-  heroHurts(world, monster, damage, "hero", events);
+  heroHurts(world, target, damage, "hero", events);
 }
 
 /**
@@ -2411,13 +2546,41 @@ function hit(world: World, monster: Monster, events: SimEvent[]) {
  */
 function heroHurts(
   world: World,
-  monster: Monster,
+  target: Monster | BoneAltar,
   rolled: number,
   attacker: "hero" | "skill",
   events: SimEvent[],
 ) {
   world.hero.combat = COMBAT_STEPS;
-  takeDamage(world, monster, rolled, attacker, events);
+  if (isBoneAltar(target)) hurtAltar(world, target, rolled, events);
+  else takeDamage(world, target, rolled, attacker, events);
+}
+
+/**
+ * Lands `damage` from the Hero's side on a Bone Altar: at 0 Life it is
+ * destroyed, freeing its tile and counting towards the Quests that ask for it.
+ */
+function hurtAltar(
+  world: World,
+  altar: BoneAltar,
+  damage: number,
+  events: SimEvent[],
+) {
+  // Whatever hit it after it fell finds nothing.
+  if (!world.boneAltars.includes(altar)) return;
+  altar.life = Math.max(0, altar.life - damage);
+  events.push({ type: "BoneAltarHit", altar: altar.id, damage });
+  if (altar.life > 0) return;
+  const area = world.areas[world.areaName];
+  world.boneAltars = world.boneAltars.filter((one) => one !== altar);
+  area.walkable[tileIndex(area, altar.pos)] = true;
+  events.push({
+    type: "BoneAltarDestroyed",
+    altar: altar.id,
+    area: area.name,
+    pos: { ...altar.pos },
+  });
+  noteTask(world, { type: "boneAltarDestroyed", area: area.name }, events);
 }
 
 /**
@@ -2510,9 +2673,18 @@ function rollAttack(
 function minionStrike(
   world: World,
   minion: Minion,
-  monster: Monster,
+  monster: Monster | BoneAltar,
   events: SimEvent[],
 ) {
+  if (isBoneAltar(monster)) {
+    hurtAltar(
+      world,
+      monster,
+      randomInt(world.rng, minionDamageRange(minion)),
+      events,
+    );
+    return;
+  }
   const damage = rollAttack(
     world,
     chanceToHit(minionAttackRating(minion), monsterDefense(monster)),
@@ -2680,6 +2852,16 @@ function gainExperience(world: World, amount: number, events: SimEvent[]) {
 
 function groundItemById(world: World, id: ItemId): GroundItem | undefined {
   return world.groundItems.find((lying) => lying.item.id === id);
+}
+
+/** The Monster or Bone Altar called `id` in the active Area, if any. */
+function targetById(
+  world: World,
+  id: MonsterId,
+): Monster | BoneAltar | undefined {
+  return (
+    monsterById(world, id) ?? world.boneAltars.find((altar) => altar.id === id)
+  );
 }
 
 function monsterById(world: World, id: MonsterId): Monster | undefined {

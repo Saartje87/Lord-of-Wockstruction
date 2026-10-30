@@ -16,9 +16,12 @@ export type InputEvent =
   | { type: "controllerConnected" }
   | { type: "controllerDisconnected" };
 
-/** Mouse and keyboard until the player uses another way. */
-export function createActiveInput(): ActiveInput {
-  return { way: "mouseAndKeyboard" };
+/**
+ * Touch on a device whose main pointer is a finger (`coarsePointer`), else
+ * mouse and keyboard, until the player uses another way.
+ */
+export function createActiveInput(coarsePointer: boolean): ActiveInput {
+  return { way: coarsePointer ? "touch" : "mouseAndKeyboard" };
 }
 
 /**

@@ -26,7 +26,7 @@ The Save lives in `localStorage` under `wockstruction.save` as JSON. Write one a
 
 ```js
 localStorage.setItem("wockstruction.save", JSON.stringify({
-  version: 9, level: 3, experience: 2000,
+  version: 10, level: 3, experience: 2000,
   strength: 20, dexterity: 20, vitality: 20, energy: 20, attributePoints: 10,
   // Skills are the keys of `skillTuning` in src/game/tuning/skills.ts.
   skillPoints: 2, skillLevels: { golem: 0 },
@@ -36,6 +36,8 @@ localStorage.setItem("wockstruction.save", JSON.stringify({
   touchedWaypoints: ["town"],
   // Each Quest's `state` (notGiven, given, ready, done) and `count`; one left out is notGiven. Done Quests' reward points count towards the point checks above (Lost Wanderer: +5 Attribute Points).
   quests: { "lost-wanderer": { state: "given", count: 0 } },
+  // The Smith's service: locked, unlocked (needs the Done "spa-day" Quest) or used.
+  smithService: "locked",
   // Item types are the keys of `itemTuning` in src/game/tuning/items.ts.
   inventory: [{ type: "axe", cell: { column: 0, row: 0 } }],
   equipment: { weapon: "shortSword" },

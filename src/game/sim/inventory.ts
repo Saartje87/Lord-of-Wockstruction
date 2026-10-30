@@ -1,6 +1,6 @@
 import {
-  type Bonus,
   BONUSES,
+  type Bonus,
   ITEM_TYPES,
   type ItemKind,
   type ItemType,

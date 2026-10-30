@@ -58,7 +58,6 @@ import {
   taken,
 } from "./inventory";
 import { faceToward, lands } from "./melee";
-import { giveSmithBonus, SMITH } from "./smith";
 import {
   type Minion,
   type MinionId,
@@ -117,6 +116,7 @@ import {
   type SkillBar,
   type SkillBarSlot,
 } from "./skillBar";
+import { giveSmithBonus, SMITH } from "./smith";
 import { msToSteps, perStep } from "./units";
 import { validateAreas } from "./validate";
 import { distance, type Vec } from "./vec";

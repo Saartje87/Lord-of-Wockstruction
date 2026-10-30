@@ -1,7 +1,10 @@
+import type { ItemId } from "../sim/inventory";
 import { type QuestId, questsOf } from "../sim/quests";
 import { inside, middleOf, type Rect } from "../sim/rect";
+import { SMITH, smithableItems } from "../sim/smith";
 import type { Vec } from "../sim/vec";
 import type { World } from "../sim/world";
+import { itemOf } from "../tuning/items";
 import { questTuning } from "../tuning/quests";
 import { atUiScale, type Viewport } from "../viewport";
 import { type CloseButton, closeButtonRect, closeHitAt } from "./closeButton";
@@ -35,7 +38,13 @@ export const NPC_LINES: Readonly<Record<string, string>> = {
 export type DialogueButton =
   | { type: "goodbye" }
   | { type: "acceptQuest"; quest: QuestId }
-  | { type: "handInQuest"; quest: QuestId };
+  | { type: "handInQuest"; quest: QuestId }
+  | { type: "smithService" }
+  | { type: "smithForge"; item: ItemId }
+  | { type: "smithMore" };
+
+/** How many Items the Smith's list shows at a time. */
+export const SMITH_PAGE_SIZE = 2;
 
 /** What the Dialogue panel shows of the NPC the Hero talks to. */
 export type DialogueSheet = {
@@ -66,10 +75,17 @@ function questTalkedAbout(world: World, name: string): QuestId | null {
  * for an NPC the Area doesn't have. An NPC with Quests speaks of one at a
  * time, as it stands, and offers to give or take it back ahead of Goodbye.
  */
-export function dialogueSheet(world: World, npc: number): DialogueSheet | null {
+export function dialogueSheet(
+  world: World,
+  npc: number,
+  page = 0,
+): DialogueSheet | null {
   const there = world.areas[world.areaName].npcs[npc];
   if (!there) return null;
   const goodbye = { label: "Goodbye", button: { type: "goodbye" } } as const;
+  const service =
+    there.name === SMITH && world.hero.progress.smithService === "unlocked";
+  if (service && page >= 1) return smithList(world, there.name, page, goodbye);
   const quest = questTalkedAbout(world, there.name);
   if (quest === null) {
     return {
@@ -86,12 +102,52 @@ export function dialogueSheet(world: World, npc: number): DialogueSheet | null {
       : state === "ready"
         ? { label: `Hand in "${name}"`, button: { type: "handInQuest", quest } }
         : null;
+  const smithService: DialogueSheet["buttons"] = service
+    ? [{ label: "Smith's service", button: { type: "smithService" } }]
+    : [];
   return {
     name: there.name,
     lines: [lines[state]],
     buttons: offer
       ? [offer as DialogueSheet["buttons"][number], goodbye]
-      : [goodbye],
+      : [...smithService, goodbye],
+  };
+}
+
+/**
+ * The Smith's list of what he can work on, `page` of it counted from 1 and
+ * wrapping round: each Weapon or Armour without a bonus yet, Equipped ones
+ * first, with More gear to turn the page when there are several.
+ */
+function smithList(
+  world: World,
+  name: string,
+  page: number,
+  goodbye: DialogueSheet["buttons"][number],
+): DialogueSheet {
+  const items = smithableItems(world);
+  if (items.length === 0) {
+    return {
+      name,
+      lines: ["You have no Weapon or Armour I can work on."],
+      buttons: [goodbye],
+    };
+  }
+  const pages = Math.ceil(items.length / SMITH_PAGE_SIZE);
+  const from = ((page - 1) % pages) * SMITH_PAGE_SIZE;
+  const buttons: DialogueSheet["buttons"] = items
+    .slice(from, from + SMITH_PAGE_SIZE)
+    .map(({ item, equipped }) => ({
+      label: `${itemOf(item.type).name}${equipped ? " (Equipped)" : ""}`,
+      button: { type: "smithForge", item: item.id },
+    }));
+  if (pages > 1) {
+    buttons.push({ label: "More gear", button: { type: "smithMore" } });
+  }
+  return {
+    name,
+    lines: ["Which piece of gear shall I work on? I can do it only once."],
+    buttons: [...buttons, goodbye],
   };
 }
 
@@ -178,8 +234,9 @@ export function dialogueFocusSpots(
   world: World,
   screen: Viewport,
   npc: number,
+  page = 0,
 ): DialogueFocusSpot[] {
-  const sheet = dialogueSheet(world, npc);
+  const sheet = dialogueSheet(world, npc, page);
   const layout = dialogueLayout(screen, sheet?.buttons.length ?? 0);
   const spots = layout.buttons.map((rect) => ({
     rect,

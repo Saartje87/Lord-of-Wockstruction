@@ -256,7 +256,9 @@ describe("stored text", () => {
   // What Saves before Raise Skeleton held: the same version, as only a
   // Skill Level is missing.
   it("loads a Save without a Skill's Skill Level with it at 0", () => {
-    const loaded = parseSave(v10({ skillPoints: 0, skillLevels: { golem: 1 } }));
+    const loaded = parseSave(
+      v10({ skillPoints: 0, skillLevels: { golem: 1 } }),
+    );
 
     expect(loaded?.progress.skillLevels).toEqual({
       ...FRESH_PROGRESS.skillLevels,
@@ -486,7 +488,10 @@ describe("stored text", () => {
   // What Saves before Waypoints held: the Hero loads with only Wockville's
   // Waypoint touched.
   it("loads version 7 text without Waypoints with only Wockville's touched", () => {
-    const { touchedWaypoints, quests, smithService, ...before } = progress(2, 500);
+    const { touchedWaypoints, quests, smithService, ...before } = progress(
+      2,
+      500,
+    );
     const text = stored(7, { ...before, ...SWORD_ONLY });
 
     expect(parseSave(text)?.progress.touchedWaypoints).toEqual(["town"]);
@@ -494,7 +499,10 @@ describe("stored text", () => {
   });
 
   it("still checks the rest of version 7 text", () => {
-    const { touchedWaypoints, quests, smithService, ...before } = progress(2, 500);
+    const { touchedWaypoints, quests, smithService, ...before } = progress(
+      2,
+      500,
+    );
     const text = stored(7, { ...before, ...SWORD_ONLY, level: 3 });
 
     expect(parseSave(text)).toBeNull();
@@ -630,7 +638,10 @@ describe("stored text", () => {
   // What Saves before the Belt held: the Hero loads with an empty Belt.
   it("loads version 6 text without a Belt with an empty Belt", () => {
     const { belt, ...before } = WELL_EQUIPPED;
-    const { touchedWaypoints, quests, smithService, ...older } = progress(2, 600);
+    const { touchedWaypoints, quests, smithService, ...older } = progress(
+      2,
+      600,
+    );
     const text = stored(6, { ...older, ...before });
 
     expect(parseSave(text)).toEqual(
@@ -639,7 +650,10 @@ describe("stored text", () => {
   });
 
   it("still checks the rest of version 6 text", () => {
-    const { touchedWaypoints, quests, smithService, ...older } = progress(2, 600);
+    const { touchedWaypoints, quests, smithService, ...older } = progress(
+      2,
+      600,
+    );
     const text = stored(6, {
       ...older,
       ...SWORD_ONLY,

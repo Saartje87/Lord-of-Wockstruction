@@ -19,6 +19,7 @@ export function panelFocusSpots(
   screen: Viewport,
   pending?: Readonly<PendingPoints>,
   dialogueNpc = 0,
+  dialoguePage = 0,
 ): FocusSpot[] {
   switch (panel) {
     case "hero":
@@ -30,7 +31,7 @@ export function panelFocusSpots(
     case "quest":
       return questFocusSpots(world, screen);
     case "dialogue":
-      return dialogueFocusSpots(world, screen, dialogueNpc);
+      return dialogueFocusSpots(world, screen, dialogueNpc, dialoguePage);
     case "waypoints":
       return waypointListFocusSpots(world, screen);
     default:

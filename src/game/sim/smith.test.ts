@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { FRESH_BELONGINGS } from "./inventory";
-import { equipmentOf, inventoryOf } from "./inventory";
+import { smithTuning } from "../tuning/smith";
+import { equipmentOf, FRESH_BELONGINGS, inventoryOf } from "./inventory";
 import {
   attributesOf,
   createWorld,
@@ -12,7 +12,6 @@ import {
   step,
   type World,
 } from "./world";
-import { smithTuning } from "../tuning/smith";
 
 function point(type: string, name: string, x: number, y: number) {
   return { name, type, point: true, x: (x + 0.5) * 32, y: (y + 0.5) * 32 };
@@ -56,7 +55,10 @@ function progressWith(smithService: Progress["smithService"]): Progress {
 
 function newWorld(
   smithService: Progress["smithService"] = "unlocked",
-  inventory: { type: "axe" | "chainMail" | "ringOfLife" | "lifePotion"; cell: { column: number; row: number } }[] = [],
+  inventory: {
+    type: "axe" | "chainMail" | "ringOfLife" | "lifePotion";
+    cell: { column: number; row: number };
+  }[] = [],
 ): World {
   return createWorld({
     areas: { town },
@@ -91,7 +93,9 @@ describe("The Smith bonus", () => {
 
     const given = equipmentOf(world).weapon?.smithBonus;
     expect(given).toBeDefined();
-    const pool = smithTuning.weapon.find((entry) => entry.bonus === given?.bonus);
+    const pool = smithTuning.weapon.find(
+      (entry) => entry.bonus === given?.bonus,
+    );
     expect(pool).toBeDefined();
     expect(given?.amount).toBeGreaterThanOrEqual(pool?.amount[0] ?? Infinity);
     expect(given?.amount).toBeLessThanOrEqual(pool?.amount[1] ?? -Infinity);
@@ -170,7 +174,9 @@ describe("The Smith bonus", () => {
     const world = newWorld("locked");
     const sword = equipmentOf(world).weapon;
 
-    const events = smith(world, [{ type: "SmithBonus", item: sword?.id ?? -1 }]);
+    const events = smith(world, [
+      { type: "SmithBonus", item: sword?.id ?? -1 },
+    ]);
 
     expect(events).toEqual([]);
     expect(bonusesOf(world)).toHaveLength(0);
@@ -199,7 +205,9 @@ describe("The Smith bonus", () => {
     world.hero.progress.smithService = "unlocked";
     const bonus = equipmentOf(world).weapon?.smithBonus;
 
-    const events = smith(world, [{ type: "SmithBonus", item: sword?.id ?? -1 }]);
+    const events = smith(world, [
+      { type: "SmithBonus", item: sword?.id ?? -1 },
+    ]);
 
     expect(events).toEqual([]);
     expect(equipmentOf(world).weapon?.smithBonus).toEqual(bonus);
@@ -213,7 +221,9 @@ describe("The Smith bonus", () => {
     // Next to the Elder, not the Smith.
     const sword = equipmentOf(world).weapon;
 
-    const events = smith(world, [{ type: "SmithBonus", item: sword?.id ?? -1 }]);
+    const events = smith(world, [
+      { type: "SmithBonus", item: sword?.id ?? -1 },
+    ]);
 
     expect(events).toEqual([]);
     expect(world.hero.progress.smithService).toBe("unlocked");

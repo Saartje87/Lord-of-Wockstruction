@@ -177,6 +177,133 @@ describe("the Dialogue panel's sheet", () => {
   });
 });
 
+/** A World whose Spa Day is Done, with the Smith's service `service` and an Axe, a Chain Mail and a Ring carried. */
+function smithWorld(service: "unlocked" | "used" | "locked" = "unlocked") {
+  const w = worldWith({ "spa-day": "done" });
+  w.hero.progress.smithService = service;
+  const carried = (
+    id: number,
+    type: "axe" | "chainMail" | "ringOfLife",
+    column: number,
+  ) => w.hero.inventory.push({ item: { id, type }, cell: { column, row: 0 } });
+  carried(101, "axe", 0);
+  carried(102, "chainMail", 2);
+  carried(103, "ringOfLife", 4);
+  return w;
+}
+
+describe("the Smith's service on the Dialogue panel", () => {
+  it("is offered once Spa Day is Done, ahead of Goodbye", () => {
+    const sheet = dialogueSheet(smithWorld(), SMITH);
+
+    expect(sheet?.lines).toEqual([questTuning["spa-day"].lines.done]);
+    expect(sheet?.buttons).toEqual([
+      { label: "Smith's service", button: { type: "smithService" } },
+      { label: "Goodbye", button: { type: "goodbye" } },
+    ]);
+  });
+
+  it.each(["locked", "used"] as const)("isn't offered while %s", (service) => {
+    const sheet = dialogueSheet(smithWorld(service), SMITH);
+
+    expect(sheet?.buttons.map(({ button }) => button.type)).toEqual([
+      "goodbye",
+    ]);
+  });
+
+  it("isn't offered by other NPCs", () => {
+    const sheet = dialogueSheet(smithWorld(), ELDER);
+
+    expect(sheet?.buttons.map(({ button }) => button.type)).not.toContain(
+      "smithService",
+    );
+  });
+
+  it("lists only the Weapons and Armour without a bonus, Equipped first", () => {
+    const sheet = dialogueSheet(smithWorld(), SMITH, 1);
+
+    expect(sheet?.buttons.map(({ label }) => label)).toEqual([
+      "Short Sword (Equipped)",
+      "Axe",
+      "More gear",
+      "Goodbye",
+    ]);
+    expect(
+      dialogueSheet(smithWorld(), SMITH, 2)?.buttons.map(({ label }) => label),
+    ).toEqual(["Chain Mail", "More gear", "Goodbye"]);
+    expect(sheet?.buttons[1].button).toEqual({ type: "smithForge", item: 101 });
+  });
+
+  it("leaves out an Item that already has a bonus", () => {
+    const w = smithWorld();
+    w.hero.inventory[0].item.smithBonus = { bonus: "strength", amount: 3 };
+
+    const labels = dialogueSheet(w, SMITH, 1)?.buttons.map((b) => b.label);
+
+    expect(labels).not.toContain("Axe");
+  });
+
+  it("pages through more than two Items", () => {
+    const w = smithWorld();
+    w.hero.inventory.push(
+      { item: { id: 104, type: "axe" }, cell: { column: 0, row: 1 } },
+      { item: { id: 105, type: "axe" }, cell: { column: 2, row: 1 } },
+    );
+
+    const first = dialogueSheet(w, SMITH, 1)?.buttons;
+    const last = dialogueSheet(w, SMITH, 3)?.buttons;
+    const wrapped = dialogueSheet(w, SMITH, 4)?.buttons;
+
+    expect(first?.map((b) => b.button.type)).toEqual([
+      "smithForge",
+      "smithForge",
+      "smithMore",
+      "goodbye",
+    ]);
+    expect(last?.map((b) => b.button.type)).toEqual([
+      "smithForge",
+      "smithMore",
+      "goodbye",
+    ]);
+    expect(wrapped).toEqual(first);
+  });
+
+  it("says so when there is nothing to work on", () => {
+    const w = smithWorld();
+    w.hero.inventory.length = 0;
+    w.hero.equipment.weapon = null;
+
+    const sheet = dialogueSheet(w, SMITH, 1);
+
+    expect(sheet?.buttons.map(({ button }) => button.type)).toEqual([
+      "goodbye",
+    ]);
+  });
+
+  it("goes back to talking when the service is used up", () => {
+    const sheet = dialogueSheet(smithWorld("used"), SMITH, 1);
+
+    expect(sheet?.lines).toEqual([questTuning["spa-day"].lines.done]);
+  });
+
+  it("is reachable by Focus and a click", () => {
+    const w = smithWorld();
+    const spots = panelFocusSpots("dialogue", w, WIDE, undefined, SMITH, 1);
+    const hits = spots.map((spot) => spot.hit);
+
+    expect(hits[1]).toEqual({ button: { type: "smithForge", item: 101 } });
+    const compact = panelFocusSpots(
+      "dialogue",
+      w,
+      COMPACT,
+      undefined,
+      SMITH,
+      1,
+    );
+    expect(compact.map((spot) => spot.hit)).toEqual(hits);
+  });
+});
+
 describe("the Dialogue panel's layout", () => {
   it("centres the panel on a wide screen and fills a compact one", () => {
     const wide = dialogueLayout(WIDE, 1).panel;
@@ -198,9 +325,9 @@ describe("the Dialogue panel's layout", () => {
     expect(closeButton.y + closeButton.h).toBeLessThan(body.y);
   });
 
-  it("fits the panel on a wide screen however many buttons, up to three", () => {
-    const { panel, buttons } = dialogueLayout(WIDE, 3);
-    expect(buttons[2].y + buttons[2].h).toBeLessThanOrEqual(panel.y + panel.h);
+  it("fits the panel on a wide screen however many buttons, up to four", () => {
+    const { panel, buttons } = dialogueLayout(WIDE, 4);
+    expect(buttons[3].y + buttons[3].h).toBeLessThanOrEqual(panel.y + panel.h);
   });
 
   it("makes each button at least a fingertip tall at a UI Scale of 1", () => {

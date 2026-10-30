@@ -715,6 +715,7 @@ export function createRenderer(
     waypointsOpen: false,
     dialogueOpen: false,
     dialogueNpc: 0,
+    dialoguePage: 0,
     pendingPoints: noPendingPoints(),
   };
 
@@ -1108,6 +1109,7 @@ export function createRenderer(
         waypointsOpen: menus.waypointsOpen,
         dialogueOpen: menus.dialogueOpen,
         dialogueNpc: menus.dialogueNpc,
+        dialoguePage: menus.dialoguePage,
         pendingPoints: { ...menus.pendingPoints },
       };
       if (world !== drawnWorld) {
@@ -1321,6 +1323,7 @@ export function createRenderer(
         world,
         menus.dialogueOpen,
         menus.dialogueNpc,
+        menus.dialoguePage,
       );
       heldSkillView.draw(heldSkill, pointer, uiScale);
       const spot = onPanel && "inventory" in onPanel ? onPanel.inventory : null;
@@ -2826,8 +2829,14 @@ function dialoguePanelView(activeInput: Readonly<ActiveInput>) {
 
   return {
     layer,
-    draw(screen: Viewport, world: World, open: boolean, npc: number) {
-      const sheet = dialogueSheet(world, npc);
+    draw(
+      screen: Viewport,
+      world: World,
+      open: boolean,
+      npc: number,
+      page: number,
+    ) {
+      const sheet = dialogueSheet(world, npc, page);
       layer.visible = open && sheet !== null;
       if (!open || !sheet) return;
       hint.text = panelCloseHint("dialogue", activeInput.way);
@@ -3376,7 +3385,7 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
                 ?.cell ?? hovered,
               item.type,
             );
-      const lines = itemTooltip(item.type);
+      const lines = itemTooltip(item.type, item.smithBonus);
       lines.forEach((line, i) => {
         if (!tooltipLines[i]) {
           tooltipLines[i] = text(look.tooltipLine, look.tooltipSize);

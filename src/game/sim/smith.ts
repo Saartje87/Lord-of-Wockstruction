@@ -28,13 +28,20 @@ export function canSmith(item: Item): boolean {
  * The Items the Smith could work, Equipped ones first and then the
  * Inventory's: copies, so a query's answer can't change the World.
  */
-export function smithableItems(world: World): Item[] {
+export function smithableItems(
+  world: World,
+): { item: Item; equipped: boolean }[] {
   const worn = EQUIPMENT_SLOTS.flatMap((slot) => {
     const item = world.hero.equipment[slot];
-    return item ? [item] : [];
+    return item ? [{ item, equipped: true }] : [];
   });
-  const carried = world.hero.inventory.map(({ item }) => item);
-  return [...worn, ...carried].filter(canSmith).map((item) => ({ ...item }));
+  const carried = world.hero.inventory.map(({ item }) => ({
+    item,
+    equipped: false,
+  }));
+  return [...worn, ...carried]
+    .filter(({ item }) => canSmith(item))
+    .map(({ item, equipped }) => ({ item: { ...item }, equipped }));
 }
 
 /**

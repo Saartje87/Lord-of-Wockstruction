@@ -36,6 +36,11 @@ export type Menus = {
   /** The NPC (index in the Area's `npcs`) the Dialogue panel is with. */
   dialogueNpc: number;
   /**
+   * What the Dialogue panel shows of the Smith: 0 for his talk, or the page,
+   * counted from 1, of the Items he can work on.
+   */
+  dialoguePage: number;
+  /**
    * Whether the Map Overlay is open. It is not a panel: the World runs on
    * under it, and the panels open and shut alongside it.
    */
@@ -177,6 +182,7 @@ export function createMenus(screen: Screen = { type: "playing" }): Menus {
     waypointsOpen: false,
     dialogueOpen: false,
     dialogueNpc: 0,
+    dialoguePage: 0,
     mapOpen: false,
     pendingPoints: noPendingPoints(),
     compact: false,
@@ -754,7 +760,9 @@ export function reactMenus(menus: Menus, events: readonly SimEvent[]) {
     if (event.type === "Talked") {
       openWorldPanel(menus, "dialogue");
       if (menus.dialogueOpen) menus.dialogueNpc = event.npc;
+      menus.dialoguePage = 0;
     }
+    if (event.type === "SmithBonusGiven") menus.dialoguePage = 0;
     // The World runs on under the panel, so it shuts to not be talked over.
     if (event.type === "HeroHit") menus.dialogueOpen = false;
     if (event.type !== "HeroDied") continue;

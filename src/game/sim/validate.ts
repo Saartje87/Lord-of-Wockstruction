@@ -1,21 +1,30 @@
 import { QUEST_IDS, questTuning } from "../tuning/quests";
-import { type Area, type Exit, isWalkable, TOWN } from "./area";
+import { type Area, type Exit, isWalkable, isWater, TOWN } from "./area";
 import { canReach } from "./path";
 import { tileOf } from "./vec";
 
 /**
  * Checks that Areas fit together, throwing with a message naming the Area
- * and the problem: each needs a `start` Entry, each Combat Area an Area
- * Level and an Act and Town no Level, Exits must lead to an Entry
- * that exists and be reachable from `start`, spawns must be on tiles the
- * Monsters can stand on, and only Town may have a Town Portal spot, which
- * must be reachable from `start` too, as must a Waypoint and each Bone Altar. A Town without one opens no Town
- * Portals: the content tests check the shipped Town has it.
+ * and the problem: each needs a `start` Entry, each Combat Area an Area Level
+ * and an Act and Town no Level, no Entry on Water, Exits must lead to an
+ * Entry that exists and be reachable from `start`, spawns must be on tiles
+ * the Monsters can stand on, and only Town may have a Town Portal spot, which
+ * must be reachable from `start` too, as must a Waypoint and each Bone Altar.
+ * A Town without one opens no Town Portals: the content tests check the
+ * shipped Town has it.
  */
 export function validateAreas(areas: Record<string, Area>) {
   for (const area of Object.values(areas)) {
     const start = area.entries.start;
     if (!start) throw new Error(`Area "${area.name}" has no "start" Entry`);
+
+    for (const [name, entry] of Object.entries(area.entries)) {
+      if (!isWater(area, entry)) continue;
+      const { x, y } = tileOf(entry);
+      throw new Error(
+        `Area "${area.name}" has Entry "${name}" on Water, tile (${x}, ${y})`,
+      );
+    }
 
     if (area.name === TOWN && area.areaLevel !== null) {
       throw new Error(`Area "${area.name}" has an Area Level; Town has none`);

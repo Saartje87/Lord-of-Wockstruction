@@ -18,6 +18,7 @@ import {
   FLOOR_MIX,
   type FloorPieces,
   floorOf,
+  GRASS_FLOOR,
   PIECE_SCALE,
   TOWN_FLOOR,
 } from "./floor";
@@ -54,6 +55,7 @@ import { type TownPortalMeshes, townPortalMeshesOf } from "./townPortalMesh";
 import type { WorldView } from "./view";
 import { type WallMeshes, wallMeshesOf } from "./wallMeshes";
 import { wallPlacementsOf } from "./walls";
+import { type WaterMeshes, waterMeshesOf } from "./waterMeshes";
 
 /**
  * The 3D World's three.js side. Its renderer draws on the canvas and the
@@ -78,6 +80,8 @@ export type World3d = {
   shown: {
     area: Area;
     floor: Group;
+    /** The Area's ponds, one shimmering plane each. */
+    water: WaterMeshes;
     /** The ways out of the Area, glowing. */
     exits: ExitMeshes;
     /** Null until the pieces the Area's Walls and Props use are loaded. */
@@ -197,7 +201,11 @@ export async function loadModels(
       ]),
     ),
   ];
-  const floorNames = [...Object.values(FLOOR_MIX), ...TOWN_FLOOR];
+  const floorNames = [
+    ...Object.values(FLOOR_MIX),
+    ...TOWN_FLOOR,
+    ...GRASS_FLOOR,
+  ];
   const pieceNames = sceneryPiecesOf(town).filter(
     (name) => !world3d.pieces[name],
   );
@@ -265,7 +273,7 @@ function showFloor(world3d: World3d, area: Area) {
   if (world3d.shown?.area === area || !world3d.models) return;
   const { shown, scene } = world3d;
   if (shown) {
-    scene.remove(shown.floor, shown.exits.group);
+    scene.remove(shown.floor, shown.water.group, shown.exits.group);
     if (shown.scenery) {
       scene.remove(
         shown.scenery.walls.group,
@@ -285,8 +293,9 @@ function showFloor(world3d: World3d, area: Area) {
     })),
     area.waypoint,
   );
-  scene.add(floor, exits.group);
-  world3d.shown = { area, floor, exits, scenery: null };
+  const water = waterMeshesOf(area);
+  scene.add(floor, water.group, exits.group);
+  world3d.shown = { area, floor, water, exits, scenery: null };
 }
 
 /** The pieces `area`'s Walls, Props and torches are made of. */
@@ -491,6 +500,7 @@ export function drawWorld3d(
   world3d.boneAltars.show(view.boneAltars, seconds);
   world3d.floorEffects.show(view.floorEffects);
   world3d.shown?.exits.update(seconds);
+  world3d.shown?.water.update(seconds);
   driftEmbers(world3d.atmosphere, view.hero.pos, dt, view.combat);
   showMarkers(world3d.markers, view);
   placeCamera(world3d.camera, camera);

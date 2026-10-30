@@ -8,7 +8,7 @@
  * piece is `<pack>/<name>`: its model is `public/assets/models/<piece>.glb`.
  */
 export type PieceSource = {
-  pack: "dungeon" | "halloween" | "hexagon";
+  pack: "dungeon" | "halloween" | "hexagon" | "city";
   model: string;
   /** What the tile is, in Tiled. */
   kind: "floor" | "wall" | "prop";
@@ -79,6 +79,17 @@ export const PIECES: PieceSource[] = [
   wall("dungeon", "wall_crossing"),
   // The end of a dungeon Wall run.
   wall("dungeon", "wall_endcap"),
+  // City Builder Bits (vendored, see `main.mts`): grass and green trees.
+  floor("city", "park_base"),
+  prop("city", "tree_A", true),
+  prop("city", "tree_B", true),
+  prop("city", "tree_C", true),
+  prop("city", "tree_D", true),
+  prop("city", "tree_E", true),
+  prop("city", "bush", true),
+  prop("city", "bush_A", true),
+  prop("city", "bush_B", true),
+  prop("city", "bush_C", true),
 ];
 
 /** The piece's name: its pack and its model's file name. */

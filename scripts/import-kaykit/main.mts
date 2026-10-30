@@ -124,6 +124,30 @@ const MYSTERY = {
 };
 
 /**
+ * The paid packs whose pieces are painted into Areas, keyed by the `pack` of
+ * their pieces in `pieces.mts`. Like the Mystery Monthly packs they are read
+ * from the gitignored `vendor/kaykit/`, not fetched, and skipped when they
+ * aren't there.
+ *
+ * City Builder Bits, from Bits Bundle 1 (CC0): the grass floor and the green
+ * trees and bushes of the Cozy Plains. Only the pieces in `pieces.mts` come
+ * in.
+ */
+const VENDORED = {
+  city: {
+    name: "City Builder Bits (Bits Bundle 1)",
+    dir: "vendor/kaykit/KayKit_Bits_Bundle1/City Builder Bits",
+    url: "https://kaylousberg.itch.io/kaykit-bits-bundle",
+    texture: "citybits_texture.png",
+  },
+};
+
+/** Whether a piece's pack is one of the `VENDORED` ones. */
+function isVendored(pack: PieceSource["pack"]): pack is keyof typeof VENDORED {
+  return pack in VENDORED;
+}
+
+/**
  * The Golem: the Monstrosity, with `Rig_Large`'s clips and, since that rig
  * has no attack, the Knight's 2-handed chop retargeted onto it.
  */
@@ -203,6 +227,14 @@ const weaponDir = `${skeletons.root}/Assets/gltf`;
 const knightPath = `${adventurers.root}/Characters/gltf/${KNIGHT.file}.glb`;
 /** The files of a piece in its pack: Dungeon's one glb, or glTF with its binary and texture. */
 function filesOf(source: PieceSource): string[] {
+  if (isVendored(source.pack)) {
+    const dir = "Assets/gltf";
+    return [
+      `${dir}/${source.model}.gltf`,
+      `${dir}/${source.model}.bin`,
+      `${dir}/${VENDORED[source.pack].texture}`,
+    ];
+  }
   const dir = `${PACKS[source.pack].root}/Assets/gltf`;
   if (source.pack === "dungeon") {
     const plain = PLAIN_GLB.has(source.model);
@@ -247,9 +279,9 @@ for (const pack of Object.values(PACKS)) {
             "LICENSE.txt",
           ]
         : [
-            ...PIECES.filter((piece) => PACKS[piece.pack] === pack).flatMap(
-              filesOf,
-            ),
+            ...PIECES.filter(
+              (piece) => !isVendored(piece.pack) && PACKS[piece.pack] === pack,
+            ).flatMap(filesOf),
             ...(pack === PACKS.dungeon
               ? [...EXTRA_DUNGEON, ...LOOT.dungeon].map(
                   (name) => `${pack.root}/Assets/gltf/${name}.gltf.glb`,
@@ -271,7 +303,7 @@ for (const pack of Object.values(PACKS)) {
 }
 
 for (const dir of Object.values(out)) mkdirSync(dir, { recursive: true });
-for (const pack of ["dungeon", "halloween", "hexagon"]) {
+for (const pack of ["dungeon", "halloween", "hexagon", "city"]) {
   mkdirSync(`${out.models}/${pack}`, { recursive: true });
 }
 mkdirSync(`${out.models}/loot`, { recursive: true });
@@ -327,7 +359,11 @@ if (existsSync(MYSTERY.dir)) {
 for (const source of PIECES) {
   const [from] = filesOf(source);
   const to = `${out.models}/${pieceName(source)}.glb`;
-  if (source.pack === "dungeon") {
+  if (isVendored(source.pack)) {
+    const { dir } = VENDORED[source.pack];
+    if (existsSync(dir)) await io.write(to, await io.read(`${dir}/${from}`));
+    else console.log(`No ${dir}: keeping the committed ${to}`);
+  } else if (source.pack === "dungeon") {
     copyFileSync(`${dirOf(PACKS.dungeon)}/${from}`, to);
   } else {
     // glTF with its binary and texture beside it becomes one glb.
@@ -381,7 +417,7 @@ const imported = [
   ),
   ...PIECES.map(
     (source) =>
-      `| \`${filesOf(source)[0]}\` | ${source.kind === "floor" ? "floors" : source.kind === "wall" ? "Walls" : "Props"} |`,
+      `| ${isVendored(source.pack) ? `${VENDORED[source.pack].name}: ` : ""}\`${filesOf(source)[0]}\` | ${source.kind === "floor" ? "floors" : source.kind === "wall" ? "Walls" : "Props"} |`,
   ),
 ].join("\n");
 
@@ -403,14 +439,17 @@ ${Object.values(PACKS)
   )
   .join("\n")}
 - ${MYSTERY.name}: [itch.io](${MYSTERY.url}), paid and CC0
+${Object.values(VENDORED)
+  .map((pack) => `- ${pack.name}: [itch.io](${pack.url}), paid and CC0`)
+  .join("\n")}
 
 **Changes:** the Knight is cut down to the animations the game uses and to
 the 1-handed sword and the round shield. The Monstrosity gets the
 \`Rig_Large\` animations the game uses and the Knight's 2-handed chop,
 retargeted onto its rig. Town's NPCs get the \`Rig_Medium\` idles, with no
-animation track for a bone they lack. Halloween Bits and Medieval Hexagon
-pieces, which come as glTF with a binary and a texture, are packed into one
-glb each. Nothing is recoloured.
+animation track for a bone they lack. Halloween Bits, Medieval Hexagon and
+City Builder Bits pieces, which come as glTF with a binary and a texture, are
+packed into one glb each. Nothing is recoloured.
 
 ### Imported files
 

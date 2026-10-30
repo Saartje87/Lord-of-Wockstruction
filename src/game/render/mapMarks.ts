@@ -40,6 +40,8 @@ export const MAP_LOOK = {
     ringWidth: 1.5,
     dot: 1.5,
   },
+  /** Explored Water's fill, under the marks. */
+  water: { colour: 0x2f6fb0, alpha: 0.7 },
   /** The Waypoint's ring, `width` by `height`, round a centre diamond. */
   waypoint: {
     colour: 0xb48cff,
@@ -67,6 +69,8 @@ export type MapEdge = { from: Vec; to: Vec; kind: "wall" | "floor" };
 export type MapMarks = {
   /** The Area's wall and floor edges. */
   edges: MapEdge[];
+  /** The top-left corner of each Explored Water tile, filled blue. */
+  water: Vec[];
   /** Where the Hero's Minions stand. */
   minions: Vec[];
   /** Explored Exits at their middle, named after the Area each leads to. */
@@ -106,7 +110,8 @@ export type MapInputs = {
 /**
  * The marks of `area`: a wall edge on each side of a walkable tile that
  * meets a wall, a floor edge on each that meets void or the Area's end; only
- * of tiles that are Explored. Exits, the Town Portal, the Waypoint and NPCs are marked
+ * of tiles that are Explored. Explored Water is filled blue and its bank
+ * is not outlined. Exits, the Town Portal, the Waypoint and NPCs are marked
  * only where Explored too; the Minions always. Never Monsters, Corpses,
  * Ground Items or Projectiles.
  */
@@ -129,6 +134,8 @@ export function mapMarks(inputs: MapInputs): MapMarks {
       for (const side of sides) {
         const across = { x: x + side.across[0], y: y + side.across[1] };
         if (cellAt(area, area.walkable, across)) continue;
+        // Water is filled, not outlined.
+        if (cellAt(area, area.water, across)) continue;
         edges.push({
           from: { x: x + side.from[0], y: y + side.from[1] },
           to: { x: x + side.to[0], y: y + side.to[1] },
@@ -138,8 +145,16 @@ export function mapMarks(inputs: MapInputs): MapMarks {
     }
   }
   const isExplored = (point: Vec) => cellAt(area, explored, point);
+  const water: Vec[] = [];
+  for (let y = 0; y < area.height; y++) {
+    for (let x = 0; x < area.width; x++) {
+      const tile = { x, y };
+      if (cellAt(area, area.water, tile) && isExplored(tile)) water.push(tile);
+    }
+  }
   return {
     edges,
+    water,
     minions: inputs.minions.map((minion) => ({ ...minion })),
     exits: area.exits
       .map((exit) => ({

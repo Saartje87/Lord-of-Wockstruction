@@ -1,4 +1,4 @@
-import { type Area, isWalkable } from "./area";
+import { type Area, isWalkable, isWater } from "./area";
 import { distance, tileOf, type Vec } from "./vec";
 
 const EDGE_SLACK = 1e-6;
@@ -222,10 +222,10 @@ export function isClear(area: Area, a: Vec, b: Vec, radius: number): boolean {
   const ox = (-(b.y - a.y) / length) * reach;
   const oy = ((b.x - a.x) / length) * reach;
   return [0, 1, -1].every((side) =>
-    touchesOnlyWalkable(
-      area,
+    touchesOnly(
       { x: a.x + ox * side, y: a.y + oy * side },
       { x: b.x + ox * side, y: b.y + oy * side },
+      (point) => isWalkable(area, point),
     ),
   );
 }
@@ -244,17 +244,25 @@ export function fitsAt(area: Area, point: Vec, radius: number): boolean {
   );
 }
 
-/** Whether nothing blocks the line of sight from `a` to `b`. */
+/**
+ * Whether nothing blocks the line of sight from `a` to `b`. Water doesn't:
+ * Projectiles and Monsters noticing the Hero look over it.
+ */
 export function canSee(area: Area, a: Vec, b: Vec): boolean {
-  return touchesOnlyWalkable(area, a, b);
+  return touchesOnly(
+    a,
+    b,
+    (point) => isWalkable(area, point) || isWater(area, point),
+  );
 }
 
 /**
- * Walks every tile the segment from `a` to `b` touches. Where it passes
- * exactly through a corner, both tiles beside the corner count as touched.
+ * Whether `isOpen` holds for every tile the segment from `a` to `b` touches.
+ * Where it passes exactly through a corner, both tiles beside the corner
+ * count as touched.
  */
-function touchesOnlyWalkable(area: Area, a: Vec, b: Vec): boolean {
-  const open = (x: number, y: number) => isWalkable(area, { x, y });
+function touchesOnly(a: Vec, b: Vec, isOpen: (point: Vec) => boolean): boolean {
+  const open = (x: number, y: number) => isOpen({ x, y });
   let { x, y } = tileOf(a);
   const end = tileOf(b);
   const dx = b.x - a.x;

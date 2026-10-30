@@ -7,9 +7,9 @@ import {
   tilesets,
 } from "./content";
 import { encodeSave, parseSave, saveOf } from "./save";
-import type { Area, Exit, Spawn } from "./sim/area";
+import { type Area, type Exit, isWalkable, type Spawn } from "./sim/area";
 import { type MonsterOfLevel, monsterExperience } from "./sim/monsters";
-import { findPath } from "./sim/path";
+import { canReach, findPath } from "./sim/path";
 import { validateActs, validateQuests } from "./sim/validate";
 import type { Vec } from "./sim/vec";
 import {
@@ -26,6 +26,7 @@ import {
 } from "./sim/world";
 import { ITEM_TYPES, itemOf } from "./tuning/items";
 import type { MonsterType } from "./tuning/monsters";
+import { pondsOf } from "./world3d/waterMeshes";
 
 // Building the World runs the loader's validation: a `start` Entry, Exits to
 // an Entry that exists and can be reached from `start`, and spawns on tiles
@@ -113,6 +114,9 @@ function fightThrough(world: World, exit: Exit, reach = 2) {
   }
   return changed;
 }
+
+/** The longest a leg of the Hero's walk across the shipped Areas may take: the slowest is about 0.1s alone. */
+const LEG_TIMEOUT_MS = 3_000;
 
 /** An Area's one Exit to Area `to`; throws when it has none or several. */
 function exitTo(area: Area, to: string): Exit {
@@ -629,7 +633,7 @@ describe("the shipped Areas", () => {
     }
   });
 
-  it("let the Hero walk from Wockville across the Cozy Plains, the Soggy Bog and the Wockyard and down through the Catacombs and the Crypt to the Ossuary, and back up to Wockville", () => {
+  describe("let the Hero walk from Wockville across the Cozy Plains, the Soggy Bog and the Wockyard and down through the Catacombs and the Crypt to the Ossuary, and back up to Wockville", () => {
     // Sturdy and strong enough to fight through every pack on the way.
     const progress = { ...FRESH_PROGRESS, strength: 200, vitality: 1000 };
     const world = createWorld({
@@ -653,12 +657,18 @@ describe("the shipped Areas", () => {
       ["cozy-plains", "town"],
     ];
 
-    for (const [from, to] of route) {
-      expect(world.areaName).toBe(from);
-      const arrived = fightThrough(world, exitTo(world.areas[from], to));
-      expect(arrived?.area).toBe(to);
-    }
-    expect(world.areaName).toBe("town");
+    // The legs run in order on one World, so each starts where the last ended.
+    // Each is a test of its own, so a failure names the leg; the slowest
+    // takes about 0.1s, and the timeout leaves room for a loaded machine.
+    it.each(route)(
+      "from %s to %s",
+      (from, to) => {
+        expect(world.areaName).toBe(from);
+        const arrived = fightThrough(world, exitTo(world.areas[from], to));
+        expect(arrived?.area).toBe(to);
+      },
+      LEG_TIMEOUT_MS,
+    );
   });
 });
 
@@ -727,6 +737,227 @@ describe("the shipped Areas' pieces", () => {
   });
 });
 
+describe("Water in the shipped Areas", () => {
+  const shipped = () => shippedWorld().areas;
+  const hasWater = (area: Area) => area.water.some(Boolean);
+
+  it("lies in the Cozy Plains as one small pond, and not in the Wockyard or Wockville", () => {
+    const { "cozy-plains": plains, wockyard, town } = shipped();
+
+    const tiles = plains.water.filter(Boolean).length;
+    expect(tiles).toBeGreaterThanOrEqual(6);
+    expect(tiles).toBeLessThanOrEqual(16);
+    expect(hasWater(wockyard)).toBe(false);
+    expect(hasWater(town)).toBe(false);
+  });
+
+  it("is never walkable, though it is floor", () => {
+    for (const area of Object.values(shipped())) {
+      area.water.forEach((isWater, i) => {
+        if (!isWater) return;
+        expect(area.floor[i]).toBe(true);
+        expect(area.walkable[i]).toBe(false);
+      });
+    }
+  });
+
+  it("leaves every Entry, Exit, spawn, Waypoint, Bone Altar, Unique Monster and NPC reachable from each Entry", () => {
+    for (const area of Object.values(shipped())) {
+      const wanted: Vec[] = [
+        ...area.exits.map(centreOf),
+        ...area.spawns.map((spawn) => spawn.pos),
+        ...area.boneAltars,
+        ...area.uniques.map((unique) => unique.pos),
+        ...area.npcs.map((npc) => npc.pos),
+        ...(area.waypoint ? [area.waypoint] : []),
+        ...(area.actBoss ? [area.actBoss.pos] : []),
+      ];
+      for (const entry of Object.values(area.entries)) {
+        expect(isWalkable(area, entry)).toBe(true);
+        for (const target of wanted) {
+          expect(canReach(area, entry, target)).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("keeps the Cozy Plains' pond clear of its Exits, Entries and spawns", () => {
+    const { "cozy-plains": plains } = shipped();
+    const near = (point: Vec) => {
+      for (let dy = -2; dy <= 2; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          const x = Math.floor(point.x) + dx;
+          const y = Math.floor(point.y) + dy;
+          if (plains.water[y * plains.width + x]) return true;
+        }
+      }
+      return false;
+    };
+
+    for (const entry of Object.values(plains.entries)) {
+      expect(near(entry)).toBe(false);
+    }
+    for (const spawn of plains.spawns) expect(near(spawn.pos)).toBe(false);
+    for (const exit of plains.exits) expect(near(centreOf(exit))).toBe(false);
+  });
+});
+
+describe("the Cozy Plains' grass", () => {
+  const plains = () => shippedWorld().areas["cozy-plains"];
+  const isCity = (piece: string) => /^city\/(tree|bush)/.test(piece);
+
+  it("is mostly grass, with dirt paths among it", () => {
+    const { floorPieces, floor, water } = plains();
+    const land = floorPieces.filter((_, i) => floor[i] && !water[i]);
+
+    const grass = land.filter((piece) => piece === "city/park_base").length;
+    const dirt = land.filter((piece) =>
+      /^halloween\//.test(piece ?? ""),
+    ).length;
+    expect(grass / land.length).toBeGreaterThan(0.7);
+    expect(dirt).toBeGreaterThan(40);
+    expect(grass + dirt).toBe(land.length);
+  });
+
+  it("stands green trees and bushes, and no dead trees or graves", () => {
+    const pieces = plains().props.map((prop) => prop.piece);
+
+    expect(
+      pieces.filter((piece) => /^city\/tree/.test(piece)).length,
+    ).toBeGreaterThan(30);
+    expect(
+      pieces.filter((piece) => /^city\/bush/.test(piece)).length,
+    ).toBeGreaterThan(10);
+    expect(pieces.some((piece) => /tree_dead|grave/.test(piece))).toBe(false);
+  });
+
+  it("blocks the way exactly where a tree or a bush stands", () => {
+    const area = plains();
+    const standing = area.props.filter((prop) => isCity(prop.piece));
+
+    expect(standing.length).toBeGreaterThan(0);
+    for (const prop of standing) {
+      expect(prop.blocks).toBe(true);
+      expect(area.walkable[prop.y * area.width + prop.x]).toBe(false);
+    }
+    const taken = new Set(
+      [...area.props, ...area.walls].map((p) => p.y * area.width + p.x),
+    );
+    // Cells of grass with nothing on them are open.
+    area.floorPieces.forEach((piece, i) => {
+      if (piece === "city/park_base" && !taken.has(i)) {
+        expect(area.walkable[i]).toBe(true);
+      }
+    });
+  });
+
+  it("keeps its Exits, Entries and spawns off the trees and bushes", () => {
+    const area = plains();
+    const trees = new Set(
+      area.props
+        .filter((prop) => isCity(prop.piece))
+        .map((prop) => `${prop.x},${prop.y}`),
+    );
+    const points = [
+      ...Object.values(area.entries),
+      ...area.spawns.map((spawn) => spawn.pos),
+      ...area.exits.map(centreOf),
+    ];
+    for (const point of points) {
+      expect(trees.has(`${Math.floor(point.x)},${Math.floor(point.y)}`)).toBe(
+        false,
+      );
+    }
+  });
+});
+
+describe("the Old Mill's grass and millpond", () => {
+  const mill = () => shippedWorld().areas["old-mill"];
+  const MILL_BUILDINGS = /^hexagon\/building_/;
+
+  it("is mostly grass, with dirt around the mill", () => {
+    const area = mill();
+    const land = area.floorPieces.filter(
+      (_, i) => area.floor[i] && !area.water[i],
+    );
+    const grass = land.filter((piece) => piece === "city/park_base").length;
+    expect(grass / land.length).toBeGreaterThan(0.7);
+
+    const dirtAt = (x: number, y: number) =>
+      /^halloween\//.test(area.floorPieces[y * area.width + x] ?? "");
+    for (const prop of area.props.filter((p) => MILL_BUILDINGS.test(p.piece))) {
+      expect(dirtAt(prop.x, prop.y + 1) || dirtAt(prop.x + 1, prop.y)).toBe(
+        true,
+      );
+    }
+  });
+
+  it("stands green trees and bushes, and no dead trees or graves", () => {
+    const pieces = mill().props.map((prop) => prop.piece);
+    expect(pieces.filter((p) => /^city\/tree/.test(p)).length).toBeGreaterThan(
+      30,
+    );
+    expect(pieces.filter((p) => /^city\/bush/.test(p)).length).toBeGreaterThan(
+      5,
+    );
+    expect(pieces.some((p) => /tree_dead|grave/.test(p))).toBe(false);
+  });
+
+  it("has a small millpond beside the mill", () => {
+    const area = mill();
+    const pond: Vec[] = [];
+    area.water.forEach((isWater, i) => {
+      if (isWater)
+        pond.push({ x: i % area.width, y: Math.floor(i / area.width) });
+    });
+    expect(pond.length).toBeGreaterThanOrEqual(6);
+    expect(pond.length).toBeLessThanOrEqual(16);
+
+    const buildings = area.props.filter((p) => MILL_BUILDINGS.test(p.piece));
+    const beside = pond.some((tile) =>
+      buildings.some(
+        (b) => Math.abs(b.x - tile.x) <= 3 && Math.abs(b.y - tile.y) <= 3,
+      ),
+    );
+    expect(beside).toBe(true);
+  });
+
+  it("keeps the millpond clear of its Exits, Entries, spawns and Wanderer", () => {
+    const area = mill();
+    const near = (point: Vec) => {
+      for (let dy = -2; dy <= 2; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          const x = Math.floor(point.x) + dx;
+          const y = Math.floor(point.y) + dy;
+          if (area.water[y * area.width + x]) return true;
+        }
+      }
+      return false;
+    };
+    const points = [
+      ...Object.values(area.entries),
+      ...area.spawns.map((spawn) => spawn.pos),
+      ...area.exits.map(centreOf),
+      ...area.npcs.map((npc) => npc.pos),
+    ];
+    expect(area.npcs.length).toBeGreaterThan(0);
+    for (const point of points) expect(near(point)).toBe(false);
+  });
+
+  it("lets every Entry reach every Exit, spawn and the Wanderer", () => {
+    const area = mill();
+    const wanted = [
+      ...area.exits.map(centreOf),
+      ...area.spawns.map((spawn) => spawn.pos),
+      ...area.npcs.map((npc) => npc.pos),
+    ];
+    for (const entry of Object.values(area.entries)) {
+      for (const target of wanted)
+        expect(canReach(area, entry, target)).toBe(true);
+    }
+  });
+});
+
 describe("the KayKit tileset", () => {
   type Tile = {
     id: number;
@@ -742,17 +973,26 @@ describe("the KayKit tileset", () => {
     for (const tile of tiles) {
       expect(typeof property(tile, "piece")).toBe("string");
       expect(typeof property(tile, "blocks")).toBe("boolean");
-      expect(["floor", "wall", "prop"]).toContain(property(tile, "kind"));
+      expect(["floor", "wall", "prop", "water"]).toContain(
+        property(tile, "kind"),
+      );
     }
   });
 
-  it("has a thumbnail and an imported model for every tile", () => {
+  it("has a thumbnail and an imported model for every tile, but for Water, which is drawn in code", () => {
     for (const tile of tiles) {
       expect(existsSync(`content/tilesets/${tile.image}`)).toBe(true);
+      if (property(tile, "kind") === "water") continue;
       expect(
         existsSync(`public/assets/models/${property(tile, "piece")}.glb`),
       ).toBe(true);
     }
+  });
+
+  it("has a Water tile that does not block, as walking is decided by the Area", () => {
+    const water = tiles.filter((tile) => property(tile, "kind") === "water");
+    expect(water).toHaveLength(1);
+    expect(property(water[0], "blocks")).toBe(false);
   });
 
   it("never lets a floor block", () => {
@@ -1201,5 +1441,176 @@ describe("Grave Wockington in the shipped Ossuary", () => {
     expect(
       inOssuary("done").monsters.some((m) => m.unique === "Grave Wockington"),
     ).toBe(true);
+  });
+});
+
+describe("the Spa's hot springs", () => {
+  const spa = () => shippedWorld().areas.spa;
+
+  it("are the Spa's alone: no other shipped Area marks its Water as hot springs", () => {
+    const hot = Object.values(shippedWorld().areas)
+      .filter((area) => area.hotSprings)
+      .map((area) => area.name);
+
+    expect(hot).toEqual(["spa"]);
+  });
+
+  it("are two or three pools in place of the wells", () => {
+    const area = spa();
+    const pools = pondsOf(area);
+
+    expect(pools.length).toBeGreaterThanOrEqual(2);
+    expect(pools.length).toBeLessThanOrEqual(3);
+    for (const pool of pools) {
+      expect(pool.tiles.length).toBeGreaterThanOrEqual(6);
+    }
+    expect(area.props.some((prop) => /well/.test(prop.piece))).toBe(false);
+  });
+
+  it("is mostly grass, with dirt around the bathhouse", () => {
+    const { floorPieces, floor, water, props, width } = spa();
+    const land = floorPieces.filter((_, i) => floor[i] && !water[i]);
+    const grass = land.filter((piece) => piece === "city/park_base").length;
+    expect(grass / land.length).toBeGreaterThan(0.6);
+
+    const houses = props.filter((prop) => /building_/.test(prop.piece));
+    expect(houses.length).toBeGreaterThan(0);
+    for (const house of houses) {
+      expect(floorPieces[house.y * width + house.x]).toMatch(/^halloween\//);
+    }
+  });
+
+  it("stands green trees, and no dead trees or graves", () => {
+    const pieces = spa().props.map((prop) => prop.piece);
+
+    expect(
+      pieces.filter((piece) => /^city\/tree/.test(piece)).length,
+    ).toBeGreaterThan(30);
+    expect(pieces.some((piece) => /tree_dead|grave/.test(piece))).toBe(false);
+  });
+
+  it("keeps its Entries, Exits, spawns and Unique Monster reachable, and dry", () => {
+    const area = spa();
+    const wanted = [
+      ...area.exits.map(centreOf),
+      ...area.spawns.map((spawn) => spawn.pos),
+      ...area.uniques.map((unique) => unique.pos),
+    ];
+    expect(area.uniques).toHaveLength(1);
+    for (const entry of Object.values(area.entries)) {
+      for (const target of wanted) {
+        expect(canReach(area, entry, target)).toBe(true);
+      }
+    }
+    for (const point of [...Object.values(area.entries), ...wanted]) {
+      const cell = Math.floor(point.y) * area.width + Math.floor(point.x);
+      expect(area.water[cell]).toBe(false);
+    }
+  });
+});
+
+describe("the Wockyard's sparse grass", () => {
+  const wockyard = () => shippedWorld().areas.wockyard;
+
+  it("is mostly dirt, with sparse patches of grass", () => {
+    const { floorPieces, floor } = wockyard();
+    const land = floorPieces.filter((_, i) => floor[i]);
+
+    const grass = land.filter((piece) => piece === "city/park_base").length;
+    const dirt = land.filter((piece) =>
+      /^halloween\//.test(piece ?? ""),
+    ).length;
+    expect(grass / land.length).toBeGreaterThan(0.05);
+    expect(grass / land.length).toBeLessThan(0.25);
+    expect(grass + dirt).toBe(land.length);
+  });
+
+  it("stands only dead trees: no green trees or bushes", () => {
+    const pieces = wockyard().props.map((prop) => prop.piece);
+
+    expect(pieces.some((piece) => /tree_dead/.test(piece))).toBe(true);
+    expect(pieces.some((piece) => /^city\//.test(piece))).toBe(false);
+  });
+
+  it("has no Water", () => {
+    expect(wockyard().water.some(Boolean)).toBe(false);
+  });
+});
+
+describe("the Soggy Bog's ponds and mud", () => {
+  const bog = () => shippedWorld().areas["soggy-bog"];
+  const mud = "dungeon/floor_dirt_large";
+
+  it("is mostly mud, with grass patches among it", () => {
+    const { floorPieces, floor, water } = bog();
+    const land = floorPieces.filter((_, i) => floor[i] && !water[i]);
+    const count = (piece: string) => land.filter((p) => p === piece).length;
+
+    expect(count(mud) / land.length).toBeGreaterThan(0.5);
+    expect(count("city/park_base")).toBeGreaterThan(100);
+  });
+
+  it("stands dead trees and some bushes", () => {
+    const pieces = bog().props.map((prop) => prop.piece);
+
+    expect(pieces.filter((p) => /tree_dead/.test(p)).length).toBeGreaterThan(
+      50,
+    );
+    expect(pieces.filter((p) => /^city\/bush/.test(p)).length).toBeGreaterThan(
+      20,
+    );
+    expect(pieces.some((p) => /^city\/tree/.test(p))).toBe(false);
+  });
+
+  it("has several ponds, and more Water than any other Area", () => {
+    const tilesOf = (area: Area) => area.water.filter(Boolean).length;
+    const areas = shippedWorld().areas;
+    const { width, water } = areas["soggy-bog"];
+
+    // Count ponds as 4-connected groups of Water tiles.
+    const seen = new Set<number>();
+    let ponds = 0;
+    water.forEach((isWater, start) => {
+      if (!isWater || seen.has(start)) return;
+      ponds++;
+      const queue = [start];
+      seen.add(start);
+      while (queue.length > 0) {
+        const at = queue.pop() as number;
+        for (const next of [at - 1, at + 1, at - width, at + width]) {
+          if (water[next] && !seen.has(next)) {
+            seen.add(next);
+            queue.push(next);
+          }
+        }
+      }
+    });
+    expect(ponds).toBeGreaterThanOrEqual(4);
+    for (const [name, area] of Object.entries(areas)) {
+      if (name !== "soggy-bog") {
+        expect(tilesOf(areas["soggy-bog"])).toBeGreaterThan(tilesOf(area));
+      }
+    }
+  });
+
+  it("keeps its Entries, Exits, Waypoint, Bone Altars and spawns dry and reachable from every Entry", () => {
+    const area = bog();
+    expect(area.boneAltars).toHaveLength(3);
+    expect(area.waypoint).toBeDefined();
+    const wanted: Vec[] = [
+      ...area.exits.map(centreOf),
+      ...area.spawns.map((spawn) => spawn.pos),
+      ...area.boneAltars,
+      ...(area.waypoint ? [area.waypoint] : []),
+    ];
+    for (const point of [...wanted, ...Object.values(area.entries)]) {
+      const at = Math.floor(point.y) * area.width + Math.floor(point.x);
+      expect(area.water[at]).toBe(false);
+    }
+    for (const entry of Object.values(area.entries)) {
+      for (const target of wanted) {
+        expect(canReach(area, entry, target)).toBe(true);
+      }
+    }
   });
 });

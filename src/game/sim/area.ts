@@ -29,15 +29,26 @@ export type Area = {
    * 3D World lights it by day. From the map's `outdoors` property.
    */
   outdoors: boolean;
+  /**
+   * Whether the Area's Water is hot springs: the 3D World tints it warm
+   * turquoise and lets steam rise. From the map's `hotSprings` property.
+   */
+  hotSprings: boolean;
   width: number;
   height: number;
   /** Row-major, `width * height` long; true where there is floor. */
   floor: boolean[];
   /**
    * Row-major, `width * height` long; true where the Hero can stand: floor
-   * that nothing blocks.
+   * that nothing blocks, and is not Water.
    */
   walkable: boolean[];
+  /**
+   * Row-major, `width * height` long; true where the floor is a Water tile.
+   * Water is not walkable, but Projectiles and sight pass over it: only
+   * walking reads `walkable`.
+   */
+  water: boolean[];
   /**
    * Row-major, `width * height` long: the KayKit piece (its model's name)
    * on each floor cell, or null where there is no floor or the cell's tile
@@ -165,12 +176,20 @@ type Tmj = {
 /** The one Area that is Town, by name; every other Area is a Combat Area. */
 export const TOWN = "town";
 
+/** The `kind` of the tileset tile that is Water. */
+export const WATER_KIND = "water";
+
 // The top bits of a gid flag flips and rotations, not the tile.
 const GID_MASK = 0x0fffffff;
 
 /** Whether there is floor at a point in tile units. */
 export function isFloor(area: Area, point: Vec): boolean {
   return cellAt(area, area.floor, point);
+}
+
+/** Whether a point in tile units is on a Water tile. */
+export function isWater(area: Area, point: Vec): boolean {
+  return cellAt(area, area.water, point);
 }
 
 /** The Exit whose zone holds a point in tile units, if any. */
@@ -242,12 +261,15 @@ export function loadArea(
   const overrides = tilesOf("blocking override");
   const pieces = piecesOf(tileset);
   const floor = floorLayer.data.map((gid) => gid !== 0);
+  const water = floorLayer.data.map(
+    (gid) => pieces.get(gid & GID_MASK)?.kind === WATER_KIND,
+  );
   const walkable = floor.map((hasFloor, i) => {
     const override = (overrides?.[i] ?? 0) & GID_MASK;
     const blocked = override
       ? blocks.has(override)
       : blocks.has((walls?.[i] ?? 0) & GID_MASK);
-    return hasFloor && !blocked;
+    return hasFloor && !blocked && !water[i];
   });
 
   // Tiled measures objects on isometric maps in tileheight units on both axes.
@@ -318,6 +340,8 @@ export function loadArea(
     mainPath: readMainPath(name, tmj),
     outdoors:
       tmj.properties?.find((p) => p.name === "outdoors")?.value === true,
+    hotSprings:
+      tmj.properties?.find((p) => p.name === "hotSprings")?.value === true,
     width: tmj.width,
     height: tmj.height,
     floor,
@@ -325,6 +349,7 @@ export function loadArea(
     walls: wallPieces,
     props,
     walkable,
+    water,
     entries,
     spawns,
     exits,

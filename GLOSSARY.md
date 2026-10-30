@@ -53,8 +53,8 @@ A task an NPC in an Act's Town gives the Hero and takes back once it is done, go
 _Avoid_: Mission, task, objective
 
 **Smith bonus**:
-The one random bonus the Smith gives a Weapon or Armour, from a pool suited to its kind, once "Spa Day" is Done. His service works once; the Hero can leave without using it and come back later. The bonus stays with that Item, shows in its tooltip and counts while it is Equipped. The Save keeps the bonus on its Item and whether the service is unlocked and unspent.
-_Avoid_: Enchant, Affix (a different thing, not built yet)
+The one random bonus the Smith gives a Weapon or Armour of any Rarity, from a pool suited to its kind, once "Spa Day" is Done. His service works once; the Hero can leave without using it and come back later. The bonus stays with that Item, shows in its tooltip after its Affixes and counts while it is Equipped. It is never an Affix: it doesn't count towards an Item's Affixes, never changes its name, adds nothing to its Value, and adds to an Affix giving the same Bonus. The Save keeps the bonus on its Item and whether the service is unlocked and unspent.
+_Avoid_: Enchant, Affix (a different thing)
 
 **Exit**:
 A zone in an Area that, when the Hero walks into it, takes the Hero to an Entry in another Area.

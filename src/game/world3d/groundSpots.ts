@@ -13,9 +13,9 @@ export type GroundSpot = { id: ItemId; at: Vec };
  * Where each Ground Item's model is on the screen through `camera`: on the
  * model rather than the floor under it, so labels sit over the Items.
  */
-export function groundSpotsOf(
+export function groundSpotsOf<T extends Pick<GroundItemView, "id" | "pos">>(
   camera: WorldCamera,
-  items: readonly GroundItemView[],
+  items: readonly T[],
 ): GroundSpot[] {
   return items.map(({ id, pos }) => ({
     id,

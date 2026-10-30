@@ -274,6 +274,21 @@ describe("A", () => {
     expect(orders).toEqual([{ type: "PickUp", groundItem: 3 }]);
   });
 
+  it("never takes a Gold Pile for the Item in Reach", () => {
+    inputTuning.groundItemReach = 1.5;
+    const world = facingEast([]);
+    world.goldPiles.push({ id: 1, amount: 9, pos: { x: 10.1, y: 10 } });
+
+    const { orders } = pollPad(
+      createPadInput(),
+      press("a"),
+      0,
+      tilesOver(world),
+    );
+
+    expect(orders).toEqual([]);
+  });
+
   it("with no Target and every Ground Item out of reach does nothing", () => {
     inputTuning.groundItemReach = 1.5;
     const world = facingEast([]);

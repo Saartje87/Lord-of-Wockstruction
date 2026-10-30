@@ -30,6 +30,7 @@ import { type HeroActor, heroActorOf, poseHero } from "./heroActor";
 import { createLighting, type Lighting, lightScene } from "./lighting";
 import {
   GEM,
+  goldPlacement,
   groundPlacement,
   LOOT_MODELS,
   type Placement,
@@ -445,6 +446,7 @@ function showLoot(models: Models, view: WorldView) {
     placed[placement.model].push(placement);
   };
   for (const item of view.groundItems) add(groundPlacement(item));
+  for (const pile of view.goldPiles) add(goldPlacement(pile));
   for (const projectile of view.projectiles) {
     for (const placement of projectilePlacements(projectile)) add(placement);
   }

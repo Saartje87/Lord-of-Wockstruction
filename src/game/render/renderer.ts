@@ -102,11 +102,13 @@ import {
   experienceBar,
   experienceBarLayout,
 } from "./experienceBar";
+import { GOLD_COLOUR, goldPileLabel, goldTotalLabel } from "./goldArt";
 import {
   GROUND_LABEL,
   type GroundLabel,
+  goldLabelId,
+  groundItemLabelAt,
   groundItemUnder,
-  groundLabelAt,
   groundLabels,
 } from "./groundLabels";
 import {
@@ -804,7 +806,7 @@ export function createRenderer(
 
   /** The Ground Item whose label is under a canvas point (CSS px). */
   const groundLabelUnder = (screen: Vec): ItemId | null =>
-    groundLabelAt(labels, screen);
+    groundItemLabelAt(labels, screen);
 
   /** The Ground Item drawn on the floor under a canvas point (CSS px). */
   const groundItemAt = (screen: Vec): ItemId | null =>
@@ -826,26 +828,43 @@ export function createRenderer(
       cameraOf(),
       lying.map(({ item, pos }) => ({ id: item.id, type: item.type, pos })),
     );
-    const sized = lying.map(({ item }, i) => {
-      const { at } = spots[i];
-      let text = labelTexts.get(item.id);
+    const piles = world.goldPiles.map(({ id, amount, pos }) => ({
+      id: goldLabelId(id),
+      amount,
+      pos,
+    }));
+    const pileSpots = groundSpotsOf(cameraOf(), piles);
+    const labelled = [
+      ...lying.map(({ item }, i) => ({
+        id: item.id,
+        name: itemTitle(item),
+        at: spots[i].at,
+      })),
+      ...piles.map(({ id, amount }, i) => ({
+        id,
+        name: goldPileLabel(amount),
+        at: pileSpots[i].at,
+      })),
+    ];
+    const sized = labelled.map(({ id, name, at }) => {
+      let text = labelTexts.get(id);
       if (!text) {
-        text = new Text({
-          text: itemTitle(item),
-          style: { fontFamily: SERIF },
-        });
+        text = new Text({ text: name, style: { fontFamily: SERIF } });
         text.anchor.set(0.5, 0.5);
-        labelTexts.set(item.id, text);
+        labelTexts.set(id, text);
         labels3d.addChild(text);
       }
       sizeText(text, GROUND_LABEL.textSize * uiScale);
       const width = text.width + 2 * GROUND_LABEL.padding * uiScale;
-      return { id: item.id, at, width };
+      return { id, at, width };
     });
     // Labels are laid out on the screen, at the UI Scale.
     labels = groundLabels(sized, uiScale);
     const rarityOf = new Map(lying.map(({ item }) => [item.id, item.rarity]));
-    lyingAt = sized.map(({ id, at }) => ({ id, at }));
+    // A Gold Pile is never grabbed by a click: only Items are looked for.
+    lyingAt = sized
+      .filter(({ id }) => id > 0)
+      .map(({ id, at }) => ({ id, at }));
     for (const { id, rect } of labels) {
       labelBacks.rect(rect.x, rect.y, rect.w, rect.h).fill({
         color: GROUND_ITEM.label,
@@ -854,11 +873,12 @@ export function createRenderer(
       });
       const text = labelTexts.get(id);
       if (!text) continue;
-      text.style.fill = rarityColour(rarityOf.get(id) ?? "normal");
+      text.style.fill =
+        id < 0 ? GOLD_COLOUR : rarityColour(rarityOf.get(id) ?? "normal");
       text.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
     }
     for (const [id, text] of labelTexts) {
-      if (lying.some(({ item }) => item.id === id)) continue;
+      if (sized.some((shown) => shown.id === id)) continue;
       text.destroy();
       labelTexts.delete(id);
     }
@@ -3177,6 +3197,9 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
   const title = text(style.title, style.titleSize);
   title.text = "Inventory";
   title.anchor.set(0.5, 0);
+  /** The Hero's Gold, at the top left. */
+  const gold = text(GOLD_COLOUR, style.textSize);
+  gold.anchor.set(0, 0);
   const hint = text(style.hint, style.hintSize);
   hint.anchor.set(0.5, 1);
   const slotLabels = Object.fromEntries(
@@ -3288,6 +3311,8 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
       panelFrame(graphics, panel);
       closeButton(graphics, layout.closeButton, scale);
       title.position.set(panel.x + panel.w / 2, panel.y + padding);
+      gold.text = goldTotalLabel(world.hero.progress.gold);
+      gold.position.set(panel.x + padding, panel.y + padding + 4 * scale);
       hint.position.set(panel.x + panel.w / 2, panel.y + panel.h - padding);
 
       const box = (rect: Rect) =>

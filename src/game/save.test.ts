@@ -882,5 +882,8 @@ function v10(changes: Record<string, unknown>) {
 function stored(version: number | undefined, fields: object): string {
   // Gold came with version 12; older text must not hold it.
   const { gold: _gold, ...older } = fields as { gold?: number };
-  return JSON.stringify({ version, ...(version === undefined ? fields : older) });
+  return JSON.stringify({
+    version,
+    ...(version === undefined ? fields : older),
+  });
 }

@@ -142,6 +142,24 @@ const VENDORED = {
   },
 };
 
+/**
+ * Gold Piles' coin stacks, written to `public/assets/models/loot/`: Resource
+ * Bits, from Bits Bundle 2 (CC0). Like `VENDORED` it is read from the
+ * gitignored `vendor/kaykit/` and skipped when it isn't there, keeping the
+ * committed models.
+ */
+const RESOURCE_BITS = {
+  name: "Resource Bits (Bits Bundle 2)",
+  dir: "vendor/kaykit/KayKit_Bits_Bundle2/KayKit Resource Bits 1.0",
+  url: "https://kaylousberg.itch.io/kaykit-bits-bundle",
+  models: [
+    "Money_Coins_Stack_Single",
+    "Money_Coins_Stack_Small",
+    "Money_Coins_Stack_Medium",
+    "Money_Coins_Stack_Large",
+  ],
+};
+
 /** Whether a piece's pack is one of the `VENDORED` ones. */
 function isVendored(pack: PieceSource["pack"]): pack is keyof typeof VENDORED {
   return pack in VENDORED;
@@ -391,6 +409,17 @@ for (const name of LOOT.dungeon) {
     `${out.models}/loot/${name}.glb`,
   );
 }
+for (const name of RESOURCE_BITS.models) {
+  const to = `${out.models}/loot/${name}.glb`;
+  if (existsSync(RESOURCE_BITS.dir)) {
+    await io.write(
+      to,
+      await io.read(`${RESOURCE_BITS.dir}/Assets/gltf/${name}.gltf`),
+    );
+  } else {
+    console.log(`No ${RESOURCE_BITS.dir}: keeping the committed ${to}`);
+  }
+}
 writeFileSync(
   `${out.tilesets}/kaykit.tsj`,
   `${JSON.stringify(tilesetOf(PIECES), null, 1)}\n`,
@@ -414,6 +443,10 @@ const imported = [
   ...LOOT.dungeon.map(
     (name) =>
       `| \`${PACKS.dungeon.root}/Assets/gltf/${name}.gltf.glb\` | Ground Items (Potions) |`,
+  ),
+  ...RESOURCE_BITS.models.map(
+    (name) =>
+      `| ${RESOURCE_BITS.name}: \`Assets/gltf/${name}.gltf\` | Gold Piles |`,
   ),
   ...PIECES.map(
     (source) =>
@@ -439,7 +472,7 @@ ${Object.values(PACKS)
   )
   .join("\n")}
 - ${MYSTERY.name}: [itch.io](${MYSTERY.url}), paid and CC0
-${Object.values(VENDORED)
+${[...Object.values(VENDORED), RESOURCE_BITS]
   .map((pack) => `- ${pack.name}: [itch.io](${pack.url}), paid and CC0`)
   .join("\n")}
 
@@ -449,7 +482,7 @@ the 1-handed sword and the round shield. The Monstrosity gets the
 retargeted onto its rig. Town's NPCs get the \`Rig_Medium\` idles, with no
 animation track for a bone they lack. Halloween Bits, Medieval Hexagon and
 City Builder Bits pieces, which come as glTF with a binary and a texture, are
-packed into one glb each. Nothing is recoloured.
+packed into one glb each, as are Resource Bits' coin stacks. Nothing is recoloured.
 
 ### Imported files
 

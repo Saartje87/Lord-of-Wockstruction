@@ -1,7 +1,7 @@
 import { areaTuning } from "../tuning/areas";
 import { boneAltarTuning } from "../tuning/boneAltars";
-import { graveWockingtonTuning } from "../tuning/graveWockington";
 import { goldTuning } from "../tuning/gold";
+import { graveWockingtonTuning } from "../tuning/graveWockington";
 import { heroTuning } from "../tuning/hero";
 import {
   type Bonus,

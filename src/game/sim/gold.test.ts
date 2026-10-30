@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { encodeSave, parseSave, saveOf } from "../save";
+import { changesSave } from "../save";
 import { goldTuning } from "../tuning/gold";
 import { dropTuning, potionDropTuning } from "../tuning/items";
 import { emptyBelt } from "./belt";
@@ -67,7 +67,10 @@ function map(row: string, exitTo = "") {
   };
 }
 
-const tuned = { ...goldTuning, perMonsterLevel: [...goldTuning.perMonsterLevel] };
+const tuned = {
+  ...goldTuning,
+  perMonsterLevel: [...goldTuning.perMonsterLevel],
+};
 const tunedItems = { ...dropTuning };
 const tunedPotions = { ...potionDropTuning };
 afterEach(() => {
@@ -144,8 +147,10 @@ describe("Gold Piles", () => {
     let piles = 0;
     const kills = 200;
     for (let seed = 1; seed <= kills; seed++) {
-      piles += ofType(killWithHero(town("H.S..", { seed })), "GoldDropped")
-        .length;
+      piles += ofType(
+        killWithHero(town("H.S..", { seed })),
+        "GoldDropped",
+      ).length;
     }
     expect(piles / kills).toBeGreaterThan(0.4);
     expect(piles / kills).toBeLessThan(0.6);
@@ -308,8 +313,7 @@ describe("Picking up Gold", () => {
     expect(world.goldPiles).toHaveLength(1);
   });
 
-  it("is a change the Save keeps", async () => {
-    const { changesSave } = await import("../save");
+  it("is a change the Save keeps", () => {
     expect(changesSave([{ type: "GoldPickedUp", amount: 3 }])).toBe(true);
   });
 

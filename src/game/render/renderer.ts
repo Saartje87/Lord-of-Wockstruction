@@ -45,6 +45,7 @@ import {
   areaFade,
   DEATH_STEPS,
   groundItemsOf,
+  hasQuestToDeal,
   inTown,
   isInCombat,
   isRegenerating,
@@ -68,6 +69,7 @@ import { tileToScreen, type WorldCamera } from "../world3d/camera";
 import { CRUMBLE_SECONDS } from "../world3d/crumble";
 import { groundSpotsOf } from "../world3d/groundSpots";
 import { MONSTER_LOOKS } from "../world3d/monsterLook";
+import { NPC_LOOKS } from "../world3d/npcLook";
 import { npcPickablesOf, pickablesOf } from "../world3d/pickables";
 import { characterUnder3d, type Pickable3d } from "../world3d/picking";
 import type { DepartedMinion, Effects } from "../world3d/view";
@@ -170,6 +172,7 @@ import {
   PAUSE_MENU_LAYOUT,
   pauseMenuLayout,
 } from "./pauseMenu";
+import { QUEST_MARK, questMarkBob } from "./questMark";
 import { QUEST_PANEL, questPanelLayout, questPanelSheet } from "./questPanel";
 import {
   ROTATE_NOTICE_LAYOUT,
@@ -1181,6 +1184,16 @@ export function createRenderer(
         const anchor = barAnchor(monster);
         curseMark(overheads, anchor.x, anchor.y, markAlpha);
       }
+      // A mark over each NPC with a Quest to give or take back.
+      for (const npc of npcsIn(world)) {
+        if (!hasQuestToDeal(world, npc.id)) continue;
+        const head = tileToScreen(camera, npc.pos, NPC_LOOKS[npc.name].height);
+        questMark(
+          overheads,
+          head.x / camera.zoom,
+          head.y / camera.zoom - QUEST_MARK.lift - questMarkBob(nowMs),
+        );
+      }
       for (const monster of world.monsters) {
         const life = monsterMaxLife(monster);
         if (monster.life >= life) continue;
@@ -1361,6 +1374,30 @@ export function createRenderer(
       notice.draw(viewport, menus.fullscreen);
     },
   };
+}
+
+/**
+ * The mark over an NPC with a Quest: an exclamation mark centred on `x`, its
+ * foot at `bottom`.
+ */
+function questMark(graphics: Graphics, x: number, bottom: number) {
+  const { colour, outline, outlineWidth, barWidth, barHeight, dot, gap } =
+    QUEST_MARK;
+  const dotTop = bottom - dot;
+  graphics
+    .roundRect(x - dot / 2, dotTop, dot, dot, dot / 2)
+    .fill(colour)
+    .stroke({ color: outline, width: outlineWidth });
+  graphics
+    .roundRect(
+      x - barWidth / 2,
+      dotTop - gap - barHeight,
+      barWidth,
+      barHeight,
+      barWidth / 2,
+    )
+    .fill(colour)
+    .stroke({ color: outline, width: outlineWidth });
 }
 
 /**

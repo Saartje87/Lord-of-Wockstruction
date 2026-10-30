@@ -29,6 +29,25 @@ describe("the 3D World view of Town", () => {
     expect(new Set(models).size).toBe(3);
   });
 
+  it("marks the NPCs with a Quest to give, and none once they are all Given", () => {
+    const world = shipped();
+    const marks = () =>
+      worldViewOf(world, 1, NO_POINTER).npcs.map((npc) => npc.questMark);
+
+    expect(marks()).toEqual([true, true, true]);
+
+    for (const quest of Object.values(world.hero.progress.quests)) {
+      quest.state = "given";
+    }
+    expect(marks()).toEqual([false, false, false]);
+
+    world.hero.progress.quests["bog-off"].state = "ready";
+    const trader = worldViewOf(world, 1, NO_POINTER).npcs.find(
+      (npc) => npc.name === "Trader",
+    );
+    expect(trader?.questMark).toBe(true);
+  });
+
   it("turns an NPC towards a Hero who is near, else to the camera", () => {
     const world = shipped();
     const smith = world.areas.town.npcs.find((npc) => npc.name === "Smith");

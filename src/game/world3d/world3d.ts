@@ -89,7 +89,7 @@ export type World3d = {
   /** The Minions in the scene, by id. */
   minions: Map<number, MonsterActor>;
   /** Town's NPCs in the scene, by their place in the Area's NPCs. */
-  npcs: Map<number, MonsterActor>;
+  npcs: Map<string, MonsterActor>;
   /** The Wall and Prop pieces loaded so far, by piece name. */
   pieces: Record<string, Object3D | undefined>;
   /** The pieces asked for, so each is loaded once. */
@@ -402,22 +402,23 @@ function poseMinions(world3d: World3d, view: WorldView, dt: number) {
 function poseNpcs(world3d: World3d, view: WorldView, dt: number) {
   const { models, npcs, scene } = world3d;
   if (!models) return;
-  const seen = new Set<number>();
+  // By name: an NPC's index in its Area can be another Area's NPC's.
+  const seen = new Set<string>();
   for (const npc of view.npcs) {
-    seen.add(npc.id);
-    let actor = npcs.get(npc.id);
+    seen.add(npc.name);
+    let actor = npcs.get(npc.name);
     if (!actor) {
       actor = monsterActorOf(NPC_LOOKS[npc.name], models.monsters);
-      npcs.set(npc.id, actor);
+      npcs.set(npc.name, actor);
       scene.add(actor.root);
     }
     poseMonster(actor, npc, dt);
   }
-  for (const [id, actor] of npcs) {
-    if (seen.has(id)) continue;
+  for (const [name, actor] of npcs) {
+    if (seen.has(name)) continue;
     scene.remove(actor.root);
     for (const material of actor.materials) material.dispose();
-    npcs.delete(id);
+    npcs.delete(name);
   }
 }
 

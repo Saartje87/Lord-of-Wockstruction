@@ -1810,12 +1810,21 @@ describe("the Start Screen", () => {
       menus.screen = { ...startScreen(true), confirming: true };
 
       pressPad(menus, "right", 1000, alive);
-      expect(menus.menuFocus).toBe("confirm");
-      pressPad(menus, "right", 1000, alive);
       expect(menus.menuFocus).toBe("goBack");
       pressPad(menus, "left", 1000, alive);
+      expect(menus.menuFocus).toBe("confirm");
 
       expect(pressPad(menus, "a", 1000, alive)).toBe("newHero");
+    });
+
+    it("first Focus on the confirm lands on No, so a stray A doesn't wipe the Save", () => {
+      const menus = withFullscreen(true);
+      menus.screen = { ...startScreen(true), confirming: true };
+
+      pressPad(menus, "a", 1000, alive);
+
+      expect(menus.menuFocus).toBe("goBack");
+      expect(menus.screen).toMatchObject({ confirming: true });
     });
 
     it("B says No on the confirm, from the start of it", () => {

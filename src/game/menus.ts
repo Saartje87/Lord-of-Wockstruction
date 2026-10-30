@@ -281,7 +281,7 @@ function pressStartChoice(
 /**
  * A controller button on the Start Screen, which takes them all. Focus
  * works as in the pause menu: none until the D-pad, the stick or A first
- * touches the screen, which picks the first button; then the D-pad moves
+ * touches the screen, which picks the first button (No on the confirm); then the D-pad moves
  * it, A presses the one picked, and B says No on the New Hero confirm.
  */
 function pressStartPad(
@@ -296,7 +296,8 @@ function pressStartPad(
     if (screen.confirming) pressStartChoice(menus, screen, "goBack");
     menus.menuFocus = null;
   } else if (at === -1 && (button === "a" || isDirection(button))) {
-    menus.menuFocus = choices[0];
+    // No while confirming, for safety: a stray A must not wipe the Save.
+    menus.menuFocus = screen.confirming ? "goBack" : choices[0];
   } else if (picked !== null && button === "a") {
     const asked = pressStartChoice(menus, screen, picked);
     // Asking to confirm, or going back, leaves a different row to pick in.

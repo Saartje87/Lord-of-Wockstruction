@@ -191,3 +191,29 @@ export function outline(model: Object3D, thickness: number, scale: number) {
     mesh.parent?.add(copy);
   }
 }
+
+/** The toon materials of every mesh under `model`, except outlines'. */
+export function materialsOf(model: Object3D): MeshToonMaterial[] {
+  const materials: MeshToonMaterial[] = [];
+  model.traverse((node) => {
+    const mesh = node as Mesh;
+    if (mesh.isMesh && !mesh.userData.isOutline) {
+      materials.push(mesh.material as MeshToonMaterial);
+    }
+  });
+  return materials;
+}
+
+/**
+ * Washes an actor's own materials with `colour` at `amount` (0 leaves them
+ * as they are): the hit flash is white, the Level-Up glow gold.
+ */
+export function glowMaterials(
+  materials: readonly MeshToonMaterial[],
+  colour: number,
+  amount: number,
+) {
+  for (const material of materials) {
+    material.emissive.set(colour).multiplyScalar(amount);
+  }
+}

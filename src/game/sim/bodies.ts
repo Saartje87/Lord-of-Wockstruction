@@ -1,8 +1,8 @@
 import { heroTuning } from "../tuning/hero";
 import { minionTuning } from "../tuning/minions";
 import { monsterTuning } from "../tuning/monsters";
-import type { Area } from "./area";
-import { fitsAt } from "./path";
+import { type Area, isWalkable } from "./area";
+import { fitsAt, isClear } from "./path";
 import { distance, type Vec } from "./vec";
 import type { World } from "./world";
 
@@ -112,3 +112,99 @@ function away(from: Vec, to: Vec, id: number): Vec {
 }
 
 const scaled = (v: Vec, by: number): Vec => ({ x: v.x * by, y: v.y * by });
+
+/**
+ * Where a Minion of `radius` summoned at `point` stands: there if walkable,
+ * else the nearest point to it on a walkable tile, kept `radius` inside the
+ * tile's edges. Null in an Area with nowhere walkable.
+ */
+export function summonPoint(
+  area: Area,
+  point: Vec,
+  radius: number,
+): Vec | null {
+  if (isWalkable(area, point)) return { ...point };
+  let nearest: Vec | null = null;
+  for (let y = 0; y < area.height; y++) {
+    for (let x = 0; x < area.width; x++) {
+      if (!isWalkable(area, { x, y })) continue;
+      const clamped = {
+        x: Math.min(x + 1 - radius, Math.max(x + radius, point.x)),
+        y: Math.min(y + 1 - radius, Math.max(y + radius, point.y)),
+      };
+      if (!nearest || distance(clamped, point) < distance(nearest, point)) {
+        nearest = clamped;
+      }
+    }
+  }
+  return nearest;
+}
+
+/** How far apart the candidate spots of a search lie along a ring (tiles). */
+const SPOT_STEP = 0.25;
+/** How many ways round each ring of a search are tried. */
+const SPOT_TURNS = 24;
+/** How far from the spot asked for a search looks (tiles). */
+const SPOT_REACH = 10;
+
+/**
+ * Where a creature with a Body of `radius` asked to appear at `point` can
+ * stand: `point` itself, else the nearest spot to it that is walkable, fits
+ * the Body at the walls, has a clear line from `point` and overlaps no
+ * Body. A `point` in a wall counts as the nearest walkable spot to it. Bodies
+ * in `ignore` are not there (for a creature about to be placed, or one just
+ * crumbled away).
+ *
+ * Spots are tried nearest first, then in turn round the ring from east, so
+ * the same World always gives the same spot. With no free spot in reach it
+ * is the nearest one that fits at the walls, overlapping, for the shove to
+ * part; null in an Area with nowhere walkable.
+ */
+export function freeSpot(
+  world: World,
+  point: Vec,
+  radius: number,
+  ignore: readonly object[] = [],
+): Vec | null {
+  const area = world.areas[world.areaName];
+  const size = wallRadius(radius);
+  const from = summonPoint(area, point, size);
+  if (!from) return null;
+  const others = [
+    ...(world.death
+      ? []
+      : [{ pos: world.hero.pos, radius: heroTuning.radius }]),
+    ...world.minions
+      .filter((minion) => !ignore.includes(minion))
+      .map((minion) => ({
+        pos: minion.pos,
+        radius: minionTuning[minion.type].radius,
+      })),
+    ...world.monsters
+      .filter((monster) => !ignore.includes(monster))
+      .map((monster) => ({
+        pos: monster.pos,
+        radius: monsterTuning[monster.type].radius,
+      })),
+  ];
+  const free = (spot: Vec) =>
+    fitsAt(area, spot, size) &&
+    isClear(area, from, spot, size) &&
+    others.every((other) => distance(other.pos, spot) >= other.radius + radius);
+
+  if (free(from)) return from;
+  let fallback: Vec | null = fitsAt(area, from, size) ? from : null;
+  for (let ring = 1; ring * SPOT_STEP <= SPOT_REACH; ring++) {
+    const away = ring * SPOT_STEP;
+    for (let turn = 0; turn < SPOT_TURNS; turn++) {
+      const angle = (2 * Math.PI * turn) / SPOT_TURNS;
+      const spot = {
+        x: from.x + away * Math.cos(angle),
+        y: from.y + away * Math.sin(angle),
+      };
+      if (free(spot)) return spot;
+      if (!fallback && fitsAt(area, spot, size)) fallback = spot;
+    }
+  }
+  return fallback ?? from;
+}

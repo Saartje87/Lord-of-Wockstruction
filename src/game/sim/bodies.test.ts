@@ -3,14 +3,23 @@ import { heroTuning } from "../tuning/hero";
 import { minionTuning } from "../tuning/minions";
 import { monsterTuning } from "../tuning/monsters";
 import { newMinion } from "./minions";
+import { emptySkillBar } from "./skillBar";
+import { combatArea } from "./testAreas";
 import { tileOf, type Vec } from "./vec";
-import { createWorld, type SimEvent, step, type World } from "./world";
+import {
+  createWorld,
+  FRESH_PROGRESS,
+  type Progress,
+  type SimEvent,
+  step,
+  type World,
+} from "./world";
 
 /**
  * An orthogonal Area drawn row by row: `.` floor, `#` wall, `H` the Hero's
  * `start` and `S` one Skeleton, both in the middle of their tile.
  */
-function map(rows: string[]) {
+function map(rows: string[], exitTo = "town") {
   const width = rows[0].length;
   const height = rows.length;
   const cells = rows.join("");
@@ -20,6 +29,25 @@ function map(rows: string[]) {
     const y = (Math.floor(i / width) + 0.5) * 32;
     if (cell === "H") {
       objects.push({ name: "start", type: "entry", point: true, x, y });
+    }
+    if (cell === "A") {
+      for (const name of ["arrive", "start"]) {
+        objects.push({ name, type: "entry", point: true, x, y });
+      }
+    }
+    if (cell === "E") {
+      objects.push({
+        name: "",
+        type: "exit",
+        x: x - 16,
+        y: y - 16,
+        width: 32,
+        height: 32,
+        properties: [
+          { name: "area", type: "string", value: exitTo },
+          { name: "entry", type: "string", value: "arrive" },
+        ],
+      });
     }
     if (cell === "S") {
       objects.push({
@@ -338,5 +366,174 @@ describe("the Hero's Minions and their Bodies", () => {
     expect(distance(skeleton.pos, w.hero.pos)).toBeGreaterThanOrEqual(
       heroTuning.radius + minionTuning.raisedSkeleton.radius - 1e-6,
     );
+  });
+});
+
+describe("placing new creatures", () => {
+  const caster: Progress = {
+    ...FRESH_PROGRESS,
+    level: 3,
+    experience: 1000,
+    skillLevels: { ...FRESH_PROGRESS.skillLevels, golem: 1, raiseSkeleton: 1 },
+    skillBar: { ...emptySkillBar(), right: "golem", key1: "raiseSkeleton" },
+  };
+
+  /**
+   * A World with the Hero arrived in a Combat Area of `rows`, at its `A`
+   * tile, ready to cast.
+   */
+  function field(rows: string[]): World {
+    const w = createWorld({
+      areas: {
+        town: map(["HAE.....", "........", "........"], "field"),
+        field: combatArea(map(rows, "town"), 1),
+      },
+      seed: 1,
+      progress: caster,
+    });
+    step(w, [{ type: "MoveTo", target: { x: 2.5, y: 0.5 } }]);
+    stepUntil(w, () => w.areaName === "field" && !w.areaChange);
+    return w;
+  }
+
+  /** Whether a Body at `pos` of `radius` overlaps the Hero or a Monster. */
+  function overlaps(w: World, pos: Vec, radius: number) {
+    const others = [
+      { pos: w.hero.pos, radius: heroTuning.radius },
+      ...w.monsters.map((m) => ({
+        pos: m.pos,
+        radius: monsterTuning[m.type].radius,
+      })),
+    ];
+    return others.some((o) => distance(o.pos, pos) < o.radius + radius - 1e-6);
+  }
+
+  it("puts a summoned Golem at the nearest free spot where a Monster stands", () => {
+    const w = field(["..........", "A...S.....", ".........."]);
+    const [skeleton] = w.monsters;
+    const asked = { ...skeleton.pos };
+
+    const events = step(w, [{ type: "Cast", slot: "right", target: asked }]);
+    events.push(...stepUntil(w, () => !w.hero.cast));
+
+    const summoned = events.find((event) => event.type === "MinionSummoned");
+    if (summoned?.type !== "MinionSummoned") throw new Error("Not summoned");
+    // Where it was put, before anything shoved it.
+    expect(overlaps(w, summoned.pos, minionTuning.golem.radius)).toBe(false);
+    expect(distance(summoned.pos, asked)).toBeLessThan(1.5);
+  });
+
+  /** The Bodies of the Hero and their Minions, to check for overlaps. */
+  function friends(w: World) {
+    return [
+      { pos: w.hero.pos, radius: heroTuning.radius },
+      ...w.minions.map((m) => ({
+        pos: m.pos,
+        radius: minionTuning[m.type].radius,
+      })),
+    ];
+  }
+
+  /** The smallest gap between any two of `bodies` (negative when overlapping). */
+  function tightest(bodies: { pos: Vec; radius: number }[]): number {
+    let least = Number.POSITIVE_INFINITY;
+    for (const [i, a] of bodies.entries()) {
+      for (const b of bodies.slice(i + 1)) {
+        least = Math.min(least, distance(a.pos, b.pos) - a.radius - b.radius);
+      }
+    }
+    return least;
+  }
+
+  it("raises a Raised Skeleton at the nearest free spot from a Corpse with a Monster on it", () => {
+    const w = field(["..........", "A...S.....", ".........."]);
+    const [skeleton] = w.monsters;
+    const corpse = {
+      id: w.nextMonsterId++,
+      type: "skeleton" as const,
+      monsterLevel: 1,
+      pos: { ...skeleton.pos },
+    };
+    w.corpses.push(corpse);
+
+    const events = step(w, [
+      { type: "Cast", slot: "key1", target: { ...corpse.pos } },
+    ]);
+    events.push(...stepUntil(w, () => !w.hero.cast));
+
+    const raised = events.find((event) => event.type === "MinionSummoned");
+    if (raised?.type !== "MinionSummoned") throw new Error("Not raised");
+    expect(overlaps(w, raised.pos, minionTuning.raisedSkeleton.radius)).toBe(
+      false,
+    );
+    expect(distance(raised.pos, corpse.pos)).toBeLessThan(1.5);
+  });
+
+  it("lands Minions following the Hero through an Exit in separate spots", () => {
+    const w = field(["AE........", "..........", ".........."]);
+    for (let i = 0; i < 4; i++) {
+      const at = { x: 1.5 + i * 0.01, y: 0.5 };
+      const type = i === 0 ? "golem" : "raisedSkeleton";
+      w.minions.push(
+        newMinion(
+          w.nextMinionId++,
+          type,
+          type === "golem" ? "golem" : "raiseSkeleton",
+          1,
+          at,
+          0,
+        ),
+      );
+    }
+
+    step(w, [{ type: "MoveTo", target: { x: 1.5, y: 0.5 } }]);
+    stepUntil(w, () => w.areaName === "town" && !w.areaChange);
+
+    expect(tightest(friends(w))).toBeGreaterThanOrEqual(-1e-6);
+  });
+
+  it("lands Minions teleported beside the Hero at once in separate spots", () => {
+    const w = field([
+      "A.........................",
+      "..........................",
+      "..........................",
+    ]);
+    for (let i = 0; i < 4; i++) {
+      const at = { x: 24.5 + i * 0.01, y: 1.5 };
+      const type = i === 0 ? "golem" : "raisedSkeleton";
+      w.minions.push(
+        newMinion(
+          w.nextMinionId++,
+          type,
+          type === "golem" ? "golem" : "raiseSkeleton",
+          1,
+          at,
+          0,
+        ),
+      );
+    }
+
+    step(w, []);
+
+    for (const minion of w.minions) {
+      expect(distance(minion.pos, w.hero.pos)).toBeLessThan(4);
+    }
+    expect(tightest(friends(w))).toBeGreaterThanOrEqual(-1e-6);
+  });
+
+  it("never puts a creature across a wall from the spot asked for", () => {
+    // A Monster alone in a sealed one-tile pocket the Hero summons into.
+    const w = field(["A....###", ".....#S#", ".....###"]);
+    const [skeleton] = w.monsters;
+
+    const events = step(w, [
+      { type: "Cast", slot: "right", target: { ...skeleton.pos } },
+    ]);
+    events.push(...stepUntil(w, () => !w.hero.cast));
+
+    const summoned = events.find((event) => event.type === "MinionSummoned");
+    if (summoned?.type !== "MinionSummoned") throw new Error("Not summoned");
+    expect(Math.floor(summoned.pos.x)).toBe(6);
+    expect(Math.floor(summoned.pos.y)).toBe(1);
   });
 });

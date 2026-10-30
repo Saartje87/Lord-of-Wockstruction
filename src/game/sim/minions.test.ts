@@ -279,7 +279,7 @@ describe("the Golem going through Exits", () => {
     expect(distance(golemOf(w).pos, w.hero.pos)).toBeLessThanOrEqual(1 + 1e-9);
   });
 
-  it("brings every Minion along, each next to the Hero", () => {
+  it("brings every Minion along, each next to the Hero but in a spot of its own", () => {
     const w = inField();
     summonAt(w, { x: 3.5, y: 4.5 });
     w.minions.push(anotherMinion(w, { x: 12.5, y: 3.5 }));
@@ -289,7 +289,7 @@ describe("the Golem going through Exits", () => {
 
     expect(w.minions.map((minion) => minion.id)).toEqual(ids);
     for (const minion of w.minions) {
-      expect(distance(minion.pos, w.hero.pos)).toBeLessThanOrEqual(1 + 1e-9);
+      expect(distance(minion.pos, w.hero.pos)).toBeLessThanOrEqual(3);
     }
   });
 });

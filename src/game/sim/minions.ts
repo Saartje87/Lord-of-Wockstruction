@@ -4,8 +4,8 @@ import {
   minionTuning,
 } from "../tuning/minions";
 import type { Skill } from "../tuning/skills";
-import { type Area, isWalkable } from "./area";
-import { wallRadius } from "./bodies";
+import { isWalkable } from "./area";
+import { freeSpot, wallRadius } from "./bodies";
 import { altarRadiusOf, type BoneAltar, targetsOf } from "./boneAltars";
 import { faceToward, lands } from "./melee";
 import { isClear } from "./path";
@@ -184,38 +184,17 @@ export function newMinion(
 }
 
 /**
- * Where a Minion of `radius` summoned at `point` stands: there if walkable,
- * else the nearest point to it on a walkable tile, kept `radius` inside the
- * tile's edges. Null in an Area with nowhere walkable.
- */
-export function summonPoint(
-  area: Area,
-  point: Vec,
-  radius: number,
-): Vec | null {
-  if (isWalkable(area, point)) return { ...point };
-  let nearest: Vec | null = null;
-  for (let y = 0; y < area.height; y++) {
-    for (let x = 0; x < area.width; x++) {
-      if (!isWalkable(area, { x, y })) continue;
-      const clamped = {
-        x: Math.min(x + 1 - radius, Math.max(x + radius, point.x)),
-        y: Math.min(y + 1 - radius, Math.max(y + radius, point.y)),
-      };
-      if (!nearest || distance(clamped, point) < distance(nearest, point)) {
-        nearest = clamped;
-      }
-    }
-  }
-  return nearest;
-}
-
-/**
  * Puts the Minion next to the Hero, facing their way, as if it had always
  * been there: behind them if it can walk straight there from the Hero, else
- * the nearest way round to it that it can, else on the Hero.
+ * the nearest way round to it that it can, else on the Hero; then at the
+ * nearest free spot to that, so no Body is under it. Minions in `pending`
+ * are not there yet (still to be placed), so don't count.
  */
-export function placeBesideHero(world: World, minion: Minion) {
+export function placeBesideHero(
+  world: World,
+  minion: Minion,
+  pending: readonly Minion[] = [],
+) {
   const area = world.areas[world.areaName];
   const { pos, facing } = world.hero;
   const { besideDistance } = minionTuning[minion.type];
@@ -230,8 +209,13 @@ export function placeBesideHero(world: World, minion: Minion) {
       .find(
         (point) => isWalkable(area, point) && isClear(area, pos, point, radius),
       ) ?? pos;
-  minion.pos = { ...at };
-  minion.prevPos = { ...at };
+  const spot =
+    freeSpot(world, at, minionTuning[minion.type].radius, [
+      minion,
+      ...pending,
+    ]) ?? at;
+  minion.pos = { ...spot };
+  minion.prevPos = { ...spot };
   minion.facing = facing;
   stopChasing(minion);
   minion.attackSteps = 0;

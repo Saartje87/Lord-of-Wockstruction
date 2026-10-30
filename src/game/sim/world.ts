@@ -37,7 +37,7 @@ import {
   TOWN,
 } from "./area";
 import { type BeltColumns, emptyBelt, putInBelt } from "./belt";
-import { separateBodies, wallRadius } from "./bodies";
+import { freeSpot, separateBodies, summonPoint } from "./bodies";
 import {
   altarRadiusOf,
   type BoneAltar,
@@ -76,7 +76,6 @@ import {
   newMinion,
   placeBesideHero,
   stepMinions,
-  summonPoint,
 } from "./minions";
 import {
   killExperience,
@@ -1266,7 +1265,9 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
     new Array(area.width * area.height).fill(area.name === TOWN);
   world.standing = standingIn(world, area);
   revealAround(world);
-  for (const minion of world.minions) placeBesideHero(world, minion);
+  world.minions.forEach((minion, i) => {
+    placeBesideHero(world, minion, world.minions.slice(i + 1));
+  });
   world.heldOrders = [];
   if (!kept) {
     for (const spawn of area.spawns) placePack(world, area, spawn);
@@ -1648,7 +1649,8 @@ type Raising = {
 /**
  * Prunes `raiser`'s dead, and when `active` counts its cooldown down and,
  * once due and with room under the limit, raises up to `raising.size`
- * Monsters round it, restarting the cooldown. With no room to stand them it
+ * Monsters round it, each at the nearest free spot to its place, restarting
+ * the cooldown. With no room to stand them it
  * tries again next step.
  */
 function raiseWhenDue(
@@ -1665,10 +1667,14 @@ function raiseWhenDue(
   if (count <= 0) return [];
   const area = world.areas[world.areaName];
   const spots = spotsAround(world, area, raising.from, raising.distance, count);
-  const made = spots.map((spot) => ({
-    monster: placeMonster(world, area, raising.type(), spot),
-    spot,
-  }));
+  // One at a time, so each sees the ones raised before it.
+  const made: { monster: Monster; spot: Vec }[] = [];
+  for (const asked of spots) {
+    const type = raising.type();
+    const spot = freeSpot(world, asked, monsterTuning[type].radius);
+    if (spot)
+      made.push({ monster: placeMonster(world, area, type, spot), spot });
+  }
   if (made.length === 0) return [];
   raiser.raised.push(...made.map((m) => m.monster.id));
   raiser.cooldown = raising.cooldown;
@@ -2208,8 +2214,8 @@ function nearestCorpse(world: World, point: Vec): Corpse | null {
 }
 
 /**
- * Brings a fresh Minion at full Life at `target`, or the nearest point to it
- * a Minion can stand on, crumbling away the one `skill` brought before: the
+ * Brings a fresh Minion at full Life at `target`, or the nearest free spot to
+ * it a Minion can stand on, crumbling away the one `skill` brought before: the
  * Hero has at most one of each summoned Minion.
  */
 function summon(
@@ -2220,12 +2226,11 @@ function summon(
   target: Vec,
   events: SimEvent[],
 ) {
-  const area = world.areas[world.areaName];
-  const pos = summonPoint(area, target, wallRadius(minionTuning[type].radius));
+  // The one it replaces is about to crumble, so is no Body in the way.
+  const replaced = world.minions.filter((minion) => minion.skill === skill);
+  const pos = freeSpot(world, target, minionTuning[type].radius, replaced);
   if (!pos) return;
-  for (const minion of world.minions) {
-    if (minion.skill === skill) crumbleMinion(world, minion, events);
-  }
+  for (const minion of replaced) crumbleMinion(world, minion, events);
   bringMinion(world, skill, type, skillLevel, pos, events);
 }
 
@@ -2249,7 +2254,9 @@ function raise(
   for (const minion of raised.slice(0, Math.max(0, over))) {
     crumbleMinion(world, minion, events);
   }
-  bringMinion(world, skill, effect.minion, skillLevel, corpse.pos, events);
+  const pos = freeSpot(world, corpse.pos, minionTuning[effect.minion].radius);
+  if (!pos) return;
+  bringMinion(world, skill, effect.minion, skillLevel, pos, events);
 }
 
 /** How far `effect` reaches from its Corpse at `skillLevel` (tiles). */

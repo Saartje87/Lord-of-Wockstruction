@@ -104,6 +104,10 @@ _Avoid_: Title card, zone text, toast
 The Act Boss's name and Life, shown across the top of the screen while it is In Combat with the Hero, with a mark at half its Life; it goes when the Act Boss dies or starts Returning.
 _Avoid_: Boss health bar, boss HP, nameplate (that's on hover)
 
+**Minion Frame**:
+The Hero's living Minions shown at the top left of the HUD, one row per Minion kind that has any alive, always Golem, then Raised Skeletons, then Raised Archers: the kind's picture, how many the Hero has out of how many they can have (never for the Golem, of which there is only one), and a thin Life bar for each of them, oldest first, flashing when it is hit. It shows only while the Hero has Minions, the Map Overlay or a panel open or not, a panel drawn over it where they meet, and can't be clicked or tapped.
+_Avoid_: Portrait (that's the screen held upright), party frame, minion bar
+
 **Monster**:
 A hostile creature that attacks the Hero and their Minions and can be killed.
 _Avoid_: Enemy, mob, NPC
@@ -169,7 +173,7 @@ The panel listing the current Act's Quests, how far each has got and, for each o
 _Avoid_: Quest log, journal
 
 **Life**:
-The Hero's or a Monster's health; reaching zero means death.
+The Hero's, a Monster's or a Minion's health; reaching zero means death.
 _Avoid_: HP, health
 
 **Death**:

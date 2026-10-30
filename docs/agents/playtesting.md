@@ -24,29 +24,24 @@ Parallel agents share one Chrome and often one machine.
 
 ## Skip the grind
 
-In dev builds, `window.__wockstruction.loadSave(options)` builds a valid Save, writes it under `localStorage`'s `wockstruction.save` and reloads, so the game loads it through Continue. Everything you leave out is a New Hero's. For example, a Level 30 Hero with Vitality raised and some Gold:
+In dev builds, `window.__wockstruction.loadSave(options)` builds a valid Save, writes it under `localStorage`'s `wockstruction.save` and reloads, so the game loads it through Continue. Everything you leave out is a New Hero's. For example:
 
 ```js
+// Level 30, Vitality raised, some Gold.
 window.__wockstruction.loadSave({ level: 30, vitality: 120, gold: 500 });
+// A Magic Axe in the Inventory and a Heavy Belt holding more Potions.
+window.__wockstruction.loadSave({
+  inventory: [{ type: "axe", rarity: "magic", affixes: [{ kind: "brutality", grade: 1, value: 5 }] }],
+  equipment: { belt: "heavyBelt" },
+  belt: [["lifePotion", "manaPotion"], ["lifePotion"], [], []],
+});
 ```
 
-Options (`SaveOptions` in `src/game/devSave.ts`):
-
-- `level`: the Level, with Experience at its threshold.
-- `gold`.
-- `strength`, `dexterity`, `vitality`, `energy`: the Attribute values wanted (a New Hero starts each at its tuned value), not points raised.
-- `skillLevels`: Skill Levels by Skill, e.g. `{ golem: 3 }`. Any Skill in `skillTuning` (`src/game/tuning/skills.ts`) works, Prerequisites aside.
-- `quests`: each Quest's `state` (`notGiven`, `given`, `ready`, `done`) and `count`, e.g. `{ "lost-wanderer": { state: "done", count: 1 } }`. One left out is Not given.
-- `waypoints`: Areas whose Waypoint is touched, e.g. `["soggy-bog", "catacombs"]`. Wockville's always is.
-- `inventory`: Items for the Inventory, each in the first free cell, e.g. `["axe", "chainMail"]`. An Item is a type name (`itemTuning` in `src/game/tuning/items.ts`), making a Normal Item, or a whole one with `rarity`, `affixes` and `rareName`, checked by the Affix rules the Save uses: `{ type: "axe", rarity: "magic", affixes: [{ kind: "brutality", grade: 1, value: 5 }] }`.
-- `equipment`: Items by slot (`weapon`, `armour`, `amulet`, `ring1`, `ring2`, `belt`) over a New Hero's Short Sword; `null` empties a slot. A Rare Weapon: `{ weapon: { type: "shortSword", rarity: "rare", rareName: "Gloom Fang", affixes: [{ kind: "brutality", grade: 1, value: 5 }, { kind: "accuracy", grade: 0, value: 15 }, { kind: "strength", grade: 1, value: 5 }] } }`.
-- `belt`: the Potions in each Belt Column, from the left and each from the bottom up, e.g. `[["lifePotion", "manaPotion"], ["lifePotion"], [], []]`. Columns hold one Potion each without a Belt Equipped; a Belt in `equipment.belt` gives more rows.
-
-An Item that fits nowhere in the Inventory, or is in a slot of another kind, throws.
+Options are `SaveOptions` in `src/game/devSave.ts`, which says what each means. Attributes are the values wanted, not points raised; an Item is a type name or a whole one; a Belt Column holds only as many Potions as the Equipped Belt allows. An Item that fits nowhere, is in a slot of another kind, or a Belt Column that is too full throws.
 
 Unspent Attribute and Skill Points are worked out from the Level, what you asked for and what Done Quests paid. Asking for more than the Level allows throws, naming Attribute Points or Skill Points and by how much. The Skill Bar starts empty and the Smith's service follows the Quests.
 
-A Save at 450 Experience levels up on the next Skeleton kill. For fights, use Level 30 or more with Vitality raised: Monster Level comes from the Combat Area, not the Hero, so a Level 1 to 10 Hero dies to the first Skeleton group while you take screenshots. **New Hero** on the Start Screen (Esc, then Quit to Start Screen), or `localStorage.removeItem("wockstruction.save")`, puts things back. A Save written on a port belongs to that port only.
+A Save at 450 Experience levels up on the next Skeleton kill. For fights, use Level 30 or more with Vitality raised: Monster Level comes from the Combat Area, not the Hero, so a Level 1 to 10 Hero dies to the first Skeleton group while you take screenshots. **New Hero** on the Start Screen (Esc, then Quit to Start Screen), or `localStorage.removeItem("wockstruction.save")`, puts things back.
 
 ### Start in an Area
 

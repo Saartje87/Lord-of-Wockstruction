@@ -1,6 +1,6 @@
-import { encodeSave, parseSave } from "./save";
+import { encodeSave, parseSave, pointsGained } from "./save";
 import { isValidRoll } from "./sim/affixes";
-import type { BeltTypes } from "./sim/belt";
+import { type BeltTypes, rowsOf } from "./sim/belt";
 import {
   type Belongings,
   EQUIPMENT_SLOTS,
@@ -10,7 +10,7 @@ import {
   SLOT_KINDS,
   type StoredItem,
 } from "./sim/inventory";
-import { freshQuests, type QuestStates, questPointsOf } from "./sim/quests";
+import { freshQuests, type QuestStates } from "./sim/quests";
 import { smithQuestDone } from "./sim/smith";
 import {
   ATTRIBUTES,
@@ -21,7 +21,6 @@ import {
   SKILLS,
   type Skill,
 } from "./sim/world";
-import { heroTuning } from "./tuning/hero";
 import { type ItemType, itemTuning } from "./tuning/items";
 
 /** An Item as a playtest names it: a type, for a Normal Item, or a whole one. */
@@ -70,17 +69,16 @@ function belongingsOf(options: SaveOptions): Belongings {
     if (!cell) throw new Error(`${stored.type} fits nowhere in the Inventory`);
     inventory.push({ ...stored, cell });
   }
-  const given = options.equipment ?? {};
-  for (const slot of Object.keys(given)) {
-    if (!EQUIPMENT_SLOTS.includes(slot as EquipmentSlot)) {
-      throw new Error(`unknown Equipment slot ${slot}`);
-    }
-  }
+  const givenEquipment = options.equipment ?? {};
   const equipment: Belongings["equipment"] = {
     ...FRESH_BELONGINGS.equipment,
   };
-  for (const slot of EQUIPMENT_SLOTS) {
-    const spec = given[slot];
+  for (const name of Object.keys(givenEquipment)) {
+    if (!EQUIPMENT_SLOTS.includes(name as EquipmentSlot)) {
+      throw new Error(`unknown Equipment slot ${name}`);
+    }
+    const slot = name as EquipmentSlot;
+    const spec = givenEquipment[slot];
     if (spec === undefined) continue;
     if (spec === null) {
       delete equipment[slot];
@@ -94,11 +92,16 @@ function belongingsOf(options: SaveOptions): Belongings {
     }
     equipment[slot] = stored;
   }
-  return {
-    inventory,
-    equipment,
-    belt: options.belt ?? FRESH_BELONGINGS.belt,
-  };
+  const belt = options.belt ?? FRESH_BELONGINGS.belt;
+  const rows = rowsOf(equipment.belt?.type);
+  belt.forEach((column, index) => {
+    if (column.length > rows) {
+      throw new Error(
+        `Belt Column ${index} holds ${column.length} Potions, but the Belt holds ${rows} per Column`,
+      );
+    }
+  });
+  return { inventory, equipment, belt };
 }
 
 /**
@@ -115,7 +118,7 @@ export function buildSave(options: SaveOptions = {}): string {
     ...FRESH_PROGRESS.skillLevels,
     ...options.skillLevels,
   };
-  const given = questPointsOf(quests);
+  const gained = pointsGained(level, quests);
 
   const attributes = Object.fromEntries(
     ATTRIBUTES.map((attribute) => [
@@ -127,18 +130,14 @@ export function buildSave(options: SaveOptions = {}): string {
     (sum, attribute) => sum + attributes[attribute] - FRESH_PROGRESS[attribute],
     0,
   );
-  const attributePoints =
-    heroTuning.attributePointsPerLevel * (level - 1) +
-    given.attributePoints -
-    raised;
+  const attributePoints = gained.attributePoints - raised;
   if (attributePoints < 0) {
     throw new Error(
       `Attribute Points: ${-attributePoints} more raised than Level ${level} gives`,
     );
   }
   const spent = SKILLS.reduce((sum, skill) => sum + skillLevels[skill], 0);
-  const skillPoints =
-    heroTuning.skillPointsPerLevel * (level - 1) + given.skillPoints - spent;
+  const skillPoints = gained.skillPoints - spent;
   if (skillPoints < 0) {
     throw new Error(
       `Skill Points: ${-skillPoints} more Skill Levels than Level ${level} gives`,

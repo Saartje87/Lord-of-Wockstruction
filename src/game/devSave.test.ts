@@ -1,9 +1,10 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { buildSave } from "./devSave";
-import { parseSave, SAVE_VERSION } from "./save";
+import { parseSave, pointsGained, SAVE_VERSION } from "./save";
 import type { BeltTypes } from "./sim/belt";
 import { FRESH_BELONGINGS, type StoredItem } from "./sim/inventory";
-import { QUEST_IDS, questPointsOf } from "./sim/quests";
+import { freshQuests, QUEST_IDS } from "./sim/quests";
 import { FRESH_PROGRESS, levelExperience, SKILLS } from "./sim/world";
 import { heroTuning } from "./tuning/hero";
 import { inventoryTuning, itemTuning } from "./tuning/items";
@@ -44,7 +45,7 @@ describe("the dev Save builder", () => {
     expect(progress.strength).toBe(FRESH_PROGRESS.strength);
     const raised = 20 - FRESH_PROGRESS.vitality;
     expect(progress.attributePoints).toBe(
-      heroTuning.attributePointsPerLevel * 2 - raised,
+      pointsGained(3, freshQuests()).attributePoints - raised,
     );
   });
 
@@ -56,7 +57,9 @@ describe("the dev Save builder", () => {
     });
     expect(progress.skillLevels[first]).toBe(2);
     expect(progress.skillLevels[second]).toBe(1);
-    expect(progress.skillPoints).toBe(heroTuning.skillPointsPerLevel * 4 - 3);
+    expect(progress.skillPoints).toBe(
+      pointsGained(5, freshQuests()).skillPoints - 3,
+    );
   });
 
   it("sets Quests and Waypoints, Wockville always among them", () => {
@@ -78,7 +81,7 @@ describe("the dev Save builder", () => {
         [skillQuest]: { state: "done", count: 0 },
       },
     });
-    const paid = questPointsOf(progress.quests);
+    const paid = pointsGained(1, progress.quests);
     expect(paid.attributePoints).toBeGreaterThan(0);
     expect(progress.attributePoints).toBe(paid.attributePoints);
     expect(progress.skillPoints).toBe(paid.skillPoints);
@@ -191,6 +194,13 @@ describe("the dev Save builder", () => {
       ).toEqual(belt);
     });
 
+    it("throws naming the Column and capacity for a Belt Column too full", () => {
+      const potions: BeltTypes = [["lifePotion", "lifePotion"], [], [], []];
+      expect(() => buildSave({ belt: potions })).toThrow(
+        /Belt Column 0 holds 2 Potions.*1 per Column/,
+      );
+    });
+
     it("throws for an Item that fits nowhere", () => {
       const { columns, rows } = inventoryTuning;
       const many = Array.from(
@@ -213,5 +223,16 @@ describe("the dev Save builder", () => {
         }),
       ).toThrow(/axe/);
     });
+  });
+
+  it("builds each example playtesting.md shows", () => {
+    const doc = readFileSync("docs/agents/playtesting.md", "utf8");
+    const calls = [...doc.matchAll(/loadSave\((\{[\s\S]*?\})\);/g)];
+    expect(calls).toHaveLength(2);
+    for (const [, source] of calls) {
+      expect(() =>
+        buildSave(new Function(`return (${source})`)()),
+      ).not.toThrow();
+    }
   });
 });

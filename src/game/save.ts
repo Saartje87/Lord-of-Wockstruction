@@ -596,6 +596,23 @@ function fitsTable(level: number, experience: number): boolean {
 }
 
 /**
+ * The Attribute Points and Skill Points a Hero has gained at `level` with
+ * `quests`: what the Levels gave plus what Done Quests paid.
+ */
+export function pointsGained(
+  level: number,
+  quests: QuestStates,
+): { attributePoints: number; skillPoints: number } {
+  const paid = questPointsOf(quests);
+  return {
+    attributePoints:
+      heroTuning.attributePointsPerLevel * (level - 1) + paid.attributePoints,
+    skillPoints:
+      heroTuning.skillPointsPerLevel * (level - 1) + paid.skillPoints,
+  };
+}
+
+/**
  * Whether the Attributes and unspent points could have come from the Level:
  * no Attribute below where a fresh Hero starts it, and the points spent and
  * unspent adding up to what the Levels gained gave.
@@ -609,8 +626,7 @@ function fitsPoints(progress: Progress): boolean {
     raisedBy.every((points) => points >= 0) &&
     progress.attributePoints >= 0 &&
     raised + progress.attributePoints ===
-      heroTuning.attributePointsPerLevel * (progress.level - 1) +
-        questPointsOf(progress.quests).attributePoints
+      pointsGained(progress.level, progress.quests).attributePoints
   );
 }
 
@@ -627,7 +643,6 @@ function fitsSkillPoints(progress: Progress): boolean {
   return (
     progress.skillPoints >= 0 &&
     spent + progress.skillPoints ===
-      heroTuning.skillPointsPerLevel * (progress.level - 1) +
-        questPointsOf(progress.quests).skillPoints
+      pointsGained(progress.level, progress.quests).skillPoints
   );
 }

@@ -18,6 +18,7 @@ import {
   FLOOR_MIX,
   type FloorPieces,
   floorOf,
+  GRASS_FLOOR,
   PIECE_SCALE,
   TOWN_FLOOR,
 } from "./floor";
@@ -200,7 +201,11 @@ export async function loadModels(
       ]),
     ),
   ];
-  const floorNames = [...Object.values(FLOOR_MIX), ...TOWN_FLOOR];
+  const floorNames = [
+    ...Object.values(FLOOR_MIX),
+    ...TOWN_FLOOR,
+    ...GRASS_FLOOR,
+  ];
   const pieceNames = sceneryPiecesOf(town).filter(
     (name) => !world3d.pieces[name],
   );

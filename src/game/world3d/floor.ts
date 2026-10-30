@@ -41,6 +41,12 @@ export const TOWN_FLOOR = [
   "halloween/path_D",
 ];
 
+/**
+ * The grass of the outdoor Areas: City Builder Bits' flat park tile, 2 units
+ * across (the dirt and paths are 4 and just under 2, and `fitOf` evens them).
+ */
+export const GRASS_FLOOR = ["city/park_base"];
+
 /** The scale at which `piece` covers one tile: pieces differ in size. */
 function fitOf(piece: Object3D): number {
   const size = new Box3().setFromObject(piece).getSize(new Vector3());

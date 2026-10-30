@@ -4,7 +4,7 @@
  "name": "kaykit",
  "tilewidth": 128,
  "tileheight": 128,
- "tilecount": 39,
+ "tilecount": 49,
  "columns": 0,
  "margin": 0,
  "spacing": 0,
@@ -890,6 +890,236 @@
   },
   {
    "id": 38,
+   "image": "kaykit/city_park_base.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": false
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "floor"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "city/park_base"
+    }
+   ]
+  },
+  {
+   "id": 39,
+   "image": "kaykit/city_tree_A.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "city/tree_A"
+    }
+   ]
+  },
+  {
+   "id": 40,
+   "image": "kaykit/city_tree_B.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "city/tree_B"
+    }
+   ]
+  },
+  {
+   "id": 41,
+   "image": "kaykit/city_tree_C.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "city/tree_C"
+    }
+   ]
+  },
+  {
+   "id": 42,
+   "image": "kaykit/city_tree_D.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "city/tree_D"
+    }
+   ]
+  },
+  {
+   "id": 43,
+   "image": "kaykit/city_tree_E.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "city/tree_E"
+    }
+   ]
+  },
+  {
+   "id": 44,
+   "image": "kaykit/city_bush.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "city/bush"
+    }
+   ]
+  },
+  {
+   "id": 45,
+   "image": "kaykit/city_bush_A.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "city/bush_A"
+    }
+   ]
+  },
+  {
+   "id": 46,
+   "image": "kaykit/city_bush_B.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "city/bush_B"
+    }
+   ]
+  },
+  {
+   "id": 47,
+   "image": "kaykit/city_bush_C.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "city/bush_C"
+    }
+   ]
+  },
+  {
+   "id": 48,
    "image": "kaykit/water.png",
    "imagewidth": 128,
    "imageheight": 128,

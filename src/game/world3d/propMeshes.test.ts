@@ -46,6 +46,13 @@ describe("the size of Town's Props", () => {
     }
   });
 
+  it("draws green trees taller than the Hero and bushes about his waist", () => {
+    // City Builder Bits' trees are about 1.1 high and its bushes up to 0.38.
+    expect(1.1 * scaleOf("city/tree_A")).toBeGreaterThan(HERO * 1.8);
+    expect(0.38 * scaleOf("city/bush_B")).toBeGreaterThan(HERO * 0.4);
+    expect(0.38 * scaleOf("city/bush_B")).toBeLessThan(HERO * 0.9);
+  });
+
   it("draws a standing lantern about as tall as the Hero's waist", () => {
     const lantern =
       heights["halloween/lantern_standing"] *

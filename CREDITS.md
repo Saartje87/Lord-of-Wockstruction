@@ -17,13 +17,14 @@ licence (CC0). Crediting him is not required, and we do.
 - Halloween Bits 1.0: [KayKit-Halloween-Bits-1.0](https://github.com/KayKit-Game-Assets/KayKit-Halloween-Bits-1.0) (commit `6dc69bf`)
 - Medieval Hexagon 1.0: [KayKit-Medieval-Hexagon-Pack-1.0](https://github.com/KayKit-Game-Assets/KayKit-Medieval-Hexagon-Pack-1.0) (commit `84fa4e9`)
 - Mystery Monthly Series 6: [itch.io](https://kaylousberg.itch.io/kaykit-series-6), paid and CC0
+- City Builder Bits (Bits Bundle 1): [itch.io](https://kaylousberg.itch.io/kaykit-bits-bundle), paid and CC0
 
 **Changes:** the Knight is cut down to the animations the game uses and to
 the 1-handed sword and the round shield. The Monstrosity gets the
 `Rig_Large` animations the game uses and the Knight's 2-handed chop,
 retargeted onto its rig. Town's NPCs get the `Rig_Medium` idles, with no
-animation track for a bone they lack. Halloween Bits and Medieval Hexagon
-pieces, which come as glTF with a binary and a texture, are packed into one
+animation track for a bone they lack. Halloween Bits, Medieval Hexagon
+and City Builder Bits pieces, which come as glTF with a binary and a texture, are packed into one
 glb each. Nothing is recoloured.
 
 ### Imported files
@@ -84,4 +85,14 @@ glb each. Nothing is recoloured.
 | `addons/kaykit_dungeon_remastered/Assets/gltf/wall_Tsplit.gltf.glb` | Walls |
 | `addons/kaykit_dungeon_remastered/Assets/gltf/wall_crossing.gltf.glb` | Walls |
 | `addons/kaykit_dungeon_remastered/Assets/gltf/wall_endcap.gltf.glb` | Walls |
+| City Builder Bits (Bits Bundle 1): `Assets/gltf/park_base.gltf` | floors |
+| City Builder Bits (Bits Bundle 1): `Assets/gltf/tree_A.gltf` | Props |
+| City Builder Bits (Bits Bundle 1): `Assets/gltf/tree_B.gltf` | Props |
+| City Builder Bits (Bits Bundle 1): `Assets/gltf/tree_C.gltf` | Props |
+| City Builder Bits (Bits Bundle 1): `Assets/gltf/tree_D.gltf` | Props |
+| City Builder Bits (Bits Bundle 1): `Assets/gltf/tree_E.gltf` | Props |
+| City Builder Bits (Bits Bundle 1): `Assets/gltf/bush.gltf` | Props |
+| City Builder Bits (Bits Bundle 1): `Assets/gltf/bush_A.gltf` | Props |
+| City Builder Bits (Bits Bundle 1): `Assets/gltf/bush_B.gltf` | Props |
+| City Builder Bits (Bits Bundle 1): `Assets/gltf/bush_C.gltf` | Props |
 <!-- end kaykit -->

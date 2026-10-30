@@ -38,6 +38,11 @@ Options (`SaveOptions` in `src/game/devSave.ts`):
 - `skillLevels`: Skill Levels by Skill, e.g. `{ golem: 3 }`. Any Skill in `skillTuning` (`src/game/tuning/skills.ts`) works, Prerequisites aside.
 - `quests`: each Quest's `state` (`notGiven`, `given`, `ready`, `done`) and `count`, e.g. `{ "lost-wanderer": { state: "done", count: 1 } }`. One left out is Not given.
 - `waypoints`: Areas whose Waypoint is touched, e.g. `["soggy-bog", "catacombs"]`. Wockville's always is.
+- `inventory`: Items for the Inventory, each in the first free cell, e.g. `["axe", "chainMail"]`. An Item is a type name (`itemTuning` in `src/game/tuning/items.ts`), making a Normal Item, or a whole one with `rarity`, `affixes` and `rareName`, checked by the Affix rules the Save uses: `{ type: "axe", rarity: "magic", affixes: [{ kind: "brutality", grade: 1, value: 5 }] }`.
+- `equipment`: Items by slot (`weapon`, `armour`, `amulet`, `ring1`, `ring2`, `belt`) over a New Hero's Short Sword; `null` empties a slot. A Rare Weapon: `{ weapon: { type: "shortSword", rarity: "rare", rareName: "Gloom Fang", affixes: [{ kind: "brutality", grade: 1, value: 5 }, { kind: "accuracy", grade: 0, value: 15 }, { kind: "strength", grade: 1, value: 5 }] } }`.
+- `belt`: the Potions in each Belt Column, from the left and each from the bottom up, e.g. `[["lifePotion", "manaPotion"], ["lifePotion"], [], []]`. Columns hold one Potion each without a Belt Equipped; a Belt in `equipment.belt` gives more rows.
+
+An Item that fits nowhere in the Inventory, or is in a slot of another kind, throws.
 
 Unspent Attribute and Skill Points are worked out from the Level, what you asked for and what Done Quests paid. Asking for more than the Level allows throws, naming Attribute Points or Skill Points and by how much. The Skill Bar starts empty and the Smith's service follows the Quests.
 

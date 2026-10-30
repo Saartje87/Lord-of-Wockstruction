@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { buildSave } from "./devSave";
 import { parseSave, SAVE_VERSION } from "./save";
-import { FRESH_BELONGINGS } from "./sim/inventory";
+import type { BeltTypes } from "./sim/belt";
+import { FRESH_BELONGINGS, type StoredItem } from "./sim/inventory";
 import { QUEST_IDS, questPointsOf } from "./sim/quests";
 import { FRESH_PROGRESS, levelExperience, SKILLS } from "./sim/world";
 import { heroTuning } from "./tuning/hero";
+import { inventoryTuning, itemTuning } from "./tuning/items";
 import { questTuning } from "./tuning/quests";
 
 /** What the game would load from the built text. */
@@ -107,5 +109,109 @@ describe("the dev Save builder", () => {
   it("throws invalid Save when the game would refuse the text", () => {
     expect(() => buildSave({ level: 9999 })).toThrow("invalid Save");
     expect(() => buildSave({ waypoints: [""] })).toThrow("invalid Save");
+  });
+
+  describe("Items", () => {
+    const magicAxe = {
+      type: "axe",
+      rarity: "magic",
+      affixes: [{ kind: "brutality", grade: 1, value: 5 }],
+    } satisfies StoredItem;
+    const rareSword = {
+      type: "shortSword",
+      rarity: "rare",
+      rareName: "Gloom Fang",
+      affixes: [
+        { kind: "brutality", grade: 1, value: 5 },
+        { kind: "accuracy", grade: 0, value: 15 },
+        { kind: "strength", grade: 1, value: 5 },
+      ],
+    } satisfies StoredItem;
+
+    it("loads a type name as a Normal Item, in Inventory and Equipment", () => {
+      const { belongings } = loaded({
+        inventory: ["axe"],
+        equipment: { armour: "leatherArmour" },
+      });
+      expect(belongings.inventory).toEqual([
+        { type: "axe", cell: { column: 0, row: 0 } },
+      ]);
+      expect(belongings.equipment.armour).toEqual({ type: "leatherArmour" });
+    });
+
+    it("keeps a whole Magic or Rare Item's Rarity, Affixes and Rare name", () => {
+      const { belongings } = loaded({
+        inventory: [magicAxe],
+        equipment: { weapon: rareSword },
+      });
+      expect(belongings.inventory[0]).toMatchObject(magicAxe);
+      expect(belongings.equipment.weapon).toEqual(rareSword);
+    });
+
+    it("keeps the New Hero's other Equipment, and empties a slot given null", () => {
+      expect(
+        loaded({ equipment: { armour: "chainMail" } }).belongings.equipment,
+      ).toEqual({
+        weapon: { type: "shortSword" },
+        armour: { type: "chainMail" },
+      });
+      expect(
+        loaded({ equipment: { weapon: null } }).belongings.equipment,
+      ).toEqual({});
+    });
+
+    it("places Inventory Items in free cells without overlapping", () => {
+      const { inventory } = loaded({
+        inventory: ["axe", "chainMail", "ring", "axe"],
+      }).belongings;
+      expect(inventory).toHaveLength(4);
+      const taken = new Set<string>();
+      for (const { type, cell } of inventory) {
+        const { columns, rows } = itemTuning[type].size;
+        for (let c = 0; c < columns; c++) {
+          for (let r = 0; r < rows; r++) {
+            const key = `${cell.column + c},${cell.row + r}`;
+            expect(taken.has(key)).toBe(false);
+            taken.add(key);
+          }
+        }
+      }
+      expect(inventory[0]?.cell).toEqual({ column: 0, row: 0 });
+    });
+
+    it("loads Belt Columns as given", () => {
+      const belt: BeltTypes = [
+        ["lifePotion", "manaPotion"],
+        [],
+        ["rejuvenationPotion"],
+        [],
+      ];
+      expect(
+        loaded({ equipment: { belt: "heavyBelt" }, belt }).belongings.belt,
+      ).toEqual(belt);
+    });
+
+    it("throws for an Item that fits nowhere", () => {
+      const { columns, rows } = inventoryTuning;
+      const many = Array.from(
+        { length: columns * rows + 1 },
+        () => "ring" as const,
+      );
+      expect(() => buildSave({ inventory: many })).toThrow(/fits nowhere/);
+    });
+
+    it("throws for an Item in the wrong kind of slot", () => {
+      expect(() => buildSave({ equipment: { weapon: "ring" } })).toThrow(
+        /weapon/,
+      );
+    });
+
+    it("throws for a whole Item the Affix rules refuse", () => {
+      expect(() =>
+        buildSave({
+          inventory: [{ type: "axe", rarity: "magic", affixes: [] }],
+        }),
+      ).toThrow(/axe/);
+    });
   });
 });

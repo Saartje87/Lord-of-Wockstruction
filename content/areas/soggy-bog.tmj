@@ -11,7 +11,7 @@
  "infinite": false,
  "compressionlevel": -1,
  "nextlayerid": 5,
- "nextobjectid": 18,
+ "nextobjectid": 21,
  "properties": [
   {
    "name": "act",
@@ -8603,6 +8603,42 @@
      "type": "waypoint",
      "x": 624,
      "y": 1296,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true
+    },
+    {
+     "id": 18,
+     "name": "bone altar",
+     "type": "boneAltar",
+     "x": 1392,
+     "y": 3696,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true
+    },
+    {
+     "id": 19,
+     "name": "bone altar",
+     "type": "boneAltar",
+     "x": 3888,
+     "y": 2736,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true
+    },
+    {
+     "id": 20,
+     "name": "bone altar",
+     "type": "boneAltar",
+     "x": 5328,
+     "y": 3696,
      "width": 0,
      "height": 0,
      "rotation": 0,

@@ -1,6 +1,7 @@
 import type { CharacterId } from "../render/hover";
 import type { Vec } from "../sim/vec";
 import { npcsIn, type World } from "../sim/world";
+import { BONE_ALTAR_HEIGHT } from "./boneAltarMeshes";
 import { MINION_LOOKS } from "./minionLook";
 import { MONSTER_LOOKS } from "./monsterLook";
 import { NPC_LOOKS } from "./npcLook";
@@ -14,8 +15,9 @@ function between(from: Vec, to: Vec, alpha: number): Vec {
 }
 
 /**
- * The living Monsters and Minions of `world`, `alpha` of the way between
- * steps, each with the height of its model, for picking.
+ * The living Monsters, Bone Altars and Minions of `world`, `alpha` of the way
+ * between steps, each with the height of its model, for picking. A Bone Altar
+ * is picked by its id, which an `Attack` order takes like a Monster's.
  */
 export function pickablesOf(
   world: World,
@@ -26,6 +28,11 @@ export function pickablesOf(
       id: monster.id,
       pos: between(monster.prevPos, monster.pos, alpha),
       height: MONSTER_LOOKS[monster.type].height,
+    })),
+    ...world.boneAltars.map((altar) => ({
+      id: altar.id,
+      pos: altar.pos,
+      height: BONE_ALTAR_HEIGHT,
     })),
     ...world.minions.map((minion) => ({
       id: { minion: minion.id },

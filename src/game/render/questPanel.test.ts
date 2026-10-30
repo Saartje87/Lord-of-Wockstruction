@@ -93,12 +93,12 @@ describe("the Quest panel's sheet", () => {
     expect(sheet[3].nextStep).toBeNull();
   });
 
-  it("counts the parts done of a Quest that asks for several", () => {
+  it("counts the parts left of a Quest that asks for several", () => {
     const w = world();
     w.hero.progress.quests["bog-off"] = { state: "given", count: 2 };
 
     expect(questPanelSheet(w)[0].nextStep).toBe(
-      `${questTuning["bog-off"].nextStep} (2/3)`,
+      `${questTuning["bog-off"].nextStep} (1 left)`,
     );
   });
 });

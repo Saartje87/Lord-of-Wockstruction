@@ -1284,6 +1284,7 @@ export function createRenderer(
         ),
         townPortal: townPortalIn(world),
         npcs: npcsIn(world),
+        boneAltars: world.boneAltars.map(({ pos }) => pos),
         displayNames: areaDisplayNames,
       };
       mapOverlay.draw(viewport, mapInputs, menus.mapOpen);
@@ -2249,6 +2250,13 @@ function mapView(withNames: boolean) {
             point.y + waypoint.diamond * uiScale,
           ])
           .fill(waypoint.colour);
+      }
+      for (const at of found.boneAltars) {
+        const point = onScreen(at);
+        const half = (MAP_LOOK.boneAltar.size / 2) * uiScale;
+        marks
+          .rect(point.x - half, point.y - half, 2 * half, 2 * half)
+          .fill(MAP_LOOK.boneAltar.colour);
       }
       for (const at of found.minions) {
         const point = onScreen(at);

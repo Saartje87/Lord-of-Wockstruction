@@ -42,6 +42,7 @@ function mapMarks(
   return marksOf({
     minions: [],
     townPortal: null,
+    boneAltars: [],
     npcs: of.area.npcs,
     displayNames: NAMES,
     ...of,
@@ -190,6 +191,19 @@ describe("mapMarks of what stands on the Area", () => {
     ).toBeNull();
   });
 
+  it("marks the Bone Altars standing, only once Explored", () => {
+    const boneAltars = [{ x: 3.5, y: 1.5 }];
+    const explored = area.floor.map(() => false);
+    expect(
+      mapMarks({ area, explored, heroAt: HERO, boneAltars }).boneAltars,
+    ).toEqual([]);
+
+    explored[7] = true;
+    expect(
+      mapMarks({ area, explored, heroAt: HERO, boneAltars }).boneAltars,
+    ).toEqual(boneAltars);
+  });
+
   it("names each NPC where they stand", () => {
     const { npcs } = mapMarks({ area, explored: all(area), heroAt: HERO });
 
@@ -228,6 +242,7 @@ describe("mapMarks of what stands on the Area", () => {
     const marks = mapMarks({ area, explored: all(area), heroAt: HERO });
 
     expect(Object.keys(marks).sort()).toEqual([
+      "boneAltars",
       "edges",
       "exits",
       "minions",

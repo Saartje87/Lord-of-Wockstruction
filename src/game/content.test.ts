@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { areaDisplayNames, areas, tilesets } from "./content";
+import { encodeSave, parseSave, saveOf } from "./save";
 import type { Area, Exit, Spawn } from "./sim/area";
 import { type MonsterOfLevel, monsterExperience } from "./sim/monsters";
 import { findPath } from "./sim/path";
@@ -10,6 +11,7 @@ import {
   FRESH_PROGRESS,
   npcsIn,
   type Order,
+  questOf,
   type SimEvent,
   step,
   type World,
@@ -869,6 +871,106 @@ describe('the shipped "Lost Wanderer" Quest', () => {
         progress: withWanderer(state),
       });
       expect(npcsIn(home).map(({ name }) => name)).toContain("Wanderer");
+    }
+  });
+});
+
+describe('the shipped "Bog Off" Quest', () => {
+  const bogOffIs = (state: "notGiven" | "ready" | "done", count = 0) => ({
+    ...FRESH_PROGRESS,
+    quests: { ...FRESH_PROGRESS.quests, "bog-off": { state, count } },
+  });
+  const inBog = (progress = FRESH_PROGRESS) =>
+    createWorld({
+      areas,
+      tilesets,
+      seed: 1,
+      start: { area: "soggy-bog", entry: "start" },
+      progress,
+    });
+
+  it("has exactly 3 Bone Altars in the Soggy Bog, all reachable, and none elsewhere", () => {
+    const world = shippedWorld();
+    const counts = Object.values(world.areas)
+      .filter((area) => area.boneAltars.length > 0)
+      .map((area) => [area.name, area.boneAltars.length]);
+
+    expect(counts).toEqual([["soggy-bog", 3]]);
+    expect(inBog().boneAltars).toHaveLength(3);
+  });
+
+  it("is Ready once the Hero has destroyed all 3, even Not given", () => {
+    const world = inBog();
+    world.hero.life = 1_000_000;
+    let ready = false;
+    while (world.boneAltars.length > 0) {
+      const [altar] = world.boneAltars;
+      world.monsters = [];
+      world.hero.pos = { x: altar.pos.x - 1.2, y: altar.pos.y };
+      world.hero.prevPos = { ...world.hero.pos };
+      for (let i = 0; i < 2400 && world.boneAltars.includes(altar); i++) {
+        const orders: Order[] =
+          i % 300 === 0 ? [{ type: "Attack", monster: altar.id }] : [];
+        for (const event of step(world, orders)) {
+          if (event.type === "QuestReady") ready = true;
+        }
+        world.hero.life = 1_000_000;
+      }
+      expect(world.boneAltars).not.toContain(altar);
+    }
+
+    expect(ready).toBe(true);
+    expect(questOf(world, "bog-off")).toEqual({ state: "ready", count: 3 });
+  });
+
+  it("pays 1 Skill Point once, handed in to the Trader in Wockville", () => {
+    const world = createWorld({
+      areas,
+      tilesets,
+      seed: 1,
+      progress: bogOffIs("ready", 3),
+    });
+    const trader = npcsIn(world).find(({ name }) => name === "Trader");
+    if (!trader) throw new Error("no Trader");
+    world.hero.pos = { x: trader.pos.x - 1, y: trader.pos.y };
+    world.hero.prevPos = { ...world.hero.pos };
+    const before = world.hero.progress.skillPoints;
+
+    step(world, [{ type: "HandInQuest", quest: "bog-off" }]);
+    step(world, [{ type: "HandInQuest", quest: "bog-off" }]);
+
+    expect(questOf(world, "bog-off").state).toBe("done");
+    expect(world.hero.progress.skillPoints).toBe(before + 1);
+  });
+
+  it("puts the Bone Altars away for good once Done, through the Save too", () => {
+    // The reward is already in the Hero points, as the Save checks.
+    const done = { ...bogOffIs("done", 3), skillPoints: 1 };
+    const saved = parseSave(
+      encodeSave(
+        saveOf(createWorld({ areas, tilesets, seed: 1, progress: done })),
+      ),
+    );
+
+    expect(saved).not.toBeNull();
+    expect(inBog(saved?.progress).boneAltars).toHaveLength(0);
+  });
+
+  it("brings the Bone Altars back in a new Session until it is Done", () => {
+    for (const state of ["notGiven", "ready"] as const) {
+      const saved = parseSave(
+        encodeSave(
+          saveOf(
+            createWorld({
+              areas,
+              tilesets,
+              seed: 1,
+              progress: bogOffIs(state, state === "ready" ? 3 : 1),
+            }),
+          ),
+        ),
+      );
+      expect(inBog(saved?.progress).boneAltars).toHaveLength(3);
     }
   });
 });

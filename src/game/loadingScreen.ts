@@ -9,7 +9,7 @@ import type { Screen } from "./menus";
 export function drawLoadingScreen(screen: Screen) {
   const root = document.getElementById("loading-screen");
   if (!root) return;
-  root.hidden = screen.type === "playing";
+  root.hidden = screen.type !== "loading";
   if (screen.type !== "loading") return;
   const share = screen.total > 0 ? screen.loaded / screen.total : 0;
   const fill = document.getElementById("loading-fill");

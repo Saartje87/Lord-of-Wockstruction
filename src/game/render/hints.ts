@@ -113,6 +113,7 @@ type KeyedMenuChoice = Exclude<MenuChoice, "fullscreen">;
 
 /** Each keyed pause-menu button's label, without its key. */
 const MENU_LABELS: Record<KeyedMenuChoice, string> = {
+  continue: "Continue",
   newHero: "New Hero",
   confirm: "Yes",
   goBack: "No",
@@ -120,6 +121,7 @@ const MENU_LABELS: Record<KeyedMenuChoice, string> = {
 
 /** The key that presses each keyed pause-menu button. */
 const MENU_KEYS: Record<KeyedMenuChoice, string> = {
+  continue: "C",
   newHero: "N",
   confirm: "Y",
   goBack: "N",

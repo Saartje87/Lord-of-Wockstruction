@@ -56,6 +56,8 @@ export type HeroView = {
   animation: HeroAnimation;
   /** How gold the Hero is washed after a Level-Up, 0..1. */
   glow: number;
+  /** Whether the Hero is drawn: not on the Start Screen. */
+  visible: boolean;
 };
 
 /** What a Monster is doing, as `HeroAnimation` says for the Hero. */
@@ -328,6 +330,7 @@ export function worldViewOf(
       facing: hero.facing,
       animation: heroAnimationOf(world),
       glow: heroGlowOf(effects),
+      visible: true,
     },
     monsters: [
       ...world.monsters.map((monster) =>

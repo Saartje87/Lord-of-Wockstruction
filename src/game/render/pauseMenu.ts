@@ -43,7 +43,6 @@ export function pauseMenuLayout(
     PAUSE_MENU_LAYOUT,
     screen.uiScale,
   );
-  const button = atUiScale(MENU_BUTTON, screen.uiScale);
   const panel = {
     x: Math.round((screen.width - width) / 2),
     y: Math.round((screen.height - height) / 2),
@@ -54,20 +53,37 @@ export function pauseMenuLayout(
     choice,
     label: menuChoiceLabel(choice, way, fullscreen.on),
   }));
+  const buttons = buttonRow(row, {
+    centre: panel.x + panel.w / 2,
+    top: panel.y + buttonsTop,
+    gap,
+    uiScale: screen.uiScale,
+  });
+  return { panel, buttons };
+}
+
+/**
+ * Lays out `row` of buttons left to right, `gap` apart, centred on `centre`
+ * with their tops at `top` (CSS px), each as big as `MENU_BUTTON` at the UI
+ * Scale: the pause menu's row and the Start Screen's.
+ */
+export function buttonRow(
+  row: readonly { choice: MenuChoice; label: string }[],
+  place: { centre: number; top: number; gap: number; uiScale: number },
+): MenuButton[] {
+  const { centre, top, gap, uiScale } = place;
+  const button = atUiScale(MENU_BUTTON, uiScale);
   const rowWidth = row.length * button.width + (row.length - 1) * gap;
-  const left = panel.x + (panel.w - rowWidth) / 2;
-  return {
-    panel,
-    buttons: row.map((entry, i) => ({
-      ...entry,
-      rect: {
-        x: left + i * (button.width + gap),
-        y: panel.y + buttonsTop,
-        w: button.width,
-        h: button.height,
-      },
-    })),
-  };
+  const left = centre - rowWidth / 2;
+  return row.map((entry, i) => ({
+    ...entry,
+    rect: {
+      x: left + i * (button.width + gap),
+      y: top,
+      w: button.width,
+      h: button.height,
+    },
+  }));
 }
 
 /**

@@ -16,7 +16,7 @@ import type { Viewport } from "./viewport";
  * Layout each panel fills the screen, so any one opening shuts the others.
  */
 export type Menus = {
-  /** Which screen shows: the Loading Screen, or play. */
+  /** Which screen shows: the Loading Screen, the Start Screen, or play. */
   screen: Screen;
   pause: Pause;
   heroPanelOpen: boolean;
@@ -62,11 +62,26 @@ export type Menus = {
 /**
  * The screen the game is on. The Loading Screen shows how many files have
  * `loaded` out of `total`, and whether loading has `failed`, which offers
- * Retry. On it, keys, panels, the map and the pause menu do nothing.
+ * Retry. The Start Screen offers Continue only when there is a Save
+ * (`hasSave`), and New Hero, which asks to confirm while `confirming`. On
+ * either, keys, panels, the map and the pause menu do nothing.
  */
 export type Screen =
   | { type: "loading"; loaded: number; total: number; failed: boolean }
+  | StartScreen
   | { type: "playing" };
+
+/** The Start Screen's state. */
+export type StartScreen = {
+  type: "start";
+  hasSave: boolean;
+  confirming: boolean;
+};
+
+/** The Start Screen as loading ends, for a game that does or doesn't `hasSave`. */
+export function startScreen(hasSave: boolean): StartScreen {
+  return { type: "start", hasSave, confirming: false };
+}
 
 /** The Loading Screen as loading starts: nothing loaded yet. */
 export function loadingScreen(): Screen {
@@ -98,9 +113,21 @@ export function startLoad(menus: Menus) {
   menus.screen = loadingScreen();
 }
 
-/** Notes that loading is done, and play begins. */
-export function finishLoading(menus: Menus) {
-  menus.screen = { type: "playing" };
+/**
+ * Notes that loading is done: the Start Screen shows, unless `skipStart`
+ * (a dev start link), which begins play. `hasSave` says whether the Start
+ * Screen offers Continue.
+ */
+export function finishLoading(
+  menus: Menus,
+  { hasSave, skipStart }: { hasSave: boolean; skipStart: boolean },
+) {
+  menus.screen = skipStart ? { type: "playing" } : startScreen(hasSave);
+}
+
+/** Whether the game is playing, rather than on the Loading or Start Screen. */
+export function isPlaying(menus: Pick<Menus, "screen">): boolean {
+  return menus.screen.type === "playing";
 }
 
 /** The Retry button, the Loading Screen's one choice. */
@@ -159,16 +186,23 @@ export type HeroState = { heroDead: boolean };
  * `confirm` starts it while `goBack` returns to the menu; the Fullscreen
  * button asks to go in or out of fullscreen.
  */
-export type MenuChoice = "newHero" | "confirm" | "goBack" | "fullscreen";
+export type MenuChoice =
+  | "continue"
+  | "newHero"
+  | "confirm"
+  | "goBack"
+  | "fullscreen";
 
 /** The Fullscreen button, the Rotate Notice's one choice. */
 export type FullscreenChoice = Extract<MenuChoice, "fullscreen">;
 
 /**
- * What the menus ask the game loop to carry out: start a New Hero, take the
- * game in or out of fullscreen, or load again after a failed load.
+ * What the menus ask the game loop to carry out: continue with the Save's
+ * Hero or start a New Hero (both from the Start Screen, which then gives
+ * way to play), take the game in or out of fullscreen, or load again after
+ * a failed load.
  */
-export type MenuRequest = "newHero" | "fullscreen" | "retry";
+export type MenuRequest = "continue" | "newHero" | "fullscreen" | "retry";
 
 /**
  * The pause menu's buttons in their row from left to right: New Hero, and
@@ -181,6 +215,70 @@ export function menuChoices(
 ): MenuChoice[] {
   if (confirming) return ["confirm", "goBack"];
   return fullscreen.available ? ["newHero", "fullscreen"] : ["newHero"];
+}
+
+/**
+ * The Start Screen's buttons in their row from left to right: Continue
+ * (with a Save), New Hero and the Fullscreen button where `fullscreen` says
+ * the browser allows it, or Yes and No while confirming.
+ */
+export function startChoices(
+  screen: StartScreen,
+  fullscreen: Fullscreen,
+): MenuChoice[] {
+  if (screen.confirming) return ["confirm", "goBack"];
+  return [
+    ...(screen.hasSave ? (["continue"] as const) : []),
+    "newHero",
+    ...(fullscreen.available ? (["fullscreen"] as const) : []),
+  ];
+}
+
+/**
+ * A click on the Start Screen, on one of its buttons (`choice`) or, for
+ * null, anywhere else, which does nothing; nor does anything under the Rotate
+ * Notice. Returns `"continue"` or `"newHero"` once chosen, the screen then
+ * giving way to play, and `"fullscreen"` on the Fullscreen button.
+ */
+export function clickStart(
+  menus: Menus,
+  choice: MenuChoice | null,
+): MenuRequest | null {
+  const { screen } = menus;
+  if (menus.rotateNotice || screen.type !== "start" || choice === null) {
+    return null;
+  }
+  // A hidden Continue, or a Fullscreen button the browser doesn't allow.
+  if (!startChoices(screen, menus.fullscreen).includes(choice)) return null;
+  return chooseStart(menus, screen, choice);
+}
+
+/** Presses Start Screen button `choice`. */
+function chooseStart(
+  menus: Menus,
+  screen: StartScreen,
+  choice: MenuChoice,
+): MenuRequest | null {
+  switch (choice) {
+    case "continue":
+      menus.screen = { type: "playing" };
+      return "continue";
+    case "newHero":
+      if (screen.hasSave) {
+        screen.confirming = true;
+        return null;
+      }
+      menus.screen = { type: "playing" };
+      return "newHero";
+    case "confirm":
+      menus.screen = { type: "playing" };
+      return "newHero";
+    case "goBack":
+      screen.confirming = false;
+      return null;
+    case "fullscreen":
+      return "fullscreen";
+  }
 }
 
 /** The key that opens and shuts the Map Overlay, as `pressKey` reads it. */
@@ -209,6 +307,9 @@ export function pressKey(
   if (menus.screen.type === "loading") {
     return menus.screen.failed && letter === "r" ? "retry" : "handled";
   }
+  if (menus.screen.type === "start") {
+    return pressStartKey(menus, menus.screen, key);
+  }
   if (pause.confirming) {
     if (letter === "y") return choose(menus, "confirm", nowMs) ?? "handled";
     if (letter === "n" || key === "Escape") choose(menus, "goBack", nowMs);
@@ -233,6 +334,25 @@ export function pressKey(
     return "handled";
   }
   return null;
+}
+
+/**
+ * A key on the Start Screen, which takes them all: C continues and N asks
+ * for a New Hero (confirmed by Y, and N or Esc go back), as in the pause menu.
+ */
+function pressStartKey(
+  menus: Menus,
+  screen: StartScreen,
+  key: string,
+): MenuRequest | "handled" {
+  const letter = key.toLowerCase();
+  let choice: MenuChoice | null = null;
+  if (screen.confirming) {
+    if (letter === "y") choice = "confirm";
+    else if (letter === "n" || key === "Escape") choice = "goBack";
+  } else if (letter === "c") choice = "continue";
+  else if (letter === "n") choice = "newHero";
+  return (choice && clickStart(menus, choice)) || "handled";
 }
 
 /**
@@ -274,7 +394,7 @@ export function anyPanelOpen(menus: OpenPanels): boolean {
 
 /** Opens the Map Overlay or shuts it, as Tab and LT do: not while `hero` lies dead. */
 export function toggleMap(menus: Menus, hero: HeroState) {
-  if (!hero.heroDead && !isLoading(menus)) menus.mapOpen = !menus.mapOpen;
+  if (!hero.heroDead && isPlaying(menus)) menus.mapOpen = !menus.mapOpen;
 }
 
 /**
@@ -282,7 +402,7 @@ export function toggleMap(menus: Menus, hero: HeroState) {
  * lies dead, nor under the Rotate Notice.
  */
 export function clickMiniMap(menus: Menus, hero: HeroState) {
-  if (hero.heroDead || menus.rotateNotice || isLoading(menus)) return;
+  if (hero.heroDead || menus.rotateNotice || !isPlaying(menus)) return;
   menus.mapOpen = true;
 }
 
@@ -305,7 +425,7 @@ export function clickPanelButton(menus: Menus, panel: Panel, hero: HeroState) {
  * `hero` lies dead.
  */
 function togglePanel(menus: Menus, panel: Panel, hero: HeroState) {
-  if (hero.heroDead || menus.rotateNotice || isLoading(menus)) return;
+  if (hero.heroDead || menus.rotateNotice || !isPlaying(menus)) return;
   if (panelOpen(menus, panel)) shutPanel(menus, panel);
   else openPanel(menus, panel);
 }
@@ -383,7 +503,7 @@ export function clickLevelUp(
   menus: Menus,
   hero: HeroState & { attributePoints: number; skillPoints: number },
 ) {
-  if (hero.heroDead || menus.rotateNotice || isLoading(menus)) return;
+  if (hero.heroDead || menus.rotateNotice || !isPlaying(menus)) return;
   const attributes = hero.attributePoints > 0;
   if (hero.skillPoints > 0 && !(attributes && menus.compact)) {
     openPanel(menus, "skillTree");
@@ -495,7 +615,7 @@ export function clickPaused(
   choice: MenuChoice | null,
   nowMs: number,
 ): MenuRequest | null {
-  if (menus.rotateNotice || isLoading(menus)) return null;
+  if (menus.rotateNotice || !isPlaying(menus)) return null;
   menus.menuFocus = null;
   if (choice === null) {
     togglePause(menus.pause, nowMs);
@@ -544,6 +664,8 @@ export function pressPad(
   if (menus.screen.type === "loading") {
     return menus.screen.failed && button === "a" ? "retry" : "handled";
   }
+  // The Start Screen's controller Focus comes later: nothing opens yet.
+  if (menus.screen.type === "start") return "handled";
   if (pause.paused) return pressPaused(menus, button, nowMs);
   if (button === "menu") {
     togglePause(pause, nowMs);
@@ -644,6 +766,9 @@ function choose(
 ): MenuRequest | null {
   const { pause } = menus;
   switch (choice) {
+    case "continue":
+      // The pause menu has no Continue: only the Start Screen does.
+      return null;
     case "newHero":
       pause.confirming = true;
       return null;

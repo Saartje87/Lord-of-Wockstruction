@@ -19,6 +19,7 @@ import {
   noPendingPoints,
   type Panel,
   type PendingPoints,
+  type StartScreen,
 } from "../menus";
 import type { Pause } from "../pause";
 import type { Area } from "../sim/area";
@@ -183,6 +184,7 @@ import {
   skillTreeRow,
   skillTreeSheet,
 } from "./skillTreePanel";
+import { GAME_NAME, startChoiceAt, startScreenLayout } from "./startScreen";
 import { tooltipRect } from "./tooltip";
 import { touchControlsLayout, touchControlsShown } from "./touchControls";
 import { shownTownPortals, townPortalCloseScale } from "./townPortalLook";
@@ -617,9 +619,24 @@ export function createRenderer(
   app.stage.addChild(greenFlash);
   const menu = pauseMenuView(activeInput);
   app.stage.addChild(menu.layer);
+  // The Start Screen's name and choices, over a World without a HUD.
+  const start = startScreenView(activeInput);
+  app.stage.addChild(start.layer);
   // Instead of the game, over everything.
   const notice = rotateNoticeView(activeInput);
   app.stage.addChild(notice.layer);
+
+  /**
+   * Everything the HUD and the World's overlays draw, which the Start
+   * Screen hides: the stage's layers under the pause menu, the Start Screen
+   * and the Rotate Notice.
+   */
+  const hudLayers = app.stage.children.filter(
+    (layer) =>
+      layer !== menu.layer && layer !== start.layer && layer !== notice.layer,
+  );
+  /** Whether `hudLayers` were hidden for the Start Screen. */
+  let hudHidden = false;
 
   /** Living Monsters and Corpses by id. */
   const monsters = new Map<MonsterId, MonsterMark>();
@@ -893,6 +910,36 @@ export function createRenderer(
       );
     },
 
+    /**
+     * The Start Screen button under a click on the canvas (CSS px), or
+     * null off them all.
+     */
+    startChoiceAt(
+      screen: Vec,
+      screenState: StartScreen,
+      fullscreen: Fullscreen,
+    ): MenuChoice | null {
+      return startChoiceAt(
+        viewportOf(app.screen),
+        screen,
+        screenState,
+        activeInput.way,
+        fullscreen,
+      );
+    },
+
+    /**
+     * Draws the Start Screen's name and choices over the 3D World, with the
+     * HUD, the Area Banner and every overlay hidden. `level` is the Level of
+     * the Hero a New Hero would give up.
+     */
+    drawStart(screenState: StartScreen, level: number, fullscreen: Fullscreen) {
+      hudHidden = true;
+      for (const layer of hudLayers) layer.visible = false;
+      menu.layer.visible = false;
+      start.draw(viewportOf(app.screen), screenState, level, fullscreen);
+    },
+
     /** Turns a step's events into effects. */
     react(events: readonly SimEvent[], nowMs: number) {
       const arrivedIn = arrivedInDisplayName(events, areaDisplayNames);
@@ -985,6 +1032,13 @@ export function createRenderer(
       target: MonsterId | null = null,
       focus: Rect | null = null,
     ) {
+      if (hudHidden) {
+        // Play after the Start Screen: each view sets its own layer's
+        // visibility as it draws, below.
+        hudHidden = false;
+        for (const layer of hudLayers) layer.visible = true;
+        start.layer.visible = false;
+      }
       const active = world.areas[world.areaName];
       // Read afresh each frame, so a resized window re-lays the HUD at once.
       const viewport = viewportOf(app.screen);
@@ -3128,6 +3182,81 @@ function pauseMenuView(activeInput: Readonly<ActiveInput>) {
         text.position.set((width / 2) * scale, y * scale);
       }
       buttons.draw(layout.buttons, scale, focus);
+    },
+  };
+}
+
+/**
+ * The Start Screen's look: the pause menu's colours, the game's name in
+ * the title's gold with a black outline, over a World lightly darkened.
+ */
+const START_SCREEN = {
+  darkness: 0.35,
+  stroke: 6,
+  question: { size: 20, lineHeight: 30, gap: 24 },
+};
+
+/**
+ * The Start Screen: the game's name above its row of buttons, which asks
+ * to confirm a New Hero as the pause menu does. Where things go is
+ * `startScreenLayout`.
+ */
+function startScreenView(activeInput: Readonly<ActiveInput>) {
+  const layer = new Container();
+  const dark = new Graphics().rect(0, 0, 1, 1).fill(0x000000);
+  dark.alpha = START_SCREEN.darkness;
+  const title = new Text({
+    text: GAME_NAME,
+    style: { fill: PAUSE_MENU.title.colour, fontFamily: SERIF },
+  });
+  title.anchor.set(0.5);
+  const question = new Text({
+    text: "",
+    style: {
+      fill: PAUSE_MENU.question.colour,
+      fontFamily: SERIF,
+      align: "center",
+    },
+  });
+  question.anchor.set(0.5, 1);
+  layer.addChild(dark, title, question);
+  const buttons = menuButtonsView(layer);
+  layer.visible = false;
+
+  return {
+    layer,
+    draw(
+      screen: Viewport,
+      start: StartScreen,
+      level: number,
+      fullscreen: Fullscreen,
+    ) {
+      layer.visible = true;
+      dark.scale.set(screen.width, screen.height);
+      const layout = startScreenLayout(
+        screen,
+        start,
+        activeInput.way,
+        fullscreen,
+      );
+      const scale = screen.uiScale;
+      sizeText(title, layout.title.size, START_SCREEN.stroke * scale);
+      title.position.set(layout.title.at.x, layout.title.at.y);
+      question.visible = start.confirming;
+      if (start.confirming) {
+        const { size, lineHeight, gap } = START_SCREEN.question;
+        question.text = [
+          "Start a New Hero?",
+          `Your Level ${level} Hero will be lost for good.`,
+        ].join("\n");
+        sizeText(question, size * scale);
+        question.style.lineHeight = lineHeight * scale;
+        question.position.set(
+          screen.width / 2,
+          layout.buttons[0].rect.y - gap * scale,
+        );
+      }
+      buttons.draw(layout.buttons, scale, null);
     },
   };
 }

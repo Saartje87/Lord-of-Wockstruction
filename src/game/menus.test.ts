@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { NO_FULLSCREEN } from "./fullscreen";
 import {
   acceptPendingPoints,
   addPendingPoint,
@@ -8,6 +9,7 @@ import {
   clickMiniMap,
   clickPanelButton,
   clickPaused,
+  clickStart,
   createMenus,
   failLoad,
   finishLoading,
@@ -20,7 +22,9 @@ import {
   reactMenus,
   removePendingPoint,
   reportLoad,
+  startChoices,
   startLoad,
+  startScreen,
   tapMapOverlay,
   tapRotateNotice,
   toggleMap,
@@ -1544,7 +1548,7 @@ describe("the Loading Screen", () => {
   it("gives way to play when loading is done", () => {
     const menus = loadingMenus();
 
-    finishLoading(menus);
+    finishLoading(menus, { hasSave: true, skipStart: true });
 
     expect(menus.screen).toEqual({ type: "playing" });
   });
@@ -1640,5 +1644,208 @@ describe("the Loading Screen", () => {
       });
       expect(pressKey(menus, "r", 1000, alive)).toBe("handled");
     });
+  });
+});
+
+describe("the Start Screen", () => {
+  const fullscreenOk = { available: true, on: false };
+  const startMenus = (hasSave: boolean) => {
+    const menus = createMenus(loadingScreen());
+    finishLoading(menus, { hasSave, skipStart: false });
+    return menus;
+  };
+
+  it("follows loading, with the choice not yet confirming", () => {
+    expect(startMenus(true).screen).toEqual({
+      type: "start",
+      hasSave: true,
+      confirming: false,
+    });
+    expect(startScreen(false)).toEqual({
+      type: "start",
+      hasSave: false,
+      confirming: false,
+    });
+  });
+
+  it("is skipped by a dev start, going straight to play", () => {
+    const menus = createMenus(loadingScreen());
+
+    finishLoading(menus, { hasSave: true, skipStart: true });
+
+    expect(menus.screen).toEqual({ type: "playing" });
+  });
+
+  it("offers Continue, New Hero and Fullscreen with a Save", () => {
+    expect(startChoices(startScreen(true), fullscreenOk)).toEqual([
+      "continue",
+      "newHero",
+      "fullscreen",
+    ]);
+  });
+
+  it("hides Continue without a Save, and Fullscreen where not allowed", () => {
+    expect(startChoices(startScreen(false), fullscreenOk)).toEqual([
+      "newHero",
+      "fullscreen",
+    ]);
+    expect(startChoices(startScreen(true), NO_FULLSCREEN)).toEqual([
+      "continue",
+      "newHero",
+    ]);
+  });
+
+  it("offers Yes and No while confirming", () => {
+    const menus = startMenus(true);
+
+    pressKey(menus, "n", 1000, alive);
+
+    expect(
+      startChoices(
+        menus.screen as ReturnType<typeof startScreen>,
+        fullscreenOk,
+      ),
+    ).toEqual(["confirm", "goBack"]);
+  });
+
+  it("continues by C or a click, going into play", () => {
+    const byKey = startMenus(true);
+    const byClick = startMenus(true);
+
+    expect(pressKey(byKey, "c", 1000, alive)).toBe("continue");
+    expect(clickStart(byClick, "continue")).toBe("continue");
+
+    expect(byKey.screen).toEqual({ type: "playing" });
+    expect(byClick.screen).toEqual({ type: "playing" });
+  });
+
+  it("has no Continue without a Save", () => {
+    const menus = startMenus(false);
+
+    expect(pressKey(menus, "c", 1000, alive)).toBe("handled");
+    expect(clickStart(menus, "continue")).toBeNull();
+    expect(menus.screen.type).toBe("start");
+  });
+
+  it("asks to confirm a New Hero when it would replace a Save", () => {
+    for (const press of [
+      (m: Menus) => pressKey(m, "n", 1000, alive),
+      (m: Menus) => clickStart(m, "newHero"),
+    ]) {
+      const menus = startMenus(true);
+
+      press(menus);
+      expect(menus.screen).toMatchObject({ type: "start", confirming: true });
+    }
+  });
+
+  it("starts a New Hero at once without a Save", () => {
+    const byKey = startMenus(false);
+    const byClick = startMenus(false);
+
+    expect(pressKey(byKey, "n", 1000, alive)).toBe("newHero");
+    expect(clickStart(byClick, "newHero")).toBe("newHero");
+
+    expect(byKey.screen).toEqual({ type: "playing" });
+    expect(byClick.screen).toEqual({ type: "playing" });
+  });
+
+  describe("confirming a New Hero", () => {
+    const confirming = () => {
+      const menus = startMenus(true);
+      pressKey(menus, "n", 1000, alive);
+      return menus;
+    };
+
+    it("starts it on Y or Yes", () => {
+      const byKey = confirming();
+      const byClick = confirming();
+
+      expect(pressKey(byKey, "y", 1000, alive)).toBe("newHero");
+      expect(clickStart(byClick, "confirm")).toBe("newHero");
+
+      expect(byKey.screen).toEqual({ type: "playing" });
+      expect(byClick.screen).toEqual({ type: "playing" });
+    });
+
+    it("goes back to the choices on N, Esc or No", () => {
+      for (const back of [
+        (m: Menus) => pressKey(m, "n", 1000, alive),
+        (m: Menus) => pressKey(m, "Escape", 1000, alive),
+        (m: Menus) => clickStart(m, "goBack"),
+      ]) {
+        const menus = confirming();
+
+        back(menus);
+
+        expect(menus.screen).toEqual({
+          type: "start",
+          hasSave: true,
+          confirming: false,
+        });
+      }
+    });
+
+    it("does not take C for Continue", () => {
+      const menus = confirming();
+
+      expect(pressKey(menus, "c", 1000, alive)).toBe("handled");
+      expect(menus.screen).toMatchObject({ confirming: true });
+    });
+  });
+
+  it("does nothing for Esc, the panel, map and pause keys", () => {
+    const menus = startMenus(true);
+
+    for (const key of ["Escape", "i", "t", "Tab", "p", "q", "1"]) {
+      expect(pressKey(menus, key, 1000, alive)).toBe("handled");
+    }
+    clickPanelButton(menus, "inventory", alive);
+    clickMiniMap(menus, alive);
+    toggleMap(menus, alive);
+
+    expect(menus.pause.paused).toBe(false);
+    expect(menus.mapOpen).toBe(false);
+    expect(menus.inventoryOpen).toBe(false);
+    expect(menus.screen.type).toBe("start");
+  });
+
+  it("asks for fullscreen from its button, staying put", () => {
+    const menus = startMenus(true);
+    menus.fullscreen = fullscreenOk;
+
+    expect(clickStart(menus, "fullscreen")).toBe("fullscreen");
+    expect(menus.screen.type).toBe("start");
+  });
+
+  it("has no Fullscreen button where the browser doesn't allow it", () => {
+    expect(clickStart(startMenus(true), "fullscreen")).toBeNull();
+  });
+
+  it("takes a click elsewhere for nothing", () => {
+    const menus = startMenus(true);
+
+    expect(clickStart(menus, null)).toBeNull();
+    expect(menus.screen.type).toBe("start");
+  });
+
+  it("takes every key under the Rotate Notice", () => {
+    const menus = startMenus(true);
+    fitMenus(menus, { compact: true, rotateNotice: "turn" }, 1000);
+
+    expect(pressKey(menus, "c", 1000, alive)).toBe("handled");
+    expect(clickStart(menus, "continue")).toBeNull();
+    expect(menus.screen.type).toBe("start");
+  });
+
+  it("opens no pause menu for the controller", () => {
+    const menus = startMenus(true);
+
+    for (const button of ["menu", "view", "lt", "b"] as const) {
+      expect(pressPad(menus, button, 1000, alive)).toBe("handled");
+    }
+
+    expect(menus.pause.paused).toBe(false);
+    expect(menus.screen.type).toBe("start");
   });
 });

@@ -25,7 +25,8 @@ licence (CC0). Crediting him is not required, and we do.
 the 1-handed sword and the round shield. The Monstrosity gets the
 `Rig_Large` animations the game uses and the Knight's 2-handed chop,
 retargeted onto its rig. The Werewolf gets the `Rig_Medium` animations the
-game uses and the Knight's 1-handed chop. Town's NPCs get the `Rig_Medium` idles, with no
+game uses and the Knight's 1-handed chop, and the Plant Warrior the same
+with the Knight's spellcast. Town's NPCs get the `Rig_Medium` idles, with no
 animation track for a bone they lack. Halloween Bits, Medieval Hexagon and
 City Builder Bits pieces, which come as glTF with a binary and a texture, are
 packed into one glb each, as are Resource Bits' coin stacks. Nothing is recoloured.
@@ -36,6 +37,7 @@ packed into one glb each, as are Resource Bits' coin stacks. Nothing is recolour
 |---|---|
 | `addons/kaykit_character_pack_adventures/Characters/gltf/Knight.glb` | the Hero, and the Golem's attack |
 | Mystery Monthly Series 6: `Monstrosity.glb` | the Golem |
+| Mystery Monthly Series 6: `PlantWarrior.glb` | the Bog Spitter |
 | Mystery Monthly Series 4: `Werewolf_Wolf.glb` | the Wockwolf |
 | Mystery Monthly Series 6: `Farmer_A.glb` | Town's NPCs |
 | Mystery Monthly Series 6: `Farmer_B.glb` | Town's NPCs |

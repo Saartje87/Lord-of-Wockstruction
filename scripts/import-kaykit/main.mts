@@ -154,6 +154,18 @@ const WOCKWOLF = {
 };
 
 /**
+ * The Bog Spitter: the Plant Warrior (Series 6) on `Rig_Medium`. The pack has
+ * no combat clips, so the spit is the Knight's `Spellcast_Shoot` retargeted
+ * onto it, as the Golem's attack is.
+ */
+const BOG_SPITTER = {
+  file: "PlantWarrior",
+  path: "5 - November 2025 - Plant Warrior/characters/PlantWarrior.glb",
+  rigClips: WOCKWOLF.rigClips,
+  knightClips: ["Spellcast_Shoot"],
+};
+
+/**
  * The paid packs whose pieces are painted into Areas, keyed by the `pack` of
  * their pieces in `pieces.mts`. Like the Mystery Monthly packs they are read
  * from the gitignored `vendor/kaykit/`, not fetched, and skipped when they
@@ -392,6 +404,19 @@ if (existsSync(MYSTERY.dir)) {
       })),
     ],
   });
+  await importRiggedCharacter({
+    from: `${MYSTERY.dir}/${BOG_SPITTER.path}`,
+    to: `${out.characters}/${BOG_SPITTER.file}.glb`,
+    clips: [
+      ...Object.entries(BOG_SPITTER.rigClips).flatMap(([file, names]) =>
+        names.map((name) => ({ from: `${MYSTERY.dir}/${file}`, name })),
+      ),
+      ...BOG_SPITTER.knightClips.map((name) => ({
+        from: `${dirOf(adventurers)}/${knightPath}`,
+        name,
+      })),
+    ],
+  });
   for (const path of NPCS.files) {
     await importRiggedCharacter({
       from: `${MYSTERY.dir}/${path}.glb`,
@@ -475,6 +500,7 @@ writeFileSync(
 const imported = [
   `| \`${knightPath}\` | the Hero, and the Golem's attack |`,
   `| ${MYSTERY.name}: \`${GOLEM.path.split("/").pop()}\` | the Golem |`,
+  `| ${MYSTERY.name}: \`${BOG_SPITTER.file}.glb\` | the Bog Spitter |`,
   `| ${MYSTERY_4.name}: \`${WOCKWOLF.file}.glb\` | the Wockwolf |`,
   ...NPCS.files.map(
     (path) =>
@@ -529,7 +555,8 @@ ${[...Object.values(VENDORED), RESOURCE_BITS]
 the 1-handed sword and the round shield. The Monstrosity gets the
 \`Rig_Large\` animations the game uses and the Knight's 2-handed chop,
 retargeted onto its rig. The Werewolf gets the \`Rig_Medium\` animations the
-game uses and the Knight's 1-handed chop. Town's NPCs get the \`Rig_Medium\` idles, with no
+game uses and the Knight's 1-handed chop, and the Plant Warrior the same
+with the Knight's spellcast. Town's NPCs get the \`Rig_Medium\` idles, with no
 animation track for a bone they lack. Halloween Bits, Medieval Hexagon and
 City Builder Bits pieces, which come as glTF with a binary and a texture, are
 packed into one glb each, as are Resource Bits' coin stacks. Nothing is recoloured.

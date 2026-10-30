@@ -82,6 +82,27 @@ export const MONSTER_LOOKS: Record<MonsterType, MonsterLook> = {
     contact: ATTACK_CONTACT,
     weapons: [],
   },
+  // The Plant Warrior (KayKit Mystery Monthly Series 6), a slow plant that
+  // spits Muck. Its clips come from `Rig_Medium`, the spit from the Knight's
+  // `Spellcast_Shoot`.
+  bog_spitter: {
+    model: "PlantWarrior",
+    scale: 0.36,
+    height: 1,
+    clips: {
+      idle: "Idle_A",
+      walk: "Walking_A",
+      // It never runs: a chase is the same shamble.
+      run: "Walking_A",
+      attack: "Spellcast_Shoot",
+      flinch: "Hit_A",
+      death: "Death_A",
+    },
+    // Placeholder until sampled against the clip: the spit leaves the hands
+    // at about half the cast.
+    contact: 0.5,
+    weapons: [],
+  },
   // A big, pale Skeleton with a blade for a staff, until he has a model of his own.
   grave_wockington: {
     model: "Skeleton",

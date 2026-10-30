@@ -110,6 +110,37 @@ describe("the 3D World view of the Monsters", () => {
     }
   });
 
+  it("draws a Bog Spitter as the Plant Warrior, with the clip of its state", () => {
+    const { world, monster } = withSkeleton();
+    monster.type = "bog_spitter";
+
+    const look = MONSTER_LOOKS.bog_spitter;
+    expect(look.model).toBe("PlantWarrior");
+    expect(firstMonster(world).type).toBe("bog_spitter");
+    expect(firstMonster(world).animation.clip).toBe("idle");
+    monster.state = "chase";
+    monster.prevPos = { x: 12.1, y: 10 };
+    // At 1.2 tiles/s it shambles rather than runs.
+    expect(firstMonster(world).animation.clip).toBe("run");
+    expect(look.clips.run).toBe(look.clips.walk);
+    monster.state = "windup";
+    monster.attack = 0;
+    expect(firstMonster(world).animation.clip).toBe("attack");
+    monster.state = "wander";
+    monster.flinch = 3;
+    expect(firstMonster(world).animation.clip).toBe("flinch");
+    for (const clip of [
+      "idle",
+      "walk",
+      "run",
+      "attack",
+      "flinch",
+      "death",
+    ] as const) {
+      expect(look.clips[clip]).toBeTruthy();
+    }
+  });
+
   it("flashes a hit Monster by the strength it is given", () => {
     const { world, monster } = withSkeleton();
     const effects = { ...NO_EFFECTS, flashes: new Map([[monster.id, 0.8]]) };

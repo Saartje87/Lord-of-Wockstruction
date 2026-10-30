@@ -18,7 +18,10 @@ import type { FloorEffectsView } from "./view";
  * How many of each effect can show at once. The meshes are made once and
  * only shown, moved and faded, so no shader ever recompiles.
  */
-const POOL = { telegraphs: 10, curses: 4, bursts: 6 };
+const POOL = { telegraphs: 10, curses: 4, bursts: 6, marks: 8 };
+
+/** The mark of Muck on the ground: a murky green, filling as the glob nears. */
+const MUCK_MARK = { colour: 0x8fc22e, fillAlpha: 0.12, filledAlpha: 0.4 };
 
 /** How high the effects lie, over the Exit pool's glow (0.12) on the floor. */
 const LIFT = 0.14;
@@ -120,6 +123,16 @@ export function floorEffectMeshesOf(): FloorEffectMeshes {
     return { fill, edge };
   });
 
+  const marks = Array.from({ length: POOL.marks }, () => {
+    const area = disc(glow(MUCK_MARK.colour));
+    const filled = disc(glow(MUCK_MARK.colour));
+    const edge = ring(glow(MUCK_MARK.colour));
+    area.renderOrder = edge.renderOrder = 4;
+    filled.renderOrder = 5;
+    group.add(area, filled, edge);
+    return { area, filled, edge };
+  });
+
   const bursts = Array.from({ length: POOL.bursts }, () => {
     const flash = disc(glow(CORPSE_BURST.flashColour));
     const edge = ring(glow(CORPSE_BURST.ringColour));
@@ -166,6 +179,17 @@ export function floorEffectMeshesOf(): FloorEffectMeshes {
         }
         opacity(fill, CURSE_CIRCLE.fillAlpha * shown.alpha);
         opacity(edge, shown.alpha);
+      });
+      marks.forEach(({ area, filled, edge }, i) => {
+        const shown = effects.marks[i];
+        area.visible = filled.visible = edge.visible = shown !== undefined;
+        if (!shown) return;
+        place(area, shown.pos, shown.radius);
+        place(edge, shown.pos, shown.radius);
+        place(filled, shown.pos, Math.max(shown.radius * shown.progress, 1e-3));
+        opacity(area, MUCK_MARK.fillAlpha);
+        opacity(edge, 0.8);
+        opacity(filled, MUCK_MARK.filledAlpha);
       });
       bursts.forEach(({ flash, edge }, i) => {
         const shown = effects.bursts[i];

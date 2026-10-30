@@ -125,6 +125,17 @@ export const PROJECTILE_LOOKS: Record<ProjectileKind, ProjectileLook> = {
     glow: 0x8fb4c8,
     trail: 3,
   },
+  // A glob of Muck: a small pumpkin painted bog green, lobbed high so the
+  // arc (`lift`) reads from far off.
+  muck: {
+    model: "halloween/pumpkin_orange_small",
+    scale: 0.9,
+    lay: [0, 0, 0],
+    tint: 0x6f9a2a,
+    height: 0.8,
+    glow: 0x8fc22e,
+    trail: 2,
+  },
   // A small bone, as Bone Spear's but a third the size.
   splinter: {
     model: "halloween/bone_A",
@@ -223,7 +234,7 @@ export function projectilePlacements(projectile: ProjectileView): Placement[] {
       model: look.model,
       x: projectile.pos.x - along.x * TRAIL_GAP * i,
       y: projectile.pos.y - along.y * TRAIL_GAP * i,
-      height: look.height,
+      height: look.height + projectile.lift,
       yaw: Math.PI / 2 - projectile.facing,
       scale: 1 - i / (look.trail + 1),
       tint: look.tint,

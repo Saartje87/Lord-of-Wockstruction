@@ -53,6 +53,7 @@ describe("which way a laid Projectile points", () => {
       kind,
       pos: { x: 10, y: 10 },
       facing,
+      lift: 0,
     });
     const laid = new Quaternion().setFromEuler(new Euler(...placement.lay));
     const turned = new Quaternion().setFromAxisAngle(

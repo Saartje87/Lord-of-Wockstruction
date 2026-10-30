@@ -189,6 +189,8 @@ export type FloorCircle = { radius: number; alpha: number };
 export type FloorEffectsView = {
   telegraphs: TelegraphView[];
   curses: (FloorCircle & { pos: Vec; colour: number })[];
+  /** Where each Muck in flight will land, from loosing until it does. */
+  marks: LandingMarkView[];
   /** A flash disc and a spreading ring round a burst Corpse. */
   bursts: { pos: Vec; flash: FloorCircle; ring: FloorCircle }[];
   /** The gold ring round the Hero's feet on a Level-Up. */
@@ -202,6 +204,21 @@ export type ProjectileView = {
   pos: Vec;
   /** The way it flies, radians in tile space. */
   facing: number;
+  /** How far above its flying height it is on its arc, in tiles; 0 if straight. */
+  lift: number;
+};
+
+/** The highest a lobbed Projectile's arc rises above its flying height (tiles). */
+export const LOB_ARC_HEIGHT = 2;
+
+/** The mark a lobbed Projectile (Muck) will land on, drawn on the ground. */
+export type LandingMarkView = {
+  /** Where it will land, in tile units. */
+  pos: Vec;
+  /** The circle it hits within (tiles). */
+  radius: number;
+  /** How far the Projectile is along its arc, 0..1. */
+  progress: number;
 };
 
 /** A Ground Item lying on the floor as the 3D World shows it. */
@@ -422,6 +439,10 @@ export function worldViewOf(
           (projectile.pos.y - projectile.prevPos.y) * alpha,
       },
       facing: Math.atan2(projectile.direction.y, projectile.direction.x),
+      lift:
+        "lob" in projectile
+          ? LOB_ARC_HEIGHT * Math.sin(Math.PI * projectile.progress)
+          : 0,
     })),
     groundItems: world.groundItems.map(({ item, pos }) => ({
       id: item.id,
@@ -489,9 +510,19 @@ function floorEffectsOf(
   }
   const ring =
     effects.levelUpAgoMs === null ? null : levelRing(effects.levelUpAgoMs);
+  const marks: LandingMarkView[] = [];
+  for (const projectile of world.projectiles) {
+    if (!("lob" in projectile)) continue;
+    marks.push({
+      pos: { ...projectile.landing },
+      radius: projectile.radius,
+      progress: projectile.progress,
+    });
+  }
   return {
     telegraphs,
     curses,
+    marks,
     bursts,
     levelRing: ring && { pos: heroPos, ...ring },
   };

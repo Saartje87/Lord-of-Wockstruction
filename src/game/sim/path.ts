@@ -58,7 +58,13 @@ export function findPath(
   obstacles: readonly Obstacle[] = [],
   bodyRadius = radius,
 ): Vec[] {
-  const { tiles, reached } = astar(area, tileOf(from), to, obstacles);
+  const { tiles, reached } = astar(
+    area,
+    tileOf(from),
+    to,
+    obstacles,
+    bodyRadius,
+  );
   const end = reached ? to : clampInto(tiles[tiles.length - 1], to, radius);
 
   // The start tile is where we already are; aim at the end in the last one.
@@ -98,19 +104,33 @@ function astar(
   start: Vec,
   to: Vec,
   obstacles: readonly Obstacle[] = [],
+  bodyRadius = 0,
 ): { tiles: Vec[]; reached: boolean } {
   const { width } = area;
   const goal = tileOf(to);
   const key = (x: number, y: number) => y * width + x;
+  // The Bodies within two tiles of each tile, so a search over a big Area
+  // with many Bodies only ever weighs the few near the tile it looks at.
+  const near = new Map<number, Obstacle[]>();
+  for (const o of obstacles) {
+    const ox = Math.floor(o.pos.x);
+    const oy = Math.floor(o.pos.y);
+    for (let y = oy - 2; y <= oy + 2; y++) {
+      for (let x = ox - 2; x <= ox + 2; x++) {
+        const list = near.get(key(x, y));
+        if (list) list.push(o);
+        else near.set(key(x, y), [o]);
+      }
+    }
+  }
+  const nearTo = (x: number, y: number) => near.get(key(x, y)) ?? [];
   const taken = (x: number, y: number) =>
     !(x === start.x && y === start.y) &&
     !(x === goal.x && y === goal.y) &&
-    obstacles.some(
+    nearTo(x, y).some(
       (o) =>
-        Math.hypot(
-          o.pos.x - Math.min(x + 1, Math.max(x, o.pos.x)),
-          o.pos.y - Math.min(y + 1, Math.max(y, o.pos.y)),
-        ) < o.radius,
+        Math.hypot(o.pos.x - (x + 0.5), o.pos.y - (y + 0.5)) <
+        o.radius + bodyRadius,
     );
   const open = (x: number, y: number) =>
     isWalkable(area, { x, y }) && !taken(x, y);
@@ -160,6 +180,17 @@ function astar(
         if (!open(nx, ny)) continue;
         // No corner cutting: a diagonal needs both sides open.
         if (dx && dy && (!open(x + dx, y) || !open(x, y + dy))) continue;
+        if (
+          obstacles.length > 0 &&
+          !clearOfBodies(
+            centre({ x, y }),
+            centre({ x: nx, y: ny }),
+            bodyRadius,
+            nearTo(x, y),
+          )
+        ) {
+          continue;
+        }
         const nk = key(nx, ny);
         const ng = (g.get(k) ?? 0) + (dx && dy ? Math.SQRT2 : 1);
         if (ng < (g.get(nk) ?? Number.POSITIVE_INFINITY)) {

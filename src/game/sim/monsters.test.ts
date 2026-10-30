@@ -352,17 +352,17 @@ describe("a crowd", () => {
     expect(gaps(w).hero).toBeGreaterThan(0.61);
   });
 
-  it("makes way for the Hero walking through, never moving them", () => {
+  it("blocks the Hero walking through, who can't walk out of the ring", () => {
     const w = world(crowd);
     stepTimes(w, SURROUND_STEPS);
+    const start = { ...w.hero.pos };
 
     step(w, [{ type: "MoveTo", target: { x: 0.5, y: 5.5 } }]);
-    for (let i = 0; i < 120; i++) {
+    for (let i = 0; i < 40; i++) {
       step(w, []);
-      expect(gaps(w).hero).toBeGreaterThan(0.55);
+      expect(gaps(w).hero).toBeGreaterThan(0.61);
     }
-    expect(w.death).toBeNull();
-    expect(w.hero.pos).toEqual({ x: 0.5, y: 5.5 });
+    expect(distance(w.hero.pos, start)).toBeLessThan(1);
   });
 
   it("crowds a Hero backed into a corner without overlapping", () => {
@@ -379,6 +379,90 @@ describe("a crowd", () => {
     expect(gaps(w).skeletons).toBeGreaterThan(0.63);
     expect(gaps(w).hero).toBeGreaterThan(0.61);
     expect(w.hero.pos).toEqual({ x: 0.5, y: 0.5 });
+  });
+});
+
+/** Keeps every Monster where it stands, noticing and wandering no more. */
+function pin(world: World) {
+  for (const monster of world.monsters) {
+    monster.grace = 1e9;
+    monster.pause = 1e9;
+  }
+}
+
+/** The nearest the Hero comes to a Monster over `times` steps of `orders`. */
+function nearestToMonster(world: World, times: number, orders: Order[]) {
+  const [monster] = world.monsters;
+  let nearest = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < times; i++) {
+    step(world, i === 0 ? orders : []);
+    nearest = Math.min(nearest, distance(world.hero.pos, monster.pos));
+  }
+  return nearest;
+}
+
+describe("a Monster standing in the Hero's way", () => {
+  // The Skeleton's radius is 0.32 and the Hero's 0.3.
+  const SUM = 0.62;
+
+  it("is walked around when there is room", () => {
+    const w = world([
+      "..........",
+      "..........",
+      "H...S.....",
+      "..........",
+      "..........",
+    ]);
+    pin(w);
+    const monsterAt = { ...w.monsters[0].pos };
+
+    const nearest = nearestToMonster(w, 300, [
+      { type: "MoveTo", target: { x: 8.5, y: 2.5 } },
+    ]);
+
+    expect(nearest).toBeGreaterThan(SUM - 1e-6);
+    expect(w.monsters[0].pos).toEqual(monsterAt);
+    expect(distance(w.hero.pos, { x: 8.5, y: 2.5 })).toBeLessThan(0.01);
+  });
+
+  it("stops the Hero against it in a one-tile corridor", () => {
+    const w = world(["#########", "H...S....", "#########"]);
+    pin(w);
+    const monsterAt = { ...w.monsters[0].pos };
+
+    const nearest = nearestToMonster(w, 300, [
+      { type: "MoveTo", target: { x: 8.5, y: 1.5 } },
+    ]);
+
+    expect(nearest).toBeGreaterThan(SUM - 1e-6);
+    expect(nearest).toBeLessThan(1);
+    expect(w.monsters[0].pos).toEqual(monsterAt);
+    expect(w.hero.pos.x).toBeLessThan(monsterAt.x);
+  });
+
+  it("is slid along when walking into it at an angle", () => {
+    const w = world([
+      "..........",
+      "..........",
+      "H..S......",
+      "..........",
+      "..........",
+    ]);
+    pin(w);
+    const monsterAt = { ...w.monsters[0].pos };
+
+    const nearest = nearestToMonster(w, 240, [
+      { type: "Walk", direction: { x: 1, y: 0.1 } },
+    ]);
+    // Keys keep being held.
+    for (let i = 0; i < 120; i++) {
+      step(w, [{ type: "Walk", direction: { x: 1, y: 0.1 } }]);
+      expect(distance(w.hero.pos, monsterAt)).toBeGreaterThan(SUM - 1e-6);
+    }
+
+    expect(nearest).toBeGreaterThan(SUM - 1e-6);
+    expect(w.monsters[0].pos).toEqual(monsterAt);
+    expect(w.hero.pos.x).toBeGreaterThan(monsterAt.x + 1);
   });
 });
 

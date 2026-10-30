@@ -214,10 +214,23 @@ function open(world: World): SimEvent[] {
 }
 
 /**
+ * Moves aside any Monster standing on `target`: Monsters block the Hero, and
+ * these tests are about where the Hero goes, not about getting past them.
+ */
+function clearOf(world: World, target: Vec) {
+  for (const monster of world.monsters) {
+    if (Math.hypot(monster.pos.x - target.x, monster.pos.y - target.y) < 1) {
+      monster.pos = { x: monster.pos.x + 2, y: monster.pos.y + 1 };
+    }
+  }
+}
+
+/**
  * Walks the Hero to `target` and steps on until they have arrived in another
  * Area and the change is over, returning every event on the way.
  */
 function walkTo(world: World, target: Vec, limit = 600): SimEvent[] {
+  clearOf(world, target);
   const events = step(world, [{ type: "MoveTo", target }]);
   for (let i = 0; i < limit; i++) {
     const stepped = step(world, []);
@@ -236,6 +249,7 @@ function leave(
   world: World,
   target: Vec,
 ): Omit<KeptArea, "explored" | "boneAltars"> {
+  clearOf(world, target);
   step(world, [{ type: "MoveTo", target }]);
   for (let i = 0; i < 600 && !world.areaChange; i++) step(world, []);
   const { monsters, corpses, groundItems, projectiles } = world;

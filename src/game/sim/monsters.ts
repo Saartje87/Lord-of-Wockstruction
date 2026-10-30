@@ -7,7 +7,7 @@ import {
   type RangedTuning,
 } from "../tuning/monsters";
 import { uniqueTuning } from "../tuning/uniqueMonsters";
-import { minionBodies, wallRadius } from "./bodies";
+import { heroSideBodies, wallRadius } from "./bodies";
 import { faceToward, lands } from "./melee";
 import { canSee, isClear } from "./path";
 import type { AttackNumbers } from "./projectiles";
@@ -517,12 +517,12 @@ function gaitOf(
   return {
     radius: wallRadius(radius),
     replanSteps: STEPPED[monster.type].replanSteps,
-    body: { radius, obstacles: minionBodies(world, going) },
+    body: { radius, obstacles: heroSideBodies(world, going) },
   };
 }
 
-/** The Minion a target is, or null for the Hero. */
+/** The Hero or Minion a target is. */
 function quarryBody(world: World, target: MonsterTarget): object | null {
-  if (target === "hero") return null;
+  if (target === "hero") return world.hero;
   return world.minions.find((minion) => minion.id === target) ?? null;
 }

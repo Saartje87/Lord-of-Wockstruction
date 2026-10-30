@@ -52,7 +52,10 @@ function map(rows: string[], pack = 1) {
 
 /** A Town with the Hero next to a pack of `pack` Skeletons. */
 function world(pack = 1): World {
-  return createWorld({ areas: { town: map(["H.S.."], pack) }, seed: 1 });
+  return createWorld({
+    areas: { town: map([".....", "H.S..", "....."], pack) },
+    seed: 1,
+  });
 }
 
 /**

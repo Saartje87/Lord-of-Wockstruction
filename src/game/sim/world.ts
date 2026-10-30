@@ -37,7 +37,7 @@ import {
   TOWN,
 } from "./area";
 import { type BeltColumns, emptyBelt, putInBelt } from "./belt";
-import { freeSpot, separateBodies, summonPoint } from "./bodies";
+import { freeSpot, monsterBodies, separateBodies, summonPoint } from "./bodies";
 import {
   altarRadiusOf,
   type BoneAltar,
@@ -128,7 +128,7 @@ import { giveSmithBonus, SMITH } from "./smith";
 import { msToSteps, perStep } from "./units";
 import { validateAreas } from "./validate";
 import { distance, type Vec } from "./vec";
-import { stepInDirection } from "./walking";
+import { holdBack, slideAround, stepInDirection } from "./walking";
 
 const EXPERIENCE_TABLE = heroTuning.experienceTable;
 /** The most Experience the Hero can have: what the last Level needs. */
@@ -1793,7 +1793,7 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   // Swing from where the Hero stands if already in reach, or once walked
   // into it.
   approach(world);
-  walk(hero);
+  walkHero(world);
   revealAround(world);
   const area = world.areas[world.areaName];
   const exit = exitAt(area, hero.pos);
@@ -2086,7 +2086,7 @@ function give(world: World, order: Order, events: SimEvent[]) {
       hero.attacking = null;
       hero.pickingUp = null;
       hero.talkingTo = null;
-      hero.path = findPath(area, hero.pos, order.target, heroTuning.radius);
+      hero.path = routeHero(world, order.target);
       break;
     case "Walk":
       walkInDirection(world, order.direction);
@@ -2097,7 +2097,7 @@ function give(world: World, order: Order, events: SimEvent[]) {
       hero.attacking = target.id;
       hero.pickingUp = null;
       hero.talkingTo = null;
-      hero.path = findPath(area, hero.pos, target.pos, heroTuning.radius);
+      hero.path = routeHero(world, target.pos, target);
       break;
     }
     case "PickUp": {
@@ -2106,7 +2106,7 @@ function give(world: World, order: Order, events: SimEvent[]) {
       hero.attacking = null;
       hero.talkingTo = null;
       hero.pickingUp = lying.item.id;
-      hero.path = findPath(area, hero.pos, lying.pos, heroTuning.radius);
+      hero.path = routeHero(world, lying.pos);
       break;
     }
     case "Talk": {
@@ -2115,7 +2115,7 @@ function give(world: World, order: Order, events: SimEvent[]) {
       hero.attacking = null;
       hero.pickingUp = null;
       hero.talkingTo = order.npc;
-      hero.path = findPath(area, hero.pos, npc.pos, heroTuning.radius);
+      hero.path = routeHero(world, npc.pos);
       break;
     }
     case "SwingAt":
@@ -2428,7 +2428,16 @@ function walkInDirection(world: World, direction: Vec) {
     WALK_PER_STEP,
     heroTuning.radius,
   );
-  if (to) hero.pos = to;
+  if (to) {
+    hero.pos = slideAround(
+      area,
+      hero.pos,
+      to,
+      heroTuning.radius,
+      heroTuning.radius,
+      monsterBodies(world),
+    );
+  }
 }
 
 /** Swings at the Monster the Hero walks to once it is in reach. */
@@ -3054,6 +3063,43 @@ function targetById(
 
 function monsterById(world: World, id: MonsterId): Monster | undefined {
   return world.monsters.find((monster) => monster.id === id);
+}
+
+/**
+ * The path for the Hero to walk to `to`, around the Monsters in the way bar
+ * `except`, the one it walks up to.
+ */
+function routeHero(world: World, to: Vec, except?: object): Vec[] {
+  const radius = heroTuning.radius;
+  return findPath(
+    world.areas[world.areaName],
+    world.hero.pos,
+    to,
+    radius,
+    monsterBodies(world, except),
+    radius,
+  );
+}
+
+/**
+ * Walks the Hero a step along their path. A step that runs into a Monster
+ * is undone (sliding along it where the way is open), and the Hero plans a
+ * new route around it to where the path was going.
+ */
+function walkHero(world: World) {
+  const { hero } = world;
+  if (hero.path.length === 0) return;
+  const before = hero.pos;
+  const goal = hero.path[hero.path.length - 1];
+  const except =
+    hero.attacking === null ? null : monsterById(world, hero.attacking);
+  const obstacles = monsterBodies(world, except);
+  walk(hero);
+  const radius = heroTuning.radius;
+  const gait = { radius, replanSteps: 1, body: { radius, obstacles } };
+  if (holdBack(world.areas[world.areaName], hero, before, gait)) {
+    hero.path = routeHero(world, goal, except ?? undefined);
+  }
 }
 
 /** Moves the Hero one step along its path, carrying over past waypoints. */

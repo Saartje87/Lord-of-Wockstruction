@@ -89,6 +89,43 @@ export function holdBack(
   return true;
 }
 
+/**
+ * Where a step from `from` to `to` ends for a body of `radius` that can't
+ * walk into the `obstacles`: `to` itself, else slid round the edge of any
+ * Body it would run into (the nearest point to `to` just outside it), else
+ * `from` where that doesn't fit at the walls (of `wallRadius`) either.
+ */
+export function slideAround(
+  area: Area,
+  from: Vec,
+  to: Vec,
+  radius: number,
+  wallRadius: number,
+  obstacles: readonly Obstacle[],
+): Vec {
+  const hits = (at: Vec) =>
+    obstacles.filter((o) => {
+      const gap = Math.hypot(o.pos.x - at.x, o.pos.y - at.y);
+      const was = Math.hypot(o.pos.x - from.x, o.pos.y - from.y);
+      return gap < o.radius + radius - 1e-6 && gap < was;
+    });
+  let at = to;
+  for (let pass = 0; pass < 3 && hits(at).length > 0; pass++) {
+    for (const o of hits(at)) {
+      const dx = at.x - o.pos.x;
+      const dy = at.y - o.pos.y;
+      const length = Math.hypot(dx, dy);
+      if (length === 0) return from;
+      const apart = o.radius + radius;
+      at = {
+        x: o.pos.x + (dx / length) * apart,
+        y: o.pos.y + (dy / length) * apart,
+      };
+    }
+  }
+  return hits(at).length === 0 && fitsAt(area, at, wallRadius) ? at : from;
+}
+
 function walkToward(
   area: Area,
   walker: Walker,

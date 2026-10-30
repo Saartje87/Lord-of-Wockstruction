@@ -35,16 +35,25 @@ export function wallRadius(radius: number): number {
 }
 
 /**
- * The Bodies a Monster can't walk through: the Hero's Minions, bar `except`
- * (the one it is going after, which it walks up to).
+ * The Bodies a Monster can't walk through: the Hero's (unless in Death) and
+ * their Minions', bar `except` (the one it is going after, which it walks up
+ * to).
  */
-export function minionBodies(world: World, except?: object | null): Obstacle[] {
-  return world.minions
-    .filter((minion) => minion !== except)
-    .map((minion) => ({
-      pos: minion.pos,
-      radius: minionTuning[minion.type].radius,
-    }));
+export function heroSideBodies(
+  world: World,
+  except?: object | null,
+): Obstacle[] {
+  return [
+    ...(world.death || world.hero === except
+      ? []
+      : [{ pos: world.hero.pos, radius: heroTuning.radius }]),
+    ...world.minions
+      .filter((minion) => minion !== except)
+      .map((minion) => ({
+        pos: minion.pos,
+        radius: minionTuning[minion.type].radius,
+      })),
+  ];
 }
 
 /**

@@ -94,6 +94,7 @@ function withPoints(points: number): World {
     skillPoints: 0,
     skillLevels: { ...FRESH_PROGRESS.skillLevels, golem: 1 },
     skillBar: emptySkillBar(),
+    touchedWaypoints: [...FRESH_PROGRESS.touchedWaypoints],
   });
 }
 
@@ -205,6 +206,7 @@ describe("heroSheet", () => {
       skillPoints: 4,
       skillLevels: { ...FRESH_PROGRESS.skillLevels, golem: 0 },
       skillBar: emptySkillBar(),
+      touchedWaypoints: [...FRESH_PROGRESS.touchedWaypoints],
     });
     step(w, [{ type: "SpendAttributePoints", points: { dexterity: 1 } }]);
 
@@ -362,6 +364,7 @@ describe("a click on the Hero panel and the Level Up button", () => {
       skillPoints: 1,
       skillLevels: { ...FRESH_PROGRESS.skillLevels, golem: 0 },
       skillBar: emptySkillBar(),
+      touchedWaypoints: [...FRESH_PROGRESS.touchedWaypoints],
     });
 
     expect(levelUpHitAt(screen, centre(layout.levelUp), w)).toEqual({

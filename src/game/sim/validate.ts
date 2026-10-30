@@ -8,7 +8,7 @@ import { tileOf } from "./vec";
  * Level and an Act and Town no Level, Exits must lead to an Entry
  * that exists and be reachable from `start`, spawns must be on tiles the
  * Monsters can stand on, and only Town may have a Town Portal spot, which
- * must be reachable from `start` too. A Town without one opens no Town
+ * must be reachable from `start` too, as must a Waypoint. A Town without one opens no Town
  * Portals: the content tests check the shipped Town has it.
  */
 export function validateAreas(areas: Record<string, Area>) {
@@ -43,6 +43,15 @@ export function validateAreas(areas: Record<string, Area>) {
     ) {
       throw new Error(
         `Area "${area.name}" has its Town Portal spot where it can't be reached from "start"`,
+      );
+    }
+
+    if (
+      area.waypoint &&
+      !(isWalkable(area, area.waypoint) && canReach(area, start, area.waypoint))
+    ) {
+      throw new Error(
+        `Area "${area.name}" has its Waypoint where it can't be reached from "start"`,
       );
     }
 

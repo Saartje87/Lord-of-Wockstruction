@@ -1,3 +1,4 @@
+import { TOWN } from "./sim/area";
 import { emptyBelt, isValidBelt } from "./sim/belt";
 import {
   type Belongings,
@@ -22,9 +23,15 @@ import { heroTuning } from "./tuning/hero";
 /**
  * Raised whenever the stored text changes shape. Text of any other version
  * is no Save, so the Hero starts fresh instead of loading something
- * misread, but for `BELTLESS_VERSION`.
+ * misread, but for `BELTLESS_VERSION` and `WAYPOINTLESS_VERSION`.
  */
-export const SAVE_VERSION = 7;
+export const SAVE_VERSION = 8;
+
+/**
+ * The version before Waypoints: its text, otherwise the same, loads with
+ * only Wockville's Waypoint touched.
+ */
+const WAYPOINTLESS_VERSION = 7;
 
 /**
  * The version before the Belt: its text, otherwise the same, loads with an
@@ -65,6 +72,7 @@ const SAVE_CHANGING_EVENTS: readonly SimEvent["type"][] = [
   "ItemEquipped",
   "ItemUnequipped",
   "BeltChanged",
+  "WaypointTouched",
 ];
 
 /** Whether a step's events changed what the Save keeps: progress or Belongings. */
@@ -150,6 +158,13 @@ export function parseSave(text: string | null): HeroSave | null {
   if (fields.version === BELTLESS_VERSION) {
     if (fields.belt !== undefined) return null;
     fields.belt = emptyBelt();
+  }
+  if (
+    fields.version === BELTLESS_VERSION ||
+    fields.version === WAYPOINTLESS_VERSION
+  ) {
+    if (fields.touchedWaypoints !== undefined) return null;
+    fields.touchedWaypoints = [...FRESH_PROGRESS.touchedWaypoints];
   } else if (fields.version !== SAVE_VERSION) {
     return null;
   }
@@ -160,12 +175,15 @@ export function parseSave(text: string | null): HeroSave | null {
   if (!skillLevels) return null;
   const skillBar = parseSkillBar(fields.skillBar, skillLevels);
   if (!skillBar) return null;
+  const touchedWaypoints = parseTouchedWaypoints(fields.touchedWaypoints);
+  if (!touchedWaypoints) return null;
   const progress = {
     ...Object.fromEntries(
       PROGRESS_FIELDS.map((field) => [field, fields[field]]),
     ),
     skillLevels,
     skillBar,
+    touchedWaypoints,
   } as Progress;
   if (!fitsTable(progress.level, progress.experience)) return null;
   if (!fitsPoints(progress)) return null;
@@ -253,6 +271,22 @@ function parseSkillBar(
 }
 
 /**
+ * The stored touched Waypoints, or null when they aren't a list of Area
+ * names with none twice. Wockville's is always touched.
+ */
+function parseTouchedWaypoints(stored: unknown): string[] | null {
+  if (!Array.isArray(stored)) return null;
+  const areas: unknown[] = stored;
+  const valid = areas.every(
+    (area, i) =>
+      typeof area === "string" && area !== "" && areas.indexOf(area) === i,
+  );
+  if (!valid) return null;
+  const names = stored as string[];
+  return names.includes(TOWN) ? [...names] : [TOWN, ...names];
+}
+
+/**
  * A stored value as an object, or null when it isn't a plain object with
  * no keys but `keys`.
  */
@@ -267,7 +301,7 @@ function objectWithin(
 }
 
 /** The fields of the stored progress that aren't whole numbers. */
-const OBJECT_FIELDS = ["skillLevels", "skillBar"] as const;
+const OBJECT_FIELDS = ["skillLevels", "skillBar", "touchedWaypoints"] as const;
 
 type ObjectField = (typeof OBJECT_FIELDS)[number];
 

@@ -3,6 +3,7 @@ import { NO_FULLSCREEN } from "./fullscreen";
 import {
   acceptPendingPoints,
   addPendingPoint,
+  anyPanelOpen,
   clickClose,
   clickLevelUp,
   clickLoading,
@@ -11,11 +12,14 @@ import {
   clickPaused,
   clickStart,
   createMenus,
+  currentPanel,
   failLoad,
   finishLoading,
   fitMenus,
+  followHero,
   loadingScreen,
   type Menus,
+  PANELS,
   panelOpen,
   pauseForLostController,
   pressKey,
@@ -33,6 +37,7 @@ import {
   unplacedPoints,
 } from "./menus";
 import { gameTime } from "./pause";
+import type { SimEvent } from "./sim/world";
 
 /** Whether the World has the Hero lying dead, as the menus are told. */
 const alive = { heroDead: false };
@@ -268,14 +273,24 @@ describe("the keys", () => {
     expect(menus.heroPanelOpen).toBe(false);
   });
 
-  it("leave any other key, N, Q and Y included, to the game while it runs", () => {
+  it("leave any other key, N and Y included, to the game while it runs", () => {
     const menus = createMenus();
 
     expect(pressKey(menus, "n", 1000, alive)).toBeNull();
-    expect(pressKey(menus, "q", 1000, alive)).toBeNull();
     expect(pressKey(menus, "y", 1000, alive)).toBeNull();
     expect(pressKey(menus, "x", 1000, alive)).toBeNull();
     expect(menus.pause.paused).toBe(false);
+  });
+
+  it("open and shut the Quest panel on Q, shutting the Skill Tree and Inventory", () => {
+    const menus = createMenus();
+    pressKey(menus, "t", 1000, alive);
+
+    expect(pressKey(menus, "q", 1000, alive)).toBe("handled");
+    expect(menus.questOpen).toBe(true);
+    expect(menus.skillTreeOpen).toBe(false);
+    pressKey(menus, "q", 1000, alive);
+    expect(menus.questOpen).toBe(false);
   });
 
   it("quit to the Start Screen on Q with no confirm, resuming", () => {
@@ -914,11 +929,9 @@ describe("the Compact Layout", () => {
     return menus;
   }
 
-  /** Which of the three panels are open, by name. */
+  /** Which of the panels are open, by name. */
   function openPanels(menus: ReturnType<typeof createMenus>) {
-    return (["hero", "inventory", "skillTree"] as const).filter((panel) =>
-      panelOpen(menus, panel),
-    );
+    return PANELS.filter((panel) => panelOpen(menus, panel));
   }
 
   it("shuts the Inventory or Skill Tree panel as C opens the Hero panel, and the other way round", () => {
@@ -1208,11 +1221,9 @@ describe("the Rotate Notice", () => {
 });
 
 describe("the controller", () => {
-  /** Which of the three panels are open, by name. */
+  /** Which of the panels are open, by name. */
   function openPanels(menus: Menus) {
-    return (["hero", "inventory", "skillTree"] as const).filter((panel) =>
-      panelOpen(menus, panel),
-    );
+    return PANELS.filter((panel) => panelOpen(menus, panel));
   }
 
   /** Menus with the pause menu opened by Menu, at real time 1000. */
@@ -1332,6 +1343,8 @@ describe("the controller", () => {
       pressPad(menus, "rb", 1000, alive);
       expect(openPanels(menus)).toEqual(["skillTree"]);
       pressPad(menus, "rb", 1000, alive);
+      expect(openPanels(menus)).toEqual(["quest"]);
+      pressPad(menus, "rb", 1000, alive);
       expect(openPanels(menus)).toEqual(["hero"]);
     });
 
@@ -1340,9 +1353,9 @@ describe("the controller", () => {
       pressKey(menus, "c", 1000, alive);
 
       expect(pressPad(menus, "lb", 1000, alive)).toBe("handled");
-      expect(openPanels(menus)).toEqual(["skillTree"]);
+      expect(openPanels(menus)).toEqual(["quest"]);
       pressPad(menus, "lb", 1000, alive);
-      expect(openPanels(menus)).toEqual(["inventory"]);
+      expect(openPanels(menus)).toEqual(["skillTree"]);
     });
 
     it("moves on from the panel opened last, leaving the Hero panel beside it", () => {
@@ -1966,5 +1979,191 @@ describe("the Start Screen", () => {
 
     expect(menus.pause.paused).toBe(false);
     expect(menus.screen.type).toBe("start");
+  });
+});
+
+describe("the Waypoint list", () => {
+  const reached: SimEvent = { type: "WaypointReached", area: "town" };
+
+  it("opens as the Hero walks onto a Waypoint, shutting the other panels", () => {
+    const menus = createMenus();
+    pressKey(menus, "c", 1000, alive);
+    pressKey(menus, "i", 1000, alive);
+
+    reactMenus(menus, [reached]);
+
+    expect(menus.waypointsOpen).toBe(true);
+    expect(menus.heroPanelOpen).toBe(false);
+    expect(menus.inventoryOpen).toBe(false);
+  });
+
+  it("shuts with Esc before Esc pauses, and then Esc pauses as before", () => {
+    const menus = createMenus();
+    reactMenus(menus, [reached]);
+
+    expect(pressKey(menus, "Escape", 1000, alive)).toBe("handled");
+    expect(menus.waypointsOpen).toBe(false);
+    expect(menus.pause.paused).toBe(false);
+
+    pressKey(menus, "Escape", 2000, alive);
+    expect(menus.pause.paused).toBe(true);
+  });
+
+  it("shuts with its ×, with B and as the Hero dies or walks off", () => {
+    const menus = createMenus();
+    reactMenus(menus, [reached]);
+    clickClose(menus, "waypoints");
+    expect(menus.waypointsOpen).toBe(false);
+
+    reactMenus(menus, [reached]);
+    expect(pressPad(menus, "b", 1000, alive)).toBe("handled");
+    expect(menus.waypointsOpen).toBe(false);
+
+    reactMenus(menus, [reached]);
+    reactMenus(menus, [{ type: "HeroDied" }]);
+    expect(menus.waypointsOpen).toBe(false);
+
+    reactMenus(menus, [reached]);
+    followHero(menus, { standingOnWaypoint: false, withinReachOf: () => true });
+    expect(menus.waypointsOpen).toBe(false);
+  });
+
+  it("stays open while the Hero stands on the Waypoint", () => {
+    const menus = createMenus();
+    reactMenus(menus, [reached]);
+
+    followHero(menus, { standingOnWaypoint: true, withinReachOf: () => true });
+
+    expect(menus.waypointsOpen).toBe(true);
+  });
+
+  it("is the panel the controller acts on, and a Panel key shuts it", () => {
+    const menus = createMenus();
+    reactMenus(menus, [reached]);
+    expect(currentPanel(menus)).toBe("waypoints");
+    expect(anyPanelOpen(menus)).toBe(true);
+
+    pressKey(menus, "c", 1000, alive);
+
+    expect(menus.waypointsOpen).toBe(false);
+    expect(menus.heroPanelOpen).toBe(true);
+  });
+
+  it("ignores LB and RB", () => {
+    const menus = createMenus();
+    reactMenus(menus, [reached]);
+
+    pressPad(menus, "rb", 1000, alive);
+
+    expect(menus.waypointsOpen).toBe(true);
+    expect(menus.heroPanelOpen).toBe(false);
+  });
+
+  it("does not open under the Rotate Notice", () => {
+    const menus = createMenus();
+    fitMenus(menus, { compact: false, rotateNotice: "turn" }, 1000);
+    reactMenus(menus, [reached]);
+    expect(menus.waypointsOpen).toBe(false);
+  });
+});
+
+describe("the Dialogue panel", () => {
+  const talked: SimEvent = { type: "Talked", npc: 2, name: "Smith" };
+
+  it("opens as the Hero talks, with that NPC, shutting the other panels", () => {
+    const menus = createMenus();
+    pressKey(menus, "c", 1000, alive);
+
+    reactMenus(menus, [talked]);
+
+    expect(menus.dialogueOpen).toBe(true);
+    expect(menus.dialogueNpc).toBe(2);
+    expect(menus.heroPanelOpen).toBe(false);
+    expect(currentPanel(menus)).toBe("dialogue");
+  });
+
+  it("starts at the Smith's talk, and returns to it once he has worked", () => {
+    const menus = createMenus();
+    menus.dialoguePage = 3;
+
+    reactMenus(menus, [talked]);
+    expect(menus.dialoguePage).toBe(0);
+
+    menus.dialoguePage = 2;
+    reactMenus(menus, [
+      {
+        type: "SmithBonusGiven",
+        item: 1,
+        bonus: { bonus: "strength", amount: 4 },
+      },
+    ]);
+    expect(menus.dialoguePage).toBe(0);
+  });
+
+  it("replaces the Waypoint list, and is replaced by it", () => {
+    const menus = createMenus();
+    reactMenus(menus, [{ type: "WaypointReached", area: "town" }]);
+
+    reactMenus(menus, [talked]);
+    expect(menus.waypointsOpen).toBe(false);
+    expect(menus.dialogueOpen).toBe(true);
+
+    reactMenus(menus, [{ type: "WaypointReached", area: "town" }]);
+    expect(menus.dialogueOpen).toBe(false);
+    expect(menus.waypointsOpen).toBe(true);
+  });
+
+  it("shuts with Esc before Esc pauses, with its ×, B and as the Hero dies", () => {
+    const menus = createMenus();
+    reactMenus(menus, [talked]);
+    expect(pressKey(menus, "Escape", 1000, alive)).toBe("handled");
+    expect(menus.dialogueOpen).toBe(false);
+    expect(menus.pause.paused).toBe(false);
+
+    reactMenus(menus, [talked]);
+    clickClose(menus, "dialogue");
+    expect(menus.dialogueOpen).toBe(false);
+
+    reactMenus(menus, [talked]);
+    expect(pressPad(menus, "b", 1000, alive)).toBe("handled");
+    expect(menus.dialogueOpen).toBe(false);
+
+    reactMenus(menus, [talked]);
+    reactMenus(menus, [{ type: "HeroDied" }]);
+    expect(menus.dialogueOpen).toBe(false);
+  });
+
+  it("shuts as the Hero takes damage, even all of it warded", () => {
+    const menus = createMenus();
+    reactMenus(menus, [talked]);
+
+    reactMenus(menus, [{ type: "HeroHit", damage: 0, warded: 4 }]);
+
+    expect(menus.dialogueOpen).toBe(false);
+  });
+
+  it("shuts as the Hero walks away from the NPC, and not before", () => {
+    const menus = createMenus();
+    reactMenus(menus, [talked]);
+    const standing = { standingOnWaypoint: false };
+
+    followHero(menus, { ...standing, withinReachOf: (npc) => npc === 2 });
+    expect(menus.dialogueOpen).toBe(true);
+
+    followHero(menus, { ...standing, withinReachOf: () => false });
+    expect(menus.dialogueOpen).toBe(false);
+  });
+
+  it("ignores LB and RB, and does not open under the Rotate Notice", () => {
+    const menus = createMenus();
+    reactMenus(menus, [talked]);
+    pressPad(menus, "rb", 1000, alive);
+    expect(menus.dialogueOpen).toBe(true);
+    expect(menus.heroPanelOpen).toBe(false);
+
+    const noticed = createMenus();
+    fitMenus(noticed, { compact: false, rotateNotice: "turn" }, 1000);
+    reactMenus(noticed, [talked]);
+    expect(noticed.dialogueOpen).toBe(false);
   });
 });

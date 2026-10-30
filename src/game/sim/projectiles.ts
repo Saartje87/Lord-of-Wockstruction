@@ -2,6 +2,7 @@ import { heroTuning } from "../tuning/hero";
 import { minionTuning } from "../tuning/minions";
 import { monsterTuning } from "../tuning/monsters";
 import type { ProjectileKind } from "../tuning/projectiles";
+import { altarRadiusOf, type BoneAltar, targetsOf } from "./boneAltars";
 import { canSee } from "./path";
 import type { Vec } from "./vec";
 import type { Monster, MonsterId, MonsterTarget, World } from "./world";
@@ -46,14 +47,14 @@ export type MonsterProjectile = Flight &
   };
 
 /**
- * The Hero's Projectile: it hits every Monster it touches, each once, and
- * flies through the Hero's Minions.
+ * The Hero's Projectile: it hits every Monster and Bone Altar it touches,
+ * each once, and flies through the Hero's Minions.
  */
 export type HeroProjectile = Flight & {
   from: "hero";
   /** Damage per hit, rolled from `[min, max]` inclusive. It always hits. */
   damage: [number, number];
-  /** The Monsters it has hit. */
+  /** The Monsters and Bone Altars it has hit. */
   hit: MonsterId[];
 };
 
@@ -70,7 +71,7 @@ export type HeroProjectile = Flight & {
 export function stepProjectiles(
   world: World,
   land: (projectile: MonsterProjectile, target: MonsterTarget) => void,
-  strike: (projectile: HeroProjectile, monster: Monster) => void,
+  strike: (projectile: HeroProjectile, target: Monster | BoneAltar) => void,
 ) {
   const area = world.areas[world.areaName];
   world.projectiles = world.projectiles.filter((projectile) => {
@@ -84,9 +85,9 @@ export function stepProjectiles(
     projectile.pos = to;
     projectile.rangeLeft -= move;
     if (projectile.from === "hero") {
-      for (const monster of monstersTouched(world, projectile, from, to)) {
-        projectile.hit.push(monster.id);
-        strike(projectile, monster);
+      for (const target of targetsTouched(world, projectile, from, to)) {
+        projectile.hit.push(target.id);
+        strike(projectile, target);
       }
     } else {
       const touched = firstTouched(world, from, to);
@@ -102,28 +103,48 @@ export function stepProjectiles(
 }
 
 /**
- * The Monsters the Hero's `projectile`, flying from `from` to `to`, touches with
- * no wall between and hasn't hit before, nearest `from` first.
+ * The Monsters and Bone Altars the Hero's `projectile`, flying from `from` to
+ * `to`, touches with no wall between and hasn't hit before, nearest `from`
+ * first. A Bone Altar blocks its own tile, so it is seen up to its edge.
  */
-function monstersTouched(
+function targetsTouched(
   world: World,
   projectile: HeroProjectile,
   from: Vec,
   to: Vec,
-): Monster[] {
+): (Monster | BoneAltar)[] {
   const area = world.areas[world.areaName];
-  const touched: { monster: Monster; along: number }[] = [];
-  for (const monster of world.monsters) {
-    if (projectile.hit.includes(monster.id)) continue;
-    const { radius } = monsterTuning[monster.type];
-    const at = touching(monster.pos, radius, from, to);
-    if (at && canSee(area, from, at.nearest)) {
-      touched.push({ monster, along: at.along });
-    }
+  const touched: { target: Monster | BoneAltar; along: number }[] = [];
+  for (const target of targetsOf(world)) {
+    if (projectile.hit.includes(target.id)) continue;
+    const altar = altarRadiusOf(target) > 0;
+    const radius = altar
+      ? altarRadiusOf(target) + ALTAR_GRAZE
+      : monsterTuning[(target as Monster).type].radius;
+    const at = touching(target.pos, radius, from, to);
+    if (!at) continue;
+    const seen = altar
+      ? backedOff(from, at.nearest, altarRadiusOf(target))
+      : at.nearest;
+    if (canSee(area, from, seen)) touched.push({ target, along: at.along });
   }
   return touched
     .sort((one, other) => one.along - other.along)
-    .map(({ monster }) => monster);
+    .map(({ target }) => target);
+}
+
+/** How much further than its radius a Projectile touches a Bone Altar (tiles). */
+const ALTAR_GRAZE = 0.25;
+
+/** The point `back` before `to` on the line from `from`, or `from` if nearer. */
+function backedOff(from: Vec, to: Vec, back: number): Vec {
+  const length = Math.hypot(to.x - from.x, to.y - from.y);
+  if (length <= back) return { ...from };
+  const along = (length - back) / length;
+  return {
+    x: from.x + (to.x - from.x) * along,
+    y: from.y + (to.y - from.y) * along,
+  };
 }
 
 /**

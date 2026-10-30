@@ -11,6 +11,7 @@ import {
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { Area } from "../sim/area";
 import { type Atmosphere, createAtmosphere, driftEmbers } from "./atmosphere";
+import { type BoneAltarMeshes, boneAltarMeshesOf } from "./boneAltarMeshes";
 import { placeCamera, type WorldCamera } from "./camera";
 import { type ExitMeshes, exitMeshesOf } from "./exitMeshes";
 import {
@@ -67,6 +68,8 @@ export type World3d = {
   atmosphere: Atmosphere;
   /** The Town Portal ends, drawn as gateways. */
   townPortals: TownPortalMeshes;
+  /** The Bone Altars standing in the Area. */
+  boneAltars: BoneAltarMeshes;
   /** Telegraphs, Curses, Corpse bursts and the Level-Up ring on the floor. */
   floorEffects: FloorEffectMeshes;
   /** Set once `loadModels` is done. */
@@ -89,7 +92,7 @@ export type World3d = {
   /** The Minions in the scene, by id. */
   minions: Map<number, MonsterActor>;
   /** Town's NPCs in the scene, by their place in the Area's NPCs. */
-  npcs: Map<number, MonsterActor>;
+  npcs: Map<string, MonsterActor>;
   /** The Wall and Prop pieces loaded so far, by piece name. */
   pieces: Record<string, Object3D | undefined>;
   /** The pieces asked for, so each is loaded once. */
@@ -142,6 +145,8 @@ export function createWorld3d(shared: SharedCanvas): World3d {
   scene.add(markers.click, markers.hover);
   const townPortals = townPortalMeshesOf();
   scene.add(townPortals.group);
+  const boneAltars = boneAltarMeshesOf();
+  scene.add(boneAltars.group);
   const floorEffects = floorEffectMeshesOf();
   scene.add(floorEffects.group);
   return {
@@ -152,6 +157,7 @@ export function createWorld3d(shared: SharedCanvas): World3d {
     lighting,
     atmosphere,
     townPortals,
+    boneAltars,
     floorEffects,
     models: null,
     monsters: new Map(),
@@ -277,6 +283,7 @@ function showFloor(world3d: World3d, area: Area) {
       height,
       to,
     })),
+    area.waypoint,
   );
   scene.add(floor, exits.group);
   world3d.shown = { area, floor, exits, scenery: null };
@@ -401,22 +408,23 @@ function poseMinions(world3d: World3d, view: WorldView, dt: number) {
 function poseNpcs(world3d: World3d, view: WorldView, dt: number) {
   const { models, npcs, scene } = world3d;
   if (!models) return;
-  const seen = new Set<number>();
+  // By name: an NPC's index in its Area can be another Area's NPC's.
+  const seen = new Set<string>();
   for (const npc of view.npcs) {
-    seen.add(npc.id);
-    let actor = npcs.get(npc.id);
+    seen.add(npc.name);
+    let actor = npcs.get(npc.name);
     if (!actor) {
       actor = monsterActorOf(NPC_LOOKS[npc.name], models.monsters);
-      npcs.set(npc.id, actor);
+      npcs.set(npc.name, actor);
       scene.add(actor.root);
     }
     poseMonster(actor, npc, dt);
   }
-  for (const [id, actor] of npcs) {
-    if (seen.has(id)) continue;
+  for (const [name, actor] of npcs) {
+    if (seen.has(name)) continue;
     scene.remove(actor.root);
     for (const material of actor.materials) material.dispose();
-    npcs.delete(id);
+    npcs.delete(name);
   }
 }
 
@@ -480,6 +488,7 @@ export function drawWorld3d(
   world3d.shown?.scenery?.torches.show(view.torches, seconds);
   lightScene(world3d.lighting, view, seconds, scene);
   world3d.townPortals.show(view.townPortals, seconds);
+  world3d.boneAltars.show(view.boneAltars, seconds);
   world3d.floorEffects.show(view.floorEffects);
   world3d.shown?.exits.update(seconds);
   driftEmbers(world3d.atmosphere, view.hero.pos, dt, view.combat);

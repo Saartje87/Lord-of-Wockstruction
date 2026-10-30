@@ -5,6 +5,7 @@ import { type SkillBarSlot, skillInSlot } from "../sim/skillBar";
 import { distance, type Vec } from "../sim/vec";
 import {
   type MonsterId,
+  npcsIn,
   type Order,
   usesCorpse,
   type World,
@@ -190,8 +191,9 @@ export function hideFocus(input: PadInput) {
  * stops the Hero. The Target is the nearest Monster within reach ahead of
  * the stick (inside the cone) while it is pushed, and with it at rest the
  * nearest within reach whichever way it lies (`pickTarget`). A attacks the
- * Target; with none it picks up the nearest Ground Item within
- * `groundItemReach`; with neither it does nothing. Held, A acts again every
+ * Target; with none it talks to the nearest NPC within `npcReach` (once per
+ * press), else picks up the nearest Ground Item within `groundItemReach`;
+ * with none of them it does nothing. Held, A acts again every
  * `retargetMs`, picking the Target afresh, and the stick keeps walking, so
  * the Hero walks between swings.
  *
@@ -246,12 +248,16 @@ export function pollPad(
     y: Math.sin(world.hero.facing),
   };
   const target = pickTarget(world, walk);
-  const action = target !== null ? attack(target) : pickUpNear(world);
+  const talk = target === null ? talkNear(world) : null;
+  const action = target !== null ? attack(target) : (talk ?? pickUpNear(world));
   // The walk goes first, so an Attack or Cast after it in the same step
   // isn't cancelled by it; while a swing or cast roots the Hero, the sim
   // holds the walk back until it ends, so the Hero kites between them.
   const orders: Order[] = walk ? [{ type: "Walk", direction: walk }] : [];
-  if (actsNow(input, snapshot, "a", nowMs) && action) orders.push(action);
+  // Talking opens a panel: held, A would reopen it as soon as it shuts.
+  const acts = actsNow(input, snapshot, "a", nowMs);
+  const fresh = snapshot.pressed.includes("a");
+  if (acts && action && (action !== talk || fresh)) orders.push(action);
   for (const [button, slot] of SKILL_BUTTONS) {
     const skill = skillInSlot(world, slot);
     if (actsNow(input, snapshot, button, nowMs) && skill) {
@@ -381,6 +387,18 @@ function walkDirection(stick: Vec, view: PadView): Vec | null {
 }
 
 const attack = (monster: MonsterId): Order => ({ type: "Attack", monster });
+
+/** A talk with the nearest NPC within `npcReach` of the Hero, if any. */
+function talkNear(world: World): Order | null {
+  let nearest: { npc: number; away: number } | null = null;
+  for (const { id: npc, pos } of npcsIn(world)) {
+    const away = distance(world.hero.pos, pos);
+    if (away > inputTuning.npcReach) continue;
+    if (nearest && away >= nearest.away) continue;
+    nearest = { npc, away };
+  }
+  return nearest && { type: "Talk", npc: nearest.npc };
+}
 
 /** A pick-up of the nearest Ground Item within reach of the Hero, if any. */
 function pickUpNear(world: World): Order | null {

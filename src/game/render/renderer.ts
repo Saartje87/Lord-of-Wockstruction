@@ -45,12 +45,14 @@ import {
   areaFade,
   DEATH_STEPS,
   groundItemsOf,
+  hasQuestToDeal,
   inTown,
   isInCombat,
   isRegenerating,
   type MinionId,
   type Monster,
   type MonsterId,
+  npcsIn,
   type SimEvent,
   townPortalFlash,
   townPortalIn,
@@ -67,9 +69,15 @@ import { tileToScreen, type WorldCamera } from "../world3d/camera";
 import { CRUMBLE_SECONDS } from "../world3d/crumble";
 import { groundSpotsOf } from "../world3d/groundSpots";
 import { MONSTER_LOOKS } from "../world3d/monsterLook";
-import { pickablesOf } from "../world3d/pickables";
+import { NPC_LOOKS } from "../world3d/npcLook";
+import { npcPickablesOf, pickablesOf } from "../world3d/pickables";
 import { characterUnder3d, type Pickable3d } from "../world3d/picking";
 import type { DepartedMinion, Effects } from "../world3d/view";
+import {
+  actCompletedText,
+  actCompleteLayout,
+  actCompleteOpacityAt,
+} from "./actCompleteBanner";
 import {
   areaBannerLayout,
   arrivedInDisplayName,
@@ -87,6 +95,7 @@ import {
   floatAt,
   floatText,
 } from "./damageNumbers";
+import { DIALOGUE, dialogueLayout, dialogueSheet } from "./dialoguePanel";
 import {
   EXPERIENCE_BAR,
   experienceBar,
@@ -168,6 +177,8 @@ import {
   PAUSE_MENU_LAYOUT,
   pauseMenuLayout,
 } from "./pauseMenu";
+import { QUEST_MARK, questMarkBob } from "./questMark";
+import { QUEST_PANEL, questPanelLayout, questPanelSheet } from "./questPanel";
 import {
   ROTATE_NOTICE_LAYOUT,
   rotateNoticeChoiceAt,
@@ -188,6 +199,12 @@ import { GAME_NAME, startChoiceAt, startScreenLayout } from "./startScreen";
 import { tooltipRect } from "./tooltip";
 import { touchControlsLayout, touchControlsShown } from "./touchControls";
 import { shownTownPortals, townPortalCloseScale } from "./townPortalLook";
+import {
+  WAYPOINT_LIST,
+  waypointListLayout,
+  waypointListSheet,
+  waypointPickable,
+} from "./waypointList";
 
 /** How long a hit Monster flashes white (ms), fading out. */
 const FLASH_MS = 120;
@@ -447,6 +464,8 @@ const PANEL_BUTTON_STYLE = {
     inventory: { w: 20, h: 17, y: -5, corner: 4, strapW: 10, strapH: 6 },
     /** A root node linked to two leaves. */
     skillTree: { rootY: -9, leafX: 8, leafY: 8, node: 4 },
+    /** A scroll: a page `w` by `h` with `lines` lines of text on it, `lineGap` apart. */
+    quest: { w: 16, h: 20, lines: 3, lineGap: 5, inset: 3 },
   },
   /**
    * The Town Portal button's icon: an upright green oval `w` by `h` with a
@@ -525,6 +544,8 @@ export function createRenderer(
   /** Where each character stood as last drawn, for picking. */
   let standing: Pickable3d<CharacterId>[] = [];
   let highlighted: CharacterId | null = null;
+  /** Where the NPCs stood as last drawn, for picking. */
+  let standingNpcs: Pickable3d<number>[] = [];
   // Over the 3D World, under the HUD, bottom to top: Ground Item labels,
   // damage numbers, then Life bars and Curse marks, which are scaled by the
   // World zoom.
@@ -584,6 +605,12 @@ export function createRenderer(
   app.stage.addChild(inventoryPanel.layer);
   const skillTreePanel = skillTreePanelView(activeInput);
   app.stage.addChild(skillTreePanel.layer);
+  const questPanel = questPanelView(activeInput);
+  app.stage.addChild(questPanel.layer);
+  const waypointList = waypointListView(activeInput, areaDisplayNames);
+  app.stage.addChild(waypointList.layer);
+  const dialoguePanel = dialoguePanelView(activeInput);
+  app.stage.addChild(dialoguePanel.layer);
   // The Focus's ring, over the panel it is in.
   const focusRing = new Graphics();
   app.stage.addChild(focusRing);
@@ -601,6 +628,14 @@ export function createRenderer(
   banner.anchor.set(0.5);
   banner.visible = false;
   app.stage.addChild(banner);
+  // The same, for completing an Act: bigger, and lower.
+  const actBanner = new Text({
+    text: "",
+    style: { fill: BANNER_COLOUR, fontFamily: SERIF },
+  });
+  actBanner.anchor.set(0.5);
+  actBanner.visible = false;
+  app.stage.addChild(actBanner);
   const hurt = new Graphics().rect(0, 0, 1, 1).fill(HURT_COLOUR);
   hurt.visible = false;
   app.stage.addChild(hurt);
@@ -681,6 +716,8 @@ export function createRenderer(
     banner.text = displayName;
     arrivedAtMs = nowMs;
   };
+  /** When the Hero last completed an Act, for the Act Complete banner. */
+  let actCompletedAtMs: number | null = null;
   /** The World last drawn; a New Hero brings another. */
   let drawnWorld: World | null = null;
   /** Which panels were open, and the Pending Attribute Points, when last drawn. */
@@ -689,6 +726,11 @@ export function createRenderer(
     heroPanelOpen: false,
     inventoryOpen: false,
     skillTreeOpen: false,
+    questOpen: false,
+    waypointsOpen: false,
+    dialogueOpen: false,
+    dialogueNpc: 0,
+    dialoguePage: 0,
     pendingPoints: noPendingPoints(),
   };
 
@@ -751,6 +793,13 @@ export function createRenderer(
     const id = characterAt(screen);
     return typeof id === "number" ? id : null;
   };
+
+  /**
+   * The NPC (index in the Area's `npcs`) drawn under a point on the canvas
+   * (CSS px), as last drawn.
+   */
+  const npcAt = (screen: Vec): number | null =>
+    characterUnder3d(cameraOf(), standingNpcs, screen);
 
   /** The Ground Item whose label is under a canvas point (CSS px). */
   const groundLabelUnder = (screen: Vec): ItemId | null =>
@@ -874,6 +923,7 @@ export function createRenderer(
     },
 
     monsterAt,
+    npcAt,
     groundLabelAt: groundLabelUnder,
     groundItemAt,
 
@@ -966,6 +1016,11 @@ export function createRenderer(
     react(events: readonly SimEvent[], nowMs: number) {
       const arrivedIn = arrivedInDisplayName(events, areaDisplayNames);
       if (arrivedIn !== null) showBanner(arrivedIn, nowMs);
+      const completed = actCompletedText(events);
+      if (completed !== null) {
+        actBanner.text = completed;
+        actCompletedAtMs = nowMs;
+      }
       for (const number of damageNumbers(events)) {
         // Over the character as last drawn, the tile it stood on.
         const mark =
@@ -1070,6 +1125,11 @@ export function createRenderer(
         heroPanelOpen: menus.heroPanelOpen,
         inventoryOpen: menus.inventoryOpen,
         skillTreeOpen: menus.skillTreeOpen,
+        questOpen: menus.questOpen,
+        waypointsOpen: menus.waypointsOpen,
+        dialogueOpen: menus.dialogueOpen,
+        dialogueNpc: menus.dialogueNpc,
+        dialoguePage: menus.dialoguePage,
         pendingPoints: { ...menus.pendingPoints },
       };
       if (world !== drawnWorld) {
@@ -1127,6 +1187,7 @@ export function createRenderer(
       const camera = cameraOf();
       overheads3d.scale.set(camera.zoom);
       standing = pickablesOf(world, alpha);
+      standingNpcs = npcPickablesOf(world);
       /** Where the top of a Monster's Life bar goes, in the space it's drawn in. */
       const barAnchor = (monster: Monster): Vec => {
         const head = tileToScreen(
@@ -1144,6 +1205,16 @@ export function createRenderer(
         if (!monster.curse) continue;
         const anchor = barAnchor(monster);
         curseMark(overheads, anchor.x, anchor.y, markAlpha);
+      }
+      // A mark over each NPC with a Quest to give or take back.
+      for (const npc of npcsIn(world)) {
+        if (!hasQuestToDeal(world, npc.id)) continue;
+        const head = tileToScreen(camera, npc.pos, NPC_LOOKS[npc.name].height);
+        questMark(
+          overheads,
+          head.x / camera.zoom,
+          head.y / camera.zoom - QUEST_MARK.lift - questMarkBob(nowMs),
+        );
       }
       for (const monster of world.monsters) {
         const life = monsterMaxLife(monster);
@@ -1234,6 +1305,8 @@ export function createRenderer(
           lerp(minion.prevPos, minion.pos, alpha),
         ),
         townPortal: townPortalIn(world),
+        npcs: npcsIn(world),
+        boneAltars: world.boneAltars.map(({ pos }) => pos),
         displayNames: areaDisplayNames,
       };
       mapOverlay.draw(viewport, mapInputs, menus.mapOpen);
@@ -1263,6 +1336,15 @@ export function createRenderer(
       const touching = activeInput.way === "touch";
       const skillTooltipAt = (focus || touching) && !heldSkill ? pointer : null;
       skillTreePanel.draw(viewport, world, menus.skillTreeOpen, skillTooltipAt);
+      questPanel.draw(viewport, world, menus.questOpen);
+      waypointList.draw(viewport, world, menus.waypointsOpen);
+      dialoguePanel.draw(
+        viewport,
+        world,
+        menus.dialogueOpen,
+        menus.dialogueNpc,
+        menus.dialoguePage,
+      );
       heldSkillView.draw(heldSkill, pointer, uiScale);
       const spot = onPanel && "inventory" in onPanel ? onPanel.inventory : null;
       inventoryPanel.draw(viewport, world, menus.inventoryOpen, spot, pointer);
@@ -1291,6 +1373,18 @@ export function createRenderer(
         banner.position.set(layout.at.x, layout.at.y);
       } else arrivedAtMs = null;
 
+      const actAlpha =
+        actCompletedAtMs === null
+          ? null
+          : actCompleteOpacityAt(nowMs - actCompletedAtMs);
+      actBanner.visible = actAlpha !== null;
+      if (actAlpha !== null) {
+        const layout = actCompleteLayout(viewport);
+        actBanner.alpha = actAlpha;
+        sizeText(actBanner, layout.size, layout.stroke);
+        actBanner.position.set(layout.at.x, layout.at.y);
+      } else actCompletedAtMs = null;
+
       death.draw(app.screen, world, nowMs);
 
       const darkness = areaFade(world);
@@ -1316,6 +1410,30 @@ export function createRenderer(
       notice.draw(viewport, menus.fullscreen);
     },
   };
+}
+
+/**
+ * The mark over an NPC with a Quest: an exclamation mark centred on `x`, its
+ * foot at `bottom`.
+ */
+function questMark(graphics: Graphics, x: number, bottom: number) {
+  const { colour, outline, outlineWidth, barWidth, barHeight, dot, gap } =
+    QUEST_MARK;
+  const dotTop = bottom - dot;
+  graphics
+    .roundRect(x - dot / 2, dotTop, dot, dot, dot / 2)
+    .fill(colour)
+    .stroke({ color: outline, width: outlineWidth });
+  graphics
+    .roundRect(
+      x - barWidth / 2,
+      dotTop - gap - barHeight,
+      barWidth,
+      barHeight,
+      barWidth / 2,
+    )
+    .fill(colour)
+    .stroke({ color: outline, width: outlineWidth });
 }
 
 /**
@@ -1988,6 +2106,17 @@ function panelIcon(
       .rect(x - bag.strapW / 2, y + bag.y - bag.strapH, bag.strapW, bag.strapH)
       .stroke(line);
   }
+  if (panel === "quest") {
+    const { w, h, lines, lineGap, inset } = atUiScale(icon.quest, scale);
+    graphics.rect(x - w / 2, y - h / 2, w, h).stroke(line);
+    for (let i = 0; i < lines; i += 1) {
+      const lineY = y - h / 2 + inset * 2 + i * lineGap;
+      graphics
+        .moveTo(x - w / 2 + inset, lineY)
+        .lineTo(x + w / 2 - inset, lineY)
+        .stroke(line);
+    }
+  }
   if (panel === "skillTree") {
     const { rootY, leafX, leafY, node } = atUiScale(icon.skillTree, scale);
     graphics
@@ -2129,9 +2258,43 @@ function mapView(withNames: boolean) {
             (portal.width / 2) * uiScale,
             (portal.height / 2) * uiScale,
           )
-          .stroke({ color: portal.colour, width: 1.5 * uiScale })
+          .stroke({ color: portal.colour, width: portal.ringWidth * uiScale })
           .circle(point.x, point.y, portal.dot * uiScale)
           .fill(portal.colour);
+      }
+      if (found.waypoint) {
+        const point = onScreen(found.waypoint);
+        const { waypoint } = MAP_LOOK;
+        const halfWidth = (waypoint.diamond + 1) * uiScale;
+        marks
+          .ellipse(
+            point.x,
+            point.y,
+            (waypoint.width / 2) * uiScale,
+            (waypoint.height / 2) * uiScale,
+          )
+          .stroke({
+            color: waypoint.colour,
+            width: waypoint.ringWidth * uiScale,
+          })
+          .poly([
+            point.x - halfWidth,
+            point.y,
+            point.x,
+            point.y - waypoint.diamond * uiScale,
+            point.x + halfWidth,
+            point.y,
+            point.x,
+            point.y + waypoint.diamond * uiScale,
+          ])
+          .fill(waypoint.colour);
+      }
+      for (const at of found.boneAltars) {
+        const point = onScreen(at);
+        const half = (MAP_LOOK.boneAltar.size / 2) * uiScale;
+        marks
+          .rect(point.x - half, point.y - half, 2 * half, 2 * half)
+          .fill(MAP_LOOK.boneAltar.colour);
       }
       for (const at of found.minions) {
         const point = onScreen(at);
@@ -2449,19 +2612,7 @@ function scaledTexts() {
  */
 function heroPanelView(activeInput: Readonly<ActiveInput>) {
   const style = HERO_PANEL_STYLE;
-  const layer = new Container();
-  const graphics = new Graphics();
-  layer.addChild(graphics);
-  layer.visible = false;
-  const texts = scaledTexts();
-  const text = (fill: number, size = style.textSize) => {
-    const t = new Text({
-      text: "",
-      style: { fill, fontSize: size, fontFamily: SERIF },
-    });
-    layer.addChild(t);
-    return texts.add(t, size);
-  };
+  const { layer, graphics, texts, text } = panelScaffold();
 
   const title = text(style.title, style.titleSize);
   title.text = "Hero";
@@ -2515,10 +2666,7 @@ function heroPanelView(activeInput: Readonly<ActiveInput>) {
       const beforeButtons = layout.accept.x - style.plusGap * scale;
 
       graphics.clear();
-      graphics
-        .rect(panel.x, panel.y, panel.w, panel.h)
-        .fill({ color: style.fill, alpha: style.alpha })
-        .stroke({ color: style.edge, width: 2 });
+      panelFrame(graphics, panel);
       closeButton(graphics, layout.closeButton, scale);
       title.position.set(panel.x + panel.w / 2, panel.y + padding);
       const { closeHint } = layout;
@@ -2594,6 +2742,159 @@ function heroPanelView(activeInput: Readonly<ActiveInput>) {
 }
 
 /**
+ * What a Hero-panel-look panel view starts with: a hidden layer holding a
+ * Graphics, and `text`, which adds Text to the layer and keeps it at the
+ * UI Scale (`texts.size(scale)` after drawing).
+ */
+function panelScaffold() {
+  const layer = new Container();
+  const graphics = new Graphics();
+  layer.addChild(graphics);
+  layer.visible = false;
+  const texts = scaledTexts();
+  const text = (fill: number, size: number = HERO_PANEL_STYLE.textSize) => {
+    const t = new Text({
+      text: "",
+      style: { fill, fontSize: size, fontFamily: SERIF },
+    });
+    layer.addChild(t);
+    return texts.add(t, size);
+  };
+  return { layer, graphics, texts, text };
+}
+
+/** Fills and edges a Hero-panel-look panel. */
+function panelFrame(graphics: Graphics, panel: Rect) {
+  const style = HERO_PANEL_STYLE;
+  graphics
+    .rect(panel.x, panel.y, panel.w, panel.h)
+    .fill({ color: style.fill, alpha: style.alpha })
+    .stroke({ color: style.edge, width: 2 });
+}
+
+/**
+ * The Waypoint list, in the Hero panel's look: a row for each of Act 1's
+ * Waypoints, the untouched greyed out and the one the Hero stands on marked,
+ * under a title and over a hint how to close it.
+ */
+function waypointListView(
+  activeInput: Readonly<ActiveInput>,
+  displayNames: Readonly<Record<string, string>>,
+) {
+  const style = HERO_PANEL_STYLE;
+  const { layer, graphics, texts, text } = panelScaffold();
+  const title = text(style.title, style.titleSize);
+  title.text = "Waypoints";
+  title.anchor.set(0.5, 0);
+  const hint = text(style.hint, style.hintSize);
+  hint.anchor.set(0.5, 1);
+  /** Made as the sheet first lists them. */
+  const names: Text[] = [];
+  const notes: Text[] = [];
+
+  return {
+    layer,
+    draw(screen: Viewport, world: World, open: boolean) {
+      layer.visible = open;
+      if (!open) return;
+      hint.text = panelCloseHint("waypoints", activeInput.way);
+      const sheet = waypointListSheet(world, displayNames);
+      const layout = waypointListLayout(screen, sheet.length);
+      const { panel } = layout;
+      const scale = screen.uiScale;
+      const { padding } = atUiScale(WAYPOINT_LIST, scale);
+
+      graphics.clear();
+      panelFrame(graphics, panel);
+      closeButton(graphics, layout.closeButton, scale);
+      title.position.set(panel.x + panel.w / 2, panel.y + padding);
+      hint.position.set(panel.x + panel.w / 2, panel.y + panel.h - padding);
+
+      sheet.forEach((waypoint, index) => {
+        names[index] ??= text(style.title);
+        notes[index] ??= text(style.hint, style.hintSize);
+        const row = layout.rows[index];
+        const y = row.y + row.h / 2;
+        if (waypointPickable(waypoint)) button(graphics, row);
+        else graphics.rect(row.x, row.y, row.w, row.h).stroke(style.edge);
+        const name = names[index];
+        name.text = waypoint.name;
+        name.anchor.set(0, 0.5);
+        name.position.set(row.x + padding / 2, y);
+        // Greyed out until touched.
+        name.style.fill = waypoint.touched ? style.title : style.hint;
+        const note = notes[index];
+        note.text = waypoint.here ? "You are here" : "";
+        note.anchor.set(1, 0.5);
+        note.position.set(row.x + row.w - padding / 2, y);
+      });
+      // Rows made this draw too.
+      texts.size(scale);
+    },
+  };
+}
+
+/**
+ * The Dialogue panel, in the Hero panel's look: the NPC's name over what
+ * they say, a button for each thing the Hero can answer, and a hint how to
+ * close it.
+ */
+function dialoguePanelView(activeInput: Readonly<ActiveInput>) {
+  const style = HERO_PANEL_STYLE;
+  const { layer, graphics, texts, text } = panelScaffold();
+  const title = text(style.title, style.titleSize);
+  title.anchor.set(0.5, 0);
+  const hint = text(style.hint, style.hintSize);
+  hint.anchor.set(0.5, 1);
+  const body = text(style.name);
+  body.style.wordWrap = true;
+  /** Made as the sheet first lists them. */
+  const labels: Text[] = [];
+
+  return {
+    layer,
+    draw(
+      screen: Viewport,
+      world: World,
+      open: boolean,
+      npc: number,
+      page: number,
+    ) {
+      const sheet = dialogueSheet(world, npc, page);
+      layer.visible = open && sheet !== null;
+      if (!open || !sheet) return;
+      hint.text = panelCloseHint("dialogue", activeInput.way);
+      const layout = dialogueLayout(screen, sheet.buttons.length);
+      const { panel } = layout;
+      const scale = screen.uiScale;
+      const { padding } = atUiScale(DIALOGUE, scale);
+
+      graphics.clear();
+      panelFrame(graphics, panel);
+      closeButton(graphics, layout.closeButton, scale);
+      title.text = sheet.name;
+      title.position.set(panel.x + panel.w / 2, panel.y + padding);
+      hint.position.set(panel.x + panel.w / 2, panel.y + panel.h - padding);
+      body.text = sheet.lines.join("\n\n");
+      body.position.set(layout.body.x, layout.body.y);
+      body.style.wordWrapWidth = layout.body.w;
+
+      sheet.buttons.forEach(({ label }, index) => {
+        labels[index] ??= text(style.title);
+        const row = layout.buttons[index];
+        button(graphics, row);
+        const t = labels[index];
+        t.text = label;
+        t.anchor.set(0.5, 0.5);
+        t.position.set(row.x + row.w / 2, row.y + row.h / 2);
+      });
+      // Rows made this draw too.
+      texts.size(scale);
+    },
+  };
+}
+
+/**
  * The Skill Tree panel, in the Hero panel's look: the unspent Skill Points,
  * then a row for each Skill under its columns' headings: its name, its
  * required Level greyed-out until the Hero reaches it, its Skill Level and
@@ -2602,19 +2903,7 @@ function heroPanelView(activeInput: Readonly<ActiveInput>) {
  */
 function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
   const style = HERO_PANEL_STYLE;
-  const layer = new Container();
-  const graphics = new Graphics();
-  layer.addChild(graphics);
-  layer.visible = false;
-  const texts = scaledTexts();
-  const text = (fill: number, size = style.textSize) => {
-    const t = new Text({
-      text: "",
-      style: { fill, fontSize: size, fontFamily: SERIF },
-    });
-    layer.addChild(t);
-    return texts.add(t, size);
-  };
+  const { layer, graphics, texts, text } = panelScaffold();
 
   const title = text(style.title, style.titleSize);
   title.text = "Skill Tree";
@@ -2678,10 +2967,7 @@ function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
       const { padding, rowHeight } = atUiScale(SKILL_TREE_PANEL, scale);
 
       graphics.clear();
-      graphics
-        .rect(panel.x, panel.y, panel.w, panel.h)
-        .fill({ color: style.fill, alpha: style.alpha })
-        .stroke({ color: style.edge, width: 2 });
+      panelFrame(graphics, panel);
       closeButton(graphics, layout.closeButton, scale);
       title.position.set(panel.x + panel.w / 2, panel.y + padding);
       hint.position.set(panel.x + panel.w / 2, panel.y + panel.h - padding);
@@ -2775,6 +3061,80 @@ function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
           (size, gap) => tooltipRect(rect, size, screen, gap),
         );
       }
+    },
+  };
+}
+
+/**
+ * The Quest panel, in the Hero panel's look: a row for each of the Act's
+ * Quests with its name at the left and its state at the right, and under it,
+ * for a Quest that is Given, what to do next. A Quest ready to hand in is lit
+ * and a Done one greyed.
+ */
+function questPanelView(activeInput: Readonly<ActiveInput>) {
+  const style = HERO_PANEL_STYLE;
+  const { layer, graphics, texts, text } = panelScaffold();
+
+  const title = text(style.title, style.titleSize);
+  title.text = "Quests";
+  title.anchor.set(0.5, 0);
+  const hint = text(style.hint, style.hintSize);
+  hint.anchor.set(0.5, 1);
+  /** Made as the sheet first lists them. */
+  const rows: { name: Text; state: Text; next: Text }[] = [];
+
+  return {
+    layer,
+    draw(screen: Viewport, world: World, open: boolean) {
+      layer.visible = open;
+      if (!open) return;
+      hint.text = panelCloseHint("quest", activeInput.way);
+      const sheet = questPanelSheet(world);
+      const layout = questPanelLayout(screen, sheet.length);
+      const { panel } = layout;
+      const scale = screen.uiScale;
+      const { padding, nextOffset, ruleInset } = atUiScale(QUEST_PANEL, scale);
+
+      graphics.clear();
+      panelFrame(graphics, panel);
+      closeButton(graphics, layout.closeButton, scale);
+      title.position.set(panel.x + panel.w / 2, panel.y + padding);
+      hint.position.set(panel.x + panel.w / 2, panel.y + panel.h - padding);
+
+      sheet.forEach((quest, index) => {
+        if (!rows[index]) {
+          const next = text(style.hint, style.hintSize);
+          next.style.wordWrap = true;
+          rows[index] = {
+            name: text(style.name),
+            state: text(style.value),
+            next,
+          };
+          rows[index].name.anchor.set(0, 0);
+          rows[index].state.anchor.set(1, 0);
+        }
+        const shown = rows[index];
+        const row = layout.rows[index];
+        const lit = quest.state === "ready";
+        const done = quest.state === "done";
+        shown.name.text = quest.name;
+        shown.name.style.fill = lit ? style.title : style.name;
+        shown.name.alpha = done ? 0.6 : 1;
+        shown.name.position.set(row.x, row.y);
+        shown.state.text = quest.stateName;
+        shown.state.style.fill = lit ? style.title : style.value;
+        shown.state.alpha = done ? 0.6 : 1;
+        shown.state.position.set(row.x + row.w, row.y);
+        shown.next.visible = quest.nextStep !== null;
+        shown.next.text = quest.nextStep ?? "";
+        shown.next.style.wordWrapWidth = row.w;
+        shown.next.position.set(row.x, row.y + nextOffset);
+        graphics
+          .rect(row.x, row.y + row.h - ruleInset, row.w, 1)
+          .fill(style.edge);
+      });
+      // Rows made this draw too.
+      texts.size(scale);
     },
   };
 }
@@ -2909,10 +3269,7 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
       hint.text = panelCloseHint("inventory", activeInput.way);
 
       graphics.clear();
-      graphics
-        .rect(panel.x, panel.y, panel.w, panel.h)
-        .fill({ color: style.fill, alpha: style.alpha })
-        .stroke({ color: style.edge, width: 2 });
+      panelFrame(graphics, panel);
       closeButton(graphics, layout.closeButton, scale);
       title.position.set(panel.x + panel.w / 2, panel.y + padding);
       hint.position.set(panel.x + panel.w / 2, panel.y + panel.h - padding);
@@ -3016,7 +3373,7 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
                 ?.cell ?? hovered,
               item.type,
             );
-      const lines = itemTooltip(item.type);
+      const lines = itemTooltip(item.type, item.smithBonus);
       lines.forEach((line, i) => {
         if (!tooltipLines[i]) {
           tooltipLines[i] = text(look.tooltipLine, look.tooltipSize);

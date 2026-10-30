@@ -1,4 +1,6 @@
 import {
+  BONUSES,
+  type Bonus,
   ITEM_TYPES,
   type ItemKind,
   type ItemType,
@@ -26,8 +28,14 @@ import type { Hero, Order, SimEvent, World } from "./world";
 /** Unique within the World and never reused. */
 export type ItemId = number;
 
-/** One Item: its type says everything about it but which one it is. */
-export type Item = { id: ItemId; type: ItemType };
+/** What the Smith added to an Item: one bonus, like the ones Items have. */
+export type SmithBonus = { bonus: Bonus; amount: number };
+
+/**
+ * One Item: its type says everything about it but which one it is and the
+ * bonus the Smith may have added to it.
+ */
+export type Item = { id: ItemId; type: ItemType; smithBonus?: SmithBonus };
 
 /** An Inventory cell, counted from the top-left. */
 export type Cell = { column: number; row: number };
@@ -39,7 +47,11 @@ export type PlacedItem = { item: Item; cell: Cell };
  * An Item in the Inventory by its type alone, with `cell` its top-left
  * cell: all the placing rules and the Save need to know of it.
  */
-export type PlacedType = { type: ItemType; cell: Cell };
+export type PlacedType = {
+  type: ItemType;
+  cell: Cell;
+  smithBonus?: SmithBonus;
+};
 
 /**
  * Where an Item can be: an Inventory cell (its top-left), an Equipment slot
@@ -97,6 +109,8 @@ export const SLOT_KINDS: Record<EquipmentSlot, ItemKind> = {
 export type Belongings = {
   inventory: PlacedType[];
   equipment: Partial<Record<EquipmentSlot, ItemType>>;
+  /** The Smith bonuses of the Equipped Items, by slot; none where left out. */
+  smithBonuses?: Partial<Record<EquipmentSlot, SmithBonus>>;
   /** The Potions in each Belt Column, from the left and each from the bottom up. */
   belt: BeltTypes;
 };
@@ -201,11 +215,14 @@ export function isValidBelongings(belongings: Belongings): boolean {
   const known = (type: unknown): type is ItemType =>
     ITEM_TYPES.includes(type as ItemType);
   const { inventory, equipment, belt } = belongings;
+  const smithBonuses = belongings.smithBonuses ?? {};
   const placedFine = inventory.every(
     (placed, i) =>
       known(placed.type) &&
       onGrid(placed.type, placed.cell) &&
-      inTheWay(inventory.slice(0, i), placed.type, placed.cell).length === 0,
+      inTheWay(inventory.slice(0, i), placed.type, placed.cell).length === 0 &&
+      (placed.smithBonus === undefined ||
+        (isSmithable(placed.type) && isValidSmithBonus(placed.smithBonus))),
   );
   const equippedFine = Object.entries(equipment).every(
     ([slot, type]) =>
@@ -213,8 +230,29 @@ export function isValidBelongings(belongings: Belongings): boolean {
       known(type) &&
       itemTuning[type].kind === SLOT_KINDS[slot as EquipmentSlot],
   );
-  if (!placedFine || !equippedFine) return false;
+  const bonusesFine = Object.entries(smithBonuses).every(([slot, bonus]) => {
+    const type = equipment[slot as EquipmentSlot];
+    return !!type && isSmithable(type) && isValidSmithBonus(bonus);
+  });
+  if (!placedFine || !equippedFine || !bonusesFine) return false;
   return isValidBelt(belt, rowsOf(equipment.belt));
+}
+
+/** Whether an Item of `type` is a Weapon or Armour, which the Smith can work. */
+function isSmithable(type: ItemType): boolean {
+  const { kind } = itemTuning[type];
+  return kind === "weapon" || kind === "armour";
+}
+
+/** Whether `bonus` is a known Bonus by a positive whole amount. */
+function isValidSmithBonus(bonus: unknown): bonus is SmithBonus {
+  if (typeof bonus !== "object" || bonus === null) return false;
+  const { bonus: kind, amount } = bonus as Record<string, unknown>;
+  return (
+    BONUSES.includes(kind as Bonus) &&
+    Number.isInteger(amount) &&
+    (amount as number) > 0
+  );
 }
 
 /** Every Equipment slot, empty. */
@@ -230,15 +268,18 @@ export function emptyEquipment(): Equipment {
  */
 export function giveBelongings(world: World, belongings: Belongings) {
   const { hero } = world;
-  for (const { type, cell } of belongings.inventory) {
-    hero.inventory.push({
-      item: { id: world.nextItemId++, type },
-      cell: { ...cell },
-    });
+  for (const { type, cell, smithBonus } of belongings.inventory) {
+    const item: Item = { id: world.nextItemId++, type };
+    if (smithBonus) item.smithBonus = { ...smithBonus };
+    hero.inventory.push({ item, cell: { ...cell } });
   }
   for (const slot of EQUIPMENT_SLOTS) {
     const type = belongings.equipment[slot];
-    if (type) hero.equipment[slot] = { id: world.nextItemId++, type };
+    if (!type) continue;
+    const item: Item = { id: world.nextItemId++, type };
+    const smithBonus = belongings.smithBonuses?.[slot];
+    if (smithBonus) item.smithBonus = { ...smithBonus };
+    hero.equipment[slot] = item;
   }
   belongings.belt.forEach((column, index) => {
     for (const type of column) {
@@ -254,17 +295,24 @@ export function giveBelongings(world: World, belongings: Belongings) {
 export function belongingsOf(world: World): Belongings {
   const { equipment, cursor } = world.hero;
   const worn: Belongings["equipment"] = {};
+  const smithBonuses: NonNullable<Belongings["smithBonuses"]> = {};
+  const keep = (slot: EquipmentSlot, item: Item) => {
+    worn[slot] = item.type;
+    if (item.smithBonus) smithBonuses[slot] = { ...item.smithBonus };
+  };
   for (const slot of EQUIPMENT_SLOTS) {
     const item = equipment[slot];
-    if (item) worn[slot] = item.type;
+    if (item) keep(slot, item);
   }
-  if (cursor && isSlot(cursor.from)) worn[cursor.from] = cursor.item.type;
+  if (cursor && isSlot(cursor.from)) keep(cursor.from, cursor.item);
   return {
-    inventory: taken(world.hero).map(({ type, cell }) => ({
+    inventory: taken(world.hero).map(({ type, cell, smithBonus }) => ({
       type,
       cell: { ...cell },
+      ...(smithBonus && { smithBonus: { ...smithBonus } }),
     })),
     equipment: worn,
+    ...(Object.keys(smithBonuses).length > 0 && { smithBonuses }),
     belt: beltTypesOf(world),
   };
 }
@@ -460,7 +508,11 @@ function homeFor(
 
 /** Placed Items by type and top-left cell. */
 function typesOf(inventory: readonly PlacedItem[]): PlacedType[] {
-  return inventory.map(({ item, cell }) => ({ type: item.type, cell }));
+  return inventory.map(({ item, cell }) => ({
+    type: item.type,
+    cell,
+    ...(item.smithBonus && { smithBonus: item.smithBonus }),
+  }));
 }
 
 /**
@@ -624,7 +676,11 @@ export function taken(hero: Hero): PlacedType[] {
   const { inventory, cursor } = hero;
   const placed = typesOf(inventory);
   if (cursor && isCell(cursor.from)) {
-    placed.push({ type: cursor.item.type, cell: cursor.from });
+    placed.push({
+      type: cursor.item.type,
+      cell: cursor.from,
+      ...(cursor.item.smithBonus && { smithBonus: cursor.item.smithBonus }),
+    });
   }
   return placed;
 }

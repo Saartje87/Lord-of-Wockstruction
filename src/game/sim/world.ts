@@ -1,4 +1,6 @@
 import { areaTuning } from "../tuning/areas";
+import { boneAltarTuning } from "../tuning/boneAltars";
+import { graveWockingtonTuning } from "../tuning/graveWockington";
 import { heroTuning } from "../tuning/hero";
 import {
   type Bonus,
@@ -9,6 +11,7 @@ import {
 import { mapTuning } from "../tuning/map";
 import { minionTuning } from "../tuning/minions";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
+import { questTuning } from "../tuning/quests";
 import {
   type CurseEffect,
   corpseTuning,
@@ -21,16 +24,25 @@ import {
 } from "../tuning/skills";
 import { townPortalTuning } from "../tuning/townPortal";
 import { townPortalLook } from "../tuning/townPortalLook";
+import { uniqueTuning } from "../tuning/uniqueMonsters";
+import { waypointTuning } from "../tuning/waypoints";
 import {
   type Area,
   cellAt,
   exitAt,
   isWalkable,
   loadArea,
+  type Npc,
   type Spawn,
   TOWN,
 } from "./area";
 import { type BeltColumns, emptyBelt, putInBelt } from "./belt";
+import {
+  altarRadiusOf,
+  type BoneAltar,
+  isBoneAltar,
+  targetsOf,
+} from "./boneAltars";
 import {
   type Belongings,
   type Cell,
@@ -48,6 +60,7 @@ import {
   moveItem,
   type PlacedItem,
   returnCursorItem,
+  type SmithBonus,
   taken,
 } from "./inventory";
 import { faceToward, lands } from "./melee";
@@ -90,6 +103,19 @@ import {
   type Projectile,
   stepProjectiles,
 } from "./projectiles";
+import {
+  actBossQuestOpen,
+  advanceQuest,
+  boneAltarsPutAway,
+  copyQuests,
+  freshQuests,
+  hasQuestBusiness,
+  type QuestDeed,
+  type QuestId,
+  type QuestProgress,
+  type QuestStates,
+  questsOf,
+} from "./quests";
 import { createRng, type Rng, random, randomInt } from "./random";
 import {
   emptySkillBar,
@@ -98,6 +124,7 @@ import {
   type SkillBar,
   type SkillBarSlot,
 } from "./skillBar";
+import { giveSmithBonus, SMITH } from "./smith";
 import { msToSteps, perStep } from "./units";
 import { validateAreas } from "./validate";
 import { distance, type Vec } from "./vec";
@@ -187,6 +214,8 @@ export type Hero = {
   attacking: MonsterId | null;
   /** The Ground Item the Hero is walking to, to pick up. */
   pickingUp: ItemId | null;
+  /** The NPC (index in the Area's `npcs`) the Hero is walking to, to talk to. */
+  talkingTo: number | null;
   swing: Swing | null;
   /** The cast rooting the Hero, if any. */
   cast: Cast | null;
@@ -237,6 +266,7 @@ export type Swing = {
 export type MonsterId = number;
 
 export type Monster = {
+  kind: "monster";
   /** Unique within the World and never reused. */
   id: MonsterId;
   type: MonsterType;
@@ -245,6 +275,17 @@ export type Monster = {
    * and Experience: its Area's Area Level when it spawned.
    */
   monsterLevel: number;
+  /**
+   * Its name when it is a Unique Monster, which is tougher than its type
+   * (see `uniqueTuning`); null for an ordinary one.
+   */
+  unique: string | null;
+  /**
+   * Grave Wockington's Skeleton waves: steps left until the next, counted
+   * while he is after the Hero, and the Monsters he raised. Null for the
+   * others.
+   */
+  waves: { cooldown: number; raised: MonsterId[] } | null;
   pos: Vec;
   prevPos: Vec;
   life: number;
@@ -312,8 +353,13 @@ export type MonsterState =
  */
 export type AreaChange = {
   area: string;
-  /** The Entry the Hero arrives at, or null through a Town Portal. */
+  /**
+   * The Entry the Hero arrives at, or null through a Town Portal or by
+   * Waypoint.
+   */
   entry: string | null;
+  /** Whether the Hero travels to the Area's Waypoint, arriving beside it. */
+  waypoint: boolean;
   /** Steps since the Hero walked into the Exit. */
   elapsed: number;
 };
@@ -329,18 +375,22 @@ export type Death = {
 
 /**
  * The Hero's one Town Portal: its end in Combat Area `area` stands at `pos`,
- * its Town end at Town's Town Portal spot. `area` is the Kept Area: `kept`
- * holds what it held as the Hero left it, while they are away.
+ * its Town end at Town's Town Portal spot.
  */
-export type TownPortal = { area: string; pos: Vec; kept: KeptArea | null };
+export type TownPortal = { area: string; pos: Vec };
 
 /**
- * What the Kept Area held as the Hero left it, set aside unchanged: nothing
- * in it is stepped until they arrive there again (ADR 0003).
+ * What an Area held as the Hero left it, set aside unchanged: nothing in it
+ * is stepped until they arrive there again (ADR 0005).
  */
 export type KeptArea = Pick<
   World,
-  "monsters" | "projectiles" | "corpses" | "groundItems" | "explored"
+  | "monsters"
+  | "projectiles"
+  | "corpses"
+  | "groundItems"
+  | "explored"
+  | "boneAltars"
 >;
 
 /**
@@ -355,8 +405,7 @@ export type Corpse = {
 };
 
 /**
- * An Item lying in the active Area, until picked up or the Hero leaves, but
- * for the Kept Area.
+ * An Item lying in the active Area, until picked up or the Session ends.
  */
 export type GroundItem = { item: Item; pos: Vec };
 
@@ -380,6 +429,8 @@ export type World = {
   death: Death | null;
   /** The living Monsters in the active Area. */
   monsters: Monster[];
+  /** The Bone Altars still standing in the active Area. */
+  boneAltars: BoneAltar[];
   /** The Projectiles in flight in the active Area. */
   projectiles: Projectile[];
   /** The Corpses in the active Area. */
@@ -395,6 +446,17 @@ export type World = {
    * The Hero's living Minions, oldest first; never kept by the Save.
    */
   minions: Minion[];
+  /**
+   * Every Area the Hero has left this Session, by name, as they left it;
+   * never kept by the Save. The active Area is not in it.
+   */
+  keptAreas: Record<string, KeptArea>;
+  /**
+   * The NPCs standing in the active Area, by their index in the Area's
+   * `npcs`: judged against the Quests on each arrival, and a talk can send
+   * one home at once. Never kept by the Save.
+   */
+  standing: number[];
   /** The Hero's Town Portal, if open; never kept by the Save. */
   townPortal: TownPortal | null;
   /** The id the next Monster gets. */
@@ -415,7 +477,10 @@ export type Order =
    * `direction`.
    */
   | { type: "Walk"; direction: Vec }
-  /** Walk into reach of a Monster and swing at it. */
+  /**
+   * Walk into reach of a Monster, or of a Bone Altar (which has an id of the
+   * same kind), and swing at it.
+   */
   | { type: "Attack"; monster: MonsterId }
   /** Swing in place towards a point, hitting every Monster in the arc. */
   | { type: "SwingAt"; target: Vec }
@@ -457,6 +522,30 @@ export type Order =
   | { type: "UnequipItem"; slot: EquipmentSlot }
   /** Walk to a Ground Item and pick it up, if there's room for it. */
   | { type: "PickUp"; groundItem: ItemId }
+  /**
+   * Walk to the NPC `npc` (its index in the Area's `npcs`) and talk to it,
+   * once within reach. Ignored for an NPC the Area doesn't have.
+   */
+  | { type: "Talk"; npc: number }
+  /**
+   * Take on the Quest `quest` from its giver, at once and whatever the Hero
+   * is doing. Ignored unless it is Not given and its giver stands within
+   * reach in the active Area.
+   */
+  | { type: "AcceptQuest"; quest: QuestId }
+  /**
+   * Hand in the Quest `quest` to its giver, making it Done and paying its
+   * reward, at once and whatever the Hero is doing. Ignored unless it is
+   * Ready to hand in and its giver stands within reach in the active Area.
+   */
+  | { type: "HandInQuest"; quest: QuestId }
+  /**
+   * Have the Smith work the Weapon or Armour `item`, Equipped or in the
+   * Inventory, giving it a random bonus, at once and whatever the Hero is
+   * doing. Ignored unless his service is unlocked and unspent, `item` has no
+   * Smith bonus yet and the Smith stands within reach in the active Area.
+   */
+  | { type: "SmithBonus"; item: ItemId }
   /** Go back to Town after dying. */
   | { type: "Continue" }
   /**
@@ -465,6 +554,12 @@ export type Order =
    * Town has no Town Portal spot.
    */
   | { type: "OpenTownPortal" }
+  /**
+   * Travel to the Waypoint in Area `area`, leaving the Area as an Exit
+   * does, arriving beside it. Ignored unless the Hero stands on a Waypoint
+   * and the other is touched, in the same Act.
+   */
+  | { type: "TravelToWaypoint"; area: string }
   /**
    * Spend unspent Attribute Points raising each Attribute by its count in
    * `points`, at once and whatever the Hero is doing; refused whole when it
@@ -528,7 +623,29 @@ export type SimEvent =
    * Ward and `damage` reaching their Life.
    */
   | { type: "HeroHit"; damage: number; warded: number }
+  /** The Hero got within reach of NPC `npc`, called `name`, and talks to them. */
+  | { type: "Talked"; npc: number; name: string }
+  /** The Hero took on Quest `quest`. */
+  | { type: "QuestGiven"; quest: QuestId }
+  /** Quest `quest` now has `count` of its parts done, not all yet. */
+  | { type: "QuestCounted"; quest: QuestId; count: number }
+  /** Quest `quest` has all it asks, so it can be handed in. */
+  | { type: "QuestReady"; quest: QuestId }
+  /** The Hero handed in Quest `quest`, which paid its reward. */
+  | { type: "QuestDone"; quest: QuestId }
+  /** The Smith gave the Item `item` the bonus `bonus`, using up his service. */
+  | { type: "SmithBonusGiven"; item: ItemId; bonus: SmithBonus }
   | { type: "MonsterDied"; id: MonsterId }
+  /** The Hero's side hit Bone Altar `altar` for `damage`. */
+  /** Monster `boss` raised a wave of `monsters` around itself. */
+  | { type: "WaveRaised"; boss: MonsterId; monsters: MonsterId[] }
+  /** The Hero killed the Act Boss of Act `act` with its Quest not yet Done. */
+  | { type: "ActCompleted"; act: number }
+  | { type: "BoneAltarHit"; altar: MonsterId; damage: number }
+  /** Bone Altar `altar` raised Monster `monster` at `pos`. */
+  | { type: "BoneAltarRaised"; altar: MonsterId; monster: MonsterId; pos: Vec }
+  /** Bone Altar `altar` in Area `area` was destroyed at `pos`. */
+  | { type: "BoneAltarDestroyed"; altar: MonsterId; area: string; pos: Vec }
   /** A dying Monster or the Hero dropped `item`, which now lies at `pos`. */
   | { type: "ItemDropped"; item: Item; pos: Vec }
   /** The Hero picked up `item`, which now has its top-left at `cell`. */
@@ -585,6 +702,10 @@ export type SimEvent =
    * Portal's end there when `entry` is null.
    */
   | { type: "AreaChanged"; area: string; entry: string | null }
+  /** The Hero walked onto the Waypoint in Area `area`, touched or not yet. */
+  | { type: "WaypointReached"; area: string }
+  /** The Hero touched the Waypoint in Area `area` for the first time. */
+  | { type: "WaypointTouched"; area: string }
   /** A Town Portal opened, its Combat Area end at `pos` in Area `area`. */
   | { type: "TownPortalOpened"; area: string; pos: Vec }
   /**
@@ -637,7 +758,19 @@ export type Progress = {
   skillLevels: Record<Skill, number>;
   /** The learned Skills on the Skill Bar, each in at most one slot. */
   skillBar: SkillBar;
+  /** The Areas whose Waypoints the Hero has touched, in the order they did. */
+  touchedWaypoints: string[];
+  /** How far each Quest has got. */
+  quests: QuestStates;
+  /**
+   * The Smith's one-time service: locked until "Spa Day" is Done, then
+   * unlocked until the Hero uses it on an Item, and used after.
+   */
+  smithService: SmithService;
 };
+
+/** Where the Smith's one-time service stands. */
+export type SmithService = "locked" | "unlocked" | "used";
 
 /** A fresh Level 1 Hero's progress: no Skill learned, an empty Skill Bar. */
 export const FRESH_PROGRESS: Progress = {
@@ -654,6 +787,9 @@ export const FRESH_PROGRESS: Progress = {
     number
   >,
   skillBar: emptySkillBar(),
+  touchedWaypoints: [TOWN],
+  quests: freshQuests(),
+  smithService: "locked",
 };
 
 /** A copy of `progress` sharing nothing with it. */
@@ -662,6 +798,8 @@ function copyProgress(progress: Progress): Progress {
     ...progress,
     skillLevels: { ...progress.skillLevels },
     skillBar: { ...progress.skillBar },
+    touchedWaypoints: [...progress.touchedWaypoints],
+    quests: copyQuests(progress.quests),
   };
 }
 
@@ -724,6 +862,7 @@ export function createWorld(options: {
       facing: Math.PI / 4,
       attacking: null,
       pickingUp: null,
+      talkingTo: null,
       swing: null,
       cast: null,
       opening: null,
@@ -732,18 +871,22 @@ export function createWorld(options: {
       buffered: null,
     },
     monsters: [],
+    boneAltars: [],
     projectiles: [],
     corpses: [],
     groundItems: [],
     // All of Town is Explored from the start.
     explored: new Array(town.width * town.height).fill(true),
     minions: [],
+    keptAreas: {},
+    standing: [],
     townPortal: null,
     nextMonsterId: 1,
     nextMinionId: 1,
     nextItemId: 1,
   };
   giveBelongings(world, belongings);
+  world.standing = standingIn(world, town);
   world.hero.life = maxLife(world);
   world.hero.mana = maxMana(world);
   for (const spawn of town.spawns) placePack(world, town, spawn);
@@ -753,7 +896,7 @@ export function createWorld(options: {
     Object.hasOwn(areas, at.area) &&
     Object.hasOwn(areas[at.area].entries, at.entry)
   ) {
-    const change = { ...at, elapsed: 0 };
+    const change = { ...at, waypoint: false, elapsed: 0 };
     arrive(world, { ...change, elapsed: arriveStep(change) }, []);
   }
   return world;
@@ -837,7 +980,9 @@ function bonusOf(world: World, bonus: Bonus): number {
   let total = 0;
   for (const slot of EQUIPMENT_SLOTS) {
     const item = world.hero.equipment[slot];
-    if (item) total += itemOf(item.type).bonuses[bonus] ?? 0;
+    if (!item) continue;
+    total += itemOf(item.type).bonuses[bonus] ?? 0;
+    if (item.smithBonus?.bonus === bonus) total += item.smithBonus.amount;
   }
   return total;
 }
@@ -991,7 +1136,7 @@ export function townPortalFlash(world: World): number {
 
 /** Whether an Area change is through a Town Portal, not an Exit. */
 function throughTownPortal(change: AreaChange): boolean {
-  return change.entry === null;
+  return change.entry === null && !change.waypoint;
 }
 
 /** How many steps an Area change takes. */
@@ -1025,8 +1170,15 @@ function startAreaChange(
   area: string,
   entry: string | null,
   events: SimEvent[],
+  waypoint = false,
 ) {
-  world.areaChange = { area, entry, elapsed: 0 };
+  world.areaChange = { area, entry, waypoint, elapsed: 0 };
+  // Monsters in pursuit give up, as on Death, and head home once stepped.
+  for (const monster of world.monsters) {
+    if (["chase", "windup", "recover"].includes(monster.state)) {
+      sendHome(monster);
+    }
+  }
   // A hit landed on this step stops for the fade instead.
   world.hitstop = 0;
   stopHero(world.hero);
@@ -1038,6 +1190,7 @@ function stopHero(hero: Hero) {
   hero.path = [];
   hero.attacking = null;
   hero.pickingUp = null;
+  hero.talkingTo = null;
   hero.swing = null;
   hero.cast = null;
   hero.opening = null;
@@ -1053,9 +1206,9 @@ function stepAreaChange(world: World, change: AreaChange, events: SimEvent[]) {
 }
 
 /**
- * Makes the target Area the active one, fresh from its definition: its
- * Monsters back at their spawns, and no Projectiles or Corpses. The Kept
- * Area instead comes back just as the Hero left it, and leaving it, by any
+ * Makes the target Area the active one: fresh from its definition on the
+ * first arrival this Session (its Monsters at their spawns, no Projectiles
+ * or Corpses), else just as the Hero left it. Leaving an Area, by any
  * route, sets aside what it holds.
  *
  * The Hero carries over to the target Entry, facing away from the Area's
@@ -1067,7 +1220,15 @@ function stepAreaChange(world: World, change: AreaChange, events: SimEvent[]) {
 function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   const area = world.areas[change.area];
   const { hero } = world;
-  if (change.entry === null) {
+  if (change.waypoint && area.waypoint) {
+    const beside = besideSpot(
+      area,
+      area.waypoint,
+      waypointTuning.arriveDistance,
+    );
+    hero.pos = { ...beside.pos };
+    hero.facing = beside.facing;
+  } else if (change.entry === null) {
     const beside = besideTownPortal(world, area);
     hero.pos = { ...beside.pos };
     hero.facing = beside.facing;
@@ -1081,33 +1242,43 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
     hero.combat = 0;
   }
   world.death = null;
-  const { townPortal } = world;
-  if (townPortal?.area === world.areaName) {
-    const { monsters, projectiles, corpses, groundItems, explored } = world;
-    townPortal.kept = { monsters, projectiles, corpses, groundItems, explored };
-  }
+  const { monsters, projectiles, corpses, groundItems, explored } = world;
+  const { boneAltars } = world;
+  world.keptAreas[world.areaName] = {
+    monsters,
+    projectiles,
+    corpses,
+    groundItems,
+    explored,
+    boneAltars,
+  };
   world.areaName = area.name;
-  let kept: KeptArea | null = null;
-  if (townPortal?.area === area.name) {
-    kept = townPortal.kept;
-    // Back in the Kept Area, it holds its own state again.
-    townPortal.kept = null;
-  }
+  const kept = world.keptAreas[area.name];
+  delete world.keptAreas[area.name];
   world.monsters = kept?.monsters ?? [];
   world.projectiles = kept?.projectiles ?? [];
   world.corpses = kept?.corpses ?? [];
   world.groundItems = kept?.groundItems ?? [];
+  world.boneAltars = kept?.boneAltars ?? [];
   world.explored =
     kept?.explored ??
     new Array(area.width * area.height).fill(area.name === TOWN);
+  world.standing = standingIn(world, area);
   revealAround(world);
   for (const minion of world.minions) placeBesideHero(world, minion);
   world.heldOrders = [];
   if (!kept) {
     for (const spawn of area.spawns) placePack(world, area, spawn);
+    placeBoneAltars(world, area);
+    for (const unique of [
+      ...area.uniques,
+      ...(area.actBoss ? [area.actBoss] : []),
+    ]) {
+      placeMonster(world, area, unique.monster, unique.pos, unique.name);
+    }
   }
   events.push({ type: "AreaChanged", area: area.name, entry: change.entry });
-  if (change.entry === null && area.name !== TOWN) {
+  if (change.entry === null && !change.waypoint && area.name !== TOWN) {
     closeTownPortal(world, events);
   }
 }
@@ -1124,7 +1295,19 @@ function besideTownPortal(
   const end =
     (area.name === TOWN ? area.townPortal : world.townPortal?.pos) ??
     area.entries.start;
-  const { arriveDistance } = townPortalTuning;
+  return besideSpot(area, end, townPortalTuning.arriveDistance);
+}
+
+/**
+ * Where the Hero arrives `arriveDistance` from `end` in `area`: down the
+ * screen from it or the nearest way round that is walkable, facing away from
+ * it; on `end` itself when none is.
+ */
+function besideSpot(
+  area: Area,
+  end: Vec,
+  arriveDistance: number,
+): { pos: Vec; facing: number } {
   const around = [0, 1, -1, 2, -2, 3, -3, 4]
     .map((turn) => Math.PI / 4 + (turn * Math.PI) / 4)
     .map((facing) => ({
@@ -1166,11 +1349,72 @@ export function townPortalIn(world: World): Vec | null {
  * Whether the Hero walked into a Town Portal end at `end` on this step:
  * within its radius now, and not a step ago.
  */
-function walkedInto(hero: Hero, end: Vec): boolean {
-  const { radius } = townPortalTuning;
+function walkedInto(hero: Hero, end: Vec, radius: number): boolean {
   return (
     distance(hero.pos, end) <= radius && distance(hero.prevPos, end) > radius
   );
+}
+
+/**
+ * The name of the active Area when the Hero stands on its Waypoint, which
+ * opens the list of Waypoints; null anywhere else.
+ */
+export function waypointUnderHero(world: World): string | null {
+  const { waypoint } = world.areas[world.areaName];
+  if (!waypoint) return null;
+  return distance(world.hero.pos, waypoint) <= waypointTuning.radius
+    ? world.areaName
+    : null;
+}
+
+/**
+ * The Waypoints of the active Area's Act in Main Path order (by the maps'
+ * `mainPath` positions, Town first; any without one last, by Area Level),
+ * each with whether the Hero has touched it.
+ */
+export function waypointList(
+  world: World,
+): { area: string; touched: boolean }[] {
+  const { act } = world.areas[world.areaName];
+  return Object.values(world.areas)
+    .filter((area) => area.waypoint && area.act === act)
+    .sort(
+      (a, b) =>
+        (a.mainPath ?? Number.POSITIVE_INFINITY) -
+          (b.mainPath ?? Number.POSITIVE_INFINITY) ||
+        (a.areaLevel ?? 0) - (b.areaLevel ?? 0),
+    )
+    .map((area) => ({
+      area: area.name,
+      touched: world.hero.progress.touchedWaypoints.includes(area.name),
+    }));
+}
+
+/**
+ * Whether the Hero can travel to the Waypoint in Area `to` now: they stand on
+ * another Area's Waypoint and `to` is touched and in the same Act.
+ */
+function canTravelTo(world: World, to: string): boolean {
+  return (
+    to !== world.areaName &&
+    waypointUnderHero(world) !== null &&
+    waypointList(world).some((w) => w.area === to && w.touched)
+  );
+}
+
+/**
+ * Raises `WaypointReached` when the Hero walks onto the active Area's
+ * Waypoint, and `WaypointTouched` too the first time.
+ */
+function touchWaypoint(world: World, events: SimEvent[]) {
+  const { hero } = world;
+  const { waypoint, name } = world.areas[world.areaName];
+  if (!waypoint) return;
+  if (!walkedInto(hero, waypoint, waypointTuning.radius)) return;
+  events.push({ type: "WaypointReached", area: name });
+  if (hero.progress.touchedWaypoints.includes(name)) return;
+  hero.progress.touchedWaypoints.push(name);
+  events.push({ type: "WaypointTouched", area: name });
 }
 
 /** Whether `tile` of the active Area is Explored. */
@@ -1227,7 +1471,7 @@ function openTownPortal(world: World, events: SimEvent[]) {
   const at = summonPoint(area, ahead, heroTuning.radius);
   if (!at) return;
   closeTownPortal(world, events);
-  world.townPortal = { area: area.name, pos: at, kept: null };
+  world.townPortal = { area: area.name, pos: at };
   events.push({ type: "TownPortalOpened", area: area.name, pos: { ...at } });
 }
 
@@ -1276,32 +1520,214 @@ function placePack(world: World, area: Area, spawn: Spawn) {
       y: spawn.pos.y + radius * Math.sin(angle),
     };
     const pos = i > 0 && isWalkable(area, around) ? around : { ...spawn.pos };
-    const typeAtLevel: MonsterOfLevel = {
-      type: spawn.monster,
-      monsterLevel: monsterLevelIn(area),
-    };
-    world.monsters.push({
+    placeMonster(world, area, spawn.monster, pos);
+  }
+}
+
+/**
+ * Puts a new idle Monster of `type` at `pos`, at the Area's Monster Level;
+ * a Unique Monster called `unique` when that is given.
+ */
+function placeMonster(
+  world: World,
+  area: Area,
+  type: MonsterType,
+  pos: Vec,
+  unique: string | null = null,
+): Monster {
+  const typeAtLevel: MonsterOfLevel = {
+    type,
+    monsterLevel: monsterLevelIn(area),
+    unique,
+  };
+  const monster: Monster = {
+    kind: "monster",
+    id: world.nextMonsterId++,
+    type,
+    monsterLevel: typeAtLevel.monsterLevel,
+    unique,
+    pos: { ...pos },
+    prevPos: { ...pos },
+    life: monsterMaxLife(typeAtLevel),
+    flinch: 0,
+    state: "idle",
+    // Down the screen, as the Hero starts.
+    facing: Math.PI / 4,
+    target: "hero",
+    attack: 0,
+    cooldown: 0,
+    home: { ...pos },
+    path: [],
+    replan: 0,
+    grace: 0,
+    // So a pack doesn't set off strolling in step.
+    pause: wanderPause(world, type),
+    curse: null,
+    waves:
+      type === "grave_wockington"
+        ? { cooldown: msToSteps(graveWockingtonTuning.firstWaveMs), raised: [] }
+        : null,
+  };
+  world.monsters.push(monster);
+  return monster;
+}
+
+/** How many steps a Bone Altar waits between raising Monsters. */
+function raiseSteps(): number {
+  return msToSteps(boneAltarTuning.raiseEveryMs);
+}
+
+/**
+ * Stands the Area's Bone Altars where the map puts them, each blocking its
+ * tile, unless a Done Quest has put them away.
+ */
+function placeBoneAltars(world: World, area: Area) {
+  if (boneAltarsPutAway(world.hero.progress.quests, area.name)) return;
+  for (const spot of area.boneAltars) {
+    const pos = { x: Math.floor(spot.x) + 0.5, y: Math.floor(spot.y) + 0.5 };
+    area.walkable[tileIndex(area, pos)] = false;
+    world.boneAltars.push({
+      kind: "boneAltar",
       id: world.nextMonsterId++,
-      ...typeAtLevel,
       pos,
-      prevPos: { ...pos },
-      life: monsterMaxLife(typeAtLevel),
-      flinch: 0,
-      state: "idle",
-      // Down the screen, as the Hero starts.
-      facing: Math.PI / 4,
-      target: "hero",
-      attack: 0,
-      cooldown: 0,
-      home: { ...pos },
-      path: [],
-      replan: 0,
-      grace: 0,
-      // So a pack doesn't set off strolling in step.
-      pause: wanderPause(world, spawn.monster),
-      curse: null,
+      life: boneAltarTuning.life,
+      raised: [],
+      cooldown: raiseSteps(),
     });
   }
+}
+
+/** The index in a row-major grid of `area` of the tile holding `point`. */
+function tileIndex(area: Area, point: Vec): number {
+  return Math.floor(point.y) * area.width + Math.floor(point.x);
+}
+
+/**
+ * Lets each Bone Altar count down and, when it is time and it has fewer
+ * living than its limit, raise a zombie or skeleton beside itself.
+ */
+function stepBoneAltars(world: World, events: SimEvent[]) {
+  const { raises } = boneAltarTuning;
+  for (const altar of world.boneAltars) {
+    const made = raiseWhenDue(world, altar, true, {
+      from: altar.pos,
+      distance: boneAltarTuning.raiseDistance,
+      limit: boneAltarTuning.raisedLimit,
+      size: 1,
+      type: () => raises[randomInt(world.rng, [0, raises.length - 1])],
+      cooldown: raiseSteps(),
+    });
+    for (const { monster, spot } of made) {
+      events.push({
+        type: "BoneAltarRaised",
+        altar: altar.id,
+        monster: monster.id,
+        pos: { ...spot },
+      });
+    }
+  }
+}
+
+/** How one Bone Altar or Act Boss raises Monsters. */
+type Raising = {
+  /** What it raises round (the middle of its body). */
+  from: Vec;
+  /** How far from `from` a raised Monster stands (tiles). */
+  distance: number;
+  /** How many raised Monsters can be alive at once. */
+  limit: number;
+  /** How many Monsters one raising makes, room permitting. */
+  size: number;
+  /** The type of the next Monster raised. */
+  type: () => MonsterType;
+  /** Steps until the next raising once this one is made. */
+  cooldown: number;
+};
+
+/**
+ * Prunes `raiser`'s dead, and when `active` counts its cooldown down and,
+ * once due and with room under the limit, raises up to `raising.size`
+ * Monsters round it, restarting the cooldown. With no room to stand them it
+ * tries again next step.
+ */
+function raiseWhenDue(
+  world: World,
+  raiser: { raised: MonsterId[]; cooldown: number },
+  active: boolean,
+  raising: Raising,
+): { monster: Monster; spot: Vec }[] {
+  raiser.raised = raiser.raised.filter((id) => monsterById(world, id));
+  if (!active) return [];
+  if (raiser.cooldown > 0) raiser.cooldown -= 1;
+  if (raiser.cooldown > 0) return [];
+  const count = Math.min(raising.size, raising.limit - raiser.raised.length);
+  if (count <= 0) return [];
+  const area = world.areas[world.areaName];
+  const spots = spotsAround(world, area, raising.from, raising.distance, count);
+  const made = spots.map((spot) => ({
+    monster: placeMonster(world, area, raising.type(), spot),
+    spot,
+  }));
+  if (made.length === 0) return [];
+  raiser.raised.push(...made.map((m) => m.monster.id));
+  raiser.cooldown = raising.cooldown;
+  return made;
+}
+
+/**
+ * Lets each Monster that raises waves (Grave Wockington) count down while it
+ * is after the Hero and, when it is time, raise Skeletons around itself, up
+ * to its limit of living ones.
+ */
+function stepWaves(world: World, events: SimEvent[]) {
+  for (const boss of [...world.monsters]) {
+    const { waves } = boss;
+    if (!waves) continue;
+    const afterHero = !["idle", "wander", "return"].includes(boss.state);
+    const made = raiseWhenDue(world, waves, afterHero, {
+      from: boss.pos,
+      distance: graveWockingtonTuning.raiseDistance,
+      limit: graveWockingtonTuning.raisedLimit,
+      size: graveWockingtonTuning.waveSize,
+      type: () => graveWockingtonTuning.raises,
+      cooldown: msToSteps(graveWockingtonTuning.waveEveryMs),
+    });
+    if (made.length === 0) continue;
+    // Raised already after the Hero.
+    for (const { monster } of made) monster.state = "chase";
+    events.push({
+      type: "WaveRaised",
+      boss: boss.id,
+      monsters: made.map((m) => m.monster.id),
+    });
+  }
+}
+
+/** How many ways round a body a raised Monster may be stood. */
+const RAISE_TURNS = 8;
+
+/**
+ * Up to `count` walkable spots round `from` at `distance`, evenly spaced from
+ * a different starting way each time.
+ */
+function spotsAround(
+  world: World,
+  area: Area,
+  from: Vec,
+  distance: number,
+  count: number,
+): Vec[] {
+  const first = randomInt(world.rng, [0, RAISE_TURNS - 1]);
+  const spots: Vec[] = [];
+  for (let i = 0; i < RAISE_TURNS && spots.length < count; i++) {
+    const angle = (2 * Math.PI * (first + i)) / RAISE_TURNS;
+    const at = {
+      x: from.x + distance * Math.cos(angle),
+      y: from.y + distance * Math.sin(angle),
+    };
+    if (isWalkable(area, at)) spots.push(at);
+  }
+  return spots;
 }
 
 /**
@@ -1370,19 +1796,27 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
     return events;
   }
   const townPortalEnd = townPortalIn(world);
-  if (world.townPortal && townPortalEnd && walkedInto(hero, townPortalEnd)) {
+  if (
+    world.townPortal &&
+    townPortalEnd &&
+    walkedInto(hero, townPortalEnd, townPortalTuning.radius)
+  ) {
     const to = world.areaName === TOWN ? world.townPortal.area : TOWN;
     startAreaChange(world, to, null, events);
     world.tick += 1;
     return events;
   }
+  touchWaypoint(world, events);
   approach(world);
   reachGroundItem(world, events);
+  reachNpc(world, events);
   // Before the Monsters, so an Arrow first shows where it is loosed.
   landProjectiles(world, events);
   for (const { monster, target } of stepMonsters(world)) {
     strike(world, target, monsterAttack(monster), events);
   }
+  stepBoneAltars(world, events);
+  stepWaves(world, events);
   if (isRegenerating(world)) {
     hero.life = Math.min(maxLife(world), hero.life + REGEN_PER_STEP);
   }
@@ -1430,11 +1864,11 @@ function landProjectiles(world: World, events: SimEvent[]) {
   stepProjectiles(
     world,
     (projectile, target) => strike(world, target, projectile, events),
-    (projectile, monster) =>
+    (projectile, target) =>
       // A Skill's damage always hits: no roll against Defense, and no hitstop.
       heroHurts(
         world,
-        monster,
+        target,
         randomInt(world.rng, projectile.damage),
         "skill",
         events,
@@ -1576,6 +2010,23 @@ function give(world: World, order: Order, events: SimEvent[]) {
   ) {
     return;
   }
+  if (order.type === "TravelToWaypoint") {
+    if (canTravelTo(world, order.area)) {
+      startAreaChange(world, order.area, null, events, true);
+    }
+    return;
+  }
+  if (order.type === "AcceptQuest" || order.type === "HandInQuest") {
+    answerQuest(world, order.quest, order.type === "HandInQuest", events);
+    return;
+  }
+  if (order.type === "SmithBonus") {
+    const smith = npcsIn(world).find(
+      (npc) => npc.name === SMITH && withinNpcReach(world, npc.id),
+    );
+    if (smith) giveSmithBonus(world, order.item, events);
+    return;
+  }
   if (order.type === "SpendAttributePoints") {
     spendAttributePoints(world, order.points, events);
     return;
@@ -1624,29 +2075,42 @@ function give(world: World, order: Order, events: SimEvent[]) {
     case "MoveTo":
       hero.attacking = null;
       hero.pickingUp = null;
+      hero.talkingTo = null;
       hero.path = findPath(area, hero.pos, order.target, heroTuning.radius);
       break;
     case "Walk":
       walkInDirection(world, order.direction);
       break;
     case "Attack": {
-      const monster = monsterById(world, order.monster);
-      if (!monster) return;
-      hero.attacking = monster.id;
+      const target = targetById(world, order.monster);
+      if (!target) return;
+      hero.attacking = target.id;
       hero.pickingUp = null;
-      hero.path = findPath(area, hero.pos, monster.pos, heroTuning.radius);
+      hero.talkingTo = null;
+      hero.path = findPath(area, hero.pos, target.pos, heroTuning.radius);
       break;
     }
     case "PickUp": {
       const lying = groundItemById(world, order.groundItem);
       if (!lying) return;
       hero.attacking = null;
+      hero.talkingTo = null;
       hero.pickingUp = lying.item.id;
       hero.path = findPath(area, hero.pos, lying.pos, heroTuning.radius);
       break;
     }
+    case "Talk": {
+      const npc = area.npcs[order.npc];
+      if (!npc || !world.standing.includes(order.npc)) return;
+      hero.attacking = null;
+      hero.pickingUp = null;
+      hero.talkingTo = order.npc;
+      hero.path = findPath(area, hero.pos, npc.pos, heroTuning.radius);
+      break;
+    }
     case "SwingAt":
       hero.pickingUp = null;
+      hero.talkingTo = null;
       startSwing(hero, null, order.target);
       break;
     case "Cast":
@@ -1656,6 +2120,7 @@ function give(world: World, order: Order, events: SimEvent[]) {
       hero.path = [];
       hero.attacking = null;
       hero.pickingUp = null;
+      hero.talkingTo = null;
       hero.opening = { elapsed: 0 };
       break;
   }
@@ -1699,6 +2164,7 @@ function castFrom(
   hero.path = [];
   hero.attacking = null;
   hero.pickingUp = null;
+  hero.talkingTo = null;
   hero.cast = { skill, elapsed: 0 };
   events.push({ type: "SkillCast", skill, target: { ...target } });
   switch (effect.type) {
@@ -1816,12 +2282,12 @@ function explode(
     Math.ceil(life * least),
     Math.floor(life * most),
   ];
-  const victims = world.monsters.filter(
-    (monster) => distance(monster.pos, corpse.pos) <= radius,
+  const victims = targetsOf(world).filter(
+    (target) => distance(target.pos, corpse.pos) <= radius,
   );
   // A Skill's damage always hits: no roll against Defense, and no hitstop.
-  for (const monster of victims) {
-    heroHurts(world, monster, randomInt(world.rng, range), "skill", events);
+  for (const target of victims) {
+    heroHurts(world, target, randomInt(world.rng, range), "skill", events);
   }
 }
 
@@ -1940,6 +2406,7 @@ function walkInDirection(world: World, direction: Vec) {
   hero.path = [];
   hero.attacking = null;
   hero.pickingUp = null;
+  hero.talkingTo = null;
   if (direction.x === 0 && direction.y === 0) return;
   hero.facing = Math.atan2(direction.y, direction.x);
   const area = world.areas[world.areaName];
@@ -1957,16 +2424,145 @@ function walkInDirection(world: World, direction: Vec) {
 function approach(world: World) {
   const { hero } = world;
   if (hero.attacking === null || hero.swing) return;
-  const monster = monsterById(world, hero.attacking);
+  const monster = targetById(world, hero.attacking);
   if (!monster) {
     hero.attacking = null;
     hero.path = [];
-  } else if (distance(hero.pos, monster.pos) <= heroTuning.reach) {
+  } else if (gapTo(hero.pos, monster) <= heroTuning.reach) {
     startSwing(hero, monster.id, monster.pos);
   } else if (hero.path.length === 0) {
     // Walked as near as it can get, still out of reach.
     hero.attacking = null;
   }
+}
+
+/**
+ * Whether the Hero is close enough to the active Area's NPC `npc` to keep
+ * talking to them; false for an NPC the Area doesn't have.
+ */
+export function withinNpcReach(world: World, npc: number): boolean {
+  const there = world.areas[world.areaName].npcs[npc];
+  return !!there && distance(world.hero.pos, there.pos) <= heroTuning.talkLeave;
+}
+
+/**
+ * The indices in `area`'s `npcs` of the NPCs that stand there now, as the
+ * Quests stand: those placed under no condition, or whose condition holds.
+ */
+function standingIn(world: World, area: Area): number[] {
+  return area.npcs.flatMap((npc, id) => (stillStands(world, npc) ? [id] : []));
+}
+
+/** Whether `npc`'s condition holds as the Quests stand now. */
+function stillStands(world: World, npc: Npc): boolean {
+  if (!npc.stands) return true;
+  const { state } = questOf(world, npc.stands.quest);
+  return (state === "ready" || state === "done") === npc.stands.ready;
+}
+
+/**
+ * The NPCs standing in the active Area, each with its index in the Area's
+ * `npcs`, which stays the same whoever else stands there.
+ */
+export function npcsIn(world: World): { id: number; name: string; pos: Vec }[] {
+  const { npcs } = world.areas[world.areaName];
+  return world.standing.flatMap((id) =>
+    npcs[id] ? [{ id, name: npcs[id].name, pos: npcs[id].pos }] : [],
+  );
+}
+
+/** How far the Quest `quest` has got. */
+export function questOf(world: World, quest: QuestId): QuestProgress {
+  return { ...world.hero.progress.quests[quest] };
+}
+
+/** Whether NPC `npc` of the active Area has a Quest to give or take back. */
+export function hasQuestToDeal(world: World, npc: number): boolean {
+  const there = world.areas[world.areaName].npcs[npc];
+  return (
+    !!there &&
+    world.standing.includes(npc) &&
+    hasQuestBusiness(world.hero.progress.quests, there.name)
+  );
+}
+
+/**
+ * Notes that the Hero did `deed`, moving on every Quest that asks for it
+ * and reporting it. Deeds count whenever they happen, given or not.
+ */
+function noteDeed(world: World, deed: QuestDeed, events: SimEvent[]) {
+  const { quests } = world.hero.progress;
+  for (const quest of Object.keys(quests) as QuestId[]) {
+    const result = advanceQuest(quests, quest, deed);
+    if (result === "counted") {
+      events.push({ type: "QuestCounted", quest, count: quests[quest].count });
+    }
+    if (result === "ready") events.push({ type: "QuestReady", quest });
+  }
+}
+
+/**
+ * Gives or hands in `quest` to its giver, when the Hero is within reach of
+ * them: giving a Quest Not given, or, with `handIn`, making a Ready one Done
+ * and paying its reward once, as a Level-up pays its points.
+ */
+function answerQuest(
+  world: World,
+  quest: QuestId,
+  handIn: boolean,
+  events: SimEvent[],
+) {
+  const { progress } = world.hero;
+  const { giver, reward } = questTuning[quest];
+  const { state } = questOf(world, quest);
+  if (state !== (handIn ? "ready" : "notGiven")) return;
+  const there = npcsIn(world).find(
+    (npc) => npc.name === giver && withinNpcReach(world, npc.id),
+  );
+  if (!there || !questsOf(giver).includes(quest)) return;
+  if (!handIn) {
+    progress.quests[quest].state = "given";
+    events.push({ type: "QuestGiven", quest });
+    return;
+  }
+  progress.quests[quest].state = "done";
+  if (reward.type === "attributePoints") {
+    progress.attributePoints += reward.amount;
+  }
+  if (reward.type === "skillPoints") progress.skillPoints += reward.amount;
+  if (reward.type === "smithService" && progress.smithService === "locked") {
+    progress.smithService = "unlocked";
+  }
+  events.push({ type: "QuestDone", quest });
+}
+
+/** Talks to the NPC the Hero walks to once they are in reach. */
+function reachNpc(world: World, events: SimEvent[]) {
+  const { hero } = world;
+  if (hero.talkingTo === null) return;
+  const npc = world.areas[world.areaName].npcs[hero.talkingTo];
+  if (!npc) {
+    hero.talkingTo = null;
+    hero.path = [];
+    return;
+  }
+  if (distance(hero.pos, npc.pos) > heroTuning.talkReach) {
+    // Walked as near as it can get, still out of reach.
+    if (hero.path.length === 0) hero.talkingTo = null;
+    return;
+  }
+  events.push({ type: "Talked", npc: hero.talkingTo, name: npc.name });
+  const talkedTo = hero.talkingTo;
+  hero.talkingTo = null;
+  hero.path = [];
+  noteDeed(world, { type: "talked", npc: npc.name }, events);
+  // An NPC whose condition no longer holds goes home now, though the
+  // Dialogue panel keeps their words; the Area judges them again on the next
+  // arrival.
+  if (!world.standing.includes(talkedTo)) return;
+  world.standing = world.standing.filter(
+    (id) => id !== talkedTo || stillStands(world, npc),
+  );
 }
 
 /**
@@ -2050,25 +2646,39 @@ function giveBuffered(world: World, events: SimEvent[]) {
 function land(world: World, swing: Swing, events: SimEvent[]) {
   const { hero } = world;
   swing.landed = true;
-  const victims = world.monsters.filter((monster) => {
-    const gap = distance(hero.pos, monster.pos);
+  const victims = targetsOf(world).filter((target) => {
+    const gap = gapTo(hero.pos, target);
     if (swing.monster !== null) {
       return (
-        monster.id === swing.monster &&
+        target.id === swing.monster &&
         gap <= heroTuning.reach + heroTuning.reachGrace
       );
     }
-    return lands(hero, monster.pos, heroTuning.reach, ARC);
+    return lands(
+      hero,
+      target.pos,
+      heroTuning.reach + altarRadiusOf(target),
+      ARC,
+    );
   });
 
-  for (const monster of victims) {
-    if (random(world.rng) < heroChanceToHit(world, monster)) {
+  for (const target of victims) {
+    // A Bone Altar has no Defense to roll against.
+    if (isBoneAltar(target)) {
       world.hitstop = HITSTOP_STEPS;
-      hit(world, monster, events);
+      hit(world, target, events);
+    } else if (random(world.rng) < heroChanceToHit(world, target)) {
+      world.hitstop = HITSTOP_STEPS;
+      hit(world, target, events);
     } else {
-      miss(world, monster, events);
+      miss(world, target, events);
     }
   }
+}
+
+/** How far `from` is from the edge of `target` (tiles). */
+function gapTo(from: Vec, target: Monster | BoneAltar): number {
+  return Math.max(0, distance(from, target.pos) - altarRadiusOf(target));
 }
 
 /**
@@ -2080,9 +2690,9 @@ function miss(world: World, monster: Monster, events: SimEvent[]) {
   noticeHit(world, monster);
 }
 
-function hit(world: World, monster: Monster, events: SimEvent[]) {
+function hit(world: World, target: Monster | BoneAltar, events: SimEvent[]) {
   const damage = heroDamage(world, random(world.rng));
-  heroHurts(world, monster, damage, "hero", events);
+  heroHurts(world, target, damage, "hero", events);
 }
 
 /**
@@ -2091,13 +2701,41 @@ function hit(world: World, monster: Monster, events: SimEvent[]) {
  */
 function heroHurts(
   world: World,
-  monster: Monster,
+  target: Monster | BoneAltar,
   rolled: number,
   attacker: "hero" | "skill",
   events: SimEvent[],
 ) {
   world.hero.combat = COMBAT_STEPS;
-  takeDamage(world, monster, rolled, attacker, events);
+  if (isBoneAltar(target)) hurtAltar(world, target, rolled, events);
+  else takeDamage(world, target, rolled, attacker, events);
+}
+
+/**
+ * Lands `damage` from the Hero's side on a Bone Altar: at 0 Life it is
+ * destroyed, freeing its tile and counting towards the Quests that ask for it.
+ */
+function hurtAltar(
+  world: World,
+  altar: BoneAltar,
+  damage: number,
+  events: SimEvent[],
+) {
+  // Whatever hit it after it fell finds nothing.
+  if (!world.boneAltars.includes(altar)) return;
+  altar.life = Math.max(0, altar.life - damage);
+  events.push({ type: "BoneAltarHit", altar: altar.id, damage });
+  if (altar.life > 0) return;
+  const area = world.areas[world.areaName];
+  world.boneAltars = world.boneAltars.filter((one) => one !== altar);
+  area.walkable[tileIndex(area, altar.pos)] = true;
+  events.push({
+    type: "BoneAltarDestroyed",
+    altar: altar.id,
+    area: area.name,
+    pos: { ...altar.pos },
+  });
+  noteDeed(world, { type: "boneAltarDestroyed", area: area.name }, events);
 }
 
 /**
@@ -2143,7 +2781,22 @@ function hurt(world: World, monster: Monster, events: SimEvent[]) {
       killExperience(monster, world.hero.progress.level),
       events,
     );
-    rollDrop(world, monster.pos, events);
+    rollDrop(world, monster.pos, events, monster.unique !== null);
+    if (monster.unique !== null) {
+      const { name } = world.areas[world.areaName];
+      noteDeed(world, { type: "uniqueKilled", area: name }, events);
+    }
+    const { actBoss, act } = world.areas[world.areaName];
+    if (
+      actBoss &&
+      act !== null &&
+      monster.unique === actBoss.name &&
+      monster.type === actBoss.monster
+    ) {
+      const completes = actBossQuestOpen(world.hero.progress.quests, act);
+      noteDeed(world, { type: "actBossKilled", act }, events);
+      if (completes) events.push({ type: "ActCompleted", act });
+    }
     return;
   }
   noticeHit(world, monster);
@@ -2190,9 +2843,18 @@ function rollAttack(
 function minionStrike(
   world: World,
   minion: Minion,
-  monster: Monster,
+  monster: Monster | BoneAltar,
   events: SimEvent[],
 ) {
+  if (isBoneAltar(monster)) {
+    hurtAltar(
+      world,
+      monster,
+      randomInt(world.rng, minionDamageRange(minion)),
+      events,
+    );
+    return;
+  }
   const damage = rollAttack(
     world,
     chanceToHit(minionAttackRating(minion), monsterDefense(monster)),
@@ -2209,11 +2871,18 @@ function minionStrike(
 /**
  * Rolls a dying Monster's drops, each lying where it died: by
  * `dropTuning.chance` one Item, then by `potionDropTuning.chance` one Potion,
- * each of a type picked with equal odds.
+ * each of a type picked with equal odds. A Unique Monster's Items are
+ * rolled once for each of `uniqueTuning.itemDropChances` instead.
  */
-function rollDrop(world: World, pos: Vec, events: SimEvent[]) {
-  for (const { chance, items } of [dropTuning, potionDropTuning]) {
-    if (random(world.rng) >= chance) continue;
+function rollDrop(world: World, pos: Vec, events: SimEvent[], unique: boolean) {
+  const itemDrops = unique
+    ? uniqueTuning.itemDropChances.map((chance) => ({
+        chance,
+        items: dropTuning.items,
+      }))
+    : [dropTuning];
+  for (const { chance, items } of [...itemDrops, potionDropTuning]) {
+    if (chance < 1 && random(world.rng) >= chance) continue;
     const type = items[randomInt(world.rng, [0, items.length - 1])];
     const item = { id: world.nextItemId++, type };
     world.groundItems.push({ item, pos: { ...pos } });
@@ -2263,6 +2932,7 @@ function hitHero(world: World, attack: AttackNumbers, events: SimEvent[]) {
   hero.opening = null;
   hero.attacking = null;
   hero.pickingUp = null;
+  hero.talkingTo = null;
   hero.path = [];
 }
 
@@ -2359,6 +3029,16 @@ function gainExperience(world: World, amount: number, events: SimEvent[]) {
 
 function groundItemById(world: World, id: ItemId): GroundItem | undefined {
   return world.groundItems.find((lying) => lying.item.id === id);
+}
+
+/** The Monster or Bone Altar called `id` in the active Area, if any. */
+function targetById(
+  world: World,
+  id: MonsterId,
+): Monster | BoneAltar | undefined {
+  return (
+    monsterById(world, id) ?? world.boneAltars.find((altar) => altar.id === id)
+  );
 }
 
 function monsterById(world: World, id: MonsterId): Monster | undefined {

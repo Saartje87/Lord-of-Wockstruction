@@ -16,7 +16,12 @@
   {
    "name": "areaLevel",
    "type": "int",
-   "value": 4
+   "value": 9
+  },
+  {
+   "name": "act",
+   "type": "int",
+   "value": 1
   }
  ],
  "tilesets": [

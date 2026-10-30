@@ -1,10 +1,10 @@
 import type { CursorHit } from "../cursor";
 import {
+  type ClosablePanel,
   hasPendingPoints,
   type Menus,
   type OpenPanels,
   PANELS,
-  type Panel,
 } from "../menus";
 import { beltRows } from "../sim/belt";
 import { cursorItemOf } from "../sim/inventory";
@@ -13,6 +13,7 @@ import type { Vec } from "../sim/vec";
 import { ATTRIBUTES, canRaiseSkill, SKILLS, type World } from "../sim/world";
 import type { Viewport } from "../viewport";
 import { beltStripHitAt, beltStripLayout } from "./beltStrip";
+import { dialogueHitAt, dialogueLayout, dialogueSheet } from "./dialoguePanel";
 import {
   canRaise,
   hasUnspentPoints,
@@ -25,13 +26,24 @@ import {
 import { inventoryHitAt, inventoryPanelLayout } from "./inventoryPanel";
 import { miniMapHitAt, miniMapLayout, miniMapShown } from "./miniMap";
 import { panelButtonHitAt, panelButtonsLayout } from "./panelButtons";
+import {
+  questPanelHitAt,
+  questPanelLayout,
+  questPanelSheet,
+} from "./questPanel";
 import { skillBarHitAt, skillBarLayout } from "./skillBar";
 import { skillTreeHitAt, skillTreePanelLayout } from "./skillTreePanel";
 import { touchControlsLayout } from "./touchControls";
 import { touchHitRect } from "./touchHitArea";
+import {
+  waypointListHitAt,
+  waypointListLayout,
+  waypointListSheet,
+} from "./waypointList";
 
 /** The panels as drawn: which are open, and the Hero panel's Pending Attribute Points. */
-export type ShownPanels = OpenPanels & Pick<Menus, "pendingPoints" | "mapOpen">;
+export type ShownPanels = OpenPanels &
+  Pick<Menus, "pendingPoints" | "mapOpen" | "dialogueNpc" | "dialoguePage">;
 
 /**
  * What a point on the screen hits of the panels and the HUD, or null when
@@ -55,7 +67,15 @@ export function cursorHitAt(
   const rows = beltRows(world);
   const { inventoryOpen } = shown;
   const holding = cursorItemOf(world) !== null;
+  const waypoints = shown.waypointsOpen ? waypointListSheet(world, {}) : [];
   return (
+    dialogueHitAt(
+      screen,
+      point,
+      dialogueSheet(world, shown.dialogueNpc, shown.dialoguePage),
+      shown.dialogueOpen,
+    ) ??
+    waypointListHitAt(screen, point, waypoints, shown.waypointsOpen) ??
     heroPanelHitAt(
       screen,
       point,
@@ -64,6 +84,7 @@ export function cursorHitAt(
       shown.pendingPoints,
     ) ??
     skillTreeHitAt(screen, point, world, shown.skillTreeOpen) ??
+    questPanelHitAt(screen, point, world, shown.questOpen) ??
     // Only on the panel itself here: off it, the HUD comes before a drop.
     inventoryHitAt(screen, point, inventoryOpen, false, rows) ??
     // Under the panels, which cover it in the Compact Layout.
@@ -125,12 +146,29 @@ function touchTargets(
   const grows: TouchTarget[] = [];
   const stops: Rect[] = [];
   const panels: Rect[] = [];
-  const close = (panel: Panel, rect: Rect, over: Rect) =>
+  const close = (panel: ClosablePanel, rect: Rect, over: Rect) =>
     grows.push({
       rect,
       hit: { button: { type: "close", panel } },
       panel: over,
     });
+
+  if (shown.dialogueOpen) {
+    const sheet = dialogueSheet(world, shown.dialogueNpc, shown.dialoguePage);
+    const dialogue = dialogueLayout(screen, sheet?.buttons.length ?? 0);
+    panels.push(dialogue.panel);
+    close("dialogue", dialogue.closeButton, dialogue.panel);
+    // The buttons are big enough to tap without a hit area of their own.
+    stops.push(...dialogue.buttons);
+  }
+  if (shown.waypointsOpen) {
+    const sheet = waypointListSheet(world, {});
+    const list = waypointListLayout(screen, sheet.length);
+    panels.push(list.panel);
+    close("waypoints", list.closeButton, list.panel);
+    // The rows are big enough to tap without a hit area of their own.
+    stops.push(...list.rows);
+  }
 
   const heroLayout = heroPanelLayout(screen);
   if (shown.heroPanelOpen) {
@@ -157,6 +195,12 @@ function touchTargets(
         });
       }
     }
+  }
+  if (shown.questOpen) {
+    const quests = questPanelLayout(screen, questPanelSheet(world).length);
+    panels.push(quests.panel);
+    close("quest", quests.closeButton, quests.panel);
+    stops.push(...quests.rows);
   }
   if (shown.inventoryOpen) {
     const inventory = inventoryPanelLayout(screen, beltRows(world));

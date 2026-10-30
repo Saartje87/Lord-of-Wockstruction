@@ -11,7 +11,7 @@
  "infinite": false,
  "compressionlevel": -1,
  "nextlayerid": 5,
- "nextobjectid": 9,
+ "nextobjectid": 10,
  "tilesets": [
   {
    "firstgid": 1,
@@ -2117,7 +2117,7 @@
       {
        "name": "area",
        "type": "string",
-       "value": "catacombs"
+       "value": "cozy-plains"
       },
       {
        "name": "entry",
@@ -2140,7 +2140,7 @@
     },
     {
      "id": 3,
-     "name": "from-catacombs",
+     "name": "from-cozy-plains",
      "type": "entry",
      "x": 2448,
      "y": 1488,
@@ -2196,7 +2196,19 @@
      "height": 0,
      "rotation": 0,
      "visible": true,
-     "point": true
+     "point": true,
+     "properties": [
+      {
+       "name": "quest",
+       "type": "string",
+       "value": "lost-wanderer"
+      },
+      {
+       "name": "questReady",
+       "type": "bool",
+       "value": true
+      }
+     ]
     },
     {
      "id": 8,
@@ -2209,8 +2221,32 @@
      "rotation": 0,
      "visible": true,
      "point": true
+    },
+    {
+     "id": 9,
+     "name": "waypoint",
+     "type": "waypoint",
+     "x": 1392,
+     "y": 1776,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true
     }
    ]
+  }
+ ],
+ "properties": [
+  {
+   "name": "mainPath",
+   "type": "int",
+   "value": 0
+  },
+  {
+   "name": "act",
+   "type": "int",
+   "value": 1
   }
  ]
 }

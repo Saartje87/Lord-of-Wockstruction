@@ -634,6 +634,19 @@ describe("an Item's tooltip", () => {
     expect(itemTooltip("axe")).toEqual(["Axe", "Damage: 25–40"]);
   });
 
+  it("lists the Smith bonus after the Item's own bonuses", () => {
+    expect(itemTooltip("ringOfLife", { bonus: "life", amount: 5 })).toEqual([
+      "Ring of Life",
+      "+10 to Life",
+      "Smith: +5 to Life",
+    ]);
+    expect(itemTooltip("axe", { bonus: "attackRating", amount: 30 })).toEqual([
+      "Axe",
+      "Damage: 25–40",
+      "Smith: +30 to Attack Rating",
+    ]);
+  });
+
   it("names an Armour and its Defense", () => {
     expect(itemTooltip("chainMail")).toEqual(["Chain Mail", "Defense: 40"]);
   });

@@ -98,7 +98,7 @@ export function nameplateOf(hovered: Hovered): Nameplate {
   }
   const { monster } = hovered;
   return {
-    name: monsterTuning[monster.type].name,
+    name: monster.unique ?? monsterTuning[monster.type].name,
     fraction: monster.life / monsterMaxLife(monster),
     friendly: false,
   };

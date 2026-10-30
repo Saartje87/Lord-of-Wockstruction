@@ -1,17 +1,28 @@
 import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { areaDisplayNames, areas, tilesets } from "./content";
+import {
+  areaDisplayNames,
+  areas,
+  createShippedWorld,
+  tilesets,
+} from "./content";
+import { encodeSave, parseSave, saveOf } from "./save";
 import type { Area, Exit, Spawn } from "./sim/area";
 import { type MonsterOfLevel, monsterExperience } from "./sim/monsters";
 import { findPath } from "./sim/path";
+import { validateActs, validateQuests } from "./sim/validate";
 import type { Vec } from "./sim/vec";
 import {
   createWorld,
   FRESH_PROGRESS,
+  npcsIn,
   type Order,
+  questOf,
   type SimEvent,
   step,
   type World,
+  waypointList,
+  waypointUnderHero,
 } from "./sim/world";
 import { ITEM_TYPES, itemOf } from "./tuning/items";
 import type { MonsterType } from "./tuning/monsters";
@@ -26,8 +37,10 @@ const shippedWorld = () => createWorld({ areas, tilesets, seed: 1 });
  * Experience it's worth, which differs at every Monster Level.
  */
 const isAtMonsterLevel = (monsterLevel: number) => (monster: MonsterOfLevel) =>
-  monsterExperience(monster) ===
-  monsterExperience({ type: monster.type, monsterLevel });
+  monsterExperience({
+    type: monster.type,
+    monsterLevel: monster.monsterLevel,
+  }) === monsterExperience({ type: monster.type, monsterLevel });
 
 /**
  * The shipped Areas with a stand-in Town of three floor tiles, whose one
@@ -48,7 +61,7 @@ function worldEntering(area: string, entry: string): World {
         name: "objects",
         objects: [
           { name: "start", type: "entry", x: 16, y: 16 },
-          { name: "from-catacombs", type: "entry", x: 16, y: 16 },
+          { name: "from-cozy-plains", type: "entry", x: 16, y: 16 },
           {
             name: "",
             type: "exit",
@@ -123,16 +136,9 @@ const packsOf = (area: Area, monster: MonsterType) =>
     .map((spawn) => spawn.count);
 const sum = (values: number[]) => values.reduce((a, b) => a + b, 0);
 
-/** The Combat Area that Town's one Exit leads to. */
+/** The Combat Area that Wockville's one Exit leads to. */
 const combatAreaOf = (world: World) =>
   world.areas[world.areas.town.exits[0].area];
-
-/** An Area's Exit back to Town; throws when it has none. */
-function exitToTown(area: Area): Exit {
-  const exit = area.exits.find((exit) => exit.area === "town");
-  if (!exit) throw new Error(`Area "${area.name}" has no Exit to Town`);
-  return exit;
-}
 
 /** The centre of an Exit's zone. */
 const centreOf = (exit: Exit) => ({
@@ -173,7 +179,12 @@ describe("the shipped Areas", () => {
     expect(Object.keys(areaDisplayNames).sort()).toEqual(
       Object.keys(areas).sort(),
     );
-    expect(areaDisplayNames.town).toBe("Town");
+    expect(areaDisplayNames.town).toBe("Wockville");
+    expect(areaDisplayNames["cozy-plains"]).toBe("Cozy Plains");
+    expect(areaDisplayNames["soggy-bog"]).toBe("Soggy Bog");
+    expect(areaDisplayNames.wockyard).toBe("Wockyard");
+    expect(areaDisplayNames.spa).toBe("Spa");
+    expect(areaDisplayNames["old-mill"]).toBe("Old Mill");
     expect(areaDisplayNames.catacombs).toBe("Catacombs");
     expect(areaDisplayNames.crypt).toBe("Crypt");
     for (const name of Object.values(areaDisplayNames)) {
@@ -219,17 +230,203 @@ describe("the shipped Areas", () => {
     }
   });
 
-  it("lead from Town through one Exit to a Combat Area of about 64×64", () => {
+  it("lead from Wockville through one Exit to the Cozy Plains, a Combat Area of about 64×64", () => {
     const world = shippedWorld();
     const combat = combatAreaOf(world);
 
     expect(world.areas.town.exits).toHaveLength(1);
+    expect(combat.name).toBe("cozy-plains");
     expectAbout(combat.width, 64, 8);
     expectAbout(combat.height, 64, 8);
   });
 
-  it("fill the Combat Area with 3–4 Skeleton groups, one about 7 strong, and 1–2 Zombie groups", () => {
-    const combat = combatAreaOf(shippedWorld());
+  it("carry Act 1 on every Area, and the open sky only on the outdoor Areas", () => {
+    const shipped = Object.values(shippedWorld().areas);
+
+    for (const area of shipped) expect(area.act).toBe(1);
+    expect(
+      shipped.filter((area) => area.outdoors).map((area) => area.name),
+    ).toEqual(["cozy-plains", "soggy-bog", "wockyard", "spa", "old-mill"]);
+  });
+
+  it("give the Cozy Plains Area Level 1, Skeleton and Zombie groups, and its Exits to Wockville and the Soggy Bog", () => {
+    const world = worldEntering("cozy-plains", "from-town");
+    const plains = world.areas["cozy-plains"];
+    const packs = [
+      ...packsOf(plains, "skeleton"),
+      ...packsOf(plains, "zombie"),
+    ];
+
+    expect(plains.areaLevel).toBe(1);
+    expect(packs).toHaveLength(plains.spawns.length);
+    expect(packsOf(plains, "zombie").length).toBeGreaterThan(0);
+    expect(world.monsters.every(isAtMonsterLevel(1))).toBe(true);
+    expect(exitTo(plains, "town").entry).toBe("from-cozy-plains");
+    expect(exitTo(plains, "soggy-bog").entry).toBe("from-cozy-plains");
+    expect(plains.exits.map((exit) => exit.area).sort()).toEqual([
+      "soggy-bog",
+      "spa",
+      "town",
+    ]);
+  });
+
+  it("arrive in the Cozy Plains next to its Exit back to Wockville, and in Wockville next to its Exit", () => {
+    const world = shippedWorld();
+    const arrived = walkThrough(world, exitTo(world.areas.town, "cozy-plains"));
+
+    expect(arrived?.area).toBe("cozy-plains");
+    const back = exitTo(world.areas["cozy-plains"], "town");
+    expect(heroDistanceTo(world, back)).toBeLessThan(4);
+    walkThrough(world, back);
+    expect(world.areaName).toBe("town");
+    expect(
+      heroDistanceTo(world, exitTo(world.areas.town, "cozy-plains")),
+    ).toBeLessThan(4);
+  });
+
+  it("lead from the Cozy Plains to the Soggy Bog, arriving next to their Exit back", () => {
+    const world = worldEntering("cozy-plains", "from-soggy-bog");
+    const onward = exitTo(world.areas["cozy-plains"], "soggy-bog");
+
+    expect(heroDistanceTo(world, onward)).toBeLessThan(4);
+    const arrived = walkThrough(world, onward);
+
+    expect(arrived?.area).toBe("soggy-bog");
+    expect(
+      heroDistanceTo(world, exitTo(world.areas["soggy-bog"], "cozy-plains")),
+    ).toBeLessThan(4);
+  });
+
+  it("lead from the Soggy Bog to the Wockyard, arriving next to their Exit back", () => {
+    const world = worldEntering("soggy-bog", "from-wockyard");
+    const onward = exitTo(world.areas["soggy-bog"], "wockyard");
+
+    expect(heroDistanceTo(world, onward)).toBeLessThan(4);
+    const arrived = walkThrough(world, onward);
+
+    expect(arrived?.area).toBe("wockyard");
+    expect(
+      heroDistanceTo(world, exitTo(world.areas.wockyard, "soggy-bog")),
+    ).toBeLessThan(4);
+  });
+
+  it("lead from the Wockyard down to the Catacombs, arriving next to their Exit back up", () => {
+    const world = worldEntering("wockyard", "from-catacombs");
+    const onward = exitTo(world.areas.wockyard, "catacombs");
+
+    expect(heroDistanceTo(world, onward)).toBeLessThan(4);
+    const arrived = walkThrough(world, onward);
+
+    expect(arrived?.area).toBe("catacombs");
+    expect(
+      heroDistanceTo(world, exitTo(world.areas.catacombs, "wockyard")),
+    ).toBeLessThan(4);
+  });
+
+  it("give the Main Path's Areas their Area Levels and link the Catacombs only to the Wockyard and the Crypt", () => {
+    const { areas: shipped } = shippedWorld();
+    const levels = [
+      "cozy-plains",
+      "soggy-bog",
+      "wockyard",
+      "catacombs",
+      "crypt",
+      "ossuary",
+    ].map((name) => shipped[name].areaLevel);
+
+    expect(levels).toEqual([1, 3, 5, 7, 9, 11]);
+    expect(shipped.town.areaLevel).toBeNull();
+    expect(exitTo(shipped.catacombs, "wockyard").entry).toBe("from-catacombs");
+    expect(shipped.catacombs.exits.map((exit) => exit.area).sort()).toEqual([
+      "crypt",
+      "wockyard",
+    ]);
+  });
+
+  it.each([
+    ["cozy-plains", "spa", 2],
+    ["soggy-bog", "old-mill", 4],
+  ])("link the %s to a Side Area, the %s, of Area Level %i, arriving next to their Exit back", (parent, side, level) => {
+    const world = worldEntering(parent, `from-${side}`);
+    const onward = exitTo(world.areas[parent], side);
+
+    expect(world.areas[side].areaLevel).toBe(level);
+    expect(world.areas[side].act).toBe(1);
+    expect(onward.entry).toBe(`from-${parent}`);
+    expect(world.areas[side].exits.map((exit) => exit.area)).toEqual([parent]);
+    expect(heroDistanceTo(world, onward)).toBeLessThan(4);
+    const arrived = walkThrough(world, onward);
+
+    expect(arrived?.area).toBe(side);
+    expect(world.monsters.length).toBeGreaterThan(0);
+    expect(world.monsters.every(isAtMonsterLevel(level))).toBe(true);
+    const back = exitTo(world.areas[side], parent);
+    expect(heroDistanceTo(world, back)).toBeLessThan(4);
+    walkThrough(world, back);
+    expect(world.areaName).toBe(parent);
+    expect(heroDistanceTo(world, onward)).toBeLessThan(4);
+  });
+
+  it("let the Hero walk each outdoor Area from its entry to its Exits", () => {
+    for (const [name, entry] of [
+      ["spa", "from-cozy-plains"],
+      ["old-mill", "from-soggy-bog"],
+      ["cozy-plains", "from-town"],
+      ["soggy-bog", "from-cozy-plains"],
+      ["wockyard", "from-soggy-bog"],
+    ]) {
+      const world = worldEntering(name, entry);
+      const area = world.areas[name];
+
+      for (const exit of area.exits) {
+        expect(
+          findPath(area, world.hero.pos, centreOf(exit), 0.3).length,
+        ).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("make Zombies and Skeletons more and more of the outdoor Areas the closer they are to the Wockyard", () => {
+    const { areas: shipped } = shippedWorld();
+    const undead = (name: string) =>
+      sum(
+        shipped[name].spawns
+          .filter((s) => ["zombie", "skeleton"].includes(s.monster))
+          .map((s) => s.count),
+      );
+    const plains = undead("cozy-plains");
+    const bog = undead("soggy-bog");
+    const yard = undead("wockyard");
+
+    expect(plains).toBeLessThan(bog);
+    expect(bog).toBeLessThan(yard);
+    for (const name of ["cozy-plains", "soggy-bog", "wockyard"]) {
+      expect(packsOf(shipped[name], "zombie").length).toBeGreaterThan(0);
+      expect(packsOf(shipped[name], "skeleton").length).toBeGreaterThan(0);
+    }
+  });
+
+  it("raise graves in the Wockyard", () => {
+    const yard = shippedWorld().areas.wockyard;
+    const graves = yard.props.filter((prop) => /grave/.test(prop.piece));
+
+    expect(graves.length).toBeGreaterThan(10);
+  });
+
+  it("spawn each outdoor Area's Monsters at its Monster Level", () => {
+    for (const [name, entry, level] of [
+      ["soggy-bog", "from-cozy-plains", 3],
+      ["wockyard", "from-soggy-bog", 5],
+    ] as const) {
+      const world = worldEntering(name, entry);
+
+      expect(world.monsters.length).toBeGreaterThan(0);
+      expect(world.monsters.every(isAtMonsterLevel(level))).toBe(true);
+    }
+  });
+
+  it("fill the Catacombs with 3–4 Skeleton groups, one about 7 strong, and 1–2 Zombie groups", () => {
+    const combat = shippedWorld().areas.catacombs;
     const skeletons = packsOf(combat, "skeleton");
     const zombies = packsOf(combat, "zombie");
 
@@ -240,8 +437,7 @@ describe("the shipped Areas", () => {
   });
 
   it("place Zombies in the Catacombs once the Hero gets there", () => {
-    const world = shippedWorld();
-    walkThrough(world, world.areas.town.exits[0]);
+    const world = worldEntering("catacombs", "from-wockyard");
 
     expect(world.areaName).toBe("catacombs");
     expect(world.monsters.some((monster) => monster.type === "zombie")).toBe(
@@ -249,36 +445,14 @@ describe("the shipped Areas", () => {
     );
   });
 
-  it("give the Catacombs Area Level 1, so its Monsters spawn at Monster Level 1", () => {
-    const world = shippedWorld();
-    walkThrough(world, world.areas.town.exits[0]);
+  it("give the Catacombs Area Level 7, so its Monsters spawn at Monster Level 7", () => {
+    const world = worldEntering("catacombs", "from-wockyard");
 
     expect(world.areas.town.areaLevel).toBeNull();
-    expect(world.areas.catacombs.areaLevel).toBe(1);
+    expect(world.areas.catacombs.areaLevel).toBe(7);
     expect(world.areaName).toBe("catacombs");
     expect(world.monsters.length).toBeGreaterThan(0);
-    expect(world.monsters.every(isAtMonsterLevel(1))).toBe(true);
-  });
-
-  it("put the Combat Area's Exit back to Town at its start", () => {
-    const world = shippedWorld();
-    const combat = combatAreaOf(world);
-    const entry = combat.entries[world.areas.town.exits[0].entry];
-    const centre = centreOf(exitToTown(combat));
-
-    expect(Math.hypot(centre.x - entry.x, centre.y - entry.y)).toBeLessThan(4);
-  });
-
-  it("let the Hero walk from Town to the Combat Area and back", () => {
-    const world = shippedWorld();
-    const combat = combatAreaOf(world);
-    const arrivedThere = walkThrough(world, world.areas.town.exits[0]);
-
-    expect(arrivedThere?.area).toBe(combat.name);
-    const arrivedHome = walkThrough(world, exitToTown(combat));
-
-    expect(arrivedHome?.area).toBe("town");
-    expect(world.areaName).toBe("town");
+    expect(world.monsters.every(isAtMonsterLevel(7))).toBe(true);
   });
 
   it("lead from the Catacombs down to the Crypt, arriving next to its Exit back up", () => {
@@ -305,12 +479,12 @@ describe("the shipped Areas", () => {
     expect(heroDistanceTo(world, down)).toBeLessThan(4);
   });
 
-  it("give the Crypt Area Level 4, so its Monsters spawn at Monster Level 4", () => {
+  it("give the Crypt Area Level 9, so its Monsters spawn at Monster Level 9", () => {
     const world = worldEntering("crypt", "start");
 
-    expect(world.areas.crypt.areaLevel).toBe(4);
+    expect(world.areas.crypt.areaLevel).toBe(9);
     expect(world.monsters.length).toBeGreaterThan(0);
-    expect(world.monsters.every(isAtMonsterLevel(4))).toBe(true);
+    expect(world.monsters.every(isAtMonsterLevel(9))).toBe(true);
   });
 
   it("build the Crypt about the Catacombs' size, with somewhat bigger Skeleton packs", () => {
@@ -373,10 +547,10 @@ describe("the shipped Areas", () => {
     ).toBe(true);
   });
 
-  it("give the Ossuary Area Level 8 and only an Exit back up to the Crypt", () => {
+  it("give the Ossuary Area Level 11 and only an Exit back up to the Crypt", () => {
     const { ossuary } = shippedWorld().areas;
 
-    expect(ossuary.areaLevel).toBe(8);
+    expect(ossuary.areaLevel).toBe(11);
     expect(ossuary.exits).toHaveLength(1);
     expect(exitTo(ossuary, "crypt").entry).toBe("from-ossuary");
   });
@@ -404,11 +578,11 @@ describe("the shipped Areas", () => {
     expect(heroDistanceTo(world, down)).toBeLessThan(4);
   });
 
-  it("spawn the Ossuary's Monsters at Monster Level 8", () => {
+  it("spawn the Ossuary's Monsters at Monster Level 11", () => {
     const world = worldEntering("ossuary", "start");
 
     expect(world.monsters.length).toBeGreaterThan(0);
-    expect(world.monsters.every(isAtMonsterLevel(8))).toBe(true);
+    expect(world.monsters.every(isAtMonsterLevel(11))).toBe(true);
   });
 
   it("build the Ossuary about the Catacombs' size, with more Monsters than the Crypt", () => {
@@ -455,7 +629,7 @@ describe("the shipped Areas", () => {
     }
   });
 
-  it("let the Hero walk from Town down through the Catacombs and the Crypt to the Ossuary, and back up to Town", () => {
+  it("let the Hero walk from Wockville across the Cozy Plains, the Soggy Bog and the Wockyard and down through the Catacombs and the Crypt to the Ossuary, and back up to Wockville", () => {
     // Sturdy and strong enough to fight through every pack on the way.
     const progress = { ...FRESH_PROGRESS, strength: 200, vitality: 1000 };
     const world = createWorld({
@@ -465,12 +639,18 @@ describe("the shipped Areas", () => {
       progress,
     });
     const route: [from: string, to: string][] = [
-      ["town", "catacombs"],
+      ["town", "cozy-plains"],
+      ["cozy-plains", "soggy-bog"],
+      ["soggy-bog", "wockyard"],
+      ["wockyard", "catacombs"],
       ["catacombs", "crypt"],
       ["crypt", "ossuary"],
       ["ossuary", "crypt"],
       ["crypt", "catacombs"],
-      ["catacombs", "town"],
+      ["catacombs", "wockyard"],
+      ["wockyard", "soggy-bog"],
+      ["soggy-bog", "cozy-plains"],
+      ["cozy-plains", "town"],
     ];
 
     for (const [from, to] of route) {
@@ -508,7 +688,17 @@ describe("the Item types", () => {
 });
 
 describe("the shipped Areas' pieces", () => {
-  const names = ["town", "catacombs", "crypt", "ossuary"];
+  const names = [
+    "town",
+    "cozy-plains",
+    "soggy-bog",
+    "wockyard",
+    "spa",
+    "old-mill",
+    "catacombs",
+    "crypt",
+    "ossuary",
+  ];
   const kaykit = (name: string) => shippedWorld().areas[name];
 
   it.each(
@@ -587,5 +777,429 @@ describe("Town", () => {
       )
       .map((npc) => npc.name);
     expect(standingOnProp).toEqual([]);
+  });
+});
+
+describe("the shipped Waypoints", () => {
+  it("stand in Wockville, the Soggy Bog, the Catacombs and the Ossuary, and nowhere else", () => {
+    const withWaypoint = Object.values(shippedWorld().areas)
+      .filter((area) => area.waypoint)
+      .map((area) => area.name);
+    expect(withWaypoint.sort()).toEqual([
+      "catacombs",
+      "ossuary",
+      "soggy-bog",
+      "town",
+    ]);
+  });
+
+  it("list Act 1's in Main Path order, only Wockville's touched at first", () => {
+    const world = shippedWorld();
+    expect(waypointList(world)).toEqual([
+      { area: "town", touched: true },
+      { area: "soggy-bog", touched: false },
+      { area: "catacombs", touched: false },
+      { area: "ossuary", touched: false },
+    ]);
+  });
+
+  it("take the Hero from Wockville to the Soggy Bog once touched there", () => {
+    const world = shippedWorld();
+    world.hero.progress.touchedWaypoints.push("soggy-bog");
+    world.hero.pos = { ...(world.areas.town.waypoint as Vec) };
+    for (let i = 0; i < 100; i++) {
+      const orders: Order[] =
+        i === 0 ? [{ type: "TravelToWaypoint", area: "soggy-bog" }] : [];
+      step(world, orders);
+    }
+    expect(world.areaName).toBe("soggy-bog");
+    expect(waypointUnderHero(world)).toBeNull();
+  });
+});
+
+describe('the shipped "Lost Wanderer" Quest', () => {
+  const withWanderer = (state: "notGiven" | "ready" | "done") => ({
+    ...FRESH_PROGRESS,
+    quests: {
+      ...FRESH_PROGRESS.quests,
+      "lost-wanderer": { state, count: 0 },
+    },
+  });
+  const inOldMill = (state: "notGiven" | "ready" | "done" = "notGiven") =>
+    createWorld({
+      areas,
+      tilesets,
+      seed: 1,
+      start: { area: "old-mill", entry: "start" },
+      progress: withWanderer(state),
+    });
+
+  it("leaves the Wanderer out of Wockville until rescued", () => {
+    const names = npcsIn(shippedWorld()).map(({ name }) => name);
+
+    expect(names.sort()).toEqual(["Elder", "Smith", "Trader"]);
+  });
+
+  it("stands the Wanderer in the Old Mill, on open ground among its Monsters", () => {
+    const world = inOldMill();
+    const [wanderer] = npcsIn(world);
+
+    expect(wanderer.name).toBe("Wanderer");
+    expect(
+      findPath(world.areas["old-mill"], world.hero.pos, wanderer.pos, 0.3)
+        .length,
+    ).toBeGreaterThan(0);
+    const nearest = Math.min(
+      ...world.areas["old-mill"].spawns.map((spawn) =>
+        Math.hypot(spawn.pos.x - wanderer.pos.x, spawn.pos.y - wanderer.pos.y),
+      ),
+    );
+    expect(nearest).toBeLessThanOrEqual(6);
+  });
+
+  it("sends the Wanderer home when talked to: gone from the Old Mill, Quest Ready", () => {
+    const world = inOldMill();
+    world.monsters = [];
+    const [wanderer] = npcsIn(world);
+
+    let ready = false;
+    for (let i = 0; i < 1200; i++) {
+      const orders: Order[] =
+        i === 0 ? [{ type: "Talk", npc: wanderer.id }] : [];
+      for (const event of step(world, orders)) {
+        if (event.type === "QuestReady") ready = true;
+      }
+    }
+
+    expect(ready).toBe(true);
+    expect(npcsIn(world)).toEqual([]);
+  });
+
+  it("puts the Wanderer in Wockville and not the Old Mill once rescued", () => {
+    for (const state of ["ready", "done"] as const) {
+      expect(npcsIn(inOldMill(state))).toEqual([]);
+      const home = createWorld({
+        areas,
+        tilesets,
+        seed: 1,
+        progress: withWanderer(state),
+      });
+      expect(npcsIn(home).map(({ name }) => name)).toContain("Wanderer");
+    }
+  });
+});
+
+describe('the shipped "Bog Off" Quest', () => {
+  const bogOffIs = (state: "notGiven" | "ready" | "done", count = 0) => ({
+    ...FRESH_PROGRESS,
+    quests: { ...FRESH_PROGRESS.quests, "bog-off": { state, count } },
+  });
+  const inBog = (progress = FRESH_PROGRESS) =>
+    createWorld({
+      areas,
+      tilesets,
+      seed: 1,
+      start: { area: "soggy-bog", entry: "start" },
+      progress,
+    });
+
+  it("has exactly 3 Bone Altars in the Soggy Bog, all reachable, and none elsewhere", () => {
+    const world = shippedWorld();
+    const counts = Object.values(world.areas)
+      .filter((area) => area.boneAltars.length > 0)
+      .map((area) => [area.name, area.boneAltars.length]);
+
+    expect(counts).toEqual([["soggy-bog", 3]]);
+    expect(inBog().boneAltars).toHaveLength(3);
+  });
+
+  it("is Ready once the Hero has destroyed all 3, even Not given", () => {
+    const world = inBog();
+    world.hero.life = 1_000_000;
+    let ready = false;
+    while (world.boneAltars.length > 0) {
+      const [altar] = world.boneAltars;
+      world.monsters = [];
+      world.hero.pos = { x: altar.pos.x - 1.2, y: altar.pos.y };
+      world.hero.prevPos = { ...world.hero.pos };
+      for (let i = 0; i < 2400 && world.boneAltars.includes(altar); i++) {
+        const orders: Order[] =
+          i % 300 === 0 ? [{ type: "Attack", monster: altar.id }] : [];
+        for (const event of step(world, orders)) {
+          if (event.type === "QuestReady") ready = true;
+        }
+        world.hero.life = 1_000_000;
+      }
+      expect(world.boneAltars).not.toContain(altar);
+    }
+
+    expect(ready).toBe(true);
+    expect(questOf(world, "bog-off")).toEqual({ state: "ready", count: 3 });
+  });
+
+  it("pays 1 Skill Point once, handed in to the Trader in Wockville", () => {
+    const world = createWorld({
+      areas,
+      tilesets,
+      seed: 1,
+      progress: bogOffIs("ready", 3),
+    });
+    const trader = npcsIn(world).find(({ name }) => name === "Trader");
+    if (!trader) throw new Error("no Trader");
+    world.hero.pos = { x: trader.pos.x - 1, y: trader.pos.y };
+    world.hero.prevPos = { ...world.hero.pos };
+    const before = world.hero.progress.skillPoints;
+
+    step(world, [{ type: "HandInQuest", quest: "bog-off" }]);
+    step(world, [{ type: "HandInQuest", quest: "bog-off" }]);
+
+    expect(questOf(world, "bog-off").state).toBe("done");
+    expect(world.hero.progress.skillPoints).toBe(before + 1);
+  });
+
+  it("puts the Bone Altars away for good once Done, through the Save too", () => {
+    // The reward is already in the Hero points, as the Save checks.
+    const done = { ...bogOffIs("done", 3), skillPoints: 1 };
+    const saved = parseSave(
+      encodeSave(
+        saveOf(createWorld({ areas, tilesets, seed: 1, progress: done })),
+      ),
+    );
+
+    expect(saved).not.toBeNull();
+    expect(inBog(saved?.progress).boneAltars).toHaveLength(0);
+  });
+
+  it("brings the Bone Altars back in a new Session until it is Done", () => {
+    for (const state of ["notGiven", "ready"] as const) {
+      const saved = parseSave(
+        encodeSave(
+          saveOf(
+            createWorld({
+              areas,
+              tilesets,
+              seed: 1,
+              progress: bogOffIs(state, state === "ready" ? 3 : 1),
+            }),
+          ),
+        ),
+      );
+      expect(inBog(saved?.progress).boneAltars).toHaveLength(3);
+    }
+  });
+});
+
+describe('the shipped "Spa Day" Quest', () => {
+  const inSpa = (progress = FRESH_PROGRESS) =>
+    createWorld({
+      areas,
+      tilesets,
+      seed: 1,
+      start: { area: "spa", entry: "start" },
+      progress,
+    });
+
+  /** Puts the Hero beside the NPC called `name`, in reach to talk. */
+  function beside(world: World, name: string) {
+    const npc = npcsIn(world).find((one) => one.name === name);
+    if (!npc) throw new Error(`no ${name}`);
+    world.hero.pos = { x: npc.pos.x - 1, y: npc.pos.y };
+    world.hero.prevPos = { ...world.hero.pos };
+  }
+
+  it("has exactly one Unique Monster in the Spa, and none elsewhere", () => {
+    const uniques = Object.values(shippedWorld().areas)
+      .filter((area) => area.uniques.length > 0)
+      .map((area) => [area.name, area.uniques.length]);
+
+    expect(uniques).toEqual([["spa", 1]]);
+    expect(inSpa().monsters.filter((monster) => monster.unique)).toHaveLength(
+      1,
+    );
+  });
+
+  it("is Ready once the Hero kills the Spa's Unique Monster, then Done at the Smith", () => {
+    const world = inSpa();
+    const boss = world.monsters.find((monster) => monster.unique);
+    if (!boss) throw new Error("no Unique Monster");
+    world.monsters = [boss];
+    world.hero.pos = { x: boss.pos.x - 1.2, y: boss.pos.y };
+    world.hero.prevPos = { ...world.hero.pos };
+    let ready = false;
+    for (let i = 0; i < 6000 && world.monsters.includes(boss); i++) {
+      const orders: Order[] =
+        i % 120 === 0 ? [{ type: "Attack", monster: boss.id }] : [];
+      for (const event of step(world, orders)) {
+        if (event.type === "QuestReady") ready = true;
+      }
+      world.hero.life = 1_000_000;
+    }
+
+    expect(ready).toBe(true);
+    expect(questOf(world, "spa-day").state).toBe("ready");
+
+    const town = createWorld({
+      areas,
+      tilesets,
+      seed: 1,
+      progress: world.hero.progress,
+    });
+    beside(town, "Smith");
+    step(town, [{ type: "HandInQuest", quest: "spa-day" }]);
+    step(town, [{ type: "HandInQuest", quest: "spa-day" }]);
+
+    expect(questOf(town, "spa-day").state).toBe("done");
+  });
+
+  it("brings the Unique Monster back in a new Session, Done or not", () => {
+    for (const state of ["notGiven", "done"] as const) {
+      const progress = {
+        ...FRESH_PROGRESS,
+        quests: {
+          ...FRESH_PROGRESS.quests,
+          "spa-day": { state, count: state === "done" ? 1 : 0 },
+        },
+      };
+
+      expect(
+        inSpa(progress).monsters.some((monster) => monster.unique !== null),
+      ).toBe(true);
+    }
+  });
+});
+
+describe("the shipped Act 1", () => {
+  it("is whole: one Act Boss spawn, a Waypoint in Wockville, every Quest's objects", () => {
+    const { areas: shipped } = shippedWorld();
+
+    expect(() => validateActs(shipped)).not.toThrow();
+    expect(() => validateQuests(shipped)).not.toThrow();
+  });
+});
+
+describe("loading the shipped content into a World", () => {
+  it("checks the Act and the Quests are whole", () => {
+    expect(() => createShippedWorld({ seed: 1 })).not.toThrow();
+
+    const bossless = JSON.parse(JSON.stringify(areas.ossuary));
+    for (const layer of bossless.layers) {
+      if (layer.type !== "objectgroup") continue;
+      layer.objects = layer.objects.filter(
+        (object: { type?: string }) => object.type !== "actBoss",
+      );
+    }
+    expect(() =>
+      createShippedWorld(
+        { seed: 1 },
+        { areas: { ...areas, ossuary: bossless }, tilesets },
+      ),
+    ).toThrow(/Act 1 has 0 Act Boss spawns/);
+  });
+});
+
+describe("the shipped Act 1's Main Path", () => {
+  it("lists the Waypoints from Wockville out to the Ossuary", () => {
+    expect(waypointList(shippedWorld()).map((w) => w.area)).toEqual([
+      "town",
+      "soggy-bog",
+      "catacombs",
+      "ossuary",
+    ]);
+  });
+
+  it("names the Spa's Unique Monster as its map does", () => {
+    const spa = Object.values(shippedWorld().areas).find(
+      (area) => area.name === "spa",
+    );
+    expect(spa?.uniques.map((unique) => unique.name)).toEqual([
+      "Sir Soaks-a-Lot",
+    ]);
+  });
+});
+
+describe("Grave Wockington in the shipped Ossuary", () => {
+  const inOssuary = (state: "notGiven" | "given" | "ready" | "done") =>
+    createWorld({
+      areas,
+      tilesets,
+      seed: 1,
+      start: { area: "ossuary", entry: "start" },
+      progress: {
+        ...FRESH_PROGRESS,
+        quests: { ...FRESH_PROGRESS.quests, "act-boss": { state, count: 0 } },
+      },
+    });
+
+  /** Kills Grave Wockington, alone with the Hero; the events. */
+  function killBoss(world: World): SimEvent[] {
+    const boss = world.monsters.find((m) => m.type === "grave_wockington");
+    if (!boss) throw new Error("no Grave Wockington");
+    world.monsters = [boss];
+    boss.life = 1;
+    world.hero.pos = { x: boss.pos.x - 1.2, y: boss.pos.y };
+    world.hero.prevPos = { ...world.hero.pos };
+    const events: SimEvent[] = [];
+    for (let i = 0; i < 6000 && world.monsters.includes(boss); i++) {
+      const orders: Order[] =
+        i % 120 === 0 ? [{ type: "Attack", monster: boss.id }] : [];
+      events.push(...step(world, orders));
+      world.hero.life = 1_000_000;
+    }
+    return events;
+  }
+
+  it("is the one Unique Monster waiting at the end of the Main Path, alone in his Act", () => {
+    const world = inOssuary("notGiven");
+    const bosses = world.monsters.filter(
+      (m) => m.unique === "Grave Wockington",
+    );
+
+    expect(bosses).toHaveLength(1);
+    expect(bosses[0].type).toBe("grave_wockington");
+    expect(bosses[0].monsterLevel).toBe(11);
+    expect(
+      Object.values(world.areas)
+        .filter((area) => area.actBoss)
+        .map((area) => area.name),
+    ).toEqual(["ossuary"]);
+  });
+
+  it("completes Act I on his death, Quest given or not, and the Elder takes it back", () => {
+    for (const state of ["notGiven", "given"] as const) {
+      const world = inOssuary(state);
+
+      const events = killBoss(world);
+
+      expect(events).toContainEqual({ type: "ActCompleted", act: 1 });
+      expect(questOf(world, "act-boss").state).toBe("ready");
+
+      const town = createWorld({
+        areas,
+        tilesets,
+        seed: 1,
+        progress: world.hero.progress,
+      });
+      const elder = npcsIn(town).find((npc) => npc.name === "Elder");
+      if (!elder) throw new Error("no Elder");
+      town.hero.pos = { x: elder.pos.x - 1, y: elder.pos.y };
+      town.hero.prevPos = { ...town.hero.pos };
+      step(town, [{ type: "HandInQuest", quest: "act-boss" }]);
+      step(town, [{ type: "HandInQuest", quest: "act-boss" }]);
+
+      expect(questOf(town, "act-boss").state).toBe("done");
+      expect(town.areaName).toBe("town");
+    }
+  });
+
+  it("is back in a new Session, and shows no banner once the Quest is Done", () => {
+    const world = inOssuary("done");
+
+    const events = killBoss(world);
+
+    expect(events.some((e) => e.type === "MonsterDied")).toBe(true);
+    expect(events.some((e) => e.type === "ActCompleted")).toBe(false);
+    expect(
+      inOssuary("done").monsters.some((m) => m.unique === "Grave Wockington"),
+    ).toBe(true);
   });
 });

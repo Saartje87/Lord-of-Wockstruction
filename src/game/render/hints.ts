@@ -6,7 +6,12 @@ import {
   type PadButton,
   TOWN_PORTAL_PAD_BUTTON,
 } from "../input/pad";
-import { MAP_KEY, type MenuChoice, PANEL_KEYS, type Panel } from "../menus";
+import {
+  type ClosablePanel,
+  MAP_KEY,
+  type MenuChoice,
+  PANEL_KEYS,
+} from "../menus";
 import { beltColumnKey } from "../sim/belt";
 import { type SkillBarSlot, slotKey } from "../sim/skillBar";
 import type { SkillSheet } from "./skillTreePanel";
@@ -50,10 +55,14 @@ export function beltColumnButton(column: number, way: InputWay): string {
 }
 
 /** How to close `panel` with `way`; nothing for touch, which taps its ×. */
-export function panelCloseHint(panel: Panel, way: InputWay): string {
+export function panelCloseHint(panel: ClosablePanel, way: InputWay): string {
   if (way === "touch") return "";
-  const button =
-    way === "controller" ? PAD_BUTTON_NAMES.b : PANEL_KEYS[panel].toUpperCase();
+  // A World panel has no key of its own: Esc shuts it.
+  const key =
+    panel === "waypoints" || panel === "dialogue"
+      ? "Esc"
+      : PANEL_KEYS[panel].toUpperCase();
+  const button = way === "controller" ? PAD_BUTTON_NAMES.b : key;
   return `Press ${button} to close`;
 }
 

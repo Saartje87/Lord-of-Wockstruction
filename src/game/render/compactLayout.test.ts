@@ -337,6 +337,7 @@ describe("a point in the Compact Layout", () => {
     menus.heroPanelOpen = panel === "hero";
     menus.inventoryOpen = panel === "inventory";
     menus.skillTreeOpen = panel === "skillTree";
+    menus.questOpen = panel === "quest";
     return menus;
   }
 

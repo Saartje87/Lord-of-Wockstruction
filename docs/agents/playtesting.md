@@ -109,3 +109,5 @@ const touch = (type, id, x, y) => canvas.dispatchEvent(new PointerEvent(type, {
 ## Deploys
 
 `main` deploys to https://lord-of-wockstruction.vercel.app through Vercel's GitHub integration. When something works locally but not there, check the deploy before the code: `gh api repos/Saartje87/Lord-of-Wockstruction/commits/<sha>/status` on `main`'s tip. No `Vercel` context means production never deployed; the user redeploys from the Vercel dashboard.
+
+A failed Vercel preview reading "rate limited" is Vercel's rate limit, not the code. `gh pr checks <n>` shows it, while `gh pr view` shows only `UNSTABLE`. Production may hit the same limit after merging; the user redeploys from the Vercel dashboard once it resets.

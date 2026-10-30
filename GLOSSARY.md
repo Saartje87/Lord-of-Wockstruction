@@ -53,7 +53,7 @@ A task an NPC in an Act's Town gives the Hero and takes back once it is done, go
 _Avoid_: Mission, task, objective
 
 **Smith bonus**:
-The one random bonus the Smith gives a Weapon or Armour of any Rarity, from a pool suited to its kind, once "Spa Day" is Done. His service works once; the Hero can leave without using it and come back later. The bonus stays with that Item, shows in its tooltip after its Affixes and counts while it is Equipped. It is never an Affix: it doesn't count towards an Item's Affixes, never changes its name, adds nothing to its Value, and adds to an Affix giving the same Bonus. The Save keeps the bonus on its Item and whether the service is unlocked and unspent.
+The one random bonus the Smith gives a Weapon, Shield, Helm, Armour, Gloves or Boots of any Rarity, from a pool suited to its kind, once "Spa Day" is Done. His service works once; the Hero can leave without using it and come back later. The bonus stays with that Item, shows in its tooltip after its Affixes and counts while it is Equipped. It is never an Affix: it doesn't count towards an Item's Affixes, never changes its name, adds nothing to its Value, and adds to an Affix giving the same Bonus. The Save keeps the bonus on its Item and whether the service is unlocked and unspent.
 _Avoid_: Enchant, Affix (a different thing)
 
 **Exit**:
@@ -241,7 +241,7 @@ What the Hero gains one of on each new Level, kept until the player spends it to
 _Avoid_: Talent point
 
 **Skill Level**:
-How far the Hero has learned a Skill: 0 until the first Skill Point is spent on it, when it can first be cast; each higher Skill Level makes it stronger.
+How far the Hero has learned a Skill: the Skill Points spent on it plus what their Equipped Wands add, which needs no Prerequisite and goes when the Wand comes off. A Skill can be cast once its Skill Level is above 0; each higher Skill Level makes it stronger.
 _Avoid_: Rank (and never the Hero's Level)
 
 **Synergy**:
@@ -293,7 +293,7 @@ How accurate a Hero's or Monster's attacks are (the Hero's raised by Dexterity);
 _Avoid_: Accuracy, to-hit
 
 **Defense**:
-How hard the Hero or a Monster is to hit, set against the attacker's Attack Rating; the Hero's comes from their Equipped Armour.
+How hard the Hero or a Monster is to hit, set against the attacker's Attack Rating; the Hero's comes from their Equipped Helm, Armour, Gloves, Boots and Shield.
 _Avoid_: Armor (that's the Item), AC, evasion
 
 **Miss**:
@@ -393,7 +393,7 @@ Gold lying in an Area, dropped by a Monster and labelled with its amount, until 
 _Avoid_: Gold drop, coins
 
 **Vendor**:
-Trader, the NPC in Town who sells the Hero Items for Gold and buys the Hero's Items for Gold. They always have every Potion, and a few Normal Weapons, Armour and Belts that change each time the Hero comes back to Town; never a Magic or Rare Item.
+Trader, the NPC in Town who sells the Hero Items for Gold and buys the Hero's Items for Gold. They always have every Potion, and a few Normal Weapons, Shields, Helms, Armour, Gloves, Boots and Belts that change each time the Hero comes back to Town; never a Magic or Rare Item.
 _Avoid_: Shop, merchant, store
 
 **Value**:
@@ -409,7 +409,7 @@ The Hero's grid of cells holding the Items they carry but have not Equipped; Ite
 _Avoid_: Bag, backpack, stash (and never the Equipment slots or Belt Columns)
 
 **Equipment**:
-The Hero's slots for worn Items: Weapon, Armour, Belt, two Rings and an Amulet; an Item in one of them is Equipped and its bonuses count.
+The Hero's slots for worn Items: Weapon, Off-hand, Helm, Armour, Gloves, Boots, Belt, two Rings and an Amulet; an Item in one of them is Equipped and its bonuses count.
 _Avoid_: Gear, paper doll, loadout
 
 **Belongings**:
@@ -425,12 +425,40 @@ Lifting a Held Item or Held Skill and putting it down in one press, the mouse bu
 _Avoid_: Drag and drop, swipe
 
 **Weapon**:
-The Item kind Equipped in the Weapon slot, setting the Hero's damage: Physical, plus any Elements its Affixes add, which count for the Hero's attacks and never for a Skill's damage.
-_Avoid_: Sword (that's one Weapon)
+The Item kind Equipped in the Weapon slot, setting the Hero's damage: Physical, plus any Elements its Affixes add, which count for the Hero's attacks and never for a Skill's damage. Every Weapon is held in one hand, leaving the Off-hand free.
+_Avoid_: Sword (that's one Weapon), main hand
+
+**Off-hand**:
+The Equipment slot for the Hero's other hand, holding a Shield or a Wand, or nothing, whatever the Weapon slot holds.
+_Avoid_: Left hand, second hand, offhand
+
+**Shield**:
+The Item kind Equipped in the Off-hand to guard the Hero: it gives Defense and a chance to Block, its type's own chance plus what its Affixes add, never above a fixed cap.
+_Avoid_: Buckler (that's one Shield)
+
+**Block**:
+A hit on the Hero that their Shield stops: any Monster's blow, arrow or spell, Physical or Element. Like a Miss it is not a hit: it does no damage, never flinches the Hero and leaves Bone Ward untouched, though it keeps them In Combat, and it is shown as a Miss is.
+_Avoid_: Parry, guard
+
+**Wand**:
+A Weapon that also fits the Off-hand. It gives little attack damage but maximum Mana, and each of some of its Affixes raises the Skill Level of one Skill, cast or Passive, picked when it dropped; all of that counts in either slot, so a Hero can hold two.
+_Avoid_: Staff, rod, focus
 
 **Armour**:
 The Item kind Equipped in the Armour slot, giving the Hero Defense.
 _Avoid_: Armor, body armour, chest
+
+**Helm**:
+The Item kind Equipped in the Helm slot, giving the Hero Defense that adds to their Armour's.
+_Avoid_: Helmet, hat, head armour
+
+**Gloves**:
+The Item kind Equipped in the Gloves slot, giving the Hero Defense; their Affixes can make the Hero attack faster.
+_Avoid_: Gauntlets (that's one pair), hands
+
+**Boots**:
+The Item kind Equipped in the Boots slot, giving the Hero Defense; their Affixes can make the Hero walk faster.
+_Avoid_: Greaves (that's one pair), feet, shoes
 
 **Potion**:
 An Item the Hero drinks, used up in the drinking; the Hero can drink one anywhere, Town included, but never during Death, and never gives one to a Minion.

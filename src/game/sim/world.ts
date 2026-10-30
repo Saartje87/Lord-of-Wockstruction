@@ -23,6 +23,7 @@ import {
 } from "../tuning/skills";
 import { townPortalTuning } from "../tuning/townPortal";
 import { townPortalLook } from "../tuning/townPortalLook";
+import { uniqueTuning } from "../tuning/uniqueMonsters";
 import { waypointTuning } from "../tuning/waypoints";
 import {
   type Area,
@@ -263,6 +264,11 @@ export type Monster = {
    * and Experience: its Area's Area Level when it spawned.
    */
   monsterLevel: number;
+  /**
+   * Its name when it is a Unique Monster, which is tougher than its type
+   * (see `uniqueTuning`); null for an ordinary one.
+   */
+  unique: string | null;
   pos: Vec;
   prevPos: Vec;
   life: number;
@@ -1223,6 +1229,9 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   if (!kept) {
     for (const spawn of area.spawns) placePack(world, area, spawn);
     placeBoneAltars(world, area);
+    for (const unique of area.uniques) {
+      placeMonster(world, area, unique.monster, unique.pos, unique.name);
+    }
   }
   events.push({ type: "AreaChanged", area: area.name, entry: change.entry });
   if (change.entry === null && !change.waypoint && area.name !== TOWN) {
@@ -1465,20 +1474,27 @@ function placePack(world: World, area: Area, spawn: Spawn) {
   }
 }
 
-/** Puts a new idle Monster of `type` at `pos`, at the Area's Monster Level. */
+/**
+ * Puts a new idle Monster of `type` at `pos`, at the Area's Monster Level;
+ * a Unique Monster called `unique` when that is given.
+ */
 function placeMonster(
   world: World,
   area: Area,
   type: MonsterType,
   pos: Vec,
+  unique: string | null = null,
 ): Monster {
   const typeAtLevel: MonsterOfLevel = {
     type,
     monsterLevel: monsterLevelIn(area),
+    unique,
   };
   const monster: Monster = {
     id: world.nextMonsterId++,
-    ...typeAtLevel,
+    type,
+    monsterLevel: typeAtLevel.monsterLevel,
+    unique,
     pos: { ...pos },
     prevPos: { ...pos },
     life: monsterMaxLife(typeAtLevel),
@@ -2626,7 +2642,11 @@ function hurt(world: World, monster: Monster, events: SimEvent[]) {
       killExperience(monster, world.hero.progress.level),
       events,
     );
-    rollDrop(world, monster.pos, events);
+    rollDrop(world, monster.pos, events, monster.unique !== null);
+    if (monster.unique !== null) {
+      const { name } = world.areas[world.areaName];
+      noteTask(world, { type: "uniqueKilled", area: name }, events);
+    }
     return;
   }
   noticeHit(world, monster);
@@ -2701,11 +2721,18 @@ function minionStrike(
 /**
  * Rolls a dying Monster's drops, each lying where it died: by
  * `dropTuning.chance` one Item, then by `potionDropTuning.chance` one Potion,
- * each of a type picked with equal odds.
+ * each of a type picked with equal odds. A Unique Monster's Items are
+ * rolled once for each of `uniqueTuning.itemDropChances` instead.
  */
-function rollDrop(world: World, pos: Vec, events: SimEvent[]) {
-  for (const { chance, items } of [dropTuning, potionDropTuning]) {
-    if (random(world.rng) >= chance) continue;
+function rollDrop(world: World, pos: Vec, events: SimEvent[], unique: boolean) {
+  const itemDrops = unique
+    ? uniqueTuning.itemDropChances.map((chance) => ({
+        chance,
+        items: dropTuning.items,
+      }))
+    : [dropTuning];
+  for (const { chance, items } of [...itemDrops, potionDropTuning]) {
+    if (chance < 1 && random(world.rng) >= chance) continue;
     const type = items[randomInt(world.rng, [0, items.length - 1])];
     const item = { id: world.nextItemId++, type };
     world.groundItems.push({ item, pos: { ...pos } });

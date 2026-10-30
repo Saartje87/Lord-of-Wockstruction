@@ -31,8 +31,10 @@ const shippedWorld = () => createWorld({ areas, tilesets, seed: 1 });
  * Experience it's worth, which differs at every Monster Level.
  */
 const isAtMonsterLevel = (monsterLevel: number) => (monster: MonsterOfLevel) =>
-  monsterExperience(monster) ===
-  monsterExperience({ type: monster.type, monsterLevel });
+  monsterExperience({
+    type: monster.type,
+    monsterLevel: monster.monsterLevel,
+  }) === monsterExperience({ type: monster.type, monsterLevel });
 
 /**
  * The shipped Areas with a stand-in Town of three floor tiles, whose one
@@ -971,6 +973,85 @@ describe('the shipped "Bog Off" Quest', () => {
         ),
       );
       expect(inBog(saved?.progress).boneAltars).toHaveLength(3);
+    }
+  });
+});
+
+describe('the shipped "Spa Day" Quest', () => {
+  const inSpa = (progress = FRESH_PROGRESS) =>
+    createWorld({
+      areas,
+      tilesets,
+      seed: 1,
+      start: { area: "spa", entry: "start" },
+      progress,
+    });
+
+  /** Puts the Hero beside the NPC called `name`, in reach to talk. */
+  function beside(world: World, name: string) {
+    const npc = npcsIn(world).find((one) => one.name === name);
+    if (!npc) throw new Error(`no ${name}`);
+    world.hero.pos = { x: npc.pos.x - 1, y: npc.pos.y };
+    world.hero.prevPos = { ...world.hero.pos };
+  }
+
+  it("has exactly one Unique Monster in the Spa, and none elsewhere", () => {
+    const uniques = Object.values(shippedWorld().areas)
+      .filter((area) => area.uniques.length > 0)
+      .map((area) => [area.name, area.uniques.length]);
+
+    expect(uniques).toEqual([["spa", 1]]);
+    expect(inSpa().monsters.filter((monster) => monster.unique)).toHaveLength(
+      1,
+    );
+  });
+
+  it("is Ready once the Hero kills the Spa's Unique Monster, then Done at the Smith", () => {
+    const world = inSpa();
+    const boss = world.monsters.find((monster) => monster.unique);
+    if (!boss) throw new Error("no Unique Monster");
+    world.monsters = [boss];
+    world.hero.pos = { x: boss.pos.x - 1.2, y: boss.pos.y };
+    world.hero.prevPos = { ...world.hero.pos };
+    let ready = false;
+    for (let i = 0; i < 6000 && world.monsters.includes(boss); i++) {
+      const orders: Order[] =
+        i % 120 === 0 ? [{ type: "Attack", monster: boss.id }] : [];
+      for (const event of step(world, orders)) {
+        if (event.type === "QuestReady") ready = true;
+      }
+      world.hero.life = 1_000_000;
+    }
+
+    expect(ready).toBe(true);
+    expect(questOf(world, "spa-day").state).toBe("ready");
+
+    const town = createWorld({
+      areas,
+      tilesets,
+      seed: 1,
+      progress: world.hero.progress,
+    });
+    beside(town, "Smith");
+    step(town, [{ type: "HandInQuest", quest: "spa-day" }]);
+    step(town, [{ type: "HandInQuest", quest: "spa-day" }]);
+
+    expect(questOf(town, "spa-day").state).toBe("done");
+  });
+
+  it("brings the Unique Monster back in a new Session, Done or not", () => {
+    for (const state of ["notGiven", "done"] as const) {
+      const progress = {
+        ...FRESH_PROGRESS,
+        quests: {
+          ...FRESH_PROGRESS.quests,
+          "spa-day": { state, count: state === "done" ? 1 : 0 },
+        },
+      };
+
+      expect(
+        inSpa(progress).monsters.some((monster) => monster.unique !== null),
+      ).toBe(true);
     }
   });
 });

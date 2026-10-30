@@ -8,6 +8,7 @@ import {
   monsterTuning,
   type RangedTuning,
 } from "../tuning/monsters";
+import { uniqueTuning } from "../tuning/uniqueMonsters";
 import { isWalkable } from "./area";
 import { faceToward, lands } from "./melee";
 import { canSee, isClear } from "./path";
@@ -74,8 +75,22 @@ function steppedAttack(attack: MeleeTuning | RangedTuning): SteppedAttack {
   };
 }
 
-/** A Monster type at a Monster Level: all its scaled numbers depend on. */
-export type MonsterOfLevel = Pick<Monster, "type" | "monsterLevel">;
+/**
+ * A Monster type at a Monster Level, and whether it is a Unique Monster: all
+ * its scaled numbers depend on.
+ */
+export type MonsterOfLevel = Pick<Monster, "type" | "monsterLevel"> & {
+  unique?: Monster["unique"];
+};
+
+/** `value` times `factor` when the Monster is a Unique Monster, rounded. */
+function uniquely(
+  { unique }: MonsterOfLevel,
+  value: number,
+  factor: number,
+): number {
+  return unique ? Math.round(value * factor) : value;
+}
 
 /**
  * A Monster Level 1 number grown by `rate` of itself for each Monster Level
@@ -99,24 +114,34 @@ function grownStat(
 
 /** A Monster's max Life at its Monster Level. */
 export function monsterMaxLife(monster: MonsterOfLevel): number {
-  return grownStat(monster, "life");
+  return uniquely(monster, grownStat(monster, "life"), uniqueTuning.life);
 }
 
 /** The least and most damage a Monster's hit deals at its Monster Level. */
-export function monsterDamageRange({
-  type,
-  monsterLevel,
-}: MonsterOfLevel): [number, number] {
+export function monsterDamageRange(monster: MonsterOfLevel): [number, number] {
+  const { type, monsterLevel } = monster;
   const { damage, growth } = monsterTuning[type];
   return [
-    grown(damage[0], growth.damage, monsterLevel),
-    grown(damage[1], growth.damage, monsterLevel),
+    uniquely(
+      monster,
+      grown(damage[0], growth.damage, monsterLevel),
+      uniqueTuning.damage,
+    ),
+    uniquely(
+      monster,
+      grown(damage[1], growth.damage, monsterLevel),
+      uniqueTuning.damage,
+    ),
   ];
 }
 
 /** A Monster's Attack Rating at its Monster Level. */
 export function monsterAttackRating(monster: MonsterOfLevel): number {
-  return grownStat(monster, "attackRating");
+  return uniquely(
+    monster,
+    grownStat(monster, "attackRating"),
+    uniqueTuning.attackRating,
+  );
 }
 
 /** A Monster's Defense at its Monster Level. */
@@ -126,7 +151,11 @@ export function monsterDefense(monster: MonsterOfLevel): number {
 
 /** The Experience killing a Monster is worth at its Monster Level. */
 export function monsterExperience(monster: MonsterOfLevel): number {
-  return grownStat(monster, "experience");
+  return uniquely(
+    monster,
+    grownStat(monster, "experience"),
+    uniqueTuning.experience,
+  );
 }
 
 /**

@@ -3425,6 +3425,25 @@
        "value": "zombie"
       }
      ]
+    },
+    {
+     "id": 10,
+     "name": "Sir Soaks-a-Lot",
+     "type": "uniqueMonster",
+     "x": 1968,
+     "y": 624,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true,
+     "properties": [
+      {
+       "name": "monster",
+       "type": "string",
+       "value": "zombie"
+      }
+     ]
     }
    ],
    "opacity": 1,
@@ -3435,7 +3454,7 @@
   }
  ],
  "nextlayerid": 4,
- "nextobjectid": 10,
+ "nextobjectid": 11,
  "orientation": "isometric",
  "renderorder": "right-down",
  "tiledversion": "1.11.2",

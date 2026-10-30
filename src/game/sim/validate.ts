@@ -72,6 +72,14 @@ export function validateAreas(areas: Record<string, Area>) {
       );
     }
 
+    for (const unique of area.uniques) {
+      if (isWalkable(area, unique.pos)) continue;
+      const { x, y } = tileOf(unique.pos);
+      throw new Error(
+        `Area "${area.name}" has Unique Monster "${unique.name}" on blocked tile (${x}, ${y})`,
+      );
+    }
+
     for (const exit of area.exits) {
       const target = areas[exit.area];
       if (!target) {

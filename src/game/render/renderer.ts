@@ -636,6 +636,12 @@ export function createRenderer(
   );
   /** Whether `hudLayers` were hidden for the Start Screen. */
   let hudHidden = false;
+  /** Hides the HUD, the World's overlays and the pause menu. */
+  const hideHud = () => {
+    hudHidden = true;
+    for (const layer of hudLayers) layer.visible = false;
+    menu.layer.visible = false;
+  };
 
   /** Living Monsters and Corpses by id. */
   const monsters = new Map<MonsterId, MonsterMark>();
@@ -909,14 +915,14 @@ export function createRenderer(
      * null off them all.
      */
     startChoiceAt(
-      screen: Vec,
-      screenState: StartScreen,
+      point: Vec,
+      startScreen: StartScreen,
       fullscreen: Fullscreen,
     ): MenuChoice | null {
       return startChoiceAt(
         viewportOf(app.screen),
-        screen,
-        screenState,
+        point,
+        startScreen,
         activeInput.way,
         fullscreen,
       );
@@ -928,19 +934,17 @@ export function createRenderer(
      * the Hero a New Hero would give up.
      */
     drawStart(
-      screenState: StartScreen,
+      startScreen: StartScreen,
       level: number,
       fullscreen: Fullscreen,
       focus: MenuChoice | null,
     ) {
-      hudHidden = true;
-      for (const layer of hudLayers) layer.visible = false;
-      menu.layer.visible = false;
+      hideHud();
       const viewport = viewportOf(app.screen);
       // Only a controller picks with the focus.
       start.draw(
         viewport,
-        screenState,
+        startScreen,
         level,
         fullscreen,
         activeInput.way === "controller" ? focus : null,
@@ -953,9 +957,7 @@ export function createRenderer(
      * before any World shows.
      */
     drawRotateNoticeOnly(fullscreen: Fullscreen) {
-      hudHidden = true;
-      for (const layer of hudLayers) layer.visible = false;
-      menu.layer.visible = false;
+      hideHud();
       start.layer.visible = false;
       notice.draw(viewportOf(app.screen), fullscreen);
     },
@@ -3217,25 +3219,25 @@ function startScreenView(activeInput: Readonly<ActiveInput>) {
   return {
     layer,
     draw(
-      screen: Viewport,
-      start: StartScreen,
+      viewport: Viewport,
+      startScreen: StartScreen,
       level: number,
       fullscreen: Fullscreen,
       focus: MenuChoice | null,
     ) {
       layer.visible = true;
-      dark.scale.set(screen.width, screen.height);
+      dark.scale.set(viewport.width, viewport.height);
       const layout = startScreenLayout(
-        screen,
-        start,
+        viewport,
+        startScreen,
         activeInput.way,
         fullscreen,
       );
-      const scale = screen.uiScale;
+      const scale = viewport.uiScale;
       sizeText(title, layout.title.size, START_SCREEN.stroke * scale);
       title.position.set(layout.title.at.x, layout.title.at.y);
-      question.visible = start.confirming;
-      if (start.confirming) {
+      question.visible = startScreen.confirming;
+      if (startScreen.confirming) {
         const { size, lineHeight, gap } = START_SCREEN.question;
         question.text = [
           "Start a New Hero?",
@@ -3244,7 +3246,7 @@ function startScreenView(activeInput: Readonly<ActiveInput>) {
         sizeText(question, size * scale);
         question.style.lineHeight = lineHeight * scale;
         question.position.set(
-          screen.width / 2,
+          viewport.width / 2,
           layout.buttons[0].rect.y - gap * scale,
         );
       }

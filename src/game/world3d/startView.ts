@@ -4,17 +4,17 @@ import { type PointerState, type WorldView, worldViewOf } from "./view";
 
 /**
  * How the Start Screen's camera drifts: it circles a point `radius` tiles
- * out (stretched a little in one direction so the path isn't a ring), once
- * every `periodMs`, which is slow.
+ * out (squashed to `squash` of that in the other direction so the path
+ * isn't a ring), once every `periodMs`, which is slow.
  */
-export const START_DRIFT = { radius: 3, periodMs: 90_000 };
+export const START_DRIFT = { radius: 3, squash: 0.6, periodMs: 90_000 };
 
 /** The camera's focus `nowMs` into the Start Screen, drifting about `centre`. */
 export function startFocusAt(centre: Vec, nowMs: number): Vec {
   const turn = (nowMs / START_DRIFT.periodMs) * 2 * Math.PI;
   return {
     x: centre.x + Math.cos(turn) * START_DRIFT.radius,
-    y: centre.y + Math.sin(turn) * START_DRIFT.radius * 0.6,
+    y: centre.y + Math.sin(turn) * START_DRIFT.radius * START_DRIFT.squash,
   };
 }
 

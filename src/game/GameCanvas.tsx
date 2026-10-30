@@ -434,16 +434,8 @@ export default function GameCanvas() {
             renderer.drawRotateNoticeOnly(menus.fullscreen);
             app.render();
           }
-          const asked = [
-            ...keys.map((key) => pressKey(menus, key, realNow, noHero)),
-            ...readLoadingPad().map((button) =>
-              pressPad(menus, button, realNow, noHero),
-            ),
-          ];
-          clickedAt = null;
-          keys = [];
-          last = gameTime(pause, realNow);
-          if (asked.includes("retry")) void load();
+          const asked = drainMenuInput(realNow);
+          if (asked === "retry") void load();
           frame = requestAnimationFrame(tick);
           return;
         }
@@ -776,28 +768,12 @@ export default function GameCanvas() {
         // takes the input and covers the screen.
         fitMenus(menus, viewport, realNow);
         menus.fullscreen = fullscreen.read();
-        let asked: MenuRequest | null = null;
-        const take = (request: MenuRequest | "handled" | null) => {
-          if (asked === null && request !== null && request !== "handled") {
-            asked = request;
-          }
-        };
-        for (const key of keys) {
-          if (asked === null) take(pressKey(menus, key, realNow, noHero));
-        }
-        for (const button of readLoadingPad()) {
-          if (asked === null) take(pressPad(menus, button, realNow, noHero));
-        }
-        if (clickedAt && asked === null) {
-          take(
-            clickStart(
-              menus,
-              renderer.startChoiceAt(clickedAt, start, menus.fullscreen),
-            ),
-          );
-        }
-        clickedAt = null;
-        keys = [];
+        const asked = drainMenuInput(realNow, (at) =>
+          clickStart(
+            menus,
+            renderer.startChoiceAt(at, start, menus.fullscreen),
+          ),
+        );
         // No click on the Start Screen steers the Hero once play begins.
         cancel(input);
         cancelTap(tap);
@@ -843,13 +819,52 @@ export default function GameCanvas() {
         }
         frame = requestAnimationFrame(tick);
       };
-      /** The controller buttons pressed this frame, for the Loading Screen. */
-      const readLoadingPad = (): readonly PadButton[] => {
+      /** The controller buttons pressed this frame, for the screens before play. */
+      const readPadPresses = (): readonly PadButton[] => {
         const controller = readGamepad(padHeld);
         padHeld = controller.held;
         return controller.pressed;
       };
-      const noHero = { heroDead: false };
+      /** What the menus read of a Hero who isn't playing yet: alive. */
+      const heroNotPlaying = { heroDead: false };
+      /**
+       * Feeds this frame's keys, controller buttons and (through `onClick`,
+       * when given) click to the menus before play, and drops them. Returns
+       * the first request the menus made, which the caller carries out.
+       */
+      const drainMenuInput = (
+        realNow: number,
+        onClick?: (at: Vec) => MenuRequest | null,
+      ): MenuRequest | null => {
+        let firstRequest: MenuRequest | null = null;
+        const take = (request: MenuRequest | "handled" | null) => {
+          if (
+            firstRequest === null &&
+            request !== null &&
+            request !== "handled"
+          ) {
+            firstRequest = request;
+          }
+        };
+        // Once one asked, the rest is dropped: the screen may be moving on.
+        for (const key of keys) {
+          if (firstRequest === null) {
+            take(pressKey(menus, key, realNow, heroNotPlaying));
+          }
+        }
+        for (const button of readPadPresses()) {
+          if (firstRequest === null) {
+            take(pressPad(menus, button, realNow, heroNotPlaying));
+          }
+        }
+        if (clickedAt && onClick && firstRequest === null) {
+          take(onClick(clickedAt));
+        }
+        clickedAt = null;
+        keys = [];
+        last = gameTime(pause, realNow);
+        return firstRequest;
+      };
       void load();
       frame = requestAnimationFrame(tick);
     });

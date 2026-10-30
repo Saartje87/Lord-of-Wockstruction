@@ -10,9 +10,9 @@ import { touchHitRect } from "./touchHitArea";
 
 /**
  * Where the Start Screen goes (CSS px at native scale, drawn at the UI
- * Scale): the game's name `titleSize` tall, centred `titleTop` of the way
- * down the screen, and the buttons in a row `buttonsTop` of the way down,
- * `gap` apart. Their size is the pause menu's.
+ * Scale): the game's name `titleSize` tall, centred and the buttons in a row
+ * `gap` apart. How far down the screen they go is `START_SCREEN_DOWN`; the
+ * buttons' size is the pause menu's.
  */
 export const START_SCREEN_LAYOUT = {
   titleSize: 56,

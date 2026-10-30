@@ -176,7 +176,7 @@ export type LoadProgress = { loaded: number; total: number };
 export async function loadModels(
   world3d: World3d,
   town: Area,
-  onProgress: (progress: LoadProgress) => void = () => {},
+  onProgress: (progress: LoadProgress) => void,
 ) {
   const loader = new GLTFLoader();
   const monsterFiles = [

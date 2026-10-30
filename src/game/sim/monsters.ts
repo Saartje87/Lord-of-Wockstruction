@@ -10,7 +10,7 @@ import { skillTuning } from "../tuning/skills";
 import { uniqueTuning } from "../tuning/uniqueMonsters";
 import { attackSpot, heroSideBodies, wallRadius } from "./bodies";
 import { BONE_WALL_HALF, type BoneWallPiece } from "./boneWalls";
-import { faceToward, lands } from "./melee";
+import { faceToward, lands, targetsInCircle } from "./melee";
 import { canReach, canSee, isClear } from "./path";
 import type { AttackNumbers } from "./projectiles";
 import { random, randomInt } from "./random";
@@ -65,19 +65,26 @@ const STEPPED = Object.fromEntries(
  * a ranged one's Projectile speed in tiles per step.
  */
 type SteppedAttack =
-  | { kind: "melee"; reach: number; reachGrace: number; arc: number }
+  | {
+      kind: "melee";
+      reach: number;
+      reachGrace: number;
+      arc: number;
+      slam?: { radius: number };
+    }
   | (Omit<RangedTuning, "projectileSpeed"> & { projectileSpeed: number });
 
 function steppedAttack(attack: MeleeTuning | RangedTuning): SteppedAttack {
   if (attack.kind === "ranged") {
     return { ...attack, projectileSpeed: perStep(attack.projectileSpeed) };
   }
-  const { reach, reachGrace, arcDegrees } = attack;
+  const { reach, reachGrace, arcDegrees, slam } = attack;
   return {
     kind: "melee",
     reach,
     reachGrace,
     arc: (arcDegrees * Math.PI) / 180,
+    slam,
   };
 }
 
@@ -249,13 +256,7 @@ export function stepMonsters(world: World): Strike[] {
       }
     }
     if (monster.state === "windup") {
-      if (windUp(world, monster)) {
-        strikes.push({
-          monster,
-          target: monster.target,
-          wall: attackedWall(world, monster),
-        });
-      }
+      strikes.push(...windUp(world, monster));
       continue;
     }
     if (monster.state === "recover") {
@@ -607,16 +608,18 @@ function startWindUp(monster: Monster, at: Vec) {
 }
 
 /**
- * Winds up, rooted, and at its end resolves the attack: a melee one hits its
- * target only if it is still there, in reach, plus grace, and in the arc of
- * the facing it wound up in; a ranged one looses a Projectile at where its
- * target is then. Then it recovers, rooted, and waits a while longer, with
- * some jitter, before it can attack again. Returns whether a melee attack hit.
+ * Winds up, rooted, and at its end resolves the attack, returning the Strikes
+ * that land: a melee one hits its target only if it is still there, in reach,
+ * plus grace, and in the arc of the facing it wound up in, or the Bone Wall
+ * piece it was attacking if that is in reach; a Slam also hits everything of
+ * the Hero's in its circle, wall or no wall; a ranged one looses a Projectile
+ * at where its target is then. Then it recovers, rooted, and waits a while
+ * longer, with some jitter, before it can attack again.
  */
-function windUp(world: World, monster: Monster): boolean {
+function windUp(world: World, monster: Monster): Strike[] {
   const stepped = STEPPED[monster.type];
   monster.attack += 1;
-  if (monster.attack < stepped.windUpSteps) return false;
+  if (monster.attack < stepped.windUpSteps) return [];
   monster.state = "recover";
   monster.attack = stepped.rootSteps;
   // Leaden Limbs stretches the whole cycle (wind-up included) by waiting
@@ -633,9 +636,19 @@ function windUp(world: World, monster: Monster): boolean {
     ),
   );
   const { attack } = stepped;
+  const strikes: Strike[] = [];
+  if (attack.kind === "melee" && attack.slam) {
+    for (const target of targetsInCircle(
+      world,
+      monster.pos,
+      attack.slam.radius,
+    )) {
+      strikes.push({ monster, target, wall: null });
+    }
+  }
   if (monster.wall !== null) {
     const wall = attackedWall(world, monster);
-    return (
+    if (
       wall !== null &&
       attack.kind === "melee" &&
       lands(
@@ -644,15 +657,20 @@ function windUp(world: World, monster: Monster): boolean {
         attack.reach + attack.reachGrace + BONE_WALL_HALF,
         attack.arc,
       )
-    );
+    ) {
+      strikes.push({ monster, target: monster.target, wall });
+    }
+    return strikes;
   }
+  if (attack.kind === "melee" && attack.slam) return strikes;
   const at = targetPos(world, monster.target);
-  if (!at) return false;
+  if (!at) return strikes;
   if (attack.kind === "ranged") {
     loose(world, monster, attack, at);
-    return false;
+  } else if (lands(monster, at, attack.reach + attack.reachGrace, attack.arc)) {
+    strikes.push({ monster, target: monster.target, wall: null });
   }
-  return lands(monster, at, attack.reach + attack.reachGrace, attack.arc);
+  return strikes;
 }
 
 /** Looses a ranged Monster's Projectile from where it stands at `at`. */
@@ -663,15 +681,32 @@ function loose(
   at: Vec,
 ) {
   faceToward(monster, at);
-  world.projectiles.push({
+  const flying = {
     kind: ranged.projectile,
     pos: { ...monster.pos },
     prevPos: { ...monster.pos },
     direction: { x: Math.cos(monster.facing), y: Math.sin(monster.facing) },
-    speed: ranged.projectileSpeed,
-    rangeLeft: ranged.projectileRange,
     from: monster.id,
     ...monsterAttack(monster),
+  };
+  if (ranged.lob) {
+    // Lobbed at the spot the target stands on now, not along a line.
+    const gap = distance(monster.pos, at);
+    world.projectiles.push({
+      ...flying,
+      lob: true,
+      origin: { ...monster.pos },
+      landing: { ...at },
+      radius: ranged.lob.radius,
+      progress: 0,
+      rate: gap === 0 ? 1 : ranged.projectileSpeed / gap,
+    });
+    return;
+  }
+  world.projectiles.push({
+    ...flying,
+    speed: ranged.projectileSpeed,
+    rangeLeft: ranged.projectileRange,
   });
 }
 

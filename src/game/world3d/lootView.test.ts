@@ -82,6 +82,7 @@ describe("how Projectiles are placed", () => {
       kind,
       pos: { x: 10, y: 10 },
       facing: 0,
+      lift: 0,
     });
 
     const arrow = projectilePlacements(flying("arrow"));

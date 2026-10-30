@@ -136,6 +136,12 @@ describe("nameplateOf", () => {
     expect(nameplateOf({ monster: zombie }).name).toBe("Zombie");
   });
 
+  it("names a Wockwolf by its type", () => {
+    const [wolf] = world("wockwolf").monsters;
+
+    expect(nameplateOf({ monster: wolf }).name).toBe("Wockwolf");
+  });
+
   it("names a Skeleton Archer by its type", () => {
     const [archer] = world("skeleton_archer").monsters;
 

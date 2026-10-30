@@ -253,10 +253,11 @@ describe("the shipped Areas", () => {
     ).toEqual(["cozy-plains", "soggy-bog", "wockyard", "spa", "old-mill"]);
   });
 
-  it("give the Cozy Plains Area Level 1, Skeleton and Zombie groups, and its Exits to Wockville and the Soggy Bog", () => {
+  it("give the Cozy Plains Area Level 1, Wockwolf, Skeleton and Zombie groups, and its Exits to Wockville and the Soggy Bog", () => {
     const world = worldEntering("cozy-plains", "from-town");
     const plains = world.areas["cozy-plains"];
     const packs = [
+      ...packsOf(plains, "wockwolf"),
       ...packsOf(plains, "skeleton"),
       ...packsOf(plains, "zombie"),
     ];
@@ -1618,5 +1619,152 @@ describe("the Soggy Bog's ponds and mud", () => {
         expect(canReach(area, entry, target)).toBe(true);
       }
     }
+  });
+});
+
+describe("the shipped Bog Spitters", () => {
+  const bogSpitters = (area: Area) => sum(packsOf(area, "bog_spitter"));
+
+  it("are the most common Monster in the Soggy Bog, and more of them than in any other Area", () => {
+    const { areas } = shippedWorld();
+    const bog = areas["soggy-bog"];
+    const count = (monster: MonsterType) => sum(packsOf(bog, monster));
+
+    for (const other of [
+      "skeleton",
+      "zombie",
+      "wockwolf",
+      "skeleton_archer",
+    ] as const) {
+      expect(count("bog_spitter")).toBeGreaterThan(count(other));
+    }
+    for (const [name, area] of Object.entries(areas)) {
+      if (name !== "soggy-bog") {
+        expect(bogSpitters(bog)).toBeGreaterThan(bogSpitters(area));
+      }
+    }
+  });
+
+  it("are placed in the Spa and the Old Mill, and never underground", () => {
+    const { areas } = shippedWorld();
+
+    expect(bogSpitters(areas.spa)).toBeGreaterThan(0);
+    expect(bogSpitters(areas["old-mill"])).toBeGreaterThan(0);
+    for (const name of ["catacombs", "crypt", "ossuary"]) {
+      expect(bogSpitters(areas[name])).toBe(0);
+    }
+  });
+
+  it("meet the Hero when they arrive in the Soggy Bog", () => {
+    const world = worldEntering("soggy-bog", "from-cozy-plains");
+
+    expect(
+      world.monsters.filter((monster) => monster.type === "bog_spitter").length,
+    ).toBe(bogSpitters(world.areas["soggy-bog"]));
+  });
+});
+
+describe("the shipped Wockbrutes", () => {
+  const brutes = (area: Area) => sum(packsOf(area, "wockbrute"));
+
+  it("are the most common Monster in the Old Mill, and more of them than in any other Area", () => {
+    const { areas } = shippedWorld();
+    const mill = areas["old-mill"];
+    const count = (monster: MonsterType) => sum(packsOf(mill, monster));
+
+    for (const other of [
+      "skeleton",
+      "zombie",
+      "wockwolf",
+      "bog_spitter",
+      "skeleton_archer",
+    ] as const) {
+      expect(count("wockbrute")).toBeGreaterThan(count(other));
+    }
+    for (const [name, area] of Object.entries(areas)) {
+      if (name !== "old-mill") {
+        expect(brutes(mill)).toBeGreaterThan(brutes(area));
+      }
+    }
+  });
+
+  it("are a few in the Soggy Bog and the odd one in the Wockyard", () => {
+    const { areas } = shippedWorld();
+
+    expect(brutes(areas["soggy-bog"])).toBeGreaterThan(0);
+    expect(brutes(areas.wockyard)).toBeGreaterThan(0);
+    expect(brutes(areas.wockyard)).toBeLessThan(brutes(areas["soggy-bog"]));
+  });
+
+  it("guard the Wockyard's way in", () => {
+    const world = worldEntering("wockyard", "from-soggy-bog");
+    const yard = world.areas.wockyard;
+    const [guard] = yard.spawns.filter((s) => s.monster === "wockbrute");
+
+    expect(
+      Math.hypot(
+        guard.pos.x - world.hero.pos.x,
+        guard.pos.y - world.hero.pos.y,
+      ),
+    ).toBeLessThan(15);
+  });
+
+  it("are never in the Cozy Plains, the Town nor underground", () => {
+    const { areas } = shippedWorld();
+
+    for (const name of [
+      "cozy-plains",
+      "town",
+      "catacombs",
+      "crypt",
+      "ossuary",
+    ]) {
+      expect(brutes(areas[name])).toBe(0);
+    }
+  });
+});
+
+describe("the shipped Wockwolf packs", () => {
+  const wolves = (area: Area) => sum(packsOf(area, "wockwolf"));
+
+  it("are the most common Monster in the Cozy Plains, and more of them than in any other Area", () => {
+    const { areas } = shippedWorld();
+    const plains = areas["cozy-plains"];
+    const count = (monster: MonsterType) => sum(packsOf(plains, monster));
+
+    expect(count("wockwolf")).toBeGreaterThan(count("skeleton"));
+    expect(count("wockwolf")).toBeGreaterThan(count("zombie"));
+    for (const [name, area] of Object.entries(areas)) {
+      if (name !== "cozy-plains") {
+        expect(wolves(plains)).toBeGreaterThan(wolves(area));
+      }
+    }
+  });
+
+  it("come in packs of 4 to 6", () => {
+    for (const area of Object.values(shippedWorld().areas)) {
+      for (const pack of packsOf(area, "wockwolf")) {
+        expect(pack).toBeGreaterThanOrEqual(4);
+        expect(pack).toBeLessThanOrEqual(6);
+      }
+    }
+  });
+
+  it("are placed in the Spa and the Soggy Bog, and never underground", () => {
+    const { areas } = shippedWorld();
+
+    expect(wolves(areas.spa)).toBeGreaterThan(0);
+    expect(wolves(areas["soggy-bog"])).toBeGreaterThan(0);
+    for (const name of ["catacombs", "crypt", "ossuary"]) {
+      expect(wolves(areas[name])).toBe(0);
+    }
+  });
+
+  it("meet the Hero when they arrive in the Cozy Plains", () => {
+    const world = worldEntering("cozy-plains", "from-town");
+
+    expect(
+      world.monsters.filter((monster) => monster.type === "wockwolf").length,
+    ).toBe(wolves(world.areas["cozy-plains"]));
   });
 });

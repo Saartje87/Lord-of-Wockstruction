@@ -16,6 +16,7 @@ licence (CC0). Crediting him is not required, and we do.
 - Dungeon Remastered 1.0: [KayKit-Dungeon-Remastered-1.0](https://github.com/KayKit-Game-Assets/KayKit-Dungeon-Remastered-1.0) (commit `b0ca9bd`)
 - Halloween Bits 1.0: [KayKit-Halloween-Bits-1.0](https://github.com/KayKit-Game-Assets/KayKit-Halloween-Bits-1.0) (commit `6dc69bf`)
 - Medieval Hexagon 1.0: [KayKit-Medieval-Hexagon-Pack-1.0](https://github.com/KayKit-Game-Assets/KayKit-Medieval-Hexagon-Pack-1.0) (commit `84fa4e9`)
+- Mystery Monthly Series 4: [itch.io](https://kaylousberg.itch.io/kaykit-series-4), paid and CC0
 - Mystery Monthly Series 6: [itch.io](https://kaylousberg.itch.io/kaykit-series-6), paid and CC0
 - City Builder Bits (Bits Bundle 1): [itch.io](https://kaylousberg.itch.io/kaykit-bits-bundle), paid and CC0
 - Resource Bits (Bits Bundle 2): [itch.io](https://kaylousberg.itch.io/kaykit-bits-bundle), paid and CC0
@@ -23,7 +24,9 @@ licence (CC0). Crediting him is not required, and we do.
 **Changes:** the Knight is cut down to the animations the game uses and to
 the 1-handed sword and the round shield. The Monstrosity gets the
 `Rig_Large` animations the game uses and the Knight's 2-handed chop,
-retargeted onto its rig. Town's NPCs get the `Rig_Medium` idles, with no
+retargeted onto its rig. The Werewolf gets the `Rig_Medium` animations the
+game uses and the Knight's 1-handed chop, and the Plant Warrior the same
+with the Knight's spellcast. Town's NPCs get the `Rig_Medium` idles, with no
 animation track for a bone they lack. Halloween Bits, Medieval Hexagon and
 City Builder Bits pieces, which come as glTF with a binary and a texture, are
 packed into one glb each, as are Resource Bits' coin stacks. Nothing is recoloured.
@@ -34,6 +37,9 @@ packed into one glb each, as are Resource Bits' coin stacks. Nothing is recolour
 |---|---|
 | `addons/kaykit_character_pack_adventures/Characters/gltf/Knight.glb` | the Hero, and the Golem's attack |
 | Mystery Monthly Series 6: `Monstrosity.glb` | the Golem |
+| Mystery Monthly Series 6: `PlantWarrior.glb` | the Bog Spitter |
+| Mystery Monthly Series 6: `OrcBrute.glb` | the Wockbrute |
+| Mystery Monthly Series 4: `Werewolf_Wolf.glb` | the Wockwolf |
 | Mystery Monthly Series 6: `Farmer_A.glb` | Town's NPCs |
 | Mystery Monthly Series 6: `Farmer_B.glb` | Town's NPCs |
 | Mystery Monthly Series 6: `Lorekeeper.glb` | Town's NPCs |

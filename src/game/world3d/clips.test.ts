@@ -13,6 +13,7 @@ describe("attack clip contact fractions", () => {
       ATTACK_CONTACT,
       MONSTER_LOOKS.skeleton.contact,
       MONSTER_LOOKS.zombie.contact,
+      MONSTER_LOOKS.wockwolf.contact,
       MINION_LOOKS.raisedSkeleton.contact,
     ]) {
       expect(contact).toBeGreaterThanOrEqual(0.55);
@@ -23,6 +24,11 @@ describe("attack clip contact fractions", () => {
   it("land on the Golem's slam stopping", () => {
     expect(MINION_LOOKS.golem.contact).toBeGreaterThanOrEqual(0.52);
     expect(MINION_LOOKS.golem.contact).toBeLessThanOrEqual(0.57);
+  });
+
+  it("land on the Wockbrute's slam stopping", () => {
+    expect(MONSTER_LOOKS.wockbrute.contact).toBeGreaterThanOrEqual(0.52);
+    expect(MONSTER_LOOKS.wockbrute.contact).toBeLessThanOrEqual(0.57);
   });
 
   it("release the Skeleton Archer's bolt at the crossbow's jerk", () => {

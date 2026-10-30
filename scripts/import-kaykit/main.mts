@@ -123,6 +123,48 @@ const MYSTERY = {
   url: "https://kaylousberg.itch.io/kaykit-series-6",
 };
 
+/** Mystery Monthly Series 4, which the Wockwolf's Werewolf comes from. */
+const MYSTERY_4 = {
+  name: "Mystery Monthly Series 4",
+  dir: "vendor/kaykit/KayKit_Mystery_Monthly_Series_4",
+  url: "https://kaylousberg.itch.io/kaykit-series-4",
+};
+
+/**
+ * The Wockwolf: the Werewolf in its wolf form, on `Rig_Medium`. The pack has
+ * no combat clips, so the attack is the Knight's 1-handed chop retargeted
+ * onto it, as the Golem's is.
+ */
+const WOCKWOLF = {
+  file: "Werewolf_Wolf",
+  path: "4 - October 2023 - Werewolf/characters/gltf/Werewolf_Wolf.glb",
+  to: "Werewolf",
+  rigClips: {
+    "Animations/gltf/Rig_Medium/Rig_Medium_General.glb": [
+      "Idle_A",
+      "Hit_A",
+      "Death_A",
+    ],
+    "Animations/gltf/Rig_Medium/Rig_Medium_MovementBasic.glb": [
+      "Walking_A",
+      "Running_A",
+    ],
+  },
+  knightClips: ["1H_Melee_Attack_Chop"],
+};
+
+/**
+ * The Bog Spitter: the Plant Warrior (Series 6) on `Rig_Medium`. The pack has
+ * no combat clips, so the lob is the Knight's `Spellcast_Shoot` retargeted
+ * onto it, as the Golem's attack is.
+ */
+const BOG_SPITTER = {
+  file: "PlantWarrior",
+  path: "5 - November 2025 - Plant Warrior/characters/PlantWarrior.glb",
+  rigClips: WOCKWOLF.rigClips,
+  knightClips: ["Spellcast_Shoot"],
+};
+
 /**
  * The paid packs whose pieces are painted into Areas, keyed by the `pack` of
  * their pieces in `pieces.mts`. Like the Mystery Monthly packs they are read
@@ -184,6 +226,18 @@ const GOLEM = {
     ],
   },
   knightClips: ["2H_Melee_Attack_Chop"],
+};
+
+/**
+ * The Wockbrute: the Orc Brute (Series 6), on `Rig_Large` like the Golem's
+ * Monstrosity, so it takes the same clips and the Knight's 2-handed chop for
+ * its Slam.
+ */
+const WOCKBRUTE = {
+  file: "OrcBrute",
+  path: "2 - August 2025 - Orc Brute/characters/OrcBrute.glb",
+  rigClips: GOLEM.rigClips,
+  knightClips: GOLEM.knightClips,
 };
 
 /**
@@ -362,6 +416,32 @@ if (existsSync(MYSTERY.dir)) {
       })),
     ],
   });
+  await importRiggedCharacter({
+    from: `${MYSTERY.dir}/${BOG_SPITTER.path}`,
+    to: `${out.characters}/${BOG_SPITTER.file}.glb`,
+    clips: [
+      ...Object.entries(BOG_SPITTER.rigClips).flatMap(([file, names]) =>
+        names.map((name) => ({ from: `${MYSTERY.dir}/${file}`, name })),
+      ),
+      ...BOG_SPITTER.knightClips.map((name) => ({
+        from: `${dirOf(adventurers)}/${knightPath}`,
+        name,
+      })),
+    ],
+  });
+  await importRiggedCharacter({
+    from: `${MYSTERY.dir}/${WOCKBRUTE.path}`,
+    to: `${out.characters}/${WOCKBRUTE.file}.glb`,
+    clips: [
+      ...Object.entries(WOCKBRUTE.rigClips).flatMap(([file, names]) =>
+        names.map((name) => ({ from: `${MYSTERY.dir}/${file}`, name })),
+      ),
+      ...WOCKBRUTE.knightClips.map((name) => ({
+        from: `${dirOf(adventurers)}/${knightPath}`,
+        name,
+      })),
+    ],
+  });
   for (const path of NPCS.files) {
     await importRiggedCharacter({
       from: `${MYSTERY.dir}/${path}.glb`,
@@ -373,6 +453,23 @@ if (existsSync(MYSTERY.dir)) {
   }
 } else {
   console.log(`No ${MYSTERY.dir}: keeping the committed models of the pack`);
+}
+if (existsSync(MYSTERY_4.dir)) {
+  await importRiggedCharacter({
+    from: `${MYSTERY_4.dir}/${WOCKWOLF.path}`,
+    to: `${out.characters}/${WOCKWOLF.to}.glb`,
+    clips: [
+      ...Object.entries(WOCKWOLF.rigClips).flatMap(([file, names]) =>
+        names.map((name) => ({ from: `${MYSTERY_4.dir}/${file}`, name })),
+      ),
+      ...WOCKWOLF.knightClips.map((name) => ({
+        from: `${dirOf(adventurers)}/${knightPath}`,
+        name,
+      })),
+    ],
+  });
+} else {
+  console.log(`No ${MYSTERY_4.dir}: keeping the committed models of the pack`);
 }
 for (const source of PIECES) {
   const [from] = filesOf(source);
@@ -428,6 +525,9 @@ writeFileSync(
 const imported = [
   `| \`${knightPath}\` | the Hero, and the Golem's attack |`,
   `| ${MYSTERY.name}: \`${GOLEM.path.split("/").pop()}\` | the Golem |`,
+  `| ${MYSTERY.name}: \`${BOG_SPITTER.file}.glb\` | the Bog Spitter |`,
+  `| ${MYSTERY.name}: \`${WOCKBRUTE.file}.glb\` | the Wockbrute |`,
+  `| ${MYSTERY_4.name}: \`${WOCKWOLF.file}.glb\` | the Wockwolf |`,
   ...NPCS.files.map(
     (path) =>
       `| ${MYSTERY.name}: \`${path.split("/").pop()}.glb\` | Town's NPCs |`,
@@ -471,6 +571,7 @@ ${Object.values(PACKS)
       `- ${pack.name}: [${pack.repo}](${ORG}/${pack.repo}) (commit \`${pack.commit.slice(0, 7)}\`)`,
   )
   .join("\n")}
+- ${MYSTERY_4.name}: [itch.io](${MYSTERY_4.url}), paid and CC0
 - ${MYSTERY.name}: [itch.io](${MYSTERY.url}), paid and CC0
 ${[...Object.values(VENDORED), RESOURCE_BITS]
   .map((pack) => `- ${pack.name}: [itch.io](${pack.url}), paid and CC0`)
@@ -479,7 +580,9 @@ ${[...Object.values(VENDORED), RESOURCE_BITS]
 **Changes:** the Knight is cut down to the animations the game uses and to
 the 1-handed sword and the round shield. The Monstrosity gets the
 \`Rig_Large\` animations the game uses and the Knight's 2-handed chop,
-retargeted onto its rig. Town's NPCs get the \`Rig_Medium\` idles, with no
+retargeted onto its rig. The Werewolf gets the \`Rig_Medium\` animations the
+game uses and the Knight's 1-handed chop, and the Plant Warrior the same
+with the Knight's spellcast. Town's NPCs get the \`Rig_Medium\` idles, with no
 animation track for a bone they lack. Halloween Bits, Medieval Hexagon and
 City Builder Bits pieces, which come as glTF with a binary and a texture, are
 packed into one glb each, as are Resource Bits' coin stacks. Nothing is recoloured.

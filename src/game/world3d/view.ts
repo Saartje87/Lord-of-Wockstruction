@@ -7,6 +7,7 @@ import { type Area, type Placed, TOWN } from "../sim/area";
 import type { ItemId } from "../sim/inventory";
 import { minionRecoveryProgress, minionWindUpProgress } from "../sim/minions";
 import { recoveryProgress, windUpProgress } from "../sim/monsters";
+import { isLobbed } from "../sim/projectiles";
 import { msToSteps, STEP_MS } from "../sim/units";
 import type { Vec } from "../sim/vec";
 import {
@@ -189,6 +190,8 @@ export type FloorCircle = { radius: number; alpha: number };
 export type FloorEffectsView = {
   telegraphs: TelegraphView[];
   curses: (FloorCircle & { pos: Vec; colour: number })[];
+  /** Where each Muck in flight will land, from loosing until it does. */
+  marks: LandingMarkView[];
   /** A flash disc and a spreading ring round a burst Corpse. */
   bursts: { pos: Vec; flash: FloorCircle; ring: FloorCircle }[];
   /** The gold ring round the Hero's feet on a Level-Up. */
@@ -202,6 +205,21 @@ export type ProjectileView = {
   pos: Vec;
   /** The way it flies, radians in tile space. */
   facing: number;
+  /** How far above its flying height it is on its arc, in tiles; 0 if straight. */
+  lift: number;
+};
+
+/** The highest a lobbed Projectile's arc rises above its flying height (tiles). */
+export const LOB_ARC_HEIGHT = 2;
+
+/** The mark a lobbed Projectile (Muck) will land on, drawn on the ground. */
+export type LandingMarkView = {
+  /** Where it will land, in tile units. */
+  pos: Vec;
+  /** The circle it hits within (tiles). */
+  radius: number;
+  /** How far the Projectile is along its arc, 0..1. */
+  progress: number;
 };
 
 /** A Ground Item lying on the floor as the 3D World shows it. */
@@ -422,6 +440,9 @@ export function worldViewOf(
           (projectile.pos.y - projectile.prevPos.y) * alpha,
       },
       facing: Math.atan2(projectile.direction.y, projectile.direction.x),
+      lift: isLobbed(projectile)
+        ? LOB_ARC_HEIGHT * Math.sin(Math.PI * projectile.progress)
+        : 0,
     })),
     groundItems: world.groundItems.map(({ item, pos }) => ({
       id: item.id,
@@ -464,8 +485,9 @@ function floorEffectsOf(
         y: monster.prevPos.y + (monster.pos.y - monster.prevPos.y) * alpha,
       },
       facing: monster.facing,
-      reach: attack.reach,
-      arc: (attack.arcDegrees * Math.PI) / 180,
+      // A Slam fills the whole circle it hits within.
+      reach: attack.slam ? attack.slam.radius : attack.reach,
+      arc: attack.slam ? Math.PI : (attack.arcDegrees * Math.PI) / 180,
       progress: windUpProgress(monster),
     });
   }
@@ -489,9 +511,17 @@ function floorEffectsOf(
   }
   const ring =
     effects.levelUpAgoMs === null ? null : levelRing(effects.levelUpAgoMs);
+  const marks: LandingMarkView[] = world.projectiles
+    .filter(isLobbed)
+    .map(({ landing, radius, progress }) => ({
+      pos: { ...landing },
+      radius,
+      progress,
+    }));
   return {
     telegraphs,
     curses,
+    marks,
     bursts,
     levelRing: ring && { pos: heroPos, ...ring },
   };

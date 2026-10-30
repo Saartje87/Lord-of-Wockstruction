@@ -64,6 +64,67 @@ export const MONSTER_LOOKS: Record<MonsterType, MonsterLook> = {
     contact: 0.3,
     weapons: [{ slot: "handslot.r", model: "Skeleton_Crossbow" }],
   },
+  // The Werewolf (KayKit Mystery Monthly Series 4) in its wolf form, smaller
+  // than the Golem's Monstrosity; its clips come from `Rig_Medium`, the
+  // attack from the Knight's chop.
+  wockwolf: {
+    model: "Werewolf",
+    scale: 0.32,
+    height: 0.75,
+    clips: {
+      idle: "Idle_A",
+      walk: "Walking_A",
+      run: "Running_A",
+      attack: "1H_Melee_Attack_Chop",
+      flinch: "Hit_A",
+      death: "Death_A",
+    },
+    contact: ATTACK_CONTACT,
+    weapons: [],
+  },
+  // The Plant Warrior (KayKit Mystery Monthly Series 6), a slow plant that
+  // lobs Muck. Its clips come from `Rig_Medium`, the lob from the Knight's
+  // `Spellcast_Shoot`.
+  bog_spitter: {
+    model: "PlantWarrior",
+    scale: 0.36,
+    height: 1,
+    clips: {
+      idle: "Idle_A",
+      walk: "Walking_A",
+      // It never runs: a chase is the same shamble.
+      run: "Walking_A",
+      attack: "Spellcast_Shoot",
+      flinch: "Hit_A",
+      death: "Death_A",
+    },
+    // The Muck leaves the hands as the raised cast settles, at about 0.35 of
+    // its clip (hand speed sampled along the retargeted clip on the Plant
+    // Warrior: 3.9 tiles/s at 0.1, down to 0.4 at 0.35).
+    contact: 0.35,
+    weapons: [],
+  },
+  // The Orc Brute (KayKit Mystery Monthly Series 6), larger than the Golem's
+  // Monstrosity on the same `Rig_Large`. Its Slam is the Knight's 2-handed
+  // chop retargeted onto it, as the Golem's is.
+  wockbrute: {
+    model: "OrcBrute",
+    scale: 0.38,
+    height: 1.6,
+    clips: {
+      idle: "Idle_A",
+      walk: "Walking_A",
+      // At 1.2 tiles/s a chase is the same lumber.
+      run: "Walking_A",
+      attack: "2H_Melee_Attack_Chop",
+      flinch: "Hit_A",
+      death: "Death_A",
+    },
+    // The slam stops dead at about 0.55 of its clip (hand speed sampled along
+    // the retargeted clip on the Orc Brute: 14 tiles/s at 0.533, 1 at 0.55).
+    contact: 0.55,
+    weapons: [],
+  },
   // A big, pale Skeleton with a blade for a staff, until he has a model of his own.
   grave_wockington: {
     model: "Skeleton",

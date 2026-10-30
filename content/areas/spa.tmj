@@ -3393,12 +3393,12 @@
       {
        "name": "count",
        "type": "int",
-       "value": 2
+       "value": 4
       },
       {
        "name": "monster",
        "type": "string",
-       "value": "skeleton"
+       "value": "wockwolf"
       }
      ]
     },
@@ -3422,7 +3422,7 @@
       {
        "name": "monster",
        "type": "string",
-       "value": "zombie"
+       "value": "bog_spitter"
       }
      ]
     },

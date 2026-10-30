@@ -3,7 +3,9 @@ import { arenaWith } from "../input/testArena";
 import { CORPSE_BURST } from "../render/corpseBurst";
 import { CURSE_CIRCLE, curseLook } from "../render/curse";
 import { LEVEL_UP } from "../render/levelUp";
+import { isLobbed } from "../sim/projectiles";
 import { msToSteps } from "../sim/units";
+import { step } from "../sim/world";
 import { monsterTuning } from "../tuning/monsters";
 import { type Effects, type PointerState, worldViewOf } from "./view";
 
@@ -45,6 +47,23 @@ describe("the 3D World view of the floor effects", () => {
       expect(wedge.progress).toBeCloseTo(0.5, 1);
     });
 
+    it("shows a winding-up Wockbrute's Slam as the whole circle it hits within", () => {
+      const world = arenaWith([{ x: 12, y: 10 }], { combat: true });
+      const [monster] = world.monsters;
+      monster.type = "wockbrute";
+      monster.state = "windup";
+      monster.attack = msToSteps(monsterTuning.wockbrute.windUpMs) / 2;
+      const { attack } = monsterTuning.wockbrute;
+      if (attack.kind !== "melee" || !attack.slam) throw new Error("a Slam");
+
+      const [circle] = viewOf(world).telegraphs;
+
+      expect(circle.pos).toEqual(monster.pos);
+      expect(circle.reach).toBe(attack.slam.radius);
+      expect(circle.arc).toBeCloseTo(Math.PI);
+      expect(circle.progress).toBeCloseTo(0.5, 1);
+    });
+
     it("follows the Monster between steps", () => {
       const world = arenaWith([{ x: 12, y: 10 }], { combat: true });
       const [monster] = world.monsters;
@@ -71,6 +90,71 @@ describe("the 3D World view of the floor effects", () => {
       world.monsters[0].state = "windup";
 
       expect(viewOf(world).telegraphs).toEqual([]);
+    });
+  });
+
+  describe("Muck's mark", () => {
+    /** A Bog Spitter 4 tiles from the Hero, stepped until it looses Muck. */
+    const loosed = () => {
+      const world = arenaWith([{ x: 14, y: 10 }], { combat: true });
+      world.monsters[0].type = "bog_spitter";
+      for (let i = 0; !world.projectiles.length; i++) {
+        if (i > 600) throw new Error("No Muck was loosed");
+        step(world, []);
+      }
+      return world;
+    };
+
+    it("shows the landing point and circle from loosing, with progress along the arc", () => {
+      const world = loosed();
+      const [muck] = world.projectiles;
+      if (!isLobbed(muck)) throw new Error("Muck is lobbed");
+
+      const [mark] = viewOf(world).marks;
+
+      expect(mark.pos).toEqual(muck.landing);
+      expect(mark.radius).toBe(muck.radius);
+      expect(mark.progress).toBe(0);
+      for (let i = 0; i < 30; i++) step(world, []);
+      expect(viewOf(world).marks[0].progress).toBeGreaterThan(0.1);
+      expect(viewOf(world).marks[0].pos).toEqual(muck.landing);
+    });
+
+    it("draws the Muck over its arc, highest half way", () => {
+      const world = loosed();
+      const [muck] = world.projectiles;
+      if (!isLobbed(muck)) throw new Error("Muck is lobbed");
+      const lift = () =>
+        worldViewOf(world, 1, NO_POINTER, NO_EFFECTS).projectiles[0].lift;
+
+      expect(lift()).toBe(0);
+      muck.progress = 0.5;
+      const middle = lift();
+      muck.progress = 0.9;
+
+      expect(middle).toBeGreaterThan(1);
+      expect(lift()).toBeLessThan(middle);
+    });
+
+    it("is gone once the Muck has landed", () => {
+      const world = loosed();
+      for (let i = 0; world.projectiles.length; i++) {
+        if (i > 600) throw new Error("The Muck never landed");
+        step(world, []);
+      }
+
+      expect(viewOf(world).marks).toEqual([]);
+    });
+
+    it("is not shown for an Arrow", () => {
+      const world = arenaWith([{ x: 14, y: 10 }], { combat: true });
+      world.monsters[0].type = "skeleton_archer";
+      for (let i = 0; !world.projectiles.length; i++) {
+        if (i > 600) throw new Error("No Arrow was loosed");
+        step(world, []);
+      }
+
+      expect(viewOf(world).marks).toEqual([]);
     });
   });
 

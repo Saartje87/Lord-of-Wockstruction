@@ -1,4 +1,5 @@
 import { angleBetween, distance, type Vec } from "./vec";
+import type { MonsterTarget, World } from "./world";
 
 /** Anything that stands somewhere facing some way: the Hero, a Monster, a Minion. */
 type Facer = { pos: Vec; facing: number };
@@ -26,4 +27,23 @@ export function lands(
   if (gap === 0) return true;
   const angle = Math.atan2(at.y - attacker.pos.y, at.x - attacker.pos.x);
   return angleBetween(angle, attacker.facing) <= arc;
+}
+
+/**
+ * The Hero, unless in Death, and each Minion within `radius` of `center`: what
+ * a Monster's area attack hits.
+ */
+export function targetsInCircle(
+  world: World,
+  center: Vec,
+  radius: number,
+): MonsterTarget[] {
+  const targets: MonsterTarget[] = [];
+  if (!world.death && distance(center, world.hero.pos) <= radius) {
+    targets.push("hero");
+  }
+  for (const minion of world.minions) {
+    if (distance(center, minion.pos) <= radius) targets.push(minion.id);
+  }
+  return targets;
 }

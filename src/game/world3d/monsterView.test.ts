@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { arenaWith } from "../input/testArena";
 import { msToSteps } from "../sim/units";
 import { monsterTuning } from "../tuning/monsters";
+import { MINION_LOOKS } from "./minionLook";
 import { MONSTER_LOOKS } from "./monsterLook";
 import { type Effects, type PointerState, worldViewOf } from "./view";
 
@@ -77,6 +78,109 @@ describe("the 3D World view of the Monsters", () => {
 
     monster.flinch = 5;
     expect(firstMonster(world).animation.clip).toBe("flinch");
+  });
+
+  it("draws a Wockwolf as the Werewolf, scaled down, with the clip of its state", () => {
+    const { world, monster } = withSkeleton();
+    monster.type = "wockwolf";
+
+    const look = MONSTER_LOOKS.wockwolf;
+    expect(look.model).toBe("Werewolf");
+    expect(look.scale).toBeLessThan(1);
+    expect(look.height).toBeLessThan(1.2);
+    expect(firstMonster(world).type).toBe("wockwolf");
+    expect(firstMonster(world).animation.clip).toBe("idle");
+    monster.state = "chase";
+    monster.prevPos = { x: 12.1, y: 10 };
+    expect(firstMonster(world).animation.clip).toBe("run");
+    monster.state = "windup";
+    monster.attack = 0;
+    expect(firstMonster(world).animation.clip).toBe("attack");
+    monster.state = "wander";
+    monster.flinch = 3;
+    expect(firstMonster(world).animation.clip).toBe("flinch");
+    for (const clip of [
+      "idle",
+      "walk",
+      "run",
+      "attack",
+      "flinch",
+      "death",
+    ] as const) {
+      expect(look.clips[clip]).toBeTruthy();
+    }
+  });
+
+  it("draws a Bog Spitter as the Plant Warrior, with the clip of its state", () => {
+    const { world, monster } = withSkeleton();
+    monster.type = "bog_spitter";
+
+    const look = MONSTER_LOOKS.bog_spitter;
+    expect(look.model).toBe("PlantWarrior");
+    expect(firstMonster(world).type).toBe("bog_spitter");
+    expect(firstMonster(world).animation.clip).toBe("idle");
+    monster.state = "chase";
+    monster.prevPos = { x: 12.1, y: 10 };
+    // At 1.2 tiles/s it shambles rather than runs.
+    expect(firstMonster(world).animation.clip).toBe("run");
+    expect(look.clips.run).toBe(look.clips.walk);
+    monster.state = "windup";
+    monster.attack = 0;
+    expect(firstMonster(world).animation.clip).toBe("attack");
+    monster.state = "wander";
+    monster.flinch = 3;
+    expect(firstMonster(world).animation.clip).toBe("flinch");
+    for (const clip of [
+      "idle",
+      "walk",
+      "run",
+      "attack",
+      "flinch",
+      "death",
+    ] as const) {
+      expect(look.clips[clip]).toBeTruthy();
+    }
+  });
+
+  it("draws a Wockbrute as the scaled-up Orc Brute, its attack clip scrubbing to contact as the wind-up ends", () => {
+    const { world, monster } = withSkeleton();
+    monster.type = "wockbrute";
+
+    const look = MONSTER_LOOKS.wockbrute;
+    expect(look.model).toBe("OrcBrute");
+    expect(look.scale).toBeGreaterThan(MINION_LOOKS.golem.scale);
+    expect(firstMonster(world).type).toBe("wockbrute");
+    expect(firstMonster(world).animation.clip).toBe("idle");
+    monster.state = "chase";
+    monster.prevPos = { x: 12.1, y: 10 };
+    expect(firstMonster(world).animation.clip).toBe("run");
+    expect(look.clips.run).toBe(look.clips.walk);
+    monster.state = "wander";
+    monster.flinch = 3;
+    expect(firstMonster(world).animation.clip).toBe("flinch");
+    monster.flinch = 0;
+
+    monster.state = "windup";
+    monster.attack = 0;
+    expect(firstMonster(world).animation).toEqual({
+      clip: "attack",
+      progress: 0,
+    });
+    monster.attack = msToSteps(monsterTuning.wockbrute.windUpMs) - 1;
+    const end = firstMonster(world).animation;
+    const reached = "progress" in end ? end.progress : -1;
+    expect(reached).toBeLessThan(look.contact);
+    expect(reached).toBeGreaterThan(look.contact * 0.95);
+    for (const clip of [
+      "idle",
+      "walk",
+      "run",
+      "attack",
+      "flinch",
+      "death",
+    ] as const) {
+      expect(look.clips[clip]).toBeTruthy();
+    }
   });
 
   it("flashes a hit Monster by the strength it is given", () => {

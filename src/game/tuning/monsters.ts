@@ -84,6 +84,13 @@ export type MeleeTuning = {
   reachGrace: number;
   /** An attack hits its target within this of the facing it wound up in. */
   arcDegrees: number;
+  /**
+   * Set for a Slam: on the hit it ignores `reachGrace` and `arcDegrees` and
+   * hits every Hero and Minion within `radius` of the Monster (tiles),
+   * whichever way it faces. `reach` is then how near its target must be to
+   * start winding up.
+   */
+  slam?: { radius: number };
 };
 
 /**
@@ -100,6 +107,13 @@ export type RangedTuning = {
   projectileSpeed: number;
   /** How far its Projectile flies before it vanishes (tiles). */
   projectileRange: number;
+  /**
+   * Set for a lobbed Projectile (Muck): it flies over everything to the point
+   * its target stood at when it was loosed, at `projectileSpeed` along the
+   * ground, and there hits every Hero and Minion within `radius` (tiles).
+   * Its `projectileRange` is then unused.
+   */
+  lob?: { radius: number };
 };
 
 /** A growth rate per Monster Level for each number that scales with it. */
@@ -115,6 +129,9 @@ export type MonsterType =
   | "skeleton"
   | "zombie"
   | "skeleton_archer"
+  | "wockwolf"
+  | "bog_spitter"
+  | "wockbrute"
   | "grave_wockington";
 
 export const monsterTuning: Record<MonsterType, MonsterTuning> = {
@@ -256,6 +273,154 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
     flinchInterrupts: true,
     // The Skeleton's rates, so it stays as fragile next to one in every
     // Combat Area: 99 Life and 7–14 an Arrow in the Ossuary.
+    growth: {
+      life: 0.25,
+      damage: 0.2,
+      attackRating: 0.1,
+      defense: 0.15,
+      experience: 3,
+    },
+  },
+  // The outdoors' pack animal: faster than the Hero walks (5.5), fragile and
+  // light-hitting, with a quick bite. A pack of 4–6 wears the Hero down by
+  // surrounding them rather than bursting them. Set against the Skeleton's
+  // numbers (T470); expected to move in playtesting.
+  wockwolf: {
+    name: "Wockwolf",
+    life: 30,
+    // Half a Skeleton's: a pack is worth more than one Skeleton, a single
+    // Wockwolf is not.
+    experience: 50,
+    speed: 6,
+    damage: [2, 5],
+    // Easier to hit than a Skeleton.
+    defense: 110,
+    attackRating: 20,
+    radius: 0.3,
+    wanderRadius: 3,
+    wanderSpeed: 0.35,
+    wanderPauseMs: [800, 2500],
+    aggroRadius: 8,
+    replanMs: 300,
+    needsSight: true,
+    // Packs wake together.
+    spreadRadius: 2.5,
+    attack: { kind: "melee", reach: 1.1, reachGrace: 0.25, arcDegrees: 60 },
+    windUpMs: 250,
+    rootMs: 150,
+    recoveryMs: 700,
+    jitterMs: 300,
+    maxAttackers: 0,
+    leash: 16,
+    returnSpeed: 1.2,
+    graceMs: 2000,
+    flinchChance: 0.25,
+    flinchMs: 200,
+    flinchInterrupts: false,
+    // The Skeleton's rates, so it stays as fragile next to one in every Area.
+    growth: {
+      life: 0.25,
+      damage: 0.2,
+      attackRating: 0.1,
+      defense: 0.15,
+      experience: 3,
+    },
+  },
+  // The outdoors' mortar: slow, fragile and far off, it lobs Muck at where the
+  // Hero stands and waits a long while before the next. Moving is the dodge,
+  // and reaching it the reward. Set against the Skeleton's numbers (T471);
+  // expected to move in playtesting.
+  bog_spitter: {
+    name: "Bog Spitter",
+    life: 45,
+    experience: 120,
+    speed: 1.2,
+    damage: [5, 9],
+    defense: 110,
+    attackRating: 25,
+    radius: 0.35,
+    wanderRadius: 1.5,
+    wanderSpeed: 0.35,
+    wanderPauseMs: [1500, 4500],
+    // Further than its range, so it notices the Hero before they are in reach
+    // of its Muck.
+    aggroRadius: 9,
+    replanMs: 400,
+    needsSight: true,
+    spreadRadius: 1.5,
+    // Muck flies at 4 tiles/s: from its furthest shot it takes 1.75 s to land,
+    // time enough to step out of the 1-tile mark at a walk of 5.5.
+    attack: {
+      kind: "ranged",
+      projectile: "muck",
+      range: 7,
+      projectileSpeed: 4,
+      projectileRange: 7,
+      lob: { radius: 1 },
+    },
+    windUpMs: 700,
+    rootMs: 200,
+    recoveryMs: 3000,
+    jitterMs: 600,
+    maxAttackers: 0,
+    leash: 14,
+    returnSpeed: 1.2,
+    graceMs: 2000,
+    // Hitting it often cancels the shot it's winding up, so reaching it pays.
+    flinchChance: 0.5,
+    flinchMs: 200,
+    flinchInterrupts: true,
+    // The Skeleton's rates.
+    growth: {
+      life: 0.25,
+      damage: 0.2,
+      attackRating: 0.1,
+      defense: 0.15,
+      experience: 3,
+    },
+  },
+  // The outdoors' bruiser: big, slow and sturdy, its Slam hits everything of
+  // the Hero's in a circle after a long wind-up that hitting it can't stop, so
+  // stepping out is the only counter. Set against the Skeleton's numbers
+  // (T472); expected to move in playtesting.
+  wockbrute: {
+    name: "Wockbrute",
+    life: 300,
+    // About 3.5 Skeletons' worth.
+    experience: 350,
+    speed: 1.2,
+    damage: [10, 18],
+    defense: 130,
+    attackRating: 30,
+    radius: 0.55,
+    wanderRadius: 1.5,
+    wanderSpeed: 0.35,
+    wanderPauseMs: [2000, 5000],
+    aggroRadius: 7,
+    replanMs: 400,
+    needsSight: true,
+    spreadRadius: 1.5,
+    // It starts winding up with the Hero a body's width inside the circle.
+    attack: {
+      kind: "melee",
+      reach: 1.6,
+      reachGrace: 0,
+      arcDegrees: 0,
+      slam: { radius: 2 },
+    },
+    windUpMs: 1200,
+    rootMs: 400,
+    recoveryMs: 1600,
+    jitterMs: 400,
+    maxAttackers: 0,
+    leash: 14,
+    returnSpeed: 1.2,
+    graceMs: 2000,
+    // Hits never flinch it, so its Slam always comes.
+    flinchChance: 0,
+    flinchMs: 200,
+    flinchInterrupts: false,
+    // The Skeleton's rates.
     growth: {
       life: 0.25,
       damage: 0.2,

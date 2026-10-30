@@ -133,6 +133,64 @@ describe("tuningReport", () => {
     ]);
   });
 
+  it("gives the Wockwolf's numbers in the Areas that place it, and not elsewhere", () => {
+    const { levels, areas } = tuningReport("wockwolf", [
+      area("cozy-plains", 1, ["wockwolf", "skeleton", "zombie"]),
+      area("spa", 2, ["wockwolf", "skeleton"]),
+      area("old-mill", 4, ["skeleton", "zombie"]),
+    ]);
+
+    // 500 to go at 50 a kill: the tenth kill gets there.
+    expect(levels[0]).toMatchObject({
+      level: 1,
+      toNext: 500,
+      killExperience: 50,
+      kills: 10,
+    });
+    expect(areas.map((row) => row.area)).toEqual(["cozy-plains", "spa"]);
+    expect(areas[0]).toMatchObject({
+      maxLife: 30,
+      damage: [2, 5],
+      experience: 50,
+    });
+  });
+
+  it("gives the Bog Spitter's numbers in the Areas that place it, and not elsewhere", () => {
+    const { levels, areas } = tuningReport("bog_spitter", [
+      area("spa", 2, ["bog_spitter", "skeleton"]),
+      area("soggy-bog", 3, ["bog_spitter", "zombie"]),
+      area("cozy-plains", 1, ["wockwolf", "skeleton"]),
+    ]);
+
+    // 500 to go at 120 a kill: the fifth kill gets there.
+    expect(levels[0]).toMatchObject({
+      level: 1,
+      toNext: 500,
+      killExperience: 120,
+      kills: 5,
+    });
+    expect(areas.map((row) => row.area)).toEqual(["spa", "soggy-bog"]);
+    expect(areas[1]).toMatchObject({ areaLevel: 3 });
+  });
+
+  it("gives the Wockbrute's numbers in the Areas that place it, and not elsewhere", () => {
+    const { levels, areas } = tuningReport("wockbrute", [
+      area("soggy-bog", 3, ["wockbrute", "bog_spitter"]),
+      area("old-mill", 4, ["wockbrute", "skeleton"]),
+      area("cozy-plains", 1, ["wockwolf", "skeleton"]),
+    ]);
+
+    // 500 to go at 350 a kill: the second kill gets there.
+    expect(levels[0]).toMatchObject({
+      level: 1,
+      toNext: 500,
+      killExperience: 350,
+      kills: 2,
+    });
+    expect(areas.map((row) => row.area)).toEqual(["soggy-bog", "old-mill"]);
+    expect(areas[0]).toMatchObject({ areaLevel: 3 });
+  });
+
   describe("Gold earned per Hero Level", () => {
     const places = [
       area("town", null, []),

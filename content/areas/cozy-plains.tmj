@@ -8414,12 +8414,12 @@
       {
        "name": "count",
        "type": "int",
-       "value": 3
+       "value": 4
       },
       {
        "name": "monster",
        "type": "string",
-       "value": "skeleton"
+       "value": "wockwolf"
       }
      ]
     },
@@ -8438,12 +8438,12 @@
       {
        "name": "count",
        "type": "int",
-       "value": 3
+       "value": 6
       },
       {
        "name": "monster",
        "type": "string",
-       "value": "skeleton"
+       "value": "wockwolf"
       }
      ]
     },
@@ -8486,12 +8486,12 @@
       {
        "name": "count",
        "type": "int",
-       "value": 4
+       "value": 5
       },
       {
        "name": "monster",
        "type": "string",
-       "value": "skeleton"
+       "value": "wockwolf"
       }
      ]
     },
@@ -8534,12 +8534,12 @@
       {
        "name": "count",
        "type": "int",
-       "value": 3
+       "value": 4
       },
       {
        "name": "monster",
        "type": "string",
-       "value": "skeleton"
+       "value": "wockwolf"
       }
      ]
     },

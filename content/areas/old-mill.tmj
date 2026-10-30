@@ -3321,12 +3321,12 @@
       {
        "name": "count",
        "type": "int",
-       "value": 4
+       "value": 2
       },
       {
        "name": "monster",
        "type": "string",
-       "value": "zombie"
+       "value": "wockbrute"
       }
      ]
     },
@@ -3369,12 +3369,12 @@
       {
        "name": "count",
        "type": "int",
-       "value": 4
+       "value": 3
       },
       {
        "name": "monster",
        "type": "string",
-       "value": "skeleton"
+       "value": "wockbrute"
       }
      ]
     },
@@ -3398,7 +3398,7 @@
       {
        "name": "monster",
        "type": "string",
-       "value": "zombie"
+       "value": "bog_spitter"
       }
      ]
     },
@@ -3422,7 +3422,7 @@
       {
        "name": "monster",
        "type": "string",
-       "value": "skeleton"
+       "value": "wockbrute"
       }
      ]
     },

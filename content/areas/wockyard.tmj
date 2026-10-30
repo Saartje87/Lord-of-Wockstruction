@@ -11,7 +11,7 @@
  "infinite": false,
  "compressionlevel": -1,
  "nextlayerid": 5,
- "nextobjectid": 17,
+ "nextobjectid": 18,
  "properties": [
   {
    "name": "mainPath",
@@ -8610,6 +8610,30 @@
        "name": "monster",
        "type": "string",
        "value": "zombie"
+      }
+     ],
+     "rotation": 0,
+     "visible": true
+    },
+    {
+     "id": 17,
+     "name": "",
+     "type": "monsterSpawn",
+     "x": 784.0,
+     "y": 656.0,
+     "width": 0,
+     "height": 0,
+     "point": true,
+     "properties": [
+      {
+       "name": "count",
+       "type": "int",
+       "value": 1
+      },
+      {
+       "name": "monster",
+       "type": "string",
+       "value": "wockbrute"
       }
      ],
      "rotation": 0,

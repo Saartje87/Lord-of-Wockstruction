@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest";
 import { createMenus, PANELS } from "../menus";
 import { overlaps, type Rect } from "../sim/rect";
 import { emptySkillBar, SKILL_BAR_SLOTS } from "../sim/skillBar";
-import { createWorld, FRESH_PROGRESS } from "../sim/world";
+import { createWorld, FRESH_PROGRESS, raiseCount } from "../sim/world";
+import { heroTuning } from "../tuning/hero";
+import { skillTuning } from "../tuning/skills";
 import { viewportOf } from "../viewport";
 import { beltStripLayout } from "./beltStrip";
 import { cursorHitAt } from "./cursorHit";
 import { experienceBarLayout } from "./experienceBar";
 import { heroPanelLayout } from "./heroPanel";
+import { type MinionRow, minionFrameLayout } from "./minionFrame";
 import { type OrbCircle, orbsLayout } from "./orbs";
 import { panelButtonsLayout } from "./panelButtons";
 import { skillBarLayout } from "./skillBar";
@@ -66,6 +69,27 @@ function centre(rect: Rect) {
   return { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
 }
 
+/**
+ * The Minion Frame at its fullest: a Golem, and a bar for every Raised
+ * Skeleton and Raised Archer the Skills allow at the highest Skill Level a
+ * Hero can reach (a Skill Point per Level, up to the table's last Level).
+ */
+function fullestMinionRows(): MinionRow[] {
+  const bars = (count: number) =>
+    Array.from({ length: count }, (_, id) => ({ id, fraction: 1 }));
+  const mostSkillLevel = heroTuning.experienceTable.length;
+  const most = (skill: "raiseSkeleton" | "raiseArcher") => {
+    const { effect } = skillTuning[skill];
+    if (effect.type !== "raise") throw new Error(`${skill} doesn't raise`);
+    return raiseCount(effect, mostSkillLevel);
+  };
+  return [
+    { kind: "golem", bars: bars(1) },
+    { kind: "raisedSkeleton", bars: bars(most("raiseSkeleton")) },
+    { kind: "raisedArcher", bars: bars(most("raiseArcher")) },
+  ];
+}
+
 /** Every part of the HUD as laid out on `viewport`, by name. */
 function hudParts(viewport: ReturnType<typeof viewportOf>) {
   const { slots } = skillBarLayout(viewport);
@@ -80,6 +104,7 @@ function hudParts(viewport: ReturnType<typeof viewportOf>) {
     ["Mana orb", orbBox(orbs.mana)],
     ["Experience bar", experienceBarLayout(viewport)],
     ["Level Up button", heroPanelLayout(viewport).levelUp],
+    ["Minion Frame", minionFrameLayout(viewport, fullestMinionRows()).frame],
   ] as [string, Rect][];
 }
 

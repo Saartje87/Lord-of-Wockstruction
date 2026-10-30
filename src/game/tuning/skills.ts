@@ -23,6 +23,18 @@ export type SkillTuning = {
   castMs: number;
   /** What a cast does, as it starts. */
   effect: SkillEffect;
+  /** The Synergies it gets: the Skills whose Skill Levels make it stronger. */
+  synergies: Synergy[];
+};
+
+/**
+ * What a Skill gets from each Skill Level the Hero has in `skill`, wherever
+ * those came from and whether or not it is on the Skill Bar: its main
+ * number grows by `percentPerSkillLevel` percent of itself.
+ */
+export type Synergy = {
+  skill: Skill;
+  percentPerSkillLevel: number;
 };
 
 /**
@@ -143,6 +155,9 @@ export type Skill =
  * Mana costs are Diablo 2's: playtests in the Crypt and Ossuary found that
  * Mana, not damage, paces a Necromancer's fights (a Level 6 Hero with the
  * starting Energy has 45, six Bone Spears).
+ * Synergies are percent of the receiving Skill's main number per Skill Level
+ * of the giver; Diablo 2's run 5 to 20, and these sit at the low end, as
+ * every Skill has a giver or two to raise.
  */
 export const skillTuning: Record<Skill, SkillTuning> = {
   // Diablo 2's Clay Golem.
@@ -155,6 +170,7 @@ export const skillTuning: Record<Skill, SkillTuning> = {
     manaCostPerSkillLevel: 2,
     castMs: 400,
     effect: { type: "summon", minion: "golem" },
+    synergies: [{ skill: "boneWard", percentPerSkillLevel: 8 }],
   },
   // Diablo 2's Raise Skeleton, and its Mana: 2 at Skill Level 1, one more at
   // 4, 7, 10 … A Raised Skeleton is a Monster Level 1 Skeleton grown 20% a
@@ -174,6 +190,7 @@ export const skillTuning: Record<Skill, SkillTuning> = {
       count: 2,
       countEvery: 3,
     },
+    synergies: [{ skill: "golem", percentPerSkillLevel: 8 }],
   },
   // Diablo 2's Amplify Damage: its Mana, 8 seconds and 3 more each Skill
   // Level. Its +100% damage taken there is softened to +50%, so a Cursed
@@ -196,6 +213,7 @@ export const skillTuning: Record<Skill, SkillTuning> = {
       durationMsPerSkillLevel: 3000,
       damageTaken: 1.5,
     },
+    synergies: [],
   },
   // Diablo 2's Bone Armor, and its Mana, scaled by starting Life (a Diablo 2
   // Necromancer's 45 to the Hero's 100): 45 soaks about five swings of a
@@ -210,6 +228,7 @@ export const skillTuning: Record<Skill, SkillTuning> = {
     manaCostPerSkillLevel: 1,
     castMs: 400,
     effect: { type: "ward", amount: 45, amountPerSkillLevel: 15 },
+    synergies: [],
   },
   // Diablo 2's Corpse Explosion bursts for 60–100% of the dead Monster's
   // max Life, which kills its like in one cast, so it's softened to 40–70%:
@@ -229,6 +248,7 @@ export const skillTuning: Record<Skill, SkillTuning> = {
       radiusPerSkillLevel: 0.25,
       share: [0.4, 0.7],
     },
+    synergies: [{ skill: "amplifyDamage", percentPerSkillLevel: 7 }],
   },
   // Diablo 2's Bone Spear's 16–24 scaled to the game's Life: a Level 6 Hero
   // kills an own-Level Skeleton (135 Life) in two casts, now and then three.
@@ -251,6 +271,7 @@ export const skillTuning: Record<Skill, SkillTuning> = {
       damage: [60, 90],
       damagePerSkillLevel: 8,
     },
+    synergies: [],
   },
 };
 

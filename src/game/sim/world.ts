@@ -125,6 +125,7 @@ import {
   type SkillBarSlot,
 } from "./skillBar";
 import { giveSmithBonus, SMITH } from "./smith";
+import { synergyMultiplier } from "./synergies";
 import { msToSteps, perStep } from "./units";
 import { validateAreas } from "./validate";
 import { distance, type Vec } from "./vec";
@@ -2188,7 +2189,7 @@ function castFrom(
       if (corpse) raise(world, skill, effect, skillLevel, corpse, events);
       break;
     case "explode":
-      if (corpse) explode(world, effect, skillLevel, corpse, events);
+      if (corpse) explode(world, skill, effect, skillLevel, corpse, events);
       break;
     case "curse":
       curse(world, skill, effect, skillLevel, target, events);
@@ -2277,6 +2278,7 @@ export function explodeRadius(
  */
 function explode(
   world: World,
+  skill: Skill,
   effect: ExplodeEffect,
   skillLevel: number,
   corpse: Corpse,
@@ -2292,9 +2294,10 @@ function explode(
   });
   const life = monsterMaxLife(corpse);
   const [least, most] = effect.share;
+  const synergy = synergyMultiplier(world.hero.progress.skillLevels, skill);
   const range: [number, number] = [
-    Math.ceil(life * least),
-    Math.floor(life * most),
+    Math.ceil(life * least * synergy),
+    Math.floor(life * most * synergy),
   ];
   const victims = targetsOf(world).filter(
     (target) => distance(target.pos, corpse.pos) <= radius,
@@ -2398,6 +2401,7 @@ function bringMinion(
     skillLevel,
     pos,
     world.hero.facing,
+    synergyMultiplier(world.hero.progress.skillLevels, skill),
   );
   world.minions.push(minion);
   events.push({ type: "MinionSummoned", minion: minion.id, pos: { ...pos } });

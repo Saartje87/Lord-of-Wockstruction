@@ -167,6 +167,27 @@ describe("skillTreeSheet", () => {
     });
   });
 
+  it("lists a Skill's Synergies with what they add now, from the givers' Skill Levels", () => {
+    const [synergy] = skillTuning.corpseExplosion.synergies;
+    if (!synergy) throw new Error("No Synergy");
+    const giver = skillTuning[synergy.skill].name;
+    const percent = String(synergy.percentPerSkillLevel);
+    const w = world({
+      ...FRESH_PROGRESS,
+      level: 10,
+      skillLevels: { ...FRESH_PROGRESS.skillLevels, [synergy.skill]: 3 },
+    });
+
+    expect(rowOf(w, "corpseExplosion")).toMatchObject({
+      synergies: [{ giver, percentPerSkillLevel: percent }],
+      synergyTotal: String(synergy.percentPerSkillLevel * 3),
+    });
+    expect(rowOf(w, "boneSpear")).toMatchObject({
+      synergies: [],
+      synergyTotal: "0",
+    });
+  });
+
   it("shows the Mana cost at the next Skill Level, and a + while a point is unspent", () => {
     const w = withGolem(0);
     const golemRow = () => rowOf(w, "golem");

@@ -1,5 +1,6 @@
 import { inside, middleOf, type Rect } from "../sim/rect";
 import { SKILL_BAR_SLOTS } from "../sim/skillBar";
+import { synergyMultiplier } from "../sim/synergies";
 import type { Vec } from "../sim/vec";
 import {
   canRaiseSkill,
@@ -87,6 +88,10 @@ export type SkillSheet = {
    * so no Skill Point can go into this Skill yet; else null.
    */
   prerequisite: string | null;
+  /** Its Synergies: each giving Skill's name and percent per Skill Level. */
+  synergies: readonly { giver: string; percentPerSkillLevel: string }[];
+  /** The percent its Synergies add to its main number now. */
+  synergyTotal: string;
   /** What a cast costs at the next Skill Level: what a + buys. */
   manaCost: string;
   /** The Level the Hero must reach to spend a Skill Point on it, until then. */
@@ -125,6 +130,15 @@ export function skillTreeSheet(world: World): SkillTreeSheet {
             ? skillTuning[prerequisite].name
             : null,
         skillLevel: String(skillLevel),
+        synergies: skillTuning[skill].synergies.map((synergy) => ({
+          giver: skillTuning[synergy.skill].name,
+          percentPerSkillLevel: String(synergy.percentPerSkillLevel),
+        })),
+        synergyTotal: String(
+          Math.round(
+            (synergyMultiplier(progress.skillLevels, skill) - 1) * 100,
+          ),
+        ),
         manaCost: String(skillManaCost(skill, skillLevel + 1)),
         requiredLevel:
           progress.level < requiredLevel ? String(requiredLevel) : null,

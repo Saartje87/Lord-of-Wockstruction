@@ -36,6 +36,11 @@ export type Minion = {
   skill: Skill;
   /** The Skill Level of the Skill that brought it. */
   skillLevel: number;
+  /**
+   * What its Skill's Synergies multiplied its Life and damage by when it
+   * was brought, 1 for none.
+   */
+  synergy: number;
   pos: Vec;
   /** Where it was one step ago, for the renderer to interpolate from. */
   prevPos: Vec;
@@ -93,8 +98,12 @@ const STEPPED = Object.fromEntries(
   }
 >;
 
-/** A Minion type at a Skill Level: all its scaled numbers depend on. */
-export type MinionOfLevel = Pick<Minion, "type" | "skillLevel">;
+/**
+ * A Minion type at a Skill Level, with the Synergy multiplier it was
+ * brought with (1 if left out): all its scaled numbers depend on.
+ */
+export type MinionOfLevel = Pick<Minion, "type" | "skillLevel"> &
+  Partial<Pick<Minion, "synergy">>;
 
 /**
  * A Skill Level 1 number grown by `rate` of itself for each Skill Level
@@ -115,18 +124,19 @@ function scaled(
 
 /** A Minion's full Life at its Skill Level, which it is summoned with. */
 export function minionMaxLife(minion: MinionOfLevel): number {
-  return scaled(minion, "life");
+  return Math.round(scaled(minion, "life") * (minion.synergy ?? 1));
 }
 
 /** The least and most damage a Minion's hit deals at its Skill Level. */
 export function minionDamageRange({
   type,
   skillLevel,
+  synergy = 1,
 }: MinionOfLevel): [number, number] {
   const { damage, growth } = minionTuning[type];
   return [
-    grown(damage[0], growth.damage, skillLevel),
-    grown(damage[1], growth.damage, skillLevel),
+    Math.round(grown(damage[0], growth.damage, skillLevel) * synergy),
+    Math.round(grown(damage[1], growth.damage, skillLevel) * synergy),
   ];
 }
 
@@ -164,15 +174,17 @@ export function newMinion(
   skillLevel: number,
   pos: Vec,
   facing: number,
+  synergy = 1,
 ): Minion {
   return {
     id,
     type,
     skill,
     skillLevel,
+    synergy,
     pos: { ...pos },
     prevPos: { ...pos },
-    life: minionMaxLife({ type, skillLevel }),
+    life: minionMaxLife({ type, skillLevel, synergy }),
     facing,
     state: "follow",
     target: null,

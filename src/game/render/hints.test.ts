@@ -102,6 +102,8 @@ describe("the hints and labels that name buttons", () => {
     name: "Golem",
     branch: "summoning",
     prerequisite: null,
+    synergies: [],
+    synergyTotal: "0",
     manaCost: "15",
     requiredLevel: null,
   } as const;
@@ -145,6 +147,27 @@ describe("the hints and labels that name buttons", () => {
       { ...golem, skillLevel: "1", canRaise: true },
       "touch",
       ["Golem", "Skill Level 1"],
+    ],
+    [
+      "with Synergies",
+      {
+        ...golem,
+        skillLevel: "1",
+        canRaise: false,
+        synergies: [
+          { giver: "Bone Ward", percentPerSkillLevel: "8" },
+          { giver: "Amplify Damage", percentPerSkillLevel: "5" },
+        ],
+        synergyTotal: "21",
+      },
+      "touch",
+      [
+        "Golem",
+        "Skill Level 1",
+        "Synergy: Bone Ward +8% per Skill Level",
+        "Synergy: Amplify Damage +5% per Skill Level",
+        "Synergies add +21% now",
+      ],
     ],
     [
       "held back by its Prerequisite",

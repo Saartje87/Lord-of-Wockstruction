@@ -524,7 +524,11 @@ function monsterViewOf(
     };
   } else {
     const seconds = (world.tick * STEP_MS) / 1000;
-    const clip = !moving ? "idle" : monster.state === "chase" ? "run" : "walk";
+    const clip = !moving
+      ? "idle"
+      : monster.state === "chase" || monster.state === "flee"
+        ? "run"
+        : "walk";
     animation = { clip, seconds };
   }
   return {

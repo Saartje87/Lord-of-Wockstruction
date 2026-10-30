@@ -49,7 +49,7 @@ export function curseMarkAlpha(ms: number): number {
 export type CurseLook = {
   circle: number;
   mark: number;
-  shape: "diamond" | "triangle" | "square";
+  shape: "diamond" | "triangle" | "square" | "cross";
 };
 
 /**
@@ -61,6 +61,7 @@ export const CURSE_LOOKS: Partial<Record<Skill, CurseLook>> = {
   amplifyDamage: { circle: 0x8a3fc2, mark: 0xb05ce6, shape: "diamond" },
   weaken: { circle: 0xb8862b, mark: 0xe6b84d, shape: "triangle" },
   leadenLimbs: { circle: 0x4a6f8a, mark: 0x7fb3d9, shape: "square" },
+  dread: { circle: 0x3f8a5c, mark: 0x7fe0a0, shape: "cross" },
 };
 
 /** The look of the Curse `skill` casts (Amplify Damage's for any without one). */

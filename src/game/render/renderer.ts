@@ -1461,6 +1461,37 @@ function questMark(graphics: Graphics, x: number, bottom: number) {
     .stroke({ color: outline, width: outlineWidth });
 }
 
+/** The outline of a plus centred on (`x`, `y`) reaching `half` each way. */
+function crossPoints(x: number, y: number, half: number): number[] {
+  const arm = half / 3;
+  return [
+    x - arm,
+    y - half,
+    x + arm,
+    y - half,
+    x + arm,
+    y - arm,
+    x + half,
+    y - arm,
+    x + half,
+    y + arm,
+    x + arm,
+    y + arm,
+    x + arm,
+    y + half,
+    x - arm,
+    y + half,
+    x - arm,
+    y + arm,
+    x - half,
+    y + arm,
+    x - half,
+    y - arm,
+    x - arm,
+    y - arm,
+  ];
+}
+
 /**
  * The mark over a Cursed Monster, in its Curse's `look`: centred on `x`, its
  * foot `gap` above `lifeBarTop`, where its Life bar's top is or would be.
@@ -1479,27 +1510,29 @@ function curseMark(
   const shape =
     look.shape === "triangle"
       ? [x - half, bottom - size, x + half, bottom - size, x, bottom]
-      : look.shape === "square"
-        ? [
-            x - half,
-            bottom - size,
-            x + half,
-            bottom - size,
-            x + half,
-            bottom,
-            x - half,
-            bottom,
-          ]
-        : [
-            x,
-            bottom - size,
-            x + half,
-            bottom - half,
-            x,
-            bottom,
-            x - half,
-            bottom - half,
-          ];
+      : look.shape === "cross"
+        ? crossPoints(x, bottom - half, half)
+        : look.shape === "square"
+          ? [
+              x - half,
+              bottom - size,
+              x + half,
+              bottom - size,
+              x + half,
+              bottom,
+              x - half,
+              bottom,
+            ]
+          : [
+              x,
+              bottom - size,
+              x + half,
+              bottom - half,
+              x,
+              bottom,
+              x - half,
+              bottom - half,
+            ];
   graphics
     .poly(shape)
     .fill({ color: colour, alpha })

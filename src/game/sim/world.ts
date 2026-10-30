@@ -336,8 +336,9 @@ export type MonsterTarget = "hero" | MinionId;
 /**
  * `idle` and `wander` stroll around the spawn, `chase` goes after the nearest
  * of the Hero and their Minions, `windup` telegraphs an attack on it,
- * `recover` stands rooted after it and `return` walks home after giving up,
- * ignoring both.
+ * `recover` stands rooted after it, `return` walks home after giving up,
+ * ignoring both, and `flee` runs from them under Dread, never attacking and
+ * unmoved by a hit.
  */
 export type MonsterState =
   | "idle"
@@ -345,7 +346,8 @@ export type MonsterState =
   | "chase"
   | "windup"
   | "recover"
-  | "return";
+  | "return"
+  | "flee";
 
 /**
  * Walking through an Exit to Entry `entry` in Area `area`, or through a Town
@@ -1179,7 +1181,7 @@ function startAreaChange(
   world.areaChange = { area, entry, waypoint, elapsed: 0 };
   // Monsters in pursuit give up, as on Death, and head home once stepped.
   for (const monster of world.monsters) {
-    if (["chase", "windup", "recover"].includes(monster.state)) {
+    if (["chase", "windup", "recover", "flee"].includes(monster.state)) {
       sendHome(monster);
     }
   }
@@ -1694,7 +1696,9 @@ function stepWaves(world: World, events: SimEvent[]) {
   for (const boss of [...world.monsters]) {
     const { waves } = boss;
     if (!waves) continue;
-    const afterHero = !["idle", "wander", "return"].includes(boss.state);
+    const afterHero = !["idle", "wander", "return", "flee"].includes(
+      boss.state,
+    );
     const made = raiseWhenDue(world, waves, afterHero, {
       from: boss.pos,
       distance: graveWockingtonTuning.raiseDistance,
@@ -2346,7 +2350,25 @@ function curse(
   );
   for (const monster of world.monsters) {
     if (distance(monster.pos, target) <= radius) {
+      const was = monster.curse && skillTuning[monster.curse.skill].effect;
       monster.curse = { skill, left };
+      // A new Curse replaces the old: Dread's Fleeing ends with it, and a
+      // Monster walking home keeps walking.
+      const fleeing = effect.kind === "dread";
+      if (fleeing && monster.state !== "return") {
+        monster.state = "flee";
+        monster.path = [];
+        monster.attack = 0;
+      } else if (
+        !fleeing &&
+        monster.state === "flee" &&
+        was?.type === "curse" &&
+        was.kind === "dread"
+      ) {
+        monster.state = "chase";
+        monster.path = [];
+        monster.replan = 0;
+      }
     }
   }
 }

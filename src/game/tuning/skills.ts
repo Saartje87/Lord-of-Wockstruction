@@ -85,7 +85,8 @@ export type ExplodeEffect = {
  * Damage takes `damageTaken` times the damage; one with Weaken deals
  * `damageDealt` times the damage of its swings and Arrows; one with Leaden
  * Limbs walks at `walkSpeed` times its speed and attacks `attackSpeed` times
- * as often (Projectiles already loosed keep their speed).
+ * as often (Projectiles already loosed keep their speed); one with Dread is
+ * Fleeing, with nothing more to tune than the Curse's own numbers.
  */
 export type CurseEffect = {
   type: "curse";
@@ -97,6 +98,7 @@ export type CurseEffect = {
   | { kind: "amplifyDamage"; damageTaken: number }
   | { kind: "weaken"; damageDealt: number }
   | { kind: "leadenLimbs"; walkSpeed: number; attackSpeed: number }
+  | { kind: "dread" }
 );
 
 /**
@@ -154,6 +156,7 @@ export type Skill =
   | "amplifyDamage"
   | "weaken"
   | "leadenLimbs"
+  | "dread"
   | "boneWard"
   | "corpseExplosion"
   | "boneSpear";
@@ -271,6 +274,27 @@ export const skillTuning: Record<Skill, SkillTuning> = {
       attackSpeed: 0.6,
     },
     synergies: [{ skill: "weaken", percentPerSkillLevel: 8 }],
+  },
+  // Diablo 2's Terror, in spirit: a Cursed Monster runs from the Hero for
+  // 5 s, a little shorter than Leaden Limbs so a pack comes back before the
+  // Hero can tire of waiting; it grows a second and a half each Skill Level.
+  dread: {
+    name: "Dread",
+    branch: "curses",
+    prerequisite: "leadenLimbs",
+    requiredLevel: 10,
+    manaCost: 11,
+    manaCostPerSkillLevel: 0,
+    castMs: 400,
+    effect: {
+      type: "curse",
+      kind: "dread",
+      radius: 2,
+      radiusPerSkillLevel: 0.5,
+      durationMs: 5000,
+      durationMsPerSkillLevel: 1500,
+    },
+    synergies: [{ skill: "leadenLimbs", percentPerSkillLevel: 8 }],
   },
   // Diablo 2's Bone Armor, and its Mana, scaled by starting Life (a Diablo 2
   // Necromancer's 45 to the Hero's 100): 45 soaks about five swings of a

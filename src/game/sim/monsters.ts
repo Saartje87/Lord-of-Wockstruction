@@ -15,7 +15,13 @@ import type { AttackNumbers } from "./projectiles";
 import { random, randomInt } from "./random";
 import { msToSteps, perStep } from "./units";
 import { distance, type Vec } from "./vec";
-import { type Gait, goToward, holdBack, walkAlong } from "./walking";
+import {
+  type Gait,
+  goToward,
+  holdBack,
+  stepInDirection,
+  walkAlong,
+} from "./walking";
 import type { Monster, MonsterTarget, World } from "./world";
 
 /** Each Monster type's tuning converted to steps. */
@@ -235,7 +241,11 @@ export function stepMonsters(world: World): Strike[] {
     if (monster.cooldown > 0) monster.cooldown -= 1;
     if (monster.curse) {
       monster.curse.left -= 1;
-      if (monster.curse.left <= 0) monster.curse = null;
+      if (monster.curse.left <= 0) {
+        monster.curse = null;
+        // A Monster whose Dread ends takes up the fight again.
+        if (monster.state === "flee") wake(monster);
+      }
     }
     if (monster.state === "windup") {
       if (windUp(world, monster)) {
@@ -266,6 +276,9 @@ export function stepMonsters(world: World): Strike[] {
         break;
       case "return":
         goHome(world, monster);
+        break;
+      case "flee":
+        flee(world, monster);
         break;
     }
   }
@@ -478,6 +491,33 @@ function chase(world: World, monster: Monster) {
     STEPPED[monster.type].speed * walkPace(monster.curse),
     inSight ? gap - stopAt : gap,
   );
+}
+
+/**
+ * Runs from the nearest of the Hero and their Minions at its usual speed,
+ * never attacking, and stands where it is cornered.
+ */
+function flee(world: World, monster: Monster) {
+  const chased = nearestTarget(world, monster);
+  if (!chased) return;
+  const away = {
+    x: monster.pos.x - chased.pos.x,
+    y: monster.pos.y - chased.pos.y,
+  };
+  // On top of its target it runs whichever way.
+  if (away.x === 0 && away.y === 0) away.x = 1;
+  const area = world.areas[world.areaName];
+  const budget = STEPPED[monster.type].speed * walkPace(monster.curse);
+  const to = stepInDirection(
+    area,
+    monster.pos,
+    away,
+    budget,
+    gaitOf(world, monster).radius,
+  );
+  monster.path = [];
+  monster.facing = Math.atan2(away.y, away.x);
+  if (to) monster.pos = to;
 }
 
 /** Gives up on the Hero and their Minions and walks home. */

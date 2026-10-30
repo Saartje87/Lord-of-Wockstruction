@@ -182,6 +182,42 @@ describe("heroSheet with a Magic Item Equipped", () => {
   });
 });
 
+describe("heroSheet with the Mana and enhanced percent Affixes", () => {
+  it("shows the new totals", () => {
+    const w = createWorld({
+      areas: { town },
+      seed: 1,
+      belongings: {
+        inventory: [],
+        equipment: {
+          weapon: {
+            type: "shortSword",
+            rarity: "magic",
+            affixes: [{ kind: "enhancedDamage", grade: 0, value: 20 }],
+          },
+          armour: {
+            type: "chainMail",
+            rarity: "magic",
+            affixes: [{ kind: "enhancedDefense", grade: 0, value: 50 }],
+          },
+          amulet: {
+            type: "amuletOfVitality",
+            rarity: "magic",
+            affixes: [{ kind: "mana", grade: 0, value: 10 }],
+          },
+        },
+        belt: emptyBelt(),
+      },
+    });
+
+    const derived = heroSheet(w).derived;
+
+    expect(derived.find((d) => d.name === "Defense")?.value).toBe("60");
+    expect(derived.find((d) => d.name === "Damage")?.value).toBe("25–37");
+    expect(derived.find((d) => d.name === "Mana")?.value).toMatch(/ \/ 50$/);
+  });
+});
+
 describe("heroSheet", () => {
   it("shows a fresh Hero's Level, Experience, Attributes and what they add up to", () => {
     expect(heroSheet(world())).toEqual({

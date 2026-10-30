@@ -729,6 +729,29 @@ describe("a Magic Item's tooltip", () => {
     ]);
   });
 
+  it("names the Mana and enhanced percent Affixes", () => {
+    expect(
+      itemTooltip({
+        type: "axe",
+        affixes: [
+          { kind: "enhancedDamage", grade: 0, value: 12 },
+          { kind: "mana", grade: 0, value: 6 },
+        ],
+      }),
+    ).toEqual([
+      "Jagged Axe of the Spark",
+      "Damage: 25–40",
+      "+12% Enhanced Damage",
+      "+6 to Mana",
+    ]);
+    expect(
+      itemTooltip({
+        type: "chainMail",
+        affixes: [{ kind: "enhancedDefense", grade: 1, value: 25 }],
+      })[2],
+    ).toBe("+25% Enhanced Defense");
+  });
+
   it("names Brutality's flat damage", () => {
     expect(
       itemTooltip({

@@ -17,7 +17,10 @@ export type Bonus =
   | "life"
   | "defense"
   | "attackRating"
-  | "weaponDamage";
+  | "weaponDamage"
+  | "mana"
+  | "enhancedDamage"
+  | "enhancedDefense";
 
 /** Every Bonus there is. */
 export const BONUSES: readonly Bonus[] = [
@@ -29,6 +32,9 @@ export const BONUSES: readonly Bonus[] = [
   "defense",
   "attackRating",
   "weaponDamage",
+  "mana",
+  "enhancedDamage",
+  "enhancedDefense",
 ];
 
 /** What a Potion gives back. */
@@ -416,6 +422,46 @@ export const affixTuning = {
     grades: threeGrades(
       ["of the Wren", "of the Owl", "of the Sage"],
       ATTRIBUTE_RANGES,
+    ),
+  },
+  mana: {
+    side: "suffix",
+    bonus: "mana",
+    rollsOn: NOT_POTION,
+    grades: threeGrades(
+      ["of the Spark", "of the Well", "of the Wellspring"],
+      [
+        [5, 10],
+        [11, 20],
+        [21, 35],
+      ],
+    ),
+  },
+  // The two below are percentages of the Item's own damage or Defense.
+  enhancedDamage: {
+    side: "prefix",
+    bonus: "enhancedDamage",
+    rollsOn: ["weapon"],
+    grades: threeGrades(
+      ["Jagged", "Vicious", "Ruinous"],
+      [
+        [10, 20],
+        [21, 40],
+        [41, 70],
+      ],
+    ),
+  },
+  enhancedDefense: {
+    side: "prefix",
+    bonus: "enhancedDefense",
+    rollsOn: ["armour"],
+    grades: threeGrades(
+      ["Reinforced", "Fortified", "Bastioned"],
+      [
+        [10, 20],
+        [21, 40],
+        [41, 60],
+      ],
     ),
   },
 } satisfies Record<string, AffixTuning>;

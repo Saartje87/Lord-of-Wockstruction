@@ -21,6 +21,7 @@ import {
 } from "../tuning/skills";
 import { townPortalTuning } from "../tuning/townPortal";
 import { townPortalLook } from "../tuning/townPortalLook";
+import { waypointTuning } from "../tuning/waypoints";
 import {
   type Area,
   cellAt,
@@ -312,8 +313,13 @@ export type MonsterState =
  */
 export type AreaChange = {
   area: string;
-  /** The Entry the Hero arrives at, or null through a Town Portal. */
+  /**
+   * The Entry the Hero arrives at, or null through a Town Portal or by
+   * Waypoint.
+   */
   entry: string | null;
+  /** Whether the Hero travels to the Area's Waypoint, arriving beside it. */
+  waypoint: boolean;
   /** Steps since the Hero walked into the Exit. */
   elapsed: number;
 };
@@ -469,6 +475,12 @@ export type Order =
    */
   | { type: "OpenTownPortal" }
   /**
+   * Travel to the Waypoint in Area `area`, leaving the Area as an Exit
+   * does, arriving beside it. Ignored unless the Hero stands on a Waypoint
+   * and the other is touched, in the same Act.
+   */
+  | { type: "TravelToWaypoint"; area: string }
+  /**
    * Spend unspent Attribute Points raising each Attribute by its count in
    * `points`, at once and whatever the Hero is doing; refused whole when it
    * asks for more points than are unspent.
@@ -588,6 +600,10 @@ export type SimEvent =
    * Portal's end there when `entry` is null.
    */
   | { type: "AreaChanged"; area: string; entry: string | null }
+  /** The Hero walked onto the Waypoint in Area `area`, touched or not yet. */
+  | { type: "WaypointReached"; area: string }
+  /** The Hero touched the Waypoint in Area `area` for the first time. */
+  | { type: "WaypointTouched"; area: string }
   /** A Town Portal opened, its Combat Area end at `pos` in Area `area`. */
   | { type: "TownPortalOpened"; area: string; pos: Vec }
   /**
@@ -640,6 +656,8 @@ export type Progress = {
   skillLevels: Record<Skill, number>;
   /** The learned Skills on the Skill Bar, each in at most one slot. */
   skillBar: SkillBar;
+  /** The Areas whose Waypoints the Hero has touched, in the order they did. */
+  touchedWaypoints: string[];
 };
 
 /** A fresh Level 1 Hero's progress: no Skill learned, an empty Skill Bar. */
@@ -657,6 +675,7 @@ export const FRESH_PROGRESS: Progress = {
     number
   >,
   skillBar: emptySkillBar(),
+  touchedWaypoints: [TOWN],
 };
 
 /** A copy of `progress` sharing nothing with it. */
@@ -665,6 +684,7 @@ function copyProgress(progress: Progress): Progress {
     ...progress,
     skillLevels: { ...progress.skillLevels },
     skillBar: { ...progress.skillBar },
+    touchedWaypoints: [...progress.touchedWaypoints],
   };
 }
 
@@ -757,7 +777,7 @@ export function createWorld(options: {
     Object.hasOwn(areas, at.area) &&
     Object.hasOwn(areas[at.area].entries, at.entry)
   ) {
-    const change = { ...at, elapsed: 0 };
+    const change = { ...at, waypoint: false, elapsed: 0 };
     arrive(world, { ...change, elapsed: arriveStep(change) }, []);
   }
   return world;
@@ -995,7 +1015,7 @@ export function townPortalFlash(world: World): number {
 
 /** Whether an Area change is through a Town Portal, not an Exit. */
 function throughTownPortal(change: AreaChange): boolean {
-  return change.entry === null;
+  return change.entry === null && !change.waypoint;
 }
 
 /** How many steps an Area change takes. */
@@ -1029,8 +1049,9 @@ function startAreaChange(
   area: string,
   entry: string | null,
   events: SimEvent[],
+  waypoint = false,
 ) {
-  world.areaChange = { area, entry, elapsed: 0 };
+  world.areaChange = { area, entry, waypoint, elapsed: 0 };
   // Monsters in pursuit give up, as on Death, and head home once stepped.
   for (const monster of world.monsters) {
     if (["chase", "windup", "recover"].includes(monster.state)) {
@@ -1077,7 +1098,15 @@ function stepAreaChange(world: World, change: AreaChange, events: SimEvent[]) {
 function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   const area = world.areas[change.area];
   const { hero } = world;
-  if (change.entry === null) {
+  if (change.waypoint && area.waypoint) {
+    const beside = besideSpot(
+      area,
+      area.waypoint,
+      waypointTuning.arriveDistance,
+    );
+    hero.pos = { ...beside.pos };
+    hero.facing = beside.facing;
+  } else if (change.entry === null) {
     const beside = besideTownPortal(world, area);
     hero.pos = { ...beside.pos };
     hero.facing = beside.facing;
@@ -1116,7 +1145,7 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
     for (const spawn of area.spawns) placePack(world, area, spawn);
   }
   events.push({ type: "AreaChanged", area: area.name, entry: change.entry });
-  if (change.entry === null && area.name !== TOWN) {
+  if (change.entry === null && !change.waypoint && area.name !== TOWN) {
     closeTownPortal(world, events);
   }
 }
@@ -1133,7 +1162,19 @@ function besideTownPortal(
   const end =
     (area.name === TOWN ? area.townPortal : world.townPortal?.pos) ??
     area.entries.start;
-  const { arriveDistance } = townPortalTuning;
+  return besideSpot(area, end, townPortalTuning.arriveDistance);
+}
+
+/**
+ * Where the Hero arrives `arriveDistance` from `end` in `area`: down the
+ * screen from it or the nearest way round that is walkable, facing away from
+ * it; on `end` itself when none is.
+ */
+function besideSpot(
+  area: Area,
+  end: Vec,
+  arriveDistance: number,
+): { pos: Vec; facing: number } {
   const around = [0, 1, -1, 2, -2, 3, -3, 4]
     .map((turn) => Math.PI / 4 + (turn * Math.PI) / 4)
     .map((facing) => ({
@@ -1175,11 +1216,66 @@ export function townPortalIn(world: World): Vec | null {
  * Whether the Hero walked into a Town Portal end at `end` on this step:
  * within its radius now, and not a step ago.
  */
-function walkedInto(hero: Hero, end: Vec): boolean {
-  const { radius } = townPortalTuning;
+function walkedInto(hero: Hero, end: Vec, radius: number): boolean {
   return (
     distance(hero.pos, end) <= radius && distance(hero.prevPos, end) > radius
   );
+}
+
+/**
+ * The name of the active Area when the Hero stands on its Waypoint, which
+ * opens the list of Waypoints; null anywhere else.
+ */
+export function waypointUnderHero(world: World): string | null {
+  const { waypoint } = world.areas[world.areaName];
+  if (!waypoint) return null;
+  return distance(world.hero.pos, waypoint) <= waypointTuning.radius
+    ? world.areaName
+    : null;
+}
+
+/**
+ * The Waypoints of the active Area's Act in Main Path order (by Area Level,
+ * Town first), each with whether the Hero has touched it.
+ */
+export function waypointList(
+  world: World,
+): { area: string; touched: boolean }[] {
+  const { act } = world.areas[world.areaName];
+  return Object.values(world.areas)
+    .filter((area) => area.waypoint && area.act === act)
+    .sort((a, b) => (a.areaLevel ?? 0) - (b.areaLevel ?? 0))
+    .map((area) => ({
+      area: area.name,
+      touched: world.hero.progress.touchedWaypoints.includes(area.name),
+    }));
+}
+
+/**
+ * Whether the Hero can travel to the Waypoint in Area `to` now: they stand on
+ * another Area's Waypoint and `to` is touched and in the same Act.
+ */
+function canTravelTo(world: World, to: string): boolean {
+  return (
+    to !== world.areaName &&
+    waypointUnderHero(world) !== null &&
+    waypointList(world).some((w) => w.area === to && w.touched)
+  );
+}
+
+/**
+ * Raises `WaypointReached` when the Hero walks onto the active Area's
+ * Waypoint, and `WaypointTouched` too the first time.
+ */
+function touchWaypoint(world: World, events: SimEvent[]) {
+  const { hero } = world;
+  const { waypoint, name } = world.areas[world.areaName];
+  if (!waypoint) return;
+  if (!walkedInto(hero, waypoint, waypointTuning.radius)) return;
+  events.push({ type: "WaypointReached", area: name });
+  if (hero.progress.touchedWaypoints.includes(name)) return;
+  hero.progress.touchedWaypoints.push(name);
+  events.push({ type: "WaypointTouched", area: name });
 }
 
 /** Whether `tile` of the active Area is Explored. */
@@ -1379,12 +1475,17 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
     return events;
   }
   const townPortalEnd = townPortalIn(world);
-  if (world.townPortal && townPortalEnd && walkedInto(hero, townPortalEnd)) {
+  if (
+    world.townPortal &&
+    townPortalEnd &&
+    walkedInto(hero, townPortalEnd, townPortalTuning.radius)
+  ) {
     const to = world.areaName === TOWN ? world.townPortal.area : TOWN;
     startAreaChange(world, to, null, events);
     world.tick += 1;
     return events;
   }
+  touchWaypoint(world, events);
   approach(world);
   reachGroundItem(world, events);
   // Before the Monsters, so an Arrow first shows where it is loosed.
@@ -1583,6 +1684,12 @@ function give(world: World, order: Order, events: SimEvent[]) {
     order.type === "OpenTownPortal" &&
     (world.areaName === TOWN || !townPortalSpot(world))
   ) {
+    return;
+  }
+  if (order.type === "TravelToWaypoint") {
+    if (canTravelTo(world, order.area)) {
+      startAreaChange(world, order.area, null, events, true);
+    }
     return;
   }
   if (order.type === "SpendAttributePoints") {

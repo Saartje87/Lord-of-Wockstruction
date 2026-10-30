@@ -11,7 +11,7 @@
  "infinite": false,
  "compressionlevel": -1,
  "nextlayerid": 5,
- "nextobjectid": 9,
+ "nextobjectid": 10,
  "tilesets": [
   {
    "firstgid": 1,
@@ -2204,6 +2204,18 @@
      "type": "townPortal",
      "x": 1776,
      "y": 1680,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true
+    },
+    {
+     "id": 9,
+     "name": "waypoint",
+     "type": "waypoint",
+     "x": 1392,
+     "y": 1776,
      "width": 0,
      "height": 0,
      "rotation": 0,

@@ -12,6 +12,8 @@ import {
   type SimEvent,
   step,
   type World,
+  waypointList,
+  waypointUnderHero,
 } from "./sim/world";
 import { ITEM_TYPES, itemOf } from "./tuning/items";
 import type { MonsterType } from "./tuning/monsters";
@@ -764,5 +766,36 @@ describe("Town", () => {
       )
       .map((npc) => npc.name);
     expect(standingOnProp).toEqual([]);
+  });
+});
+
+describe("the shipped Waypoints", () => {
+  it("stand in Wockville, the Soggy Bog and the Catacombs, and nowhere else yet", () => {
+    const withWaypoint = Object.values(shippedWorld().areas)
+      .filter((area) => area.waypoint)
+      .map((area) => area.name);
+    expect(withWaypoint.sort()).toEqual(["catacombs", "soggy-bog", "town"]);
+  });
+
+  it("list Act 1's in Main Path order, only Wockville's touched at first", () => {
+    const world = shippedWorld();
+    expect(waypointList(world)).toEqual([
+      { area: "town", touched: true },
+      { area: "soggy-bog", touched: false },
+      { area: "catacombs", touched: false },
+    ]);
+  });
+
+  it("take the Hero from Wockville to the Soggy Bog once touched there", () => {
+    const world = shippedWorld();
+    world.hero.progress.touchedWaypoints.push("soggy-bog");
+    world.hero.pos = { ...(world.areas.town.waypoint as Vec) };
+    for (let i = 0; i < 100; i++) {
+      const orders: Order[] =
+        i === 0 ? [{ type: "TravelToWaypoint", area: "soggy-bog" }] : [];
+      step(world, orders);
+    }
+    expect(world.areaName).toBe("soggy-bog");
+    expect(waypointUnderHero(world)).toBeNull();
   });
 });

@@ -133,6 +133,7 @@ const UNSPENT: Progress = {
   skillPoints: 2,
   skillLevels: { ...FRESH_PROGRESS.skillLevels, golem: 0 },
   skillBar: emptySkillBar(),
+  touchedWaypoints: [...FRESH_PROGRESS.touchedWaypoints],
 };
 
 /** Spends `times` points on `attribute`, one step each, returning the events. */

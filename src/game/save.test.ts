@@ -93,6 +93,7 @@ function progress(
     skillPoints: level - 1 - golem,
     skillLevels: { ...FRESH_PROGRESS.skillLevels, golem },
     skillBar,
+    touchedWaypoints: [...FRESH_PROGRESS.touchedWaypoints],
   };
 }
 
@@ -253,7 +254,7 @@ describe("stored text", () => {
   // What Saves before Raise Skeleton held: the same version, as only a
   // Skill Level is missing.
   it("loads a Save without a Skill's Skill Level with it at 0", () => {
-    const loaded = parseSave(v7({ skillPoints: 0, skillLevels: { golem: 1 } }));
+    const loaded = parseSave(v8({ skillPoints: 0, skillLevels: { golem: 1 } }));
 
     expect(loaded?.progress.skillLevels).toEqual({
       ...FRESH_PROGRESS.skillLevels,
@@ -319,7 +320,7 @@ describe("stored text", () => {
 
   it("carries a version number", () => {
     expect(JSON.parse(encodeSave(save(progress(1, 0))))).toMatchObject({
-      version: 7,
+      version: 8,
     });
   });
 
@@ -332,105 +333,105 @@ describe("stored text", () => {
     ["that isn't an object", "42"],
     ["of null", "null"],
     ["without a version", stored(undefined, fields(progress(2, 500)))],
-    ["without Experience", v7({ experience: undefined })],
-    ["without Strength", v7({ strength: undefined })],
-    ["without unspent points", v7({ attributePoints: undefined })],
-    ["with a Level that isn't a whole number", v7({ level: 2.5 })],
-    ["with a Level below 1", v7(progress(0, 0))],
-    ["with a Level above 99", v7(progress(100, 3_520_485_254))],
-    ["with negative Experience", v7(progress(1, -1))],
-    ["with Experience past the cap", v7(progress(99, 3_520_485_255))],
-    ["with too little Experience for its Level", v7(progress(2, 499))],
-    ["with enough Experience for the next Level", v7(progress(2, 1_500))],
-    ["with Dexterity that isn't a whole number", v7({ dexterity: 20.5 })],
-    ["with Vitality below where a Hero starts", v7({ vitality: 19 })],
-    ["without Energy", v7({ energy: undefined })],
-    ["with Energy below where a Hero starts", v7({ energy: 19 })],
-    ["with more Energy than its Level gave", v7({ energy: 21 })],
-    ["with negative unspent points", v7({ attributePoints: -1 })],
-    ["with more points than its Level gave", v7({ attributePoints: 6 })],
-    ["with fewer points than its Level gave", v7({ attributePoints: 4 })],
-    ["with more spent than its Level gave", v7({ strength: 21 })],
-    ["without unspent Skill Points", v7({ skillPoints: undefined })],
-    ["without Skill Levels", v7({ skillLevels: undefined })],
-    ["with Skill Levels that aren't an object", v7({ skillLevels: [1] })],
+    ["without Experience", v8({ experience: undefined })],
+    ["without Strength", v8({ strength: undefined })],
+    ["without unspent points", v8({ attributePoints: undefined })],
+    ["with a Level that isn't a whole number", v8({ level: 2.5 })],
+    ["with a Level below 1", v8(progress(0, 0))],
+    ["with a Level above 99", v8(progress(100, 3_520_485_254))],
+    ["with negative Experience", v8(progress(1, -1))],
+    ["with Experience past the cap", v8(progress(99, 3_520_485_255))],
+    ["with too little Experience for its Level", v8(progress(2, 499))],
+    ["with enough Experience for the next Level", v8(progress(2, 1_500))],
+    ["with Dexterity that isn't a whole number", v8({ dexterity: 20.5 })],
+    ["with Vitality below where a Hero starts", v8({ vitality: 19 })],
+    ["without Energy", v8({ energy: undefined })],
+    ["with Energy below where a Hero starts", v8({ energy: 19 })],
+    ["with more Energy than its Level gave", v8({ energy: 21 })],
+    ["with negative unspent points", v8({ attributePoints: -1 })],
+    ["with more points than its Level gave", v8({ attributePoints: 6 })],
+    ["with fewer points than its Level gave", v8({ attributePoints: 4 })],
+    ["with more spent than its Level gave", v8({ strength: 21 })],
+    ["without unspent Skill Points", v8({ skillPoints: undefined })],
+    ["without Skill Levels", v8({ skillLevels: undefined })],
+    ["with Skill Levels that aren't an object", v8({ skillLevels: [1] })],
     [
       "with a Skill Level that isn't a whole number",
-      v7({ skillPoints: 0.5, skillLevels: { golem: 0.5 } }),
+      v8({ skillPoints: 0.5, skillLevels: { golem: 0.5 } }),
     ],
     [
       "with a negative Skill Level",
-      v7({ skillPoints: 2, skillLevels: { golem: -1 } }),
+      v8({ skillPoints: 2, skillLevels: { golem: -1 } }),
     ],
     [
       "with negative unspent Skill Points",
-      v7({ skillPoints: -1, skillLevels: { golem: 2 } }),
+      v8({ skillPoints: -1, skillLevels: { golem: 2 } }),
     ],
-    ["with more Skill Points than its Level gave", v7({ skillPoints: 2 })],
-    ["with fewer Skill Points than its Level gave", v7({ skillPoints: 0 })],
+    ["with more Skill Points than its Level gave", v8({ skillPoints: 2 })],
+    ["with fewer Skill Points than its Level gave", v8({ skillPoints: 0 })],
     [
       "with more Skill Levels than its Level gave",
-      v7({ skillPoints: 0, skillLevels: { golem: 2 } }),
+      v8({ skillPoints: 0, skillLevels: { golem: 2 } }),
     ],
     [
       "with an unknown Skill",
-      v7({ skillPoints: 0, skillLevels: { golem: 0, teeth: 1 } }),
+      v8({ skillPoints: 0, skillLevels: { golem: 0, teeth: 1 } }),
     ],
-    ["without a Skill Bar", v7({ skillBar: undefined })],
-    ["with a Skill Bar that isn't an object", v7({ skillBar: [null] })],
-    ["with a Skill Bar slot missing", v7({ skillBar: { right: null } })],
+    ["without a Skill Bar", v8({ skillBar: undefined })],
+    ["with a Skill Bar that isn't an object", v8({ skillBar: [null] })],
+    ["with a Skill Bar slot missing", v8({ skillBar: { right: null } })],
     [
       "with an unknown Skill Bar slot",
-      v7({ skillBar: { ...emptySkillBar(), key5: null } }),
+      v8({ skillBar: { ...emptySkillBar(), key5: null } }),
     ],
     [
       "with an unknown Skill on the Skill Bar",
-      v7({ skillBar: { ...emptySkillBar(), key1: "teeth" } }),
+      v8({ skillBar: { ...emptySkillBar(), key1: "teeth" } }),
     ],
     [
       "with an unlearned Skill on the Skill Bar",
-      v7({ skillBar: { ...emptySkillBar(), right: "golem" } }),
+      v8({ skillBar: { ...emptySkillBar(), right: "golem" } }),
     ],
     [
       "with a Skill in two Skill Bar slots",
-      v7({
+      v8({
         skillPoints: 0,
         skillLevels: { golem: 1 },
         skillBar: { ...emptySkillBar(), right: "golem", key2: "golem" },
       }),
     ],
-    ["without an Inventory", v7({ inventory: undefined })],
-    ["without Equipment", v7({ equipment: undefined })],
-    ["with an Inventory that isn't a list", v7({ inventory: {} })],
-    ["with Equipment that isn't an object", v7({ equipment: [] })],
+    ["without an Inventory", v8({ inventory: undefined })],
+    ["without Equipment", v8({ equipment: undefined })],
+    ["with an Inventory that isn't a list", v8({ inventory: {} })],
+    ["with Equipment that isn't an object", v8({ equipment: [] })],
     [
       "with an unknown Item type",
-      v7({ inventory: [{ type: "bow", cell: { column: 0, row: 0 } }] }),
+      v8({ inventory: [{ type: "bow", cell: { column: 0, row: 0 } }] }),
     ],
-    ["with an Item without a cell", v7({ inventory: [{ type: "axe" }] })],
+    ["with an Item without a cell", v8({ inventory: [{ type: "axe" }] })],
     [
       "with an Item off the grid's left",
-      v7({ inventory: [{ type: "axe", cell: { column: -1, row: 0 } }] }),
+      v8({ inventory: [{ type: "axe", cell: { column: -1, row: 0 } }] }),
     ],
     [
       // The Axe is 2×3: from column 9 it hangs off the right edge.
       "with an Item hanging off the grid's right",
-      v7({ inventory: [{ type: "axe", cell: { column: 9, row: 0 } }] }),
+      v8({ inventory: [{ type: "axe", cell: { column: 9, row: 0 } }] }),
     ],
     [
       // The Short Sword is 1×3: from row 2 it hangs off the bottom.
       "with an Item hanging off the grid's bottom",
-      v7({ inventory: [{ type: "shortSword", cell: { column: 0, row: 2 } }] }),
+      v8({ inventory: [{ type: "shortSword", cell: { column: 0, row: 2 } }] }),
     ],
     [
       "with an Item at a cell that isn't whole",
-      v7({
+      v8({
         inventory: [{ type: "ringOfLife", cell: { column: 0.5, row: 0 } }],
       }),
     ],
     [
       "with overlapping Items",
-      v7({
+      v8({
         inventory: [
           { type: "axe", cell: { column: 0, row: 0 } },
           { type: "ringOfLife", cell: { column: 1, row: 2 } },
@@ -439,37 +440,37 @@ describe("stored text", () => {
     ],
     [
       "with an Item in a slot of another kind",
-      v7({ equipment: { weapon: "leatherArmour" } }),
+      v8({ equipment: { weapon: "leatherArmour" } }),
     ],
-    ["with a Ring as the Amulet", v7({ equipment: { amulet: "ringOfLife" } })],
-    ["with an unknown slot", v7({ equipment: { helm: "chainMail" } })],
-    ["with an unknown Equipped type", v7({ equipment: { weapon: "bow" } })],
-    ["without a Belt", v7({ belt: undefined })],
-    ["with a Belt that isn't a list", v7({ belt: {} })],
-    ["with three Belt Columns", v7({ belt: [[], [], []] })],
-    ["with a Belt Column that isn't a list", v7({ belt: [[], [], [], 1] })],
+    ["with a Ring as the Amulet", v8({ equipment: { amulet: "ringOfLife" } })],
+    ["with an unknown slot", v8({ equipment: { helm: "chainMail" } })],
+    ["with an unknown Equipped type", v8({ equipment: { weapon: "bow" } })],
+    ["without a Belt", v8({ belt: undefined })],
+    ["with a Belt that isn't a list", v8({ belt: {} })],
+    ["with three Belt Columns", v8({ belt: [[], [], []] })],
+    ["with a Belt Column that isn't a list", v8({ belt: [[], [], [], 1] })],
     [
       "with more Potions in a Belt Column than it holds",
-      v7({ belt: [["lifePotion", "lifePotion"], [], [], []] }),
+      v8({ belt: [["lifePotion", "lifePotion"], [], [], []] }),
     ],
     [
       "with more Potions in a Belt Column than the Equipped Belt's rows",
-      v7({
+      v8({
         equipment: { weapon: "shortSword", belt: "sash" },
         belt: [["lifePotion", "lifePotion", "lifePotion"], [], [], []],
       }),
     ],
     [
       "with a Belt that isn't one in the Belt slot",
-      v7({ equipment: { weapon: "shortSword", belt: "chainMail" } }),
+      v8({ equipment: { weapon: "shortSword", belt: "chainMail" } }),
     ],
     [
       "with an Item that isn't a Potion in the Belt",
-      v7({ belt: [["axe"], [], [], []] }),
+      v8({ belt: [["axe"], [], [], []] }),
     ],
     [
       "with an unknown type in the Belt",
-      v7({ belt: [["elixir"], [], [], []] }),
+      v8({ belt: [["elixir"], [], [], []] }),
     ],
   ])("gives no Save for text %s", (_, text) => {
     expect(parseSave(text)).toBeNull();
@@ -477,13 +478,62 @@ describe("stored text", () => {
 
   it("gives no Save for another version", () => {
     expect(parseSave(stored(5, fields(progress(2, 500))))).toBeNull();
-    expect(parseSave(stored(8, fields(progress(2, 500))))).toBeNull();
+    expect(parseSave(stored(9, fields(progress(2, 500))))).toBeNull();
+  });
+
+  // What Saves before Waypoints held: the Hero loads with only Wockville's
+  // Waypoint touched.
+  it("loads version 7 text without Waypoints with only Wockville's touched", () => {
+    const { touchedWaypoints, ...before } = progress(2, 500);
+    const text = stored(7, { ...before, ...SWORD_ONLY });
+
+    expect(parseSave(text)?.progress.touchedWaypoints).toEqual(["town"]);
+    expect(parseSave(text)?.progress.level).toBe(2);
+  });
+
+  it("still checks the rest of version 7 text", () => {
+    const { touchedWaypoints, ...before } = progress(2, 500);
+    const text = stored(7, { ...before, ...SWORD_ONLY, level: 3 });
+
+    expect(parseSave(text)).toBeNull();
+  });
+
+  it("gives no Save for version 7 text that has Waypoints", () => {
+    expect(parseSave(stored(7, fields(progress(2, 500))))).toBeNull();
+  });
+
+  it("keeps the touched Waypoints", () => {
+    const touched = {
+      ...progress(2, 500),
+      touchedWaypoints: ["town", "soggy-bog"],
+    };
+
+    expect(parseSave(encodeSave(save(touched)))).toEqual(save(touched));
+  });
+
+  it("always has Wockville's Waypoint touched", () => {
+    const text = v8({ touchedWaypoints: ["soggy-bog"] });
+
+    expect(parseSave(text)?.progress.touchedWaypoints).toEqual([
+      "town",
+      "soggy-bog",
+    ]);
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["not a list", "town"],
+    ["holding a number", ["town", 3]],
+    ["holding an Area twice", ["town", "town"]],
+  ])("gives no Save for touched Waypoints %s", (_, touchedWaypoints) => {
+    expect(parseSave(v8({ touchedWaypoints }))).toBeNull();
   });
 
   // What Saves before the Belt held: the Hero loads with an empty Belt.
   it("loads version 6 text without a Belt with an empty Belt", () => {
     const { belt, ...before } = WELL_EQUIPPED;
-    const text = stored(6, { ...progress(2, 600), ...before });
+    const { touchedWaypoints, ...older } = progress(2, 600);
+    const text = stored(6, { ...older, ...before });
 
     expect(parseSave(text)).toEqual(
       save(progress(2, 600), { ...before, belt: [[], [], [], []] }),
@@ -491,8 +541,9 @@ describe("stored text", () => {
   });
 
   it("still checks the rest of version 6 text", () => {
+    const { touchedWaypoints, ...older } = progress(2, 600);
     const text = stored(6, {
-      ...progress(2, 600),
+      ...older,
       ...SWORD_ONLY,
       belt: undefined,
       equipment: { weapon: "bow" },
@@ -533,12 +584,12 @@ function fields(kept: Omit<Progress, "energy">): object {
 }
 
 /**
- * Version 7 stored text for a Level 2 Hero with 500 Experience, their 5
+ * Version 8 stored text for a Level 2 Hero with 500 Experience, their 5
  * points and 1 Skill Point unspent and only the Short Sword, with `changes`
  * made to it.
  */
-function v7(changes: Record<string, unknown>) {
-  return stored(7, { ...fields(progress(2, 500)), ...changes });
+function v8(changes: Record<string, unknown>) {
+  return stored(8, { ...fields(progress(2, 500)), ...changes });
 }
 
 /** Stored text of `version` holding `fields`. */

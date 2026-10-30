@@ -277,6 +277,7 @@ function showFloor(world3d: World3d, area: Area) {
       height,
       to,
     })),
+    area.waypoint,
   );
   scene.add(floor, exits.group);
   world3d.shown = { area, floor, exits, scenery: null };

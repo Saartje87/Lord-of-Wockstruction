@@ -23,6 +23,11 @@ export type Menus = {
   inventoryOpen: boolean;
   skillTreeOpen: boolean;
   /**
+   * Whether the Waypoint list is open. A World panel: the World opens it,
+   * and it shuts with Esc, B, its × or by the Hero walking off.
+   */
+  waypointsOpen: boolean;
+  /**
    * Whether the Map Overlay is open. It is not a panel: the World runs on
    * under it, and the panels open and shut alongside it.
    */
@@ -160,6 +165,7 @@ export function createMenus(screen: Screen = { type: "playing" }): Menus {
     heroPanelOpen: false,
     inventoryOpen: false,
     skillTreeOpen: false,
+    waypointsOpen: false,
     mapOpen: false,
     pendingPoints: noPendingPoints(),
     compact: false,
@@ -370,6 +376,10 @@ export function pressKey(
   if (menus.screen.type === "start") {
     return pressStartKey(menus, menus.screen, key);
   }
+  // Esc shuts a World panel before it pauses.
+  if (key === "Escape" && !pause.paused && dismissWorldPanel(menus)) {
+    return "handled";
+  }
   if (key === "Escape") {
     togglePause(pause, nowMs);
     menus.menuFocus = null;
@@ -434,8 +444,67 @@ const OPEN_FLAGS = {
   skillTree: "skillTreeOpen",
 } as const satisfies Record<Panel, keyof Menus>;
 
+/**
+ * A panel the World opens, not a key or a Panel button: it takes the whole
+ * screen's attention, so opening one shuts every other panel and opening any
+ * other shuts it. Esc, B and its × shut it, and so does the Hero leaving
+ * whatever opened it. Later panels that talk (Dialogue, Quest) join it here.
+ */
+export type WorldPanel = "waypoints";
+
+/** The World panels, the one drawn on top first. */
+export const WORLD_PANELS: readonly WorldPanel[] = ["waypoints"];
+
+/** The flag on the menus that says whether each World panel is open. */
+const WORLD_OPEN_FLAGS = {
+  waypoints: "waypointsOpen",
+} as const satisfies Record<WorldPanel, keyof Menus>;
+
+/** A panel with an × close button: one with a Panel button, or a World panel. */
+export type ClosablePanel = Panel | WorldPanel;
+
 /** The menus' flags for which panels are open. */
-export type OpenPanels = Pick<Menus, (typeof OPEN_FLAGS)[Panel]>;
+export type OpenPanels = Pick<
+  Menus,
+  (typeof OPEN_FLAGS)[Panel] | (typeof WORLD_OPEN_FLAGS)[WorldPanel]
+>;
+
+/** Whether World panel `panel` is open. */
+export function worldPanelOpen(menus: OpenPanels, panel: WorldPanel): boolean {
+  return menus[WORLD_OPEN_FLAGS[panel]];
+}
+
+/**
+ * Shuts the World panel on top, if one is open; whether one was. Esc and B
+ * do this before anything else.
+ */
+function dismissWorldPanel(menus: Menus): boolean {
+  const open = WORLD_PANELS.find((panel) => worldPanelOpen(menus, panel));
+  if (!open) return false;
+  menus[WORLD_OPEN_FLAGS[open]] = false;
+  return true;
+}
+
+/**
+ * Opens a World panel, shutting every panel with a Panel button: not under
+ * the Rotate Notice, nor before play.
+ */
+function openWorldPanel(menus: Menus, panel: WorldPanel) {
+  if (menus.rotateNotice || !isPlaying(menus)) return;
+  for (const other of PANELS) shutPanel(menus, other);
+  menus[WORLD_OPEN_FLAGS[panel]] = true;
+}
+
+/**
+ * Follows the Hero: the Waypoint list shuts once they are no longer
+ * `standingOnWaypoint`.
+ */
+export function followHero(
+  menus: Menus,
+  hero: { standingOnWaypoint: boolean },
+) {
+  if (!hero.standingOnWaypoint) menus.waypointsOpen = false;
+}
 
 /** Whether `panel` is open. */
 export function panelOpen(menus: OpenPanels, panel: Panel): boolean {
@@ -444,7 +513,10 @@ export function panelOpen(menus: OpenPanels, panel: Panel): boolean {
 
 /** Whether any panel is open. */
 export function anyPanelOpen(menus: OpenPanels): boolean {
-  return PANELS.some((panel) => panelOpen(menus, panel));
+  return (
+    PANELS.some((panel) => panelOpen(menus, panel)) ||
+    WORLD_PANELS.some((panel) => worldPanelOpen(menus, panel))
+  );
 }
 
 /** Opens the Map Overlay or shuts it, as Tab and LT do: not while `hero` lies dead. */
@@ -491,6 +563,7 @@ function togglePanel(menus: Menus, panel: Panel, hero: HeroState) {
  * panel shuts the others.
  */
 function openPanel(menus: Menus, panel: Panel) {
+  for (const world of WORLD_PANELS) menus[WORLD_OPEN_FLAGS[world]] = false;
   for (const other of PANELS) {
     if (other !== panel && !canShareScreen(menus, panel, other)) {
       shutPanel(menus, other);
@@ -580,8 +653,9 @@ export const PANELS: readonly Panel[] = ["hero", "inventory", "skillTree"];
  * A click on a panel's × button, which shuts it as its key (C, I or T)
  * would, but never opens it.
  */
-export function clickClose(menus: Menus, panel: Panel) {
-  shutPanel(menus, panel);
+export function clickClose(menus: Menus, panel: ClosablePanel) {
+  if (panel === "waypoints") menus.waypointsOpen = false;
+  else shutPanel(menus, panel);
 }
 
 /** Shuts `panel`, the Hero panel cancelling its Pending Attribute Points. */
@@ -648,15 +722,17 @@ export function acceptPendingPoints(menus: Menus): Order | null {
  */
 export function reactMenus(menus: Menus, events: readonly SimEvent[]) {
   for (const event of events) {
+    if (event.type === "WaypointReached") openWorldPanel(menus, "waypoints");
     if (event.type !== "HeroDied") continue;
     closePanels(menus);
     menus.mapOpen = false;
   }
 }
 
-/** Shuts the Hero, Inventory and Skill Tree panels. */
+/** Shuts every panel, the World panels too. */
 function closePanels(menus: Menus) {
   for (const panel of PANELS) shutPanel(menus, panel);
+  for (const panel of WORLD_PANELS) menus[WORLD_OPEN_FLAGS[panel]] = false;
 }
 
 /**
@@ -738,6 +814,11 @@ export function pressPad(
   }
   const panel = currentPanel(menus);
   if (!panel) return null;
+  if (button === "b" && dismissWorldPanel(menus)) return "handled";
+  if (panel === "waypoints") {
+    // Only B and the Focus work here, not LB and RB.
+    return button === "lb" || button === "rb" ? "handled" : null;
+  }
   if (button === "b") {
     shutPanel(menus, panel);
     return "handled";
@@ -791,10 +872,13 @@ function isDirection(button: PadButton): boolean {
 }
 
 /**
- * The open panel the controller acts on: the one opened last, if still
- * open, otherwise the first open one, or null with none open.
+ * The open panel the controller acts on: a World panel, if one is open, else
+ * the one opened last, if still open, otherwise the first open one, or null
+ * with none open.
  */
-export function currentPanel(menus: Menus): Panel | null {
+export function currentPanel(menus: Menus): ClosablePanel | null {
+  const world = WORLD_PANELS.find((panel) => worldPanelOpen(menus, panel));
+  if (world) return world;
   if (menus.lastOpened && panelOpen(menus, menus.lastOpened)) {
     return menus.lastOpened;
   }

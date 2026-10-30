@@ -52,6 +52,11 @@ export type Area = {
    * without one: Town's map must have it (see `validateAreas`).
    */
   townPortal: Vec | null;
+  /**
+   * Where the Area's Waypoint stands (tile units), or null in an Area
+   * without one.
+   */
+  waypoint: Vec | null;
 };
 
 /** A KayKit piece standing on a cell (tile units), blocking the way or not. */
@@ -164,7 +169,7 @@ export function cellAt(
 
 /**
  * Reads the `floor`, `walls & props` and `blocking override` tile layers and
- * the `entry`, `exit`, `monsterSpawn`, `npc` and `townPortal` objects of a
+ * the `entry`, `exit`, `monsterSpawn`, `npc`, `townPortal` and `waypoint` objects of a
  * Tiled `.tmj` file. An `exit` is a rectangle, or a point for the one tile it
  * is in. Only uncompressed tile data and a single tileset are supported. A
  * tileset in its own file is looked up in `tilesets` by its file name without
@@ -218,6 +223,7 @@ export function loadArea(
   const exits: Exit[] = [];
   const npcs: Npc[] = [];
   let townPortal: Vec | null = null;
+  let waypoint: Vec | null = null;
   for (const layer of tmj.layers) {
     if (layer.type !== "objectgroup") continue;
     for (const object of layer.objects) {
@@ -234,6 +240,10 @@ export function loadArea(
       }
       if (kind === "npc") npcs.push({ name: object.name, pos });
       if (kind === "townPortal") townPortal = pos;
+      if (kind === "waypoint") {
+        if (waypoint) throw new Error(`Area "${name}" has two Waypoints`);
+        waypoint = pos;
+      }
     }
   }
 
@@ -272,6 +282,7 @@ export function loadArea(
     exits,
     npcs,
     townPortal,
+    waypoint,
   };
 }
 

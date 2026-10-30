@@ -11,7 +11,7 @@
  "infinite": false,
  "compressionlevel": -1,
  "nextlayerid": 5,
- "nextobjectid": 12,
+ "nextobjectid": 13,
  "properties": [
   {
    "name": "areaLevel",
@@ -8484,6 +8484,18 @@
        "value": "zombie"
       }
      ]
+    },
+    {
+     "id": 12,
+     "name": "waypoint",
+     "type": "waypoint",
+     "x": 720,
+     "y": 528,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true
     }
    ]
   }

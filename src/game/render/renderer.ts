@@ -188,6 +188,12 @@ import { GAME_NAME, startChoiceAt, startScreenLayout } from "./startScreen";
 import { tooltipRect } from "./tooltip";
 import { touchControlsLayout, touchControlsShown } from "./touchControls";
 import { shownTownPortals, townPortalCloseScale } from "./townPortalLook";
+import {
+  canTravel,
+  WAYPOINT_LIST,
+  waypointListLayout,
+  waypointListSheet,
+} from "./waypointList";
 
 /** How long a hit Monster flashes white (ms), fading out. */
 const FLASH_MS = 120;
@@ -584,6 +590,8 @@ export function createRenderer(
   app.stage.addChild(inventoryPanel.layer);
   const skillTreePanel = skillTreePanelView(activeInput);
   app.stage.addChild(skillTreePanel.layer);
+  const waypointList = waypointListView(activeInput, areaDisplayNames);
+  app.stage.addChild(waypointList.layer);
   // The Focus's ring, over the panel it is in.
   const focusRing = new Graphics();
   app.stage.addChild(focusRing);
@@ -689,6 +697,7 @@ export function createRenderer(
     heroPanelOpen: false,
     inventoryOpen: false,
     skillTreeOpen: false,
+    waypointsOpen: false,
     pendingPoints: noPendingPoints(),
   };
 
@@ -1070,6 +1079,7 @@ export function createRenderer(
         heroPanelOpen: menus.heroPanelOpen,
         inventoryOpen: menus.inventoryOpen,
         skillTreeOpen: menus.skillTreeOpen,
+        waypointsOpen: menus.waypointsOpen,
         pendingPoints: { ...menus.pendingPoints },
       };
       if (world !== drawnWorld) {
@@ -1263,6 +1273,7 @@ export function createRenderer(
       const touching = activeInput.way === "touch";
       const skillTooltipAt = (focus || touching) && !heldSkill ? pointer : null;
       skillTreePanel.draw(viewport, world, menus.skillTreeOpen, skillTooltipAt);
+      waypointList.draw(viewport, world, menus.waypointsOpen);
       heldSkillView.draw(heldSkill, pointer, uiScale);
       const spot = onPanel && "inventory" in onPanel ? onPanel.inventory : null;
       inventoryPanel.draw(viewport, world, menus.inventoryOpen, spot, pointer);
@@ -2133,6 +2144,30 @@ function mapView(withNames: boolean) {
           .circle(point.x, point.y, portal.dot * uiScale)
           .fill(portal.colour);
       }
+      if (found.waypoint) {
+        const point = onScreen(found.waypoint);
+        const { waypoint } = MAP_LOOK;
+        const halfWidth = (waypoint.diamond + 1) * uiScale;
+        marks
+          .ellipse(
+            point.x,
+            point.y,
+            (waypoint.width / 2) * uiScale,
+            (waypoint.height / 2) * uiScale,
+          )
+          .stroke({ color: waypoint.colour, width: 1.5 * uiScale })
+          .poly([
+            point.x - halfWidth,
+            point.y,
+            point.x,
+            point.y - waypoint.diamond * uiScale,
+            point.x + halfWidth,
+            point.y,
+            point.x,
+            point.y + waypoint.diamond * uiScale,
+          ])
+          .fill(waypoint.colour);
+      }
       for (const at of found.minions) {
         const point = onScreen(at);
         marks
@@ -2587,6 +2622,83 @@ function heroPanelView(activeInput: Readonly<ActiveInput>) {
         const y = row.y - style.ruleGap * scale;
         graphics.rect(row.x, y, row.w, 1).fill(style.edge);
       }
+      // Rows made this draw too.
+      texts.size(scale);
+    },
+  };
+}
+
+/**
+ * The Waypoint list, in the Hero panel's look: a row for each of Act 1's
+ * Waypoints, the untouched greyed out and the one the Hero stands on marked,
+ * under a title and over a hint how to close it.
+ */
+function waypointListView(
+  activeInput: Readonly<ActiveInput>,
+  displayNames: Readonly<Record<string, string>>,
+) {
+  const style = HERO_PANEL_STYLE;
+  const layer = new Container();
+  const graphics = new Graphics();
+  layer.addChild(graphics);
+  layer.visible = false;
+  const texts = scaledTexts();
+  const text = (fill: number, size = style.textSize) => {
+    const t = new Text({
+      text: "",
+      style: { fill, fontSize: size, fontFamily: SERIF },
+    });
+    layer.addChild(t);
+    return texts.add(t, size);
+  };
+  const title = text(style.title, style.titleSize);
+  title.text = "Waypoints";
+  title.anchor.set(0.5, 0);
+  const hint = text(style.hint, style.hintSize);
+  hint.anchor.set(0.5, 1);
+  /** Made as the sheet first lists them. */
+  const names: Text[] = [];
+  const notes: Text[] = [];
+
+  return {
+    layer,
+    draw(screen: Viewport, world: World, open: boolean) {
+      layer.visible = open;
+      if (!open) return;
+      hint.text = panelCloseHint("waypoints", activeInput.way);
+      const sheet = waypointListSheet(world, displayNames);
+      const layout = waypointListLayout(screen, sheet.length);
+      const { panel } = layout;
+      const scale = screen.uiScale;
+      const { padding } = atUiScale(WAYPOINT_LIST, scale);
+
+      graphics.clear();
+      graphics
+        .rect(panel.x, panel.y, panel.w, panel.h)
+        .fill({ color: style.fill, alpha: style.alpha })
+        .stroke({ color: style.edge, width: 2 });
+      closeButton(graphics, layout.closeButton, scale);
+      title.position.set(panel.x + panel.w / 2, panel.y + padding);
+      hint.position.set(panel.x + panel.w / 2, panel.y + panel.h - padding);
+
+      sheet.forEach((waypoint, index) => {
+        names[index] ??= text(style.title);
+        notes[index] ??= text(style.hint, style.hintSize);
+        const row = layout.rows[index];
+        const y = row.y + row.h / 2;
+        if (canTravel(waypoint)) button(graphics, row);
+        else graphics.rect(row.x, row.y, row.w, row.h).stroke(style.edge);
+        const name = names[index];
+        name.text = waypoint.name;
+        name.anchor.set(0, 0.5);
+        name.position.set(row.x + padding / 2, y);
+        // Greyed out until touched.
+        name.style.fill = waypoint.touched ? style.title : style.hint;
+        const note = notes[index];
+        note.text = waypoint.here ? "You are here" : "";
+        note.anchor.set(1, 0.5);
+        note.position.set(row.x + row.w - padding / 2, y);
+      });
       // Rows made this draw too.
       texts.size(scale);
     },

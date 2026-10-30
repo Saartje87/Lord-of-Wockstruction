@@ -1,10 +1,10 @@
 import type { CursorHit } from "../cursor";
 import {
+  type ClosablePanel,
   hasPendingPoints,
   type Menus,
   type OpenPanels,
   PANELS,
-  type Panel,
 } from "../menus";
 import { beltRows } from "../sim/belt";
 import { cursorItemOf } from "../sim/inventory";
@@ -29,6 +29,11 @@ import { skillBarHitAt, skillBarLayout } from "./skillBar";
 import { skillTreeHitAt, skillTreePanelLayout } from "./skillTreePanel";
 import { touchControlsLayout } from "./touchControls";
 import { touchHitRect } from "./touchHitArea";
+import {
+  waypointListHitAt,
+  waypointListLayout,
+  waypointListSheet,
+} from "./waypointList";
 
 /** The panels as drawn: which are open, and the Hero panel's Pending Attribute Points. */
 export type ShownPanels = OpenPanels & Pick<Menus, "pendingPoints" | "mapOpen">;
@@ -55,7 +60,9 @@ export function cursorHitAt(
   const rows = beltRows(world);
   const { inventoryOpen } = shown;
   const holding = cursorItemOf(world) !== null;
+  const waypoints = shown.waypointsOpen ? waypointListSheet(world, {}) : [];
   return (
+    waypointListHitAt(screen, point, waypoints, shown.waypointsOpen) ??
     heroPanelHitAt(
       screen,
       point,
@@ -125,12 +132,21 @@ function touchTargets(
   const grows: TouchTarget[] = [];
   const stops: Rect[] = [];
   const panels: Rect[] = [];
-  const close = (panel: Panel, rect: Rect, over: Rect) =>
+  const close = (panel: ClosablePanel, rect: Rect, over: Rect) =>
     grows.push({
       rect,
       hit: { button: { type: "close", panel } },
       panel: over,
     });
+
+  if (shown.waypointsOpen) {
+    const sheet = waypointListSheet(world, {});
+    const list = waypointListLayout(screen, sheet.length);
+    panels.push(list.panel);
+    close("waypoints", list.closeButton, list.panel);
+    // The rows are big enough to tap without a hit area of their own.
+    stops.push(...list.rows);
+  }
 
   const heroLayout = heroPanelLayout(screen);
   if (shown.heroPanelOpen) {

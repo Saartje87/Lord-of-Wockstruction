@@ -60,7 +60,11 @@ export function miniMapScale(screen: Viewport): number {
 export function miniMapShown(
   menus: Pick<
     Menus,
-    "mapOpen" | "heroPanelOpen" | "inventoryOpen" | "skillTreeOpen"
+    | "mapOpen"
+    | "heroPanelOpen"
+    | "inventoryOpen"
+    | "skillTreeOpen"
+    | "waypointsOpen"
   >,
   heroDead: boolean,
 ): boolean {

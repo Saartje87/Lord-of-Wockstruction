@@ -442,7 +442,20 @@ const BONUS_NAMES: Record<Bonus, string> = {
   defense: "Defense",
   attackRating: "Attack Rating",
   weaponDamage: "Damage",
+  mana: "Mana",
+  enhancedDamage: "Enhanced Damage",
+  enhancedDefense: "Enhanced Defense",
 };
+
+/** The Bonuses that are percentages, not flat amounts. */
+const PERCENT_BONUSES: readonly Bonus[] = ["enhancedDamage", "enhancedDefense"];
+
+/** A tooltip line giving `amount` of `bonus`. */
+function bonusLine(bonus: Bonus, amount: number): string {
+  return PERCENT_BONUSES.includes(bonus)
+    ? `+${amount}% ${BONUS_NAMES[bonus]}`
+    : `+${amount} to ${BONUS_NAMES[bonus]}`;
+}
 
 /** Each resource a Potion gives back, as a tooltip names it. */
 const RESOURCE_NAMES: Record<PotionResource, string> = {
@@ -491,12 +504,10 @@ export function itemTooltip(shown: {
   }
   for (const affix of shown.affixes ?? []) {
     const { bonus, amount } = affixBonus(affix);
-    lines.push(`+${amount} to ${BONUS_NAMES[bonus]}`);
+    lines.push(bonusLine(bonus, amount));
   }
   if (smithBonus) {
-    lines.push(
-      `Smith: +${smithBonus.amount} to ${BONUS_NAMES[smithBonus.bonus]}`,
-    );
+    lines.push(`Smith: ${bonusLine(smithBonus.bonus, smithBonus.amount)}`);
   }
   if (item.potion) lines.push(potionLine(item.potion));
   if (item.beltRows !== undefined) lines.push(`Rows: ${item.beltRows}`);

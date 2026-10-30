@@ -88,6 +88,23 @@ describe("an Area whose tileset has no pieces", () => {
   });
 });
 
+describe("an Area's hot springs", () => {
+  const water = map([1, 5, 1, 1, 1, 1], [0, 0, 0, 0, 0, 0]);
+
+  it("are marked by the map's `hotSprings` property", () => {
+    const marked = {
+      ...water,
+      properties: [{ name: "hotSprings", type: "bool", value: true }],
+    };
+
+    expect(loadArea("spa", marked, { kaykit }).hotSprings).toBe(true);
+  });
+
+  it("are off unless the map says so", () => {
+    expect(loadArea("pond", water, { kaykit }).hotSprings).toBe(false);
+  });
+});
+
 describe("an Area with Water", () => {
   // Floor, Water (gid 5) in the middle of the top row, a Prop on the bottom.
   const area = loadArea("pond", map([1, 5, 1, 1, 1, 1], [0, 0, 0, 0, 3, 0]), {

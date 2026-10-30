@@ -1,8 +1,13 @@
-import type { BufferGeometry, Mesh, MeshBasicMaterial } from "three";
+import type { BufferGeometry, Mesh, MeshBasicMaterial, Points } from "three";
 import { describe, expect, it } from "vitest";
 import { arenaWith } from "../input/testArena";
 import type { Area } from "../sim/area";
-import { pondsOf, WATER_LOOK, waterMeshesOf } from "./waterMeshes";
+import {
+  HOT_SPRINGS_LOOK,
+  pondsOf,
+  WATER_LOOK,
+  waterMeshesOf,
+} from "./waterMeshes";
 
 /** The 20×20 test Area with Water on `tiles`. */
 function areaWithWater(tiles: [number, number][]): Area {
@@ -69,5 +74,48 @@ describe("the 3D World's ponds", () => {
     const b = material.color.getHex();
 
     expect(a).not.toBe(b);
+  });
+});
+
+describe("the 3D World's hot springs", () => {
+  const hot = (tiles: [number, number][]) => ({
+    ...areaWithWater(tiles),
+    hotSprings: true,
+  });
+  const planes = (group: { children: unknown[] }) =>
+    group.children.filter((child) => (child as Mesh).isMesh) as Mesh[];
+  const steam = (group: { children: unknown[] }) =>
+    group.children.filter((child) => (child as Points).isPoints) as Points[];
+  const colourOf = (meshes: ReturnType<typeof waterMeshesOf>) =>
+    (planes(meshes.group)[0].material as MeshBasicMaterial).color;
+
+  it("tint the Water warm turquoise, unlike plain Water", () => {
+    const plain = waterMeshesOf(areaWithWater([[2, 2]]));
+    const springs = waterMeshesOf(hot([[2, 2]]));
+    plain.update(0);
+    springs.update(0);
+
+    expect(colourOf(springs).getHex()).not.toBe(colourOf(plain).getHex());
+    expect(colourOf(springs).g).toBeGreaterThan(colourOf(plain).g);
+    expect(HOT_SPRINGS_LOOK.colour).not.toBe(WATER_LOOK.colour);
+  });
+
+  it("let a few faint wisps of steam rise, which plain Water does not", () => {
+    expect(steam(waterMeshesOf(areaWithWater([[2, 2]])).group)).toEqual([]);
+
+    const { group, update } = waterMeshesOf(hot([[2, 2]]));
+    const [wisps] = steam(group);
+    expect(wisps).toBeDefined();
+    const positions = wisps.geometry.getAttribute("position");
+    expect(positions.count).toBeGreaterThan(0);
+    expect(positions.count).toBeLessThanOrEqual(40);
+    update(0);
+    const before = positions.getY(0);
+    update(0.5);
+    expect(positions.getY(0)).not.toBe(before);
+  });
+
+  it("have no steam without Water", () => {
+    expect(waterMeshesOf(hot([])).group.children).toEqual([]);
   });
 });

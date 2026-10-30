@@ -29,6 +29,11 @@ export type Area = {
    * 3D World lights it by day. From the map's `outdoors` property.
    */
   outdoors: boolean;
+  /**
+   * Whether the Area's Water is hot springs: the 3D World tints it warm
+   * turquoise and lets steam rise. From the map's `hotSprings` property.
+   */
+  hotSprings: boolean;
   width: number;
   height: number;
   /** Row-major, `width * height` long; true where there is floor. */
@@ -332,6 +337,8 @@ export function loadArea(
     mainPath: readMainPath(name, tmj),
     outdoors:
       tmj.properties?.find((p) => p.name === "outdoors")?.value === true,
+    hotSprings:
+      tmj.properties?.find((p) => p.name === "hotSprings")?.value === true,
     width: tmj.width,
     height: tmj.height,
     floor,

@@ -182,8 +182,10 @@ import {
 } from "./miniMap";
 import {
   MINION_FRAME,
+  minionFlashBrightness,
   minionFrameLayout,
   minionFrameRows,
+  minionsFlashed,
 } from "./minionFrame";
 import {
   heroHitShows,
@@ -734,6 +736,8 @@ export function createRenderer(
   /** The Minions crumbling away, with when each left the World. */
   const departing: (Omit<DepartedMinion, "ageMs"> & { atMs: number })[] = [];
   let hurtAtMs: number | null = null;
+  // When each Minion's bar in the Minion Frame was last hit.
+  const minionFlashedAtMs = new Map<MinionId, number>();
   let levelAtMs: number | null = null;
   /** When the Hero's Town Portal last opened, for its burst. */
   let townPortalOpenedAtMs: number | null = null;
@@ -817,6 +821,7 @@ export function createRenderer(
     // Minion ids start over too.
     minionTiles.clear();
     minionLooks.clear();
+    minionFlashedAtMs.clear();
     departing.length = 0;
     // Item ids start over too.
     for (const text of labelTexts.values()) text.destroy();
@@ -1117,6 +1122,7 @@ export function createRenderer(
       const shown = heroHitShows(events);
       if (shown.hurt) hurtAtMs = nowMs;
       if (shown.pulses) orb.startPulse(nowMs);
+      for (const id of minionsFlashed(events)) minionFlashedAtMs.set(id, nowMs);
       for (const event of events) {
         if (event.type === "HitLanded") {
           const mark = monsters.get(event.target);
@@ -1411,7 +1417,7 @@ export function createRenderer(
           "button" in onPanel &&
           onPanel.button?.type === "miniMap",
       );
-      minionFrame.draw(viewport, world);
+      minionFrame.draw(viewport, world, minionFlashedAtMs, nowMs);
       experience.draw(viewport, world);
       levelUp.draw(viewport, world, nowMs);
       touchControls.draw(viewport, world, menus);
@@ -2636,6 +2642,9 @@ function miniMapView(activeInput: Readonly<ActiveInput>) {
 }
 
 /** The Minion Frame's look: an icon box and the icons' colours. */
+/** The colour a Minion's bar flashes when it is hit. */
+const MINION_FLASH_COLOUR = 0xffffff;
+
 const MINION_FRAME_STYLE = {
   box: 0x1a1510,
   boxAlpha: 0.8,
@@ -2701,7 +2710,12 @@ function minionFrameView() {
 
   return {
     layer,
-    draw(screen: Viewport, world: World) {
+    draw(
+      screen: Viewport,
+      world: World,
+      flashedAtMs: ReadonlyMap<MinionId, number>,
+      nowMs: number,
+    ) {
       graphics.clear();
       const rows = minionFrameRows(world);
       for (const label of counts) label.visible = false;
@@ -2740,6 +2754,14 @@ function minionFrameView() {
             fraction: rows[index].bars[bar].fraction,
             colour: FRIENDLY.life,
           });
+          const hitAtMs = flashedAtMs.get(rows[index].bars[bar].id);
+          const flash =
+            hitAtMs === undefined ? 0 : minionFlashBrightness(nowMs - hitAtMs);
+          if (flash > 0) {
+            graphics
+              .rect(rect.x, rect.y, rect.w, rect.h)
+              .fill({ color: MINION_FLASH_COLOUR, alpha: flash });
+          }
         });
       });
     },

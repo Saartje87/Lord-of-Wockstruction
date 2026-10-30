@@ -1,8 +1,10 @@
 import type { Rect } from "../sim/rect";
 import {
+  type MinionId,
   type MinionType,
   minionMaxLife,
   raiseCount,
+  type SimEvent,
   type World,
 } from "../sim/world";
 import { skillTuning } from "../tuning/skills";
@@ -146,4 +148,26 @@ export function minionFrameLayout(
     h: y - size.rowGap - size.margin,
   };
   return { frame, rows: laidOut };
+}
+
+/** How long a Minion's bar flashes after a hit (ms), the Hero's hurt flash's length. */
+export const MINION_FLASH = { ms: 150 };
+
+/**
+ * The Minions whose bars flash for a step's events: each that lost Life to a
+ * hit, once. A Miss, or a hit for no damage, flashes nothing.
+ */
+export function minionsFlashed(events: readonly SimEvent[]): MinionId[] {
+  const flashed = new Set<MinionId>();
+  for (const event of events) {
+    if (event.type === "MinionHit" && event.damage > 0) {
+      flashed.add(event.minion);
+    }
+  }
+  return [...flashed];
+}
+
+/** How bright a bar's flash is (1..0) `sinceMs` after the hit. */
+export function minionFlashBrightness(sinceMs: number): number {
+  return Math.min(1, Math.max(0, 1 - sinceMs / MINION_FLASH.ms));
 }

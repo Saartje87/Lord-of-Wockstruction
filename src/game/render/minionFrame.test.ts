@@ -3,10 +3,13 @@ import { newMinion } from "../sim/minions";
 import { createWorld, type MinionType, type World } from "../sim/world";
 import { viewportOf } from "../viewport";
 import {
+  MINION_FLASH,
   MINION_FRAME,
   MINION_KINDS,
+  minionFlashBrightness,
   minionFrameLayout,
   minionFrameRows,
+  minionsFlashed,
 } from "./minionFrame";
 
 /** A Town of open floor with its `start` Entry on the first tile. */
@@ -222,5 +225,41 @@ describe("minionFrameLayout", () => {
       expect(bar.y + bar.h).toBeLessThanOrEqual(frame.y + frame.h);
     }
     expect(new Set(rows[1].bars.map((bar) => bar.y)).size).toBeGreaterThan(1);
+  });
+});
+
+describe("minionsFlashed", () => {
+  it("flashes a Minion that lost Life to a hit", () => {
+    expect(
+      minionsFlashed([{ type: "MinionHit", minion: 4, damage: 3 }]),
+    ).toEqual([4]);
+  });
+
+  it("flashes nothing for a Miss, a hit for no damage or no events", () => {
+    expect(minionsFlashed([{ type: "MinionMissed", minion: 4 }])).toEqual([]);
+    expect(
+      minionsFlashed([{ type: "MinionHit", minion: 4, damage: 0 }]),
+    ).toEqual([]);
+    expect(minionsFlashed([])).toEqual([]);
+  });
+
+  it("flashes each Minion hit in one step, once", () => {
+    expect(
+      minionsFlashed([
+        { type: "MinionHit", minion: 4, damage: 3 },
+        { type: "MinionMissed", minion: 5 },
+        { type: "MinionHit", minion: 6, damage: 1 },
+        { type: "MinionHit", minion: 4, damage: 2 },
+      ]),
+    ).toEqual([4, 6]);
+  });
+});
+
+describe("minionFlashBrightness", () => {
+  it("is brightest when it begins and fades to nothing over its length", () => {
+    expect(minionFlashBrightness(0)).toBe(1);
+    expect(minionFlashBrightness(MINION_FLASH.ms / 2)).toBeCloseTo(0.5);
+    expect(minionFlashBrightness(MINION_FLASH.ms)).toBe(0);
+    expect(minionFlashBrightness(MINION_FLASH.ms * 3)).toBe(0);
   });
 });

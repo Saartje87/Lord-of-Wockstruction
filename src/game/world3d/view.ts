@@ -7,6 +7,7 @@ import { type Area, type Placed, TOWN } from "../sim/area";
 import type { ItemId } from "../sim/inventory";
 import { minionRecoveryProgress, minionWindUpProgress } from "../sim/minions";
 import { recoveryProgress, windUpProgress } from "../sim/monsters";
+import { isLobbed } from "../sim/projectiles";
 import { msToSteps, STEP_MS } from "../sim/units";
 import type { Vec } from "../sim/vec";
 import {
@@ -439,10 +440,9 @@ export function worldViewOf(
           (projectile.pos.y - projectile.prevPos.y) * alpha,
       },
       facing: Math.atan2(projectile.direction.y, projectile.direction.x),
-      lift:
-        "lob" in projectile
-          ? LOB_ARC_HEIGHT * Math.sin(Math.PI * projectile.progress)
-          : 0,
+      lift: isLobbed(projectile)
+        ? LOB_ARC_HEIGHT * Math.sin(Math.PI * projectile.progress)
+        : 0,
     })),
     groundItems: world.groundItems.map(({ item, pos }) => ({
       id: item.id,
@@ -511,15 +511,13 @@ function floorEffectsOf(
   }
   const ring =
     effects.levelUpAgoMs === null ? null : levelRing(effects.levelUpAgoMs);
-  const marks: LandingMarkView[] = [];
-  for (const projectile of world.projectiles) {
-    if (!("lob" in projectile)) continue;
-    marks.push({
-      pos: { ...projectile.landing },
-      radius: projectile.radius,
-      progress: projectile.progress,
-    });
-  }
+  const marks: LandingMarkView[] = world.projectiles
+    .filter(isLobbed)
+    .map(({ landing, radius, progress }) => ({
+      pos: { ...landing },
+      radius,
+      progress,
+    }));
   return {
     telegraphs,
     curses,

@@ -125,7 +125,7 @@ export const PROJECTILE_LOOKS: Record<ProjectileKind, ProjectileLook> = {
     glow: 0x8fb4c8,
     trail: 3,
   },
-  // A glob of Muck: a small pumpkin painted bog green, lobbed high so the
+  // A Muck: a small pumpkin painted bog green, lobbed high so the
   // arc (`lift`) reads from far off.
   muck: {
     model: "halloween/pumpkin_orange_small",

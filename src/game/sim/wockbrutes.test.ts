@@ -207,6 +207,26 @@ describe("the Slam", () => {
     expect(onHero(events)).toEqual([]);
   });
 
+  it("hits its whole circle as well as the Bone Wall piece it was attacking", () => {
+    const w = world(["H.W......", "........."]);
+    const monster = brute(w);
+    untilWindUp(w, monster);
+    const piece = {
+      id: 7,
+      pos: { x: monster.pos.x + 1, y: monster.pos.y },
+      life: 100,
+      left: 6000,
+    };
+    w.boneWalls.push(piece);
+    monster.wall = piece.id;
+    const events = untilSlammed(w, monster, () => {
+      monster.facing = 0;
+      place(w.hero, { x: monster.pos.x - 1, y: monster.pos.y });
+    });
+    expect(events.some((e) => e.type === "BoneWallHit")).toBe(true);
+    expect(onHero(events)).toHaveLength(1);
+  });
+
   it("isn't stopped by hitting the Wockbrute, even when the hit flinches it", () => {
     const flinch = monsterTuning.wockbrute.flinchChance;
     try {

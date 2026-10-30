@@ -4,6 +4,7 @@ import { monsterTuning } from "../tuning/monsters";
 import type { ProjectileKind } from "../tuning/projectiles";
 import { altarRadiusOf, type BoneAltar, targetsOf } from "./boneAltars";
 import { BONE_WALL_REACH, type BoneWallPiece } from "./boneWalls";
+import { targetsInCircle } from "./melee";
 import type { MinionOfLevel } from "./minions";
 import { canSee } from "./path";
 import type { Vec } from "./vec";
@@ -29,13 +30,18 @@ export type Projectile =
   | HeroProjectile
   | MinionProjectile;
 
-/** What every Projectile has, whoever loosed it. */
-type Flight = {
+/** What every Projectile has, whoever loosed it or however it flies. */
+type Airborne = {
   kind: ProjectileKind;
+  /** Where it is, on the ground below it when it is lobbed. */
   pos: Vec;
   prevPos: Vec;
   /** Which way it flies: a unit vector in tile space. */
   direction: Vec;
+};
+
+/** What a Projectile flying in a straight line has. */
+type Flight = Airborne & {
   /** How far it flies each step (tiles). */
   speed: number;
   /** How far it has left to fly before it vanishes (tiles). */
@@ -58,28 +64,23 @@ export type MonsterProjectile = Flight &
  * the way. On landing it hits every living Hero and Minion within its circle,
  * once each, and is gone. It carries the numbers it was loosed with.
  */
-export type LobbedProjectile = AttackNumbers & {
-  kind: ProjectileKind;
-  /** Marks it as lobbed: it flies to a `landing`, not until out of range. */
-  lob: true;
-  /** Which way it flies: a unit vector in tile space, for facing. */
-  direction: Vec;
-  /** The Monster that loosed it. */
-  from: MonsterId;
-  /** Where it is on the ground below its arc. */
-  pos: Vec;
-  prevPos: Vec;
-  /** Where it was loosed from. */
-  origin: Vec;
-  /** The point it lands on, marked on the ground from the moment it is loosed. */
-  landing: Vec;
-  /** The radius of the circle it hits within there (tiles). */
-  radius: number;
-  /** How far along its arc it is, from 0 (loosed) to 1 (landing). */
-  progress: number;
-  /** How much of its arc it flies each step. */
-  rate: number;
-};
+export type LobbedProjectile = Airborne &
+  AttackNumbers & {
+    /** Marks it as lobbed: it flies to a `landing`, not until out of range. */
+    lob: true;
+    /** The Monster that loosed it. */
+    from: MonsterId;
+    /** Where it was loosed from. */
+    origin: Vec;
+    /** The point it lands on, marked on the ground from the moment it is loosed. */
+    landing: Vec;
+    /** The radius of the circle it hits within there (tiles). */
+    radius: number;
+    /** How far along its arc it is, from 0 (loosed) to 1 (landing). */
+    progress: number;
+    /** How much of its arc it flies each step. */
+    rate: number;
+  };
 
 /**
  * The Hero's Projectile: it hits every Monster and Bone Altar it touches,
@@ -105,6 +106,13 @@ export type MinionProjectile = Flight & {
   minion: MinionOfLevel;
 };
 
+/** Whether `projectile` is lobbed, flying an arc to a point. */
+export function isLobbed(
+  projectile: Projectile,
+): projectile is LobbedProjectile {
+  return "lob" in projectile;
+}
+
 /**
  * Moves every Projectile one step along its line, in order. A Minion's
  * Projectile calls `shoot` on the first Monster or Bone Altar it touches with
@@ -129,7 +137,7 @@ export function stepProjectiles(
 ) {
   const area = world.areas[world.areaName];
   world.projectiles = world.projectiles.filter((projectile) => {
-    if ("lob" in projectile) return stepLobbed(world, projectile, land);
+    if (isLobbed(projectile)) return stepLobbed(world, projectile, land);
     const from = projectile.pos;
     const move = Math.min(projectile.speed, projectile.rangeLeft);
     const to = {
@@ -169,25 +177,22 @@ export function stepProjectiles(
 }
 
 /**
- * Moves `muck` along its arc, and on arrival lands it on the Hero and each
+ * Moves `lobbed` along its arc, and on arrival lands it on the Hero and each
  * Minion within its circle. Returns whether it is still in the air.
  */
 function stepLobbed(
   world: World,
-  muck: LobbedProjectile,
+  lobbed: LobbedProjectile,
   land: (projectile: AttackNumbers, target: MonsterTarget) => void,
 ): boolean {
-  muck.progress = Math.min(1, muck.progress + muck.rate);
-  muck.pos = {
-    x: muck.origin.x + (muck.landing.x - muck.origin.x) * muck.progress,
-    y: muck.origin.y + (muck.landing.y - muck.origin.y) * muck.progress,
+  lobbed.progress = Math.min(1, lobbed.progress + lobbed.rate);
+  lobbed.pos = {
+    x: lobbed.origin.x + (lobbed.landing.x - lobbed.origin.x) * lobbed.progress,
+    y: lobbed.origin.y + (lobbed.landing.y - lobbed.origin.y) * lobbed.progress,
   };
-  if (muck.progress < 1) return true;
-  const inCircle = (pos: Vec) =>
-    Math.hypot(pos.x - muck.landing.x, pos.y - muck.landing.y) <= muck.radius;
-  if (!world.death && inCircle(world.hero.pos)) land(muck, "hero");
-  for (const minion of [...world.minions]) {
-    if (inCircle(minion.pos)) land(muck, minion.id);
+  if (lobbed.progress < 1) return true;
+  for (const target of targetsInCircle(world, lobbed.landing, lobbed.radius)) {
+    land(lobbed, target);
   }
   return false;
 }

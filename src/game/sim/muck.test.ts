@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import { monsterTuning } from "../tuning/monsters";
 import { newMinion } from "./minions";
 import { monsterMaxLife } from "./monsters";
+import { isLobbed, type LobbedProjectile } from "./projectiles";
 import { combatArea } from "./testAreas";
 import type { Vec } from "./vec";
 import {
   createWorld,
-  type LobbedProjectile,
   type Monster,
   type Order,
   type SimEvent,
@@ -121,21 +121,21 @@ function walkThroughExit(w: World): SimEvent[] {
   return events;
 }
 
-function spitterOf(w: World): Monster {
-  const spitter = w.monsters.find((m) => m.type === "bog_spitter");
-  if (!spitter) throw new Error("No Bog Spitter");
-  return spitter;
+function bogSpitterOf(w: World): Monster {
+  const bogSpitter = w.monsters.find((m) => m.type === "bog_spitter");
+  if (!bogSpitter) throw new Error("No Bog Spitter");
+  return bogSpitter;
 }
 
 function muckOf(w: World): LobbedProjectile {
-  const muck = w.projectiles.find((p): p is LobbedProjectile => "lob" in p);
+  const muck = w.projectiles.find(isLobbed);
   if (!muck) throw new Error("No Muck in flight");
   return muck;
 }
 
-/** Steps until the Spitter starts winding up, giving `orders` each step. */
-function untilWindUp(w: World, spitter: Monster, orders: Order[] = []) {
-  for (let i = 0; spitter.state !== "windup"; i++) {
+/** Steps until the Bog Spitter starts winding up, giving `orders` each step. */
+function untilWindUp(w: World, bogSpitter: Monster, orders: Order[] = []) {
+  for (let i = 0; bogSpitter.state !== "windup"; i++) {
     if (i > 60 * 10) throw new Error("It never wound up");
     step(w, orders);
   }
@@ -143,7 +143,7 @@ function untilWindUp(w: World, spitter: Monster, orders: Order[] = []) {
 
 /** Steps until Muck is loosed, returning it. */
 function untilLoosed(w: World): LobbedProjectile {
-  for (let i = 0; !w.projectiles.some((p) => "lob" in p); i++) {
+  for (let i = 0; !w.projectiles.some(isLobbed); i++) {
     if (i > 60 * 10) throw new Error("No Muck was loosed");
     step(w, []);
   }
@@ -237,11 +237,11 @@ describe("Muck", () => {
 
   it("flies over a Wall and a Bone Wall to its mark", () => {
     const w = inTown(["H..#..B...."]);
-    const spitter = spitterOf(w);
+    const bogSpitter = bogSpitterOf(w);
     // Seen from near, then the Hero is behind the Wall when it looses.
     w.hero.pos = { x: 4.5, y: 0.5 };
     w.hero.prevPos = { ...w.hero.pos };
-    untilWindUp(w, spitter);
+    untilWindUp(w, bogSpitter);
     w.hero.pos = { x: 0.5, y: 0.5 };
     w.hero.prevPos = { ...w.hero.pos };
     w.boneWalls.push({ id: 1, pos: { x: 2.5, y: 0.5 }, life: 100, left: 6000 });
@@ -261,8 +261,8 @@ describe("Muck", () => {
       "...........",
       "..........",
     ]);
-    const spitter = spitterOf(w);
-    const before = spitter.life;
+    const bogSpitter = bogSpitterOf(w);
+    const before = bogSpitter.life;
     const muck = untilLoosed(w);
     const at = muck.landing;
     const radius =
@@ -296,7 +296,7 @@ describe("Muck", () => {
     );
     w.minions.push(near, edge, far);
     const monster = w.monsters[0];
-    expect(monster).toBe(spitter);
+    expect(monster).toBe(bogSpitter);
     // Minions would walk off to fight; hold them on their spots.
     const spots = [near, edge, far].map((m) => ({ m, pos: { ...m.pos } }));
     const events = untilLanded(w, muck, () => {
@@ -310,7 +310,7 @@ describe("Muck", () => {
     expect(onMinion(events, 90)).toHaveLength(1);
     expect(onMinion(events, 91)).toHaveLength(1);
     expect(onMinion(events, 92)).toEqual([]);
-    expect(spitter.life).toBe(before);
+    expect(bogSpitter.life).toBe(before);
   });
 
   it("never hits Monsters", () => {
@@ -346,19 +346,19 @@ describe("Muck", () => {
 
   it("lands with its numbers after its Bog Spitter dies", () => {
     const w = inTown(["H.....B...."]);
-    const spitter = spitterOf(w);
+    const bogSpitter = bogSpitterOf(w);
     const muck = untilLoosed(w);
     const numbers = {
       attackRating: muck.attackRating,
       damage: [...muck.damage],
     };
-    // The Spitter dies while its Muck is in the air.
-    spitter.life = 0;
-    w.monsters = w.monsters.filter((m) => m !== spitter);
+    // The Bog Spitter dies while its Muck is in the air.
+    bogSpitter.life = 0;
+    w.monsters = w.monsters.filter((m) => m !== bogSpitter);
 
     const events = untilLanded(w, muck);
 
-    expect(w.monsters).not.toContain(spitter);
+    expect(w.monsters).not.toContain(bogSpitter);
     const hits = onHero(events);
     expect(hits).toHaveLength(1);
     const [hit] = hits;
@@ -386,33 +386,33 @@ describe("Muck", () => {
 describe("a Bog Spitter", () => {
   it("looses Muck once the Hero is within its 7 tiles' range and in sight, and not before", () => {
     const w = inTown(["H........B"]);
-    const spitter = spitterOf(w);
-    const home = { ...spitter.pos };
+    const bogSpitter = bogSpitterOf(w);
+    const home = { ...bogSpitter.pos };
 
     const muck = untilLoosed(w);
 
-    expect(distance(spitter.pos, home)).toBeGreaterThan(1);
-    expect(distance(spitter.pos, w.hero.pos)).toBeLessThanOrEqual(7 + 1e-9);
-    expect(muck.from).toBe(spitter.id);
+    expect(distance(bogSpitter.pos, home)).toBeGreaterThan(1);
+    expect(distance(bogSpitter.pos, w.hero.pos)).toBeLessThanOrEqual(7 + 1e-9);
+    expect(muck.from).toBe(bogSpitter.id);
   });
 
   it("walks on, in range but with a wall in the way, until it can see the Hero", () => {
-    // The Skeleton sees the Hero and wakes the Spitter, which can't.
+    // The Skeleton sees the Hero and wakes the Bog Spitter, which can't.
     const w = inTown([
       "..........", //
       "H....#B...",
       "......S...",
     ]);
-    const spitter = spitterOf(w);
-    const home = { ...spitter.pos };
+    const bogSpitter = bogSpitterOf(w);
+    const home = { ...bogSpitter.pos };
     expect(distance(home, w.hero.pos)).toBeLessThanOrEqual(7);
 
     for (let i = 0; i < 20; i++) step(w, []);
-    expect(w.projectiles.filter((p) => "lob" in p)).toEqual([]);
+    expect(w.projectiles.filter(isLobbed)).toEqual([]);
 
-    untilWindUp(w, spitter);
+    untilWindUp(w, bogSpitter);
 
-    expect(distance(spitter.pos, home)).toBeGreaterThan(0.4);
+    expect(distance(bogSpitter.pos, home)).toBeGreaterThan(0.4);
   });
 
   it("has 45 Life, hits for 5–9, gives 120 Experience and walks at 1.2 tiles/s", () => {

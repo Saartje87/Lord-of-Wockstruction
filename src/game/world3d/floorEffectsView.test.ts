@@ -3,6 +3,7 @@ import { arenaWith } from "../input/testArena";
 import { CORPSE_BURST } from "../render/corpseBurst";
 import { CURSE_CIRCLE, curseLook } from "../render/curse";
 import { LEVEL_UP } from "../render/levelUp";
+import { isLobbed } from "../sim/projectiles";
 import { msToSteps } from "../sim/units";
 import { step } from "../sim/world";
 import { monsterTuning } from "../tuning/monsters";
@@ -107,7 +108,7 @@ describe("the 3D World view of the floor effects", () => {
     it("shows the landing point and circle from loosing, with progress along the arc", () => {
       const world = loosed();
       const [muck] = world.projectiles;
-      if (!("lob" in muck)) throw new Error("Muck is lobbed");
+      if (!isLobbed(muck)) throw new Error("Muck is lobbed");
 
       const [mark] = viewOf(world).marks;
 
@@ -119,10 +120,10 @@ describe("the 3D World view of the floor effects", () => {
       expect(viewOf(world).marks[0].pos).toEqual(muck.landing);
     });
 
-    it("draws the glob over its arc, highest half way", () => {
+    it("draws the Muck over its arc, highest half way", () => {
       const world = loosed();
       const [muck] = world.projectiles;
-      if (!("lob" in muck)) throw new Error("Muck is lobbed");
+      if (!isLobbed(muck)) throw new Error("Muck is lobbed");
       const lift = () =>
         worldViewOf(world, 1, NO_POINTER, NO_EFFECTS).projectiles[0].lift;
 

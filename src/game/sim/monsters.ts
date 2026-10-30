@@ -10,7 +10,7 @@ import { skillTuning } from "../tuning/skills";
 import { uniqueTuning } from "../tuning/uniqueMonsters";
 import { attackSpot, heroSideBodies, wallRadius } from "./bodies";
 import { BONE_WALL_HALF, type BoneWallPiece } from "./boneWalls";
-import { faceToward, lands } from "./melee";
+import { faceToward, lands, targetsInCircle } from "./melee";
 import { canReach, canSee, isClear } from "./path";
 import type { AttackNumbers } from "./projectiles";
 import { random, randomInt } from "./random";
@@ -256,18 +256,7 @@ export function stepMonsters(world: World): Strike[] {
       }
     }
     if (monster.state === "windup") {
-      if (windUp(world, monster)) {
-        const { attack } = STEPPED[monster.type];
-        const wall = attackedWall(world, monster);
-        if (attack.kind === "melee" && attack.slam && !wall) {
-          // A Slam hits everything of the Hero's in its circle.
-          for (const target of slammed(world, monster, attack.slam.radius)) {
-            strikes.push({ monster, target, wall: null });
-          }
-        } else {
-          strikes.push({ monster, target: monster.target, wall });
-        }
-      }
+      strikes.push(...windUp(world, monster));
       continue;
     }
     if (monster.state === "recover") {
@@ -619,16 +608,18 @@ function startWindUp(monster: Monster, at: Vec) {
 }
 
 /**
- * Winds up, rooted, and at its end resolves the attack: a melee one hits its
- * target only if it is still there, in reach, plus grace, and in the arc of
- * the facing it wound up in; a ranged one looses a Projectile at where its
- * target is then. Then it recovers, rooted, and waits a while longer, with
- * some jitter, before it can attack again. Returns whether a melee attack hit.
+ * Winds up, rooted, and at its end resolves the attack, returning the Strikes
+ * that land: a melee one hits its target only if it is still there, in reach,
+ * plus grace, and in the arc of the facing it wound up in, or the Bone Wall
+ * piece it was attacking if that is in reach; a Slam also hits everything of
+ * the Hero's in its circle, wall or no wall; a ranged one looses a Projectile
+ * at where its target is then. Then it recovers, rooted, and waits a while
+ * longer, with some jitter, before it can attack again.
  */
-function windUp(world: World, monster: Monster): boolean {
+function windUp(world: World, monster: Monster): Strike[] {
   const stepped = STEPPED[monster.type];
   monster.attack += 1;
-  if (monster.attack < stepped.windUpSteps) return false;
+  if (monster.attack < stepped.windUpSteps) return [];
   monster.state = "recover";
   monster.attack = stepped.rootSteps;
   // Leaden Limbs stretches the whole cycle (wind-up included) by waiting
@@ -645,9 +636,19 @@ function windUp(world: World, monster: Monster): boolean {
     ),
   );
   const { attack } = stepped;
+  const strikes: Strike[] = [];
+  if (attack.kind === "melee" && attack.slam) {
+    for (const target of targetsInCircle(
+      world,
+      monster.pos,
+      attack.slam.radius,
+    )) {
+      strikes.push({ monster, target, wall: null });
+    }
+  }
   if (monster.wall !== null) {
     const wall = attackedWall(world, monster);
-    return (
+    if (
       wall !== null &&
       attack.kind === "melee" &&
       lands(
@@ -656,35 +657,20 @@ function windUp(world: World, monster: Monster): boolean {
         attack.reach + attack.reachGrace + BONE_WALL_HALF,
         attack.arc,
       )
-    );
+    ) {
+      strikes.push({ monster, target: monster.target, wall });
+    }
+    return strikes;
   }
-  if (attack.kind === "melee" && attack.slam) return true;
+  if (attack.kind === "melee" && attack.slam) return strikes;
   const at = targetPos(world, monster.target);
-  if (!at) return false;
+  if (!at) return strikes;
   if (attack.kind === "ranged") {
     loose(world, monster, attack, at);
-    return false;
+  } else if (lands(monster, at, attack.reach + attack.reachGrace, attack.arc)) {
+    strikes.push({ monster, target: monster.target, wall: null });
   }
-  return lands(monster, at, attack.reach + attack.reachGrace, attack.arc);
-}
-
-/**
- * What a Slam by `monster` hits: the Hero, unless in Death, and each Minion
- * within `radius` of it, whichever way it faces.
- */
-function slammed(
-  world: World,
-  monster: Monster,
-  radius: number,
-): MonsterTarget[] {
-  const targets: MonsterTarget[] = [];
-  if (!world.death && distance(monster.pos, world.hero.pos) <= radius) {
-    targets.push("hero");
-  }
-  for (const minion of world.minions) {
-    if (distance(monster.pos, minion.pos) <= radius) targets.push(minion.id);
-  }
-  return targets;
+  return strikes;
 }
 
 /** Looses a ranged Monster's Projectile from where it stands at `at`. */
@@ -695,34 +681,32 @@ function loose(
   at: Vec,
 ) {
   faceToward(monster, at);
+  const flying = {
+    kind: ranged.projectile,
+    pos: { ...monster.pos },
+    prevPos: { ...monster.pos },
+    direction: { x: Math.cos(monster.facing), y: Math.sin(monster.facing) },
+    from: monster.id,
+    ...monsterAttack(monster),
+  };
   if (ranged.lob) {
     // Lobbed at the spot the target stands on now, not along a line.
     const gap = distance(monster.pos, at);
     world.projectiles.push({
-      kind: ranged.projectile,
+      ...flying,
       lob: true,
-      direction: { x: Math.cos(monster.facing), y: Math.sin(monster.facing) },
-      from: monster.id,
-      pos: { ...monster.pos },
-      prevPos: { ...monster.pos },
       origin: { ...monster.pos },
       landing: { ...at },
       radius: ranged.lob.radius,
       progress: 0,
       rate: gap === 0 ? 1 : ranged.projectileSpeed / gap,
-      ...monsterAttack(monster),
     });
     return;
   }
   world.projectiles.push({
-    kind: ranged.projectile,
-    pos: { ...monster.pos },
-    prevPos: { ...monster.pos },
-    direction: { x: Math.cos(monster.facing), y: Math.sin(monster.facing) },
+    ...flying,
     speed: ranged.projectileSpeed,
     rangeLeft: ranged.projectileRange,
-    from: monster.id,
-    ...monsterAttack(monster),
   });
 }
 

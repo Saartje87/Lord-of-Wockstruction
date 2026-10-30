@@ -83,7 +83,7 @@ export const MONSTER_LOOKS: Record<MonsterType, MonsterLook> = {
     weapons: [],
   },
   // The Plant Warrior (KayKit Mystery Monthly Series 6), a slow plant that
-  // spits Muck. Its clips come from `Rig_Medium`, the spit from the Knight's
+  // lobs Muck. Its clips come from `Rig_Medium`, the lob from the Knight's
   // `Spellcast_Shoot`.
   bog_spitter: {
     model: "PlantWarrior",
@@ -98,9 +98,10 @@ export const MONSTER_LOOKS: Record<MonsterType, MonsterLook> = {
       flinch: "Hit_A",
       death: "Death_A",
     },
-    // Placeholder until sampled against the clip: the spit leaves the hands
-    // at about half the cast.
-    contact: 0.5,
+    // The Muck leaves the hands as the raised cast settles, at about 0.35 of
+    // its clip (hand speed sampled along the retargeted clip on the Plant
+    // Warrior: 3.9 tiles/s at 0.1, down to 0.4 at 0.35).
+    contact: 0.35,
     weapons: [],
   },
   // The Orc Brute (KayKit Mystery Monthly Series 6), larger than the Golem's

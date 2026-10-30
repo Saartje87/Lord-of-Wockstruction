@@ -155,7 +155,7 @@ const WOCKWOLF = {
 
 /**
  * The Bog Spitter: the Plant Warrior (Series 6) on `Rig_Medium`. The pack has
- * no combat clips, so the spit is the Knight's `Spellcast_Shoot` retargeted
+ * no combat clips, so the lob is the Knight's `Spellcast_Shoot` retargeted
  * onto it, as the Golem's attack is.
  */
 const BOG_SPITTER = {

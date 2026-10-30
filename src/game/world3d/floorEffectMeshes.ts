@@ -20,8 +20,13 @@ import type { FloorEffectsView } from "./view";
  */
 const POOL = { telegraphs: 10, curses: 4, bursts: 6, marks: 8 };
 
-/** The mark of Muck on the ground: a murky green, filling as the glob nears. */
-const MUCK_MARK = { colour: 0x8fc22e, fillAlpha: 0.12, filledAlpha: 0.4 };
+/** The mark of Muck on the ground: a murky green, filling as the Muck nears. */
+const MUCK_MARK = {
+  colour: 0x8fc22e,
+  fillAlpha: 0.12,
+  filledAlpha: 0.4,
+  edgeAlpha: 0.8,
+};
 
 /** How high the effects lie, over the Exit pool's glow (0.12) on the floor. */
 const LIFT = 0.14;
@@ -188,7 +193,7 @@ export function floorEffectMeshesOf(): FloorEffectMeshes {
         place(edge, shown.pos, shown.radius);
         place(filled, shown.pos, Math.max(shown.radius * shown.progress, 1e-3));
         opacity(area, MUCK_MARK.fillAlpha);
-        opacity(edge, 0.8);
+        opacity(edge, MUCK_MARK.edgeAlpha);
         opacity(filled, MUCK_MARK.filledAlpha);
       });
       bursts.forEach(({ flash, edge }, i) => {

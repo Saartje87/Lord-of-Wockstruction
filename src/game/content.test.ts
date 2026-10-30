@@ -1623,7 +1623,7 @@ describe("the Soggy Bog's ponds and mud", () => {
 });
 
 describe("the shipped Bog Spitters", () => {
-  const spitters = (area: Area) => sum(packsOf(area, "bog_spitter"));
+  const bogSpitters = (area: Area) => sum(packsOf(area, "bog_spitter"));
 
   it("are the most common Monster in the Soggy Bog, and more of them than in any other Area", () => {
     const { areas } = shippedWorld();
@@ -1640,7 +1640,7 @@ describe("the shipped Bog Spitters", () => {
     }
     for (const [name, area] of Object.entries(areas)) {
       if (name !== "soggy-bog") {
-        expect(spitters(bog)).toBeGreaterThan(spitters(area));
+        expect(bogSpitters(bog)).toBeGreaterThan(bogSpitters(area));
       }
     }
   });
@@ -1648,10 +1648,10 @@ describe("the shipped Bog Spitters", () => {
   it("are placed in the Spa and the Old Mill, and never underground", () => {
     const { areas } = shippedWorld();
 
-    expect(spitters(areas.spa)).toBeGreaterThan(0);
-    expect(spitters(areas["old-mill"])).toBeGreaterThan(0);
+    expect(bogSpitters(areas.spa)).toBeGreaterThan(0);
+    expect(bogSpitters(areas["old-mill"])).toBeGreaterThan(0);
     for (const name of ["catacombs", "crypt", "ossuary"]) {
-      expect(spitters(areas[name])).toBe(0);
+      expect(bogSpitters(areas[name])).toBe(0);
     }
   });
 
@@ -1660,7 +1660,7 @@ describe("the shipped Bog Spitters", () => {
 
     expect(
       world.monsters.filter((monster) => monster.type === "bog_spitter").length,
-    ).toBe(spitters(world.areas["soggy-bog"]));
+    ).toBe(bogSpitters(world.areas["soggy-bog"]));
   });
 });
 

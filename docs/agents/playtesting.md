@@ -41,7 +41,7 @@ localStorage.setItem("wockstruction.save", JSON.stringify({
 location.reload();
 ```
 
-A Save at 450 Experience levels up on the next Skeleton kill. For fights, use Level 30 or more with Vitality raised: Monster Level comes from the Combat Area, not the Hero, so a Level 1 to 10 Hero dies to the first Skeleton group while you take screenshots. **New Hero** in the Esc menu, or `localStorage.removeItem("wockstruction.save")`, puts things back. A Save written on a port belongs to that port only.
+A Save at 450 Experience levels up on the next Skeleton kill. For fights, use Level 30 or more with Vitality raised: Monster Level comes from the Combat Area, not the Hero, so a Level 1 to 10 Hero dies to the first Skeleton group while you take screenshots. **New Hero** on the Start Screen (Esc, then Quit to Start Screen), or `localStorage.removeItem("wockstruction.save")`, puts things back. A Save written on a port belongs to that port only.
 
 ### Start in an Area
 
@@ -55,7 +55,7 @@ In dev builds and Vercel previews, `?stats` (alone or beside `?area=…`) shows 
 
 ## Read the game state
 
-Screenshots are JPEGs, and walls, the low-Life tint or Monsters standing on each other can hide what a criterion asks about. In dev builds, `window.__wockstruction.state()` returns what the game holds right now, as plain data (`DevState` in `src/game/devState.ts`). Call it from `javascript_exec`, before and after an action:
+Screenshots are JPEGs, and walls, the low-Life tint or Monsters standing on each other can hide what a criterion asks about. In dev builds, `window.__wockstruction.state()` returns what the game holds right now, as plain data (`DevState` in `src/game/devState.ts`). Call it from `javascript_tool`, before and after an action:
 
 ```js
 window.__wockstruction.state();
@@ -100,7 +100,7 @@ const touch = (type, id, x, y) => canvas.dispatchEvent(new PointerEvent(type, {
 - **The first touch** switches the HUD to touch controls; take a screenshot then to read the stick and button positions in CSS px.
 - **The stick**: `pointerdown` in the stick zone, `pointermove` by up to the stick's reach (about 60 px) in the walk direction, `pointerup` to let go.
 - **Buttons**: `pointerdown` on the button holds it until `pointerup`.
-- **Run timed sequences in one `javascript_exec`** (await a timeout between events), then screenshot. A tool round trip lasts seconds, and Monsters keep hitting meanwhile.
+- **Run timed sequences in one `javascript_tool`** (await a timeout between events), then screenshot. A tool round trip lasts seconds, and Monsters keep hitting meanwhile.
 - **A `setPointerCapture` error in the dev overlay** comes from dispatched touches outside the controls, which have no real pointer. It is no game bug.
 - **From Town to Monsters**: start there with `?area=catacombs&entry=from-town` (see Start in an Area). The nearest Skeletons (3) are about 23 tiles east of the Catacombs' `from-town` Entry.
 

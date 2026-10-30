@@ -58,6 +58,7 @@ export function heroActorOf(knight: GLTF): HeroActor {
  */
 export function poseHero(actor: HeroActor, hero: HeroView, dt: number) {
   const first = actor.turn === null;
+  actor.root.visible = hero.visible;
   actor.root.position.set(hero.pos.x, 0, hero.pos.y);
   actor.turn = turnTowards(actor.turn, hero.facing, dt, TURN_RATE);
   actor.root.rotation.y = actor.turn;

@@ -9,12 +9,10 @@ export type Pause = {
   pausedMs: number;
   /** When the current pause began (real ms), if paused. */
   sinceMs: number;
-  /** Whether the menu is asking to confirm a New Hero. */
-  confirming: boolean;
 };
 
 export function createPause(): Pause {
-  return { paused: false, pausedMs: 0, sinceMs: 0, confirming: false };
+  return { paused: false, pausedMs: 0, sinceMs: 0 };
 }
 
 /** Pauses, or resumes, at real time `nowMs`. */
@@ -22,7 +20,6 @@ export function togglePause(pause: Pause, nowMs: number) {
   if (pause.paused) pause.pausedMs += nowMs - pause.sinceMs;
   else pause.sinceMs = nowMs;
   pause.paused = !pause.paused;
-  pause.confirming = false;
 }
 
 /** Real time `nowMs` as game time: real time less all the time paused. */

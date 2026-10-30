@@ -15,7 +15,7 @@ import {
   settleCursor,
 } from "./cursor";
 import { devOptionsOf } from "./devOptions";
-import { devStartOf } from "./devStart";
+import { devStartOf, skipsStartScreen } from "./devStart";
 import { devStateOf } from "./devState";
 import { browserFullscreen, fullscreenPointerEvent } from "./fullscreen";
 import {
@@ -56,21 +56,32 @@ import {
   readTouch,
   touchOnButton,
 } from "./input/touch";
+import { drawLoadingScreen, onRetryClick } from "./loadingScreen";
 import {
+  clickLoading,
   clickPaused,
+  clickStart,
   createMenus,
   currentPanel,
+  failLoad,
+  finishLoading,
   fitMenus,
+  isLoading,
+  loadingScreen,
   MAP_KEY,
   type MenuRequest,
   type Menus,
+  pauseForLostController,
   pressKey,
   pressPad,
+  quitToStart,
   reactMenus,
+  reportLoad,
+  startLoad,
   tapMapOverlay,
   tapRotateNotice,
 } from "./menus";
-import { gameTime, togglePause } from "./pause";
+import { gameTime } from "./pause";
 import { createFrameStats, recordFrame } from "./render/frameStats";
 import { inventoryRightClickOrder } from "./render/inventoryPanel";
 import { panelFocusSpots } from "./render/panelFocus";
@@ -88,13 +99,14 @@ import {
   saveOf,
   writeSave,
 } from "./save";
-import { isFloor } from "./sim/area";
+import { isFloor, TOWN } from "./sim/area";
 import { cursorItemOf } from "./sim/inventory";
 import { tileOf, type Vec } from "./sim/vec";
 import { createWorld, type MonsterId, type Order, step } from "./sim/world";
-import { viewportOf } from "./viewport";
+import { type Viewport, viewportOf } from "./viewport";
 import { screenToTile, worldCameraOn } from "./world3d/camera";
 import { createSharedCanvas } from "./world3d/sharedCanvas";
+import { startFocusAt, startViewOf } from "./world3d/startView";
 import { type PointerState, worldViewOf } from "./world3d/view";
 import {
   createWorld3d,
@@ -151,9 +163,10 @@ export default function GameCanvas() {
       canvas: shared.canvas,
       context: shared.context,
     });
-    init.then(async () => {
+    init.then(() => {
       if (cancelled) return;
       const storage = browserStorage();
+      const development = process.env.NODE_ENV === "development";
       // The Save's Hero, or a fresh one when there's no Save.
       const save = readSave(storage);
       let world = createWorld({
@@ -163,21 +176,10 @@ export default function GameCanvas() {
         progress: save?.progress,
         belongings: save?.belongings,
         // Playtests can skip the walk from Town. Production builds ignore it.
-        start:
-          process.env.NODE_ENV === "development"
-            ? devStartOf(window.location.search)
-            : null,
+        start: development ? devStartOf(window.location.search) : null,
       });
       const loaded = createWorld3d(shared);
       world3d = loaded;
-      try {
-        await loadModels(loaded);
-      } catch (error) {
-        console.error("The 3D World failed to load", error);
-        container.textContent = "The 3D World failed to load.";
-        return;
-      }
-      if (cancelled) return;
       // The 3D World draws first and Pixi's HUD over it, so Pixi clears
       // nothing.
       app.renderer.background.clearBeforeRender = false;
@@ -203,7 +205,9 @@ export default function GameCanvas() {
       const frameStats = createFrameStats(performance.now());
       const clock = createClock();
       const input = createPointerInput();
-      const menus = createMenus();
+      // The Loading Screen shows from the start, drawn by the page itself;
+      // play begins once the models are in.
+      const menus = createMenus(loadingScreen());
       const { pause } = menus;
       const fullscreen = browserFullscreen(listeners.signal);
       let orders: Order[] = [];
@@ -281,12 +285,24 @@ export default function GameCanvas() {
        * Whether `at` is on the Fullscreen button, of the Rotate Notice or
        * the pause menu, as last drawn.
        */
-      const onFullscreenButton = (at: Vec): boolean =>
-        menus.rotateNotice
-          ? renderer.rotateNoticeChoiceAt(at, menus.fullscreen) === "fullscreen"
-          : pause.paused &&
-            renderer.menuChoiceAt(at, pause.confirming, menus.fullscreen) ===
-              "fullscreen";
+      const onFullscreenButton = (at: Vec): boolean => {
+        const { screen } = menus;
+        if (menus.rotateNotice) {
+          return (
+            renderer.rotateNoticeChoiceAt(at, menus.fullscreen) === "fullscreen"
+          );
+        }
+        if (screen.type === "start") {
+          return (
+            renderer.startChoiceAt(at, screen, menus.fullscreen) ===
+            "fullscreen"
+          );
+        }
+        return (
+          pause.paused &&
+          renderer.menuChoiceAt(at, menus.fullscreen) === "fullscreen"
+        );
+      };
       /**
        * Presses the Fullscreen button and carries out the menus' request at
        * once, inside the event handler: browsers allow fullscreen only
@@ -295,7 +311,9 @@ export default function GameCanvas() {
       const pressFullscreen = () => {
         const asked = menus.rotateNotice
           ? tapRotateNotice(menus, "fullscreen")
-          : clickPaused(menus, "fullscreen", performance.now());
+          : menus.screen.type === "start"
+            ? clickStart(menus, "fullscreen")
+            : clickPaused(menus, "fullscreen", performance.now());
         if (asked === "fullscreen") fullscreen.toggle();
       };
       /** The finger or pen pressed on the Fullscreen button, till it lifts. */
@@ -366,7 +384,65 @@ export default function GameCanvas() {
         { signal: listeners.signal },
       );
 
+      /**
+       * Loads the models and the Town's Walls and Props, the bar following,
+       * then lets play begin. A failure stays on the Loading Screen until
+       * Retry loads again.
+       */
+      const load = async () => {
+        startLoad(menus);
+        drawLoadingScreen(menus.screen);
+        try {
+          await loadModels(loaded, world.areas[TOWN], (progress) => {
+            if (cancelled) return;
+            reportLoad(menus, progress);
+            drawLoadingScreen(menus.screen);
+          });
+        } catch (error) {
+          if (cancelled) return;
+          console.error("The 3D World failed to load", error);
+          failLoad(menus);
+          drawLoadingScreen(menus.screen);
+          return;
+        }
+        if (cancelled) return;
+        // The clock owes nothing for the time spent loading.
+        last = gameTime(pause, performance.now());
+        finishLoading(menus, {
+          hasSave: save !== null,
+          skipStart: skipsStartScreen(window.location.search, development),
+        });
+        drawLoadingScreen(menus.screen);
+      };
+      onRetryClick(() => {
+        if (clickLoading(menus, "retry") === "retry") void load();
+      }, listeners.signal);
+
       const tick = (realNow: number) => {
+        if (isLoading(menus)) {
+          // Nothing is drawn or simulated yet; the keys and the controller
+          // may ask for Retry, and everything else does nothing. A failed
+          // load turned upright shows the Rotate Notice over the page's
+          // Loading Screen, which then hides.
+          fitMenus(menus, viewportOf(app.screen), realNow);
+          menus.fullscreen = fullscreen.read();
+          const { screen } = menus;
+          const covered =
+            menus.rotateNotice && screen.type === "loading" && screen.failed;
+          drawLoadingScreen(menus.screen, covered);
+          if (covered) {
+            renderer.drawRotateNoticeOnly(menus.fullscreen);
+            app.render();
+          }
+          const asked = drainMenuInput(realNow);
+          if (asked === "retry") void load();
+          frame = requestAnimationFrame(tick);
+          return;
+        }
+        if (menus.screen.type === "start") {
+          tickStart(realNow, viewportOf(app.screen));
+          return;
+        }
         const wasPaused = pause.paused;
         const inventoryWasOpen = menus.inventoryOpen;
         // Read every frame, so a resize into the Compact Layout shuts all
@@ -380,7 +456,7 @@ export default function GameCanvas() {
         menus.fullscreen = fullscreen.read();
         // A controller gone while it was played opens the pause menu, so the
         // Hero isn't killed while it's plugged back in.
-        if (controllerLost && !pause.paused) togglePause(pause, realNow);
+        if (controllerLost) pauseForLostController(menus, realNow);
         controllerLost = false;
         let pressed = clickedAt !== null;
         /** What the menus asked for this frame, carried out below. */
@@ -436,11 +512,7 @@ export default function GameCanvas() {
           if (used !== null && used !== "handled") requests.add(used);
         }
         if (clickedAt && wasPaused && pause.paused) {
-          const choice = renderer.menuChoiceAt(
-            clickedAt,
-            pause.confirming,
-            menus.fullscreen,
-          );
+          const choice = renderer.menuChoiceAt(clickedAt, menus.fullscreen);
           const asked = clickPaused(menus, choice, realNow);
           if (asked !== null) requests.add(asked);
         }
@@ -461,16 +533,24 @@ export default function GameCanvas() {
         }
         clickedAt = null;
         keys = [];
-        if (requests.has("newHero")) {
-          // Confirmed in the menu: the Save goes, and a fresh Level 1 Hero
-          // starts in Town.
-          removeSave(storage);
+        if (requests.has("quit")) {
+          // Quit to Start Screen: the World is made again from the Save, as
+          // after any load, so the Town Portal, Kept Area, Minions and Bone
+          // Ward are gone. Nothing is simulated until Continue.
+          const saved = readSave(storage);
           world = createWorld({
             areas,
             tilesets,
             seed: Date.now(),
+            progress: saved?.progress,
+            belongings: saved?.belongings,
           });
           orders = [];
+          drawnTarget = null;
+          quitToStart(menus, saved !== null);
+          last = gameTime(pause, realNow);
+          frame = requestAnimationFrame(tick);
+          return;
         }
         // Stands still while paused, so the clock owes no steps for it and
         // the World and every effect hold still.
@@ -675,6 +755,117 @@ export default function GameCanvas() {
         }
         frame = requestAnimationFrame(tick);
       };
+      /**
+       * A frame on the Start Screen: the keys and clicks choose, and until
+       * they do the camera drifts over Town, its NPCs idle. Nothing is
+       * stepped. Continue or New Hero begins play next frame, the camera on
+       * the Hero at the start Entry and the Area Banner showing.
+       */
+      const tickStart = (realNow: number, viewport: Viewport) => {
+        const start = menus.screen;
+        if (start.type !== "start") return;
+        // Nothing runs, so the Rotate Notice pauses nothing here; it only
+        // takes the input and covers the screen.
+        fitMenus(menus, viewport, realNow);
+        menus.fullscreen = fullscreen.read();
+        const asked = drainMenuInput(realNow, (at) =>
+          clickStart(
+            menus,
+            renderer.startChoiceAt(at, start, menus.fullscreen),
+          ),
+        );
+        // No click on the Start Screen steers the Hero once play begins.
+        cancel(input);
+        cancelTap(tap);
+        last = gameTime(pause, realNow);
+        if (asked === "fullscreen") {
+          // Only from a key or the controller's A, which browsers don't
+          // count as the player's own action, so one may refuse it.
+          fullscreen.toggle();
+        } else if (asked === "continue" || asked === "newHero") {
+          if (asked === "newHero") {
+            removeSave(storage);
+            world = createWorld({ areas, tilesets, seed: Date.now() });
+            orders = [];
+          }
+          frame = requestAnimationFrame(tick);
+          return;
+        }
+        const focus = startFocusAt(world.hero.pos, realNow);
+        worldCamera = worldCameraOn(viewport, focus);
+        drawnTarget = null;
+        renderer.drawStart(
+          start,
+          world.hero.progress.level,
+          menus.fullscreen,
+          menus.menuFocus,
+        );
+        drawWorld3d(loaded, {
+          area: world.areas[world.areaName],
+          view: startViewOf(world, focus, realNow),
+          camera: worldCamera,
+          nowMs: realNow,
+          resolution: app.renderer.resolution,
+        });
+        app.renderer.resetState();
+        app.render();
+        if (statsPanel) {
+          const reading = recordFrame(
+            frameStats,
+            performance.now(),
+            drawnBy(loaded),
+          );
+          if (reading) showReading(statsPanel, reading);
+        }
+        frame = requestAnimationFrame(tick);
+      };
+      /** The controller buttons pressed this frame, for the screens before play. */
+      const readPadPresses = (): readonly PadButton[] => {
+        const controller = readGamepad(padHeld);
+        padHeld = controller.held;
+        return controller.pressed;
+      };
+      /** What the menus read of a Hero who isn't playing yet: alive. */
+      const heroNotPlaying = { heroDead: false };
+      /**
+       * Feeds this frame's keys, controller buttons and (through `onClick`,
+       * when given) click to the menus before play, and drops them. Returns
+       * the first request the menus made, which the caller carries out.
+       */
+      const drainMenuInput = (
+        realNow: number,
+        onClick?: (at: Vec) => MenuRequest | null,
+      ): MenuRequest | null => {
+        let firstRequest: MenuRequest | null = null;
+        const take = (request: MenuRequest | "handled" | null) => {
+          if (
+            firstRequest === null &&
+            request !== null &&
+            request !== "handled"
+          ) {
+            firstRequest = request;
+          }
+        };
+        // Once one asked, the rest is dropped: the screen may be moving on.
+        for (const key of keys) {
+          if (firstRequest === null) {
+            take(pressKey(menus, key, realNow, heroNotPlaying));
+          }
+        }
+        for (const button of readPadPresses()) {
+          if (firstRequest === null) {
+            take(pressPad(menus, button, realNow, heroNotPlaying));
+          }
+        }
+        if (clickedAt && onClick && firstRequest === null) {
+          take(onClick(clickedAt));
+        }
+        clickedAt = null;
+        keys = [];
+        last = gameTime(pause, realNow);
+        return firstRequest;
+      };
+      void load();
       frame = requestAnimationFrame(tick);
     });
 

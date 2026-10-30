@@ -11,3 +11,15 @@ export function devStartOf(
   const entry = query.get("entry");
   return area && entry ? { area, entry } : null;
 }
+
+/**
+ * Whether the Start Screen is skipped, play beginning in the requested Area
+ * once loading is done: in a `development` build, with a dev start in the
+ * query.
+ */
+export function skipsStartScreen(
+  search: string,
+  development: boolean,
+): boolean {
+  return development && devStartOf(search) !== null;
+}

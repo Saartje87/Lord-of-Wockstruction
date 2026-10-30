@@ -217,29 +217,22 @@ describe("the panels at the UI Scale", () => {
   )("draws the pause menu at the UI Scale and hits its buttons on $width×$height", (size) => {
     const viewport = viewportOf(size);
     const { uiScale } = viewport;
-    for (const confirming of [false, true]) {
+    for (const fullscreen of [NO_FULLSCREEN, { available: true, on: false }]) {
       const { panel, buttons } = pauseMenuLayout(
         viewport,
-        confirming,
         "mouseAndKeyboard",
-        NO_FULLSCREEN,
+        fullscreen,
       );
 
-      // At native scale: a 460×290 panel with 160×32 buttons.
-      expect(panel.w).toBeCloseTo(460 * uiScale);
+      // At native scale: a 500×290 panel with 210×32 buttons.
+      expect(panel.w).toBeCloseTo(500 * uiScale);
       expect(panel.h).toBeCloseTo(290 * uiScale);
       expectOnScreen(viewport, panel, "pause menu");
       for (const { choice, rect } of buttons) {
-        expect(rect.w).toBeCloseTo(160 * uiScale);
+        expect(rect.w).toBeCloseTo(210 * uiScale);
         expect(rect.h).toBeCloseTo(32 * uiScale);
         expect(
-          menuChoiceAt(
-            viewport,
-            centre(rect),
-            confirming,
-            "mouseAndKeyboard",
-            NO_FULLSCREEN,
-          ),
+          menuChoiceAt(viewport, centre(rect), "mouseAndKeyboard", fullscreen),
         ).toBe(choice);
       }
     }

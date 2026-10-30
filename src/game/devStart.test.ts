@@ -1,5 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { devStartOf } from "./devStart";
+import { devStartOf, skipsStartScreen } from "./devStart";
+
+describe("skipsStartScreen", () => {
+  it("skips the Start Screen in development with a dev start", () => {
+    expect(skipsStartScreen("?area=catacombs&entry=from-town", true)).toBe(
+      true,
+    );
+  });
+
+  it("shows it in development without a dev start", () => {
+    expect(skipsStartScreen("", true)).toBe(false);
+    expect(skipsStartScreen("?stats", true)).toBe(false);
+  });
+
+  it("shows it in production, which ignores a dev start", () => {
+    expect(skipsStartScreen("?area=catacombs&entry=from-town", false)).toBe(
+      false,
+    );
+  });
+});
 
 describe("devStartOf", () => {
   it("reads the Area and Entry from the query", () => {

@@ -68,18 +68,18 @@ describe("the hints and labels that name buttons", () => {
   });
 
   it.each([
-    [false, "mouseAndKeyboard", "Click elsewhere or press Esc to resume"],
-    [true, "mouseAndKeyboard", "Click elsewhere to resume"],
-    [false, "controller", "Press Menu or B to resume"],
-    [true, "controller", "Press B to go back"],
-    [false, "touch", "Tap elsewhere to resume"],
-    [true, "touch", "Tap elsewhere to resume"],
-  ] as const)("hint, confirming %s, how to leave the pause menu with %s: %j", (confirming, way, hint) => {
-    expect(resumeHint(confirming, way)).toBe(hint);
+    ["mouseAndKeyboard", "Click elsewhere or press Esc to resume"],
+    ["controller", "Press Menu or B to resume"],
+    ["touch", "Tap elsewhere to resume"],
+  ] as const)("hint how to leave the pause menu with %s: %j", (way, hint) => {
+    expect(resumeHint(way)).toBe(hint);
   });
 
   it.each([
     ["newHero", "mouseAndKeyboard", "New Hero (N)"],
+    ["quit", "mouseAndKeyboard", "Quit to Start Screen (Q)"],
+    ["quit", "controller", "Quit to Start Screen"],
+    ["quit", "touch", "Quit to Start Screen"],
     ["confirm", "mouseAndKeyboard", "Yes (Y)"],
     ["goBack", "mouseAndKeyboard", "No (N)"],
     ["newHero", "controller", "New Hero"],

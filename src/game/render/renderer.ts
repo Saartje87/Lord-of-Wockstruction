@@ -19,6 +19,7 @@ import {
   noPendingPoints,
   type Panel,
   type PendingPoints,
+  type StartScreen,
 } from "../menus";
 import type { Pause } from "../pause";
 import type { Area } from "../sim/area";
@@ -183,6 +184,7 @@ import {
   skillTreeRow,
   skillTreeSheet,
 } from "./skillTreePanel";
+import { GAME_NAME, startChoiceAt, startScreenLayout } from "./startScreen";
 import { tooltipRect } from "./tooltip";
 import { touchControlsLayout, touchControlsShown } from "./touchControls";
 import { shownTownPortals, townPortalCloseScale } from "./townPortalLook";
@@ -220,9 +222,8 @@ const FOCUS_RING = { colour: 0xfff4c0, width: 3 };
 
 /**
  * The pause menu's look: a dark panel in the middle of a darkened screen,
- * with the art's credit, the New Hero button and a hint to resume. Asking to
- * confirm a New Hero, the question takes the place of the credit, and Yes
- * and No that of the button. Where things go is `PAUSE_MENU_LAYOUT`.
+ * with the art's credit, the Quit to Start Screen button and a hint to
+ * resume. Where things go is `PAUSE_MENU_LAYOUT`.
  */
 const PAUSE_MENU = {
   darkness: 0.6,
@@ -230,7 +231,7 @@ const PAUSE_MENU = {
   title: { colour: 0xe8d27a, size: 40, top: 28 },
   credit: { colour: 0xd8d0b8, size: 15, top: 96, lineHeight: 22 },
   button: { size: 17 },
-  question: { colour: 0xd8d0b8, size: 17, top: 110, lineHeight: 28 },
+  question: { colour: 0xd8d0b8 },
   hint: { colour: 0x9a9080, size: 14, bottom: 26 },
 };
 
@@ -617,9 +618,30 @@ export function createRenderer(
   app.stage.addChild(greenFlash);
   const menu = pauseMenuView(activeInput);
   app.stage.addChild(menu.layer);
+  // The Start Screen's name and choices, over a World without a HUD.
+  const start = startScreenView(activeInput);
+  app.stage.addChild(start.layer);
   // Instead of the game, over everything.
   const notice = rotateNoticeView(activeInput);
   app.stage.addChild(notice.layer);
+
+  /**
+   * Everything the HUD and the World's overlays draw, which the Start
+   * Screen hides: the stage's layers under the pause menu, the Start Screen
+   * and the Rotate Notice.
+   */
+  const hudLayers = app.stage.children.filter(
+    (layer) =>
+      layer !== menu.layer && layer !== start.layer && layer !== notice.layer,
+  );
+  /** Whether `hudLayers` were hidden for the Start Screen. */
+  let hudHidden = false;
+  /** Hides the HUD, the World's overlays and the pause menu. */
+  const hideHud = () => {
+    hudHidden = true;
+    for (const layer of hudLayers) layer.visible = false;
+    menu.layer.visible = false;
+  };
 
   /** Living Monsters and Corpses by id. */
   const monsters = new Map<MonsterId, MonsterMark>();
@@ -859,18 +881,13 @@ export function createRenderer(
 
     /**
      * The pause-menu button under a click on the canvas (CSS px), or null
-     * off them all; `confirming` while asking to confirm a New Hero, and
-     * the Fullscreen button only where `fullscreen` says it's allowed.
+     * off them all; the Fullscreen button only where `fullscreen` says it's
+     * allowed.
      */
-    menuChoiceAt(
-      screen: Vec,
-      confirming: boolean,
-      fullscreen: Fullscreen,
-    ): MenuChoice | null {
+    menuChoiceAt(screen: Vec, fullscreen: Fullscreen): MenuChoice | null {
       return menuChoiceAt(
         viewportOf(app.screen),
         screen,
-        confirming,
         activeInput.way,
         fullscreen,
       );
@@ -891,6 +908,58 @@ export function createRenderer(
         activeInput.way,
         fullscreen,
       );
+    },
+
+    /**
+     * The Start Screen button under a click on the canvas (CSS px), or
+     * null off them all.
+     */
+    startChoiceAt(
+      point: Vec,
+      startScreen: StartScreen,
+      fullscreen: Fullscreen,
+    ): MenuChoice | null {
+      return startChoiceAt(
+        viewportOf(app.screen),
+        point,
+        startScreen,
+        activeInput.way,
+        fullscreen,
+      );
+    },
+
+    /**
+     * Draws the Start Screen's name and choices over the 3D World, with the
+     * HUD, the Area Banner and every overlay hidden. `level` is the Level of
+     * the Hero a New Hero would give up.
+     */
+    drawStart(
+      startScreen: StartScreen,
+      level: number,
+      fullscreen: Fullscreen,
+      focus: MenuChoice | null,
+    ) {
+      hideHud();
+      const viewport = viewportOf(app.screen);
+      // Only a controller picks with the focus.
+      start.draw(
+        viewport,
+        startScreen,
+        level,
+        fullscreen,
+        activeInput.way === "controller" ? focus : null,
+      );
+      notice.draw(viewport, fullscreen);
+    },
+
+    /**
+     * Draws only the Rotate Notice, over the failed Loading Screen's place
+     * before any World shows.
+     */
+    drawRotateNoticeOnly(fullscreen: Fullscreen) {
+      hideHud();
+      start.layer.visible = false;
+      notice.draw(viewportOf(app.screen), fullscreen);
     },
 
     /** Turns a step's events into effects. */
@@ -985,6 +1054,13 @@ export function createRenderer(
       target: MonsterId | null = null,
       focus: Rect | null = null,
     ) {
+      if (hudHidden) {
+        // Play after the Start Screen: each view sets its own layer's
+        // visibility as it draws, below.
+        hudHidden = false;
+        for (const layer of hudLayers) layer.visible = true;
+        start.layer.visible = false;
+      }
       const active = world.areas[world.areaName];
       // Read afresh each frame, so a resized window re-lays the HUD at once.
       const viewport = viewportOf(app.screen);
@@ -1233,7 +1309,6 @@ export function createRenderer(
       menu.draw(
         viewport,
         menus.pause,
-        world.hero.progress.level,
         // Only a controller picks with the menu's focus.
         activeInput.way === "controller" ? menus.menuFocus : null,
         menus.fullscreen,
@@ -3024,7 +3099,7 @@ function deathScreenView(activeInput: Readonly<ActiveInput>) {
  * `CREDITS.md` for the rest, and offers a New Hero.
  */
 function pauseMenuView(activeInput: Readonly<ActiveInput>) {
-  const { darkness, panel, title, credit, question, hint } = PAUSE_MENU;
+  const { darkness, panel, title, credit, hint } = PAUSE_MENU;
   const { width, height } = PAUSE_MENU_LAYOUT;
   const layer = new Container();
   const dark = new Graphics().rect(0, 0, 1, 1).fill(0x000000);
@@ -3053,17 +3128,6 @@ function pauseMenuView(activeInput: Readonly<ActiveInput>) {
     },
   });
   credits.anchor.set(0.5, 0);
-  const confirm = new Text({
-    text: "",
-    style: {
-      fill: question.colour,
-      fontSize: question.size,
-      fontFamily: SERIF,
-      align: "center",
-      lineHeight: question.lineHeight,
-    },
-  });
-  confirm.anchor.set(0.5, 0);
   const resume = new Text({
     text: "",
     style: { fill: hint.colour, fontSize: hint.size, fontFamily: SERIF },
@@ -3076,11 +3140,10 @@ function pauseMenuView(activeInput: Readonly<ActiveInput>) {
   const placed = [
     { text: heading, y: title.top, size: title.size },
     { text: credits, y: credit.top, size: credit.size, line: credit },
-    { text: confirm, y: question.top, size: question.size, line: question },
     { text: resume, y: height - hint.bottom, size: hint.size },
   ];
   const content = new Container();
-  content.addChild(box, heading, credits, confirm, resume);
+  content.addChild(box, heading, credits, resume);
   layer.addChild(dark, content);
   // On the screen, where `pauseMenuLayout` puts them.
   const buttons = menuButtonsView(layer);
@@ -3089,36 +3152,20 @@ function pauseMenuView(activeInput: Readonly<ActiveInput>) {
   return {
     layer,
     /**
-     * While confirming, asks whether to give up the Level `level` Hero for a
-     * New Hero. The button `focus` names is ringed, for a controller. The
-     * Fullscreen button shows, and reads, as `fullscreen` says.
+     * The button `focus` names is ringed, for a controller. The Fullscreen
+     * button shows, and reads, as `fullscreen` says.
      */
     draw(
       screen: Viewport,
       pause: Pause,
-      level: number,
       focus: MenuChoice | null,
       fullscreen: Fullscreen,
     ) {
       layer.visible = pause.paused;
       if (!pause.paused) return;
-      const { confirming } = pause;
-      credits.visible = !confirming;
-      confirm.visible = confirming;
-      if (confirming) {
-        confirm.text = [
-          "Start a New Hero?",
-          `Your Level ${level} Hero will be lost for good.`,
-        ].join("\n");
-      }
-      resume.text = resumeHint(confirming, activeInput.way);
+      resume.text = resumeHint(activeInput.way);
       dark.scale.set(screen.width, screen.height);
-      const layout = pauseMenuLayout(
-        screen,
-        confirming,
-        activeInput.way,
-        fullscreen,
-      );
+      const layout = pauseMenuLayout(screen, activeInput.way, fullscreen);
       const scale = screen.uiScale;
       content.position.set(layout.panel.x, layout.panel.y);
       box.scale.set(scale);
@@ -3126,6 +3173,82 @@ function pauseMenuView(activeInput: Readonly<ActiveInput>) {
         sizeText(text, size * scale);
         if (line) text.style.lineHeight = line.lineHeight * scale;
         text.position.set((width / 2) * scale, y * scale);
+      }
+      buttons.draw(layout.buttons, scale, focus);
+    },
+  };
+}
+
+/**
+ * The Start Screen's look: the pause menu's colours, the game's name in
+ * the title's gold with a black outline, over a World lightly darkened.
+ */
+const START_SCREEN = {
+  darkness: 0.35,
+  stroke: 6,
+  question: { size: 20, lineHeight: 30, gap: 24 },
+};
+
+/**
+ * The Start Screen: the game's name above its row of buttons, which asks
+ * to confirm a New Hero as the pause menu does. Where things go is
+ * `startScreenLayout`.
+ */
+function startScreenView(activeInput: Readonly<ActiveInput>) {
+  const layer = new Container();
+  const dark = new Graphics().rect(0, 0, 1, 1).fill(0x000000);
+  dark.alpha = START_SCREEN.darkness;
+  const title = new Text({
+    text: GAME_NAME,
+    style: { fill: PAUSE_MENU.title.colour, fontFamily: SERIF },
+  });
+  title.anchor.set(0.5);
+  const question = new Text({
+    text: "",
+    style: {
+      fill: PAUSE_MENU.question.colour,
+      fontFamily: SERIF,
+      align: "center",
+    },
+  });
+  question.anchor.set(0.5, 1);
+  layer.addChild(dark, title, question);
+  const buttons = menuButtonsView(layer);
+  layer.visible = false;
+
+  return {
+    layer,
+    draw(
+      viewport: Viewport,
+      startScreen: StartScreen,
+      level: number,
+      fullscreen: Fullscreen,
+      focus: MenuChoice | null,
+    ) {
+      layer.visible = true;
+      dark.scale.set(viewport.width, viewport.height);
+      const layout = startScreenLayout(
+        viewport,
+        startScreen,
+        activeInput.way,
+        fullscreen,
+      );
+      const scale = viewport.uiScale;
+      sizeText(title, layout.title.size, START_SCREEN.stroke * scale);
+      title.position.set(layout.title.at.x, layout.title.at.y);
+      question.visible = startScreen.confirming;
+      if (startScreen.confirming) {
+        const { size, lineHeight, gap } = START_SCREEN.question;
+        question.text = [
+          "Start a New Hero?",
+          `Your Level ${level} Hero will be lost for good.`,
+        ].join("\n");
+        sizeText(question, size * scale);
+        question.style.lineHeight = lineHeight * scale;
+        question.position.set(
+          viewport.width / 2,
+          layout.buttons[0].rect.y - gap * scale,
+        );
       }
       buttons.draw(layout.buttons, scale, focus);
     },

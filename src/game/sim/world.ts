@@ -54,9 +54,11 @@ import {
   moveItem,
   type PlacedItem,
   returnCursorItem,
+  type SmithBonus,
   taken,
 } from "./inventory";
 import { faceToward, lands } from "./melee";
+import { giveSmithBonus, SMITH } from "./smith";
 import {
   type Minion,
   type MinionId,
@@ -522,6 +524,13 @@ export type Order =
    * Ready to hand in and its giver stands within reach in the active Area.
    */
   | { type: "HandInQuest"; quest: QuestId }
+  /**
+   * Have the Smith work the Weapon or Armour `item`, Equipped or in the
+   * Inventory, giving it a random bonus, at once and whatever the Hero is
+   * doing. Ignored unless his service is unlocked and unspent, `item` has no
+   * Smith bonus yet and the Smith stands within reach in the active Area.
+   */
+  | { type: "SmithBonus"; item: ItemId }
   /** Go back to Town after dying. */
   | { type: "Continue" }
   /**
@@ -609,6 +618,8 @@ export type SimEvent =
   | { type: "QuestReady"; quest: QuestId }
   /** The Hero handed in Quest `quest`, which paid its reward. */
   | { type: "QuestDone"; quest: QuestId }
+  /** The Smith gave the Item `item` the bonus `bonus`, using up his service. */
+  | { type: "SmithBonusGiven"; item: ItemId; bonus: SmithBonus }
   | { type: "MonsterDied"; id: MonsterId }
   /** The Hero's side hit Bone Altar `altar` for `damage`. */
   | { type: "BoneAltarHit"; altar: MonsterId; damage: number }
@@ -732,7 +743,15 @@ export type Progress = {
   touchedWaypoints: string[];
   /** How far each Quest has got. */
   quests: QuestLog;
+  /**
+   * The Smith's one-time service: locked until "Spa Day" is Done, then
+   * unlocked until the Hero uses it on an Item, and used after.
+   */
+  smithService: SmithService;
 };
+
+/** Where the Smith's one-time service stands. */
+export type SmithService = "locked" | "unlocked" | "used";
 
 /** A fresh Level 1 Hero's progress: no Skill learned, an empty Skill Bar. */
 export const FRESH_PROGRESS: Progress = {
@@ -751,6 +770,7 @@ export const FRESH_PROGRESS: Progress = {
   skillBar: emptySkillBar(),
   touchedWaypoints: [TOWN],
   quests: freshQuests(),
+  smithService: "locked",
 };
 
 /** A copy of `progress` sharing nothing with it. */
@@ -941,7 +961,9 @@ function bonusOf(world: World, bonus: Bonus): number {
   let total = 0;
   for (const slot of EQUIPMENT_SLOTS) {
     const item = world.hero.equipment[slot];
-    if (item) total += itemOf(item.type).bonuses[bonus] ?? 0;
+    if (!item) continue;
+    total += itemOf(item.type).bonuses[bonus] ?? 0;
+    if (item.smithBonus?.bonus === bonus) total += item.smithBonus.amount;
   }
   return total;
 }
@@ -1896,6 +1918,13 @@ function give(world: World, order: Order, events: SimEvent[]) {
     answerQuest(world, order.quest, order.type === "HandInQuest", events);
     return;
   }
+  if (order.type === "SmithBonus") {
+    const smith = npcsIn(world).find(
+      (npc) => npc.name === SMITH && withinNpcReach(world, npc.id),
+    );
+    if (smith) giveSmithBonus(world, order.item, events);
+    return;
+  }
   if (order.type === "SpendAttributePoints") {
     spendAttributePoints(world, order.points, events);
     return;
@@ -2399,6 +2428,9 @@ function answerQuest(
     progress.attributePoints += reward.amount;
   }
   if (reward.type === "skillPoints") progress.skillPoints += reward.amount;
+  if (reward.type === "smithService" && progress.smithService === "locked") {
+    progress.smithService = "unlocked";
+  }
   events.push({ type: "QuestDone", quest });
 }
 

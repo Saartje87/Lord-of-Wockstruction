@@ -3,7 +3,9 @@ import { emptyBelt, isValidBelt } from "./sim/belt";
 import {
   type Belongings,
   belongingsOf,
+  EQUIPMENT_SLOTS,
   isValidBelongings,
+  type SmithBonus,
 } from "./sim/inventory";
 import {
   freshQuests,
@@ -14,6 +16,7 @@ import {
   questPointsOf,
 } from "./sim/quests";
 import { SKILL_BAR_SLOTS, type SkillBar } from "./sim/skillBar";
+import { smithQuestDone } from "./sim/smith";
 import {
   ATTRIBUTES,
   FRESH_PROGRESS,
@@ -24,6 +27,7 @@ import {
   type SimEvent,
   SKILLS,
   type Skill,
+  type SmithService,
   type World,
 } from "./sim/world";
 import { heroTuning } from "./tuning/hero";
@@ -35,7 +39,7 @@ import { questTuning } from "./tuning/quests";
  * misread, but for `BELTLESS_VERSION`, `WAYPOINTLESS_VERSION` and
  * `QUESTLESS_VERSION`.
  */
-export const SAVE_VERSION = 9;
+export const SAVE_VERSION = 10;
 
 /**
  * The version before Waypoints: its text, otherwise the same, loads with
@@ -50,10 +54,23 @@ const WAYPOINTLESS_VERSION = 7;
 const QUESTLESS_VERSION = 8;
 
 /**
+ * The version before the Smith's service and bonuses: its text, otherwise
+ * the same, loads with the service unlocked if "Spa Day" is Done, else
+ * locked, and no Item with a Smith bonus.
+ */
+const SMITHLESS_VERSION = 9;
+
+/**
  * The version before the Belt: its text, otherwise the same, loads with an
  * empty Belt.
  */
 const BELTLESS_VERSION = 6;
+
+/** The states the Smith's service goes through, in order. */
+const SMITH_SERVICES: readonly SmithService[] = ["locked", "unlocked", "used"];
+
+/** The Equipment slots, as a Save names them. */
+const SLOTS: readonly string[] = EQUIPMENT_SLOTS;
 
 /** The states a Quest goes through, in order. */
 const QUEST_STATES: readonly QuestState[] = [
@@ -101,6 +118,7 @@ const SAVE_CHANGING_EVENTS: readonly SimEvent["type"][] = [
   "QuestCounted",
   "QuestReady",
   "QuestDone",
+  "SmithBonusGiven",
 ];
 
 /** Whether a step's events changed what the Save keeps: progress or Belongings. */
@@ -161,6 +179,7 @@ export function encodeSave({ progress, belongings }: HeroSave): string {
     ...progress,
     inventory: belongings.inventory,
     equipment: belongings.equipment,
+    smithBonuses: belongings.smithBonuses,
     belt: belongings.belt,
   });
 }
@@ -201,9 +220,14 @@ export function parseSave(text: string | null): HeroSave | null {
   ) {
     if (fields.quests !== undefined) return null;
     fields.quests = freshQuests();
-  } else if (fields.version !== SAVE_VERSION) {
+  } else if (
+    fields.version !== SAVE_VERSION &&
+    fields.version !== SMITHLESS_VERSION
+  ) {
     return null;
   }
+  const smithless = fields.version !== SAVE_VERSION;
+  if (smithless && fields.smithService !== undefined) return null;
   if (!PROGRESS_FIELDS.every((field) => Number.isInteger(fields[field]))) {
     return null;
   }
@@ -215,6 +239,11 @@ export function parseSave(text: string | null): HeroSave | null {
   if (!touchedWaypoints) return null;
   const quests = parseQuests(fields.quests);
   if (!quests) return null;
+  const smithService = parseSmithService(
+    smithless ? smithServiceFor(quests) : fields.smithService,
+    quests,
+  );
+  if (!smithService) return null;
   const progress = {
     ...Object.fromEntries(
       PROGRESS_FIELDS.map((field) => [field, fields[field]]),
@@ -223,6 +252,7 @@ export function parseSave(text: string | null): HeroSave | null {
     skillBar,
     touchedWaypoints,
     quests,
+    smithService,
   } as Progress;
   if (!fitsTable(progress.level, progress.experience)) return null;
   if (!fitsPoints(progress)) return null;
@@ -231,6 +261,7 @@ export function parseSave(text: string | null): HeroSave | null {
     fields.inventory,
     fields.equipment,
     fields.belt,
+    fields.smithBonuses,
   );
   return belongings && { progress, belongings };
 }
@@ -245,6 +276,7 @@ function parseBelongings(
   inventory: unknown,
   equipment: unknown,
   belt: unknown,
+  smithBonuses: unknown,
 ): Belongings | null {
   // How many rows the Belt Columns have is checked with the Equipment.
   if (!isValidBelt(belt, Number.POSITIVE_INFINITY)) return null;
@@ -254,16 +286,53 @@ function parseBelongings(
   const placed: Belongings["inventory"] = [];
   for (const entry of inventory) {
     if (typeof entry !== "object" || entry === null) return null;
-    const { type, cell } = entry;
+    const { type, cell, smithBonus } = entry;
     if (typeof cell !== "object" || cell === null) return null;
-    placed.push({ type, cell: { column: cell.column, row: cell.row } });
+    placed.push({
+      type,
+      cell: { column: cell.column, row: cell.row },
+      ...(smithBonus !== undefined && { smithBonus: copyBonus(smithBonus) }),
+    });
   }
+  if (smithBonuses !== undefined && !objectWithin(smithBonuses, SLOTS)) {
+    return null;
+  }
+  const bonuses = Object.entries(smithBonuses ?? {});
   const belongings: Belongings = {
     inventory: placed,
     equipment: { ...equipment },
+    ...(bonuses.length > 0 && {
+      smithBonuses: Object.fromEntries(
+        bonuses.map(([slot, bonus]) => [slot, copyBonus(bonus)]),
+      ),
+    }),
     belt: belt.map((column) => [...column]),
   };
   return isValidBelongings(belongings) ? belongings : null;
+}
+
+/** A stored Smith bonus as a fresh object, its parts checked with the Belongings. */
+function copyBonus(stored: unknown): SmithBonus {
+  const { bonus, amount } = (stored ?? {}) as Record<string, unknown>;
+  return { bonus, amount } as SmithBonus;
+}
+
+/** What the service is for Quests that unlock it: unlocked once that Quest is Done. */
+function smithServiceFor(quests: QuestLog): SmithService {
+  return smithQuestDone(quests) ? "unlocked" : "locked";
+}
+
+/**
+ * The stored Smith service, or null when it isn't a state, or doesn't fit
+ * the Quests: locked until the Quest unlocking it is Done, and then not.
+ */
+function parseSmithService(
+  stored: unknown,
+  quests: QuestLog,
+): SmithService | null {
+  if (!SMITH_SERVICES.includes(stored as SmithService)) return null;
+  const locked = stored === "locked";
+  return locked === smithQuestDone(quests) ? null : (stored as SmithService);
 }
 
 /**
@@ -369,6 +438,7 @@ const OBJECT_FIELDS = [
   "skillBar",
   "touchedWaypoints",
   "quests",
+  "smithService",
 ] as const;
 
 type ObjectField = (typeof OBJECT_FIELDS)[number];

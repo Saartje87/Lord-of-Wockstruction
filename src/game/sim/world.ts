@@ -116,6 +116,7 @@ import {
 } from "./potions";
 import {
   type AttackNumbers,
+  type LobbedProjectile,
   type Projectile,
   stepProjectiles,
 } from "./projectiles";
@@ -190,7 +191,7 @@ export const CAST_STEPS = Object.fromEntries(
 export const OPENING_STEPS = msToSteps(townPortalTuning.openingMs);
 
 export type { Minion, MinionId, MinionType, SkillBar, SkillBarSlot };
-export type { Projectile };
+export type { LobbedProjectile, Projectile };
 export { minionMaxLife, potionEffectsOf };
 
 export type Hero = {

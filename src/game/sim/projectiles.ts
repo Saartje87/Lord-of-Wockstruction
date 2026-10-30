@@ -23,7 +23,11 @@ export type AttackNumbers = {
  * Something loosed by an attack or a Skill, flying in a straight line through
  * the Area: a Skeleton Archer's Arrow, or the Hero's Bone Spear.
  */
-export type Projectile = MonsterProjectile | HeroProjectile | MinionProjectile;
+export type Projectile =
+  | MonsterProjectile
+  | LobbedProjectile
+  | HeroProjectile
+  | MinionProjectile;
 
 /** What every Projectile has, whoever loosed it. */
 type Flight = {
@@ -47,6 +51,35 @@ export type MonsterProjectile = Flight &
     /** The Monster that loosed it. */
     from: MonsterId;
   };
+
+/**
+ * A Monster's lobbed Projectile, Muck: it flies in an arc to the point its
+ * target stood at when it was loosed, over everything, and hits nothing on
+ * the way. On landing it hits every living Hero and Minion within its circle,
+ * once each, and is gone. It carries the numbers it was loosed with.
+ */
+export type LobbedProjectile = AttackNumbers & {
+  kind: ProjectileKind;
+  /** Marks it as lobbed: it flies to a `landing`, not until out of range. */
+  lob: true;
+  /** Which way it flies: a unit vector in tile space, for facing. */
+  direction: Vec;
+  /** The Monster that loosed it. */
+  from: MonsterId;
+  /** Where it is on the ground below its arc. */
+  pos: Vec;
+  prevPos: Vec;
+  /** Where it was loosed from. */
+  origin: Vec;
+  /** The point it lands on, marked on the ground from the moment it is loosed. */
+  landing: Vec;
+  /** The radius of the circle it hits within there (tiles). */
+  radius: number;
+  /** How far along its arc it is, from 0 (loosed) to 1 (landing). */
+  progress: number;
+  /** How much of its arc it flies each step. */
+  rate: number;
+};
 
 /**
  * The Hero's Projectile: it hits every Monster and Bone Altar it touches,
@@ -83,17 +116,20 @@ export type MinionProjectile = Flight & {
  * hasn't hit before. A Projectile that lands, meets a blocking tile or has
  * flown its range is removed. A Monster's is also stopped by the first Bone
  * Wall piece it touches, before anything past it, and calls `hitWall` on that
- * piece; the Hero's and Minions' fly through.
+ * piece; the Hero's and Minions' fly through. A lobbed one flies its arc past
+ * everything, and on arriving calls `land` on the Hero, unless they are in
+ * Death, and on each Minion, within its circle.
  */
 export function stepProjectiles(
   world: World,
-  land: (projectile: MonsterProjectile, target: MonsterTarget) => void,
+  land: (projectile: AttackNumbers, target: MonsterTarget) => void,
   strike: (projectile: HeroProjectile, target: Monster | BoneAltar) => void,
   hitWall: (projectile: MonsterProjectile, piece: BoneWallPiece) => void,
   shoot: (projectile: MinionProjectile, target: Monster | BoneAltar) => void,
 ) {
   const area = world.areas[world.areaName];
   world.projectiles = world.projectiles.filter((projectile) => {
+    if ("lob" in projectile) return stepLobbed(world, projectile, land);
     const from = projectile.pos;
     const move = Math.min(projectile.speed, projectile.rangeLeft);
     const to = {
@@ -130,6 +166,30 @@ export function stepProjectiles(
     if (!canSee(area, from, to)) return false;
     return projectile.rangeLeft > 0;
   });
+}
+
+/**
+ * Moves `muck` along its arc, and on arrival lands it on the Hero and each
+ * Minion within its circle. Returns whether it is still in the air.
+ */
+function stepLobbed(
+  world: World,
+  muck: LobbedProjectile,
+  land: (projectile: AttackNumbers, target: MonsterTarget) => void,
+): boolean {
+  muck.progress = Math.min(1, muck.progress + muck.rate);
+  muck.pos = {
+    x: muck.origin.x + (muck.landing.x - muck.origin.x) * muck.progress,
+    y: muck.origin.y + (muck.landing.y - muck.origin.y) * muck.progress,
+  };
+  if (muck.progress < 1) return true;
+  const inCircle = (pos: Vec) =>
+    Math.hypot(pos.x - muck.landing.x, pos.y - muck.landing.y) <= muck.radius;
+  if (!world.death && inCircle(world.hero.pos)) land(muck, "hero");
+  for (const minion of [...world.minions]) {
+    if (inCircle(minion.pos)) land(muck, minion.id);
+  }
+  return false;
 }
 
 /**

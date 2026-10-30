@@ -663,6 +663,25 @@ function loose(
   at: Vec,
 ) {
   faceToward(monster, at);
+  if (ranged.lob) {
+    // Lobbed at the spot the target stands on now, not along a line.
+    const gap = distance(monster.pos, at);
+    world.projectiles.push({
+      kind: ranged.projectile,
+      lob: true,
+      direction: { x: Math.cos(monster.facing), y: Math.sin(monster.facing) },
+      from: monster.id,
+      pos: { ...monster.pos },
+      prevPos: { ...monster.pos },
+      origin: { ...monster.pos },
+      landing: { ...at },
+      radius: ranged.lob.radius,
+      progress: 0,
+      rate: gap === 0 ? 1 : ranged.projectileSpeed / gap,
+      ...monsterAttack(monster),
+    });
+    return;
+  }
   world.projectiles.push({
     kind: ranged.projectile,
     pos: { ...monster.pos },

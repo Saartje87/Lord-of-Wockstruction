@@ -17,6 +17,7 @@ import {
   loadingScreen,
   type Menus,
   panelOpen,
+  pauseForLostController,
   pressKey,
   pressPad,
   quitToStart,
@@ -1742,6 +1743,209 @@ describe("the Start Screen", () => {
     expect(pressKey(menus, "c", 1000, alive)).toBe("handled");
     expect(clickStart(menus, "continue")).toBeNull();
     expect(menus.screen.type).toBe("start");
+  });
+
+  describe("with a controller", () => {
+    const withFullscreen = (hasSave: boolean) => {
+      const menus = startMenus(hasSave);
+      menus.fullscreen = fullscreenOk;
+      return menus;
+    };
+
+    it("starts with Focus on nothing, A picking the first button without pressing it", () => {
+      const menus = withFullscreen(true);
+      expect(menus.menuFocus).toBeNull();
+
+      expect(pressPad(menus, "a", 1000, alive)).toBe("handled");
+
+      expect(menus.menuFocus).toBe("continue");
+      expect(menus.screen.type).toBe("start");
+    });
+
+    it("moves Focus along the row with the D-pad, stopping at the ends", () => {
+      const menus = withFullscreen(true);
+
+      pressPad(menus, "right", 1000, alive);
+      expect(menus.menuFocus).toBe("continue");
+      pressPad(menus, "right", 1000, alive);
+      expect(menus.menuFocus).toBe("newHero");
+      pressPad(menus, "down", 1000, alive);
+      expect(menus.menuFocus).toBe("fullscreen");
+      pressPad(menus, "right", 1000, alive);
+      expect(menus.menuFocus).toBe("fullscreen");
+      pressPad(menus, "left", 1000, alive);
+      pressPad(menus, "up", 1000, alive);
+      pressPad(menus, "left", 1000, alive);
+      expect(menus.menuFocus).toBe("continue");
+    });
+
+    it("A presses Continue", () => {
+      const menus = withFullscreen(true);
+      pressPad(menus, "left", 1000, alive);
+
+      expect(pressPad(menus, "a", 1000, alive)).toBe("continue");
+      expect(menus.screen).toEqual({ type: "playing" });
+    });
+
+    it("A starts a New Hero at once without a Save", () => {
+      const menus = withFullscreen(false);
+      pressPad(menus, "a", 1000, alive);
+
+      expect(pressPad(menus, "a", 1000, alive)).toBe("newHero");
+    });
+
+    it("A on New Hero with a Save asks to confirm, with Focus cleared", () => {
+      const menus = withFullscreen(true);
+      pressPad(menus, "right", 1000, alive);
+      pressPad(menus, "right", 1000, alive);
+
+      expect(pressPad(menus, "a", 1000, alive)).toBe("handled");
+
+      expect(menus.screen).toMatchObject({ confirming: true });
+      expect(menus.menuFocus).toBeNull();
+    });
+
+    it("moves between Yes and No, A on Yes starting the New Hero", () => {
+      const menus = withFullscreen(true);
+      menus.screen = { ...startScreen(true), confirming: true };
+
+      pressPad(menus, "right", 1000, alive);
+      expect(menus.menuFocus).toBe("confirm");
+      pressPad(menus, "right", 1000, alive);
+      expect(menus.menuFocus).toBe("goBack");
+      pressPad(menus, "left", 1000, alive);
+
+      expect(pressPad(menus, "a", 1000, alive)).toBe("newHero");
+    });
+
+    it("B says No on the confirm, from the start of it", () => {
+      const menus = withFullscreen(true);
+      menus.screen = { ...startScreen(true), confirming: true };
+
+      expect(pressPad(menus, "b", 1000, alive)).toBe("handled");
+
+      expect(menus.screen).toEqual(startScreen(true));
+      expect(menus.menuFocus).toBeNull();
+    });
+
+    it("B does nothing on the choices", () => {
+      const menus = withFullscreen(true);
+
+      expect(pressPad(menus, "b", 1000, alive)).toBe("handled");
+
+      expect(menus.screen).toEqual(startScreen(true));
+    });
+
+    it("A on the Fullscreen button asks for it, keeping Focus there", () => {
+      const menus = withFullscreen(false);
+      pressPad(menus, "right", 1000, alive);
+      pressPad(menus, "right", 1000, alive);
+
+      expect(pressPad(menus, "a", 1000, alive)).toBe("fullscreen");
+      expect(menus.menuFocus).toBe("fullscreen");
+    });
+
+    it("loses Focus to a click", () => {
+      const menus = withFullscreen(true);
+      pressPad(menus, "right", 1000, alive);
+
+      clickStart(menus, "fullscreen");
+
+      expect(menus.menuFocus).toBeNull();
+    });
+
+    it("starts with no Focus when back from play", () => {
+      const menus = startMenus(true);
+      menus.menuFocus = "newHero";
+
+      quitToStart(menus, true);
+
+      expect(menus.menuFocus).toBeNull();
+    });
+  });
+
+  describe("when the controller disconnects", () => {
+    it("opens nothing on the Start Screen", () => {
+      const menus = startMenus(true);
+
+      pauseForLostController(menus, 1000);
+
+      expect(menus.pause.paused).toBe(false);
+      expect(menus.screen).toEqual(startScreen(true));
+    });
+
+    it("opens nothing on a failed Loading Screen", () => {
+      const menus = createMenus(loadingScreen());
+      failLoad(menus);
+
+      pauseForLostController(menus, 1000);
+
+      expect(menus.pause.paused).toBe(false);
+    });
+
+    it("opens the pause menu in play, once", () => {
+      const menus = createMenus();
+
+      pauseForLostController(menus, 1000);
+      pauseForLostController(menus, 2000);
+
+      expect(menus.pause.paused).toBe(true);
+      expect(gameTime(menus.pause, 3000)).toBe(1000);
+    });
+  });
+
+  describe("under the Rotate Notice", () => {
+    it("pauses nothing, and takes every key, click, tap and button", () => {
+      const menus = startMenus(true);
+      menus.fullscreen = fullscreenOk;
+
+      fitMenus(menus, { compact: false, rotateNotice: "turn" }, 1000);
+
+      expect(menus.rotateNotice).toBe(true);
+      expect(menus.pause.paused).toBe(false);
+      expect(pressKey(menus, "c", 1000, alive)).toBe("handled");
+      expect(pressPad(menus, "a", 1000, alive)).toBe("handled");
+      expect(clickStart(menus, "newHero")).toBeNull();
+      expect(menus.screen).toEqual(startScreen(true));
+      expect(menus.menuFocus).toBeNull();
+    });
+
+    it("lets the Fullscreen button of a too-small screen through", () => {
+      const menus = startMenus(true);
+      menus.fullscreen = fullscreenOk;
+      fitMenus(menus, { compact: true, rotateNotice: "tooSmall" }, 1000);
+
+      expect(tapRotateNotice(menus, "fullscreen")).toBe("fullscreen");
+    });
+
+    it("shows the Start Screen as it was once turned back, still not paused", () => {
+      const menus = startMenus(true);
+      pressKey(menus, "n", 500, alive);
+      fitMenus(menus, { compact: false, rotateNotice: "turn" }, 1000);
+
+      fitMenus(menus, { compact: true, rotateNotice: null }, 2000);
+
+      expect(menus.rotateNotice).toBe(false);
+      expect(menus.pause.paused).toBe(false);
+      expect(menus.screen).toMatchObject({ type: "start", confirming: true });
+    });
+
+    it("covers a failed Loading Screen too, taking Retry's key, button and tap", () => {
+      const menus = createMenus(loadingScreen());
+      failLoad(menus);
+
+      fitMenus(menus, { compact: false, rotateNotice: "turn" }, 1000);
+
+      expect(menus.pause.paused).toBe(false);
+      expect(pressKey(menus, "r", 1000, alive)).toBe("handled");
+      expect(pressPad(menus, "a", 1000, alive)).toBe("handled");
+      expect(clickLoading(menus, "retry")).toBeNull();
+
+      fitMenus(menus, { compact: true, rotateNotice: null }, 2000);
+
+      expect(clickLoading(menus, "retry")).toBe("retry");
+      expect(menus.screen).toMatchObject({ type: "loading", failed: true });
+    });
   });
 
   it("opens no pause menu for the controller", () => {

@@ -142,7 +142,10 @@ export function clickLoading(
   choice: LoadingChoice | null,
 ): MenuRequest | null {
   const { screen } = menus;
-  return screen.type === "loading" && screen.failed && choice === "retry"
+  return !menus.rotateNotice &&
+    screen.type === "loading" &&
+    screen.failed &&
+    choice === "retry"
     ? "retry"
     : null;
 }
@@ -260,9 +263,51 @@ export function clickStart(
   if (menus.rotateNotice || screen.type !== "start" || choice === null) {
     return null;
   }
+  menus.menuFocus = null;
+  return pressStartChoice(menus, screen, choice);
+}
+
+/** Presses `choice` unless the Start Screen doesn't offer it. */
+function pressStartChoice(
+  menus: Menus,
+  screen: StartScreen,
+  choice: MenuChoice,
+): MenuRequest | null {
   // A hidden Continue, or a Fullscreen button the browser doesn't allow.
   if (!startChoices(screen, menus.fullscreen).includes(choice)) return null;
   return chooseStart(menus, screen, choice);
+}
+
+/**
+ * A controller button on the Start Screen, which takes them all. Focus
+ * works as in the pause menu: none until the D-pad, the stick or A first
+ * touches the screen, which picks the first button; then the D-pad moves
+ * it, A presses the one picked, and B says No on the New Hero confirm.
+ */
+function pressStartPad(
+  menus: Menus,
+  screen: StartScreen,
+  button: PadButton,
+): MenuRequest | "handled" {
+  const choices = startChoices(screen, menus.fullscreen);
+  const picked = menus.menuFocus;
+  const at = picked === null ? -1 : choices.indexOf(picked);
+  if (button === "b") {
+    if (screen.confirming) pressStartChoice(menus, screen, "goBack");
+    menus.menuFocus = null;
+  } else if (at === -1 && (button === "a" || isDirection(button))) {
+    menus.menuFocus = choices[0];
+  } else if (picked !== null && button === "a") {
+    const asked = pressStartChoice(menus, screen, picked);
+    // Asking to confirm, or going back, leaves a different row to pick in.
+    if (asked !== "fullscreen") menus.menuFocus = null;
+    return asked ?? "handled";
+  } else if (button === "left" || button === "up") {
+    menus.menuFocus = choices[Math.max(at - 1, 0)];
+  } else if (button === "right" || button === "down") {
+    menus.menuFocus = choices[Math.min(at + 1, choices.length - 1)];
+  }
+  return "handled";
 }
 
 /** Presses Start Screen button `choice`. */
@@ -493,7 +538,8 @@ export function fitMenus(
 function fitRotateNotice(menus: Menus, showing: boolean, nowMs: number) {
   if (showing === menus.rotateNotice) return;
   menus.rotateNotice = showing;
-  if (showing && !menus.pause.paused) {
+  // Nothing runs before play, so there is nothing to pause.
+  if (showing && isPlaying(menus) && !menus.pause.paused) {
     togglePause(menus.pause, nowMs);
     menus.pausedForNotice = true;
   } else if (!showing && menus.pausedForNotice) {
@@ -672,8 +718,9 @@ export function pressPad(
   if (menus.screen.type === "loading") {
     return menus.screen.failed && button === "a" ? "retry" : "handled";
   }
-  // The Start Screen's controller Focus comes later: nothing opens yet.
-  if (menus.screen.type === "start") return "handled";
+  if (menus.screen.type === "start") {
+    return pressStartPad(menus, menus.screen, button);
+  }
   if (pause.paused) return pressPaused(menus, button, nowMs);
   if (button === "menu") {
     togglePause(pause, nowMs);
@@ -701,6 +748,16 @@ export function pressPad(
     return "handled";
   }
   return null;
+}
+
+/**
+ * Opens the pause menu at real time `nowMs` for a controller that went while
+ * it was played, so the Hero isn't killed while it's plugged back in. Before
+ * play, on the Loading or Start Screen, there is nothing to pause.
+ */
+export function pauseForLostController(menus: Menus, nowMs: number) {
+  if (!isPlaying(menus) || menus.pause.paused) return;
+  togglePause(menus.pause, nowMs);
 }
 
 /** A controller button pressed in the pause menu, which takes them all. */

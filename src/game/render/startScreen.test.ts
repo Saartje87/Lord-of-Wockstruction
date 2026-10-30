@@ -159,3 +159,35 @@ describe("hit-testing the Start Screen", () => {
     ).toBeNull();
   });
 });
+
+describe("touching the Start Screen", () => {
+  const { buttons } = startScreenLayout(
+    screen,
+    startScreen(true),
+    "touch",
+    available,
+  );
+  const [continueButton, newHero] = buttons;
+  const touchAt = (point: { x: number; y: number }) =>
+    startChoiceAt(screen, point, startScreen(true), "touch", available);
+  const clickAt = (point: { x: number; y: number }) =>
+    startChoiceAt(screen, point, startScreen(true), keys, available);
+
+  it("grows each button's hit area toward a fingertip, for a touch only", () => {
+    const { x, y, w } = continueButton.rect;
+    const justAbove = { x: x + w / 2, y: y - 5 };
+
+    expect(touchAt(justAbove)).toBe("continue");
+    expect(clickAt(justAbove)).toBeNull();
+  });
+
+  it("stops halfway to the next button, so a touch between goes to the nearer", () => {
+    const y = continueButton.rect.y + 10;
+    const gapStart = continueButton.rect.x + continueButton.rect.w;
+    const gapEnd = newHero.rect.x;
+    const middle = (gapStart + gapEnd) / 2;
+
+    expect(touchAt({ x: middle - 1, y })).toBeNull();
+    expect(touchAt({ x: gapStart + 1, y })).toBeNull();
+  });
+});

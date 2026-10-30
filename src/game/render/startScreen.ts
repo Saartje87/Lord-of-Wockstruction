@@ -6,6 +6,7 @@ import type { Vec } from "../sim/vec";
 import { atUiScale, type Viewport } from "../viewport";
 import { menuChoiceLabel } from "./hints";
 import { buttonRow, type MenuButton } from "./pauseMenu";
+import { touchHitRect } from "./touchHitArea";
 
 /**
  * Where the Start Screen goes (CSS px at native scale, drawn at the UI
@@ -60,7 +61,8 @@ export function startScreenLayout(
 
 /**
  * The Start Screen's button under `point`, as laid out with the Active
- * Input `way`, or null off them all.
+ * Input `way`, or null off them all. A touch hits a button's Touch hit area,
+ * grown by the Halfway rule; a click only the button as drawn.
  */
 export function startChoiceAt(
   screen: Viewport,
@@ -70,5 +72,12 @@ export function startChoiceAt(
   fullscreen: Fullscreen,
 ): MenuChoice | null {
   const { buttons } = startScreenLayout(screen, start, way, fullscreen);
-  return buttons.find((button) => inside(button.rect, point))?.choice ?? null;
+  const hit = (button: MenuButton) =>
+    way === "touch"
+      ? touchHitRect(
+          button.rect,
+          buttons.filter((other) => other !== button).map((o) => o.rect),
+        )
+      : button.rect;
+  return buttons.find((button) => inside(hit(button), point))?.choice ?? null;
 }

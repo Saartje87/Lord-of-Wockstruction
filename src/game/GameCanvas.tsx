@@ -71,6 +71,7 @@ import {
   MAP_KEY,
   type MenuRequest,
   type Menus,
+  pauseForLostController,
   pressKey,
   pressPad,
   quitToStart,
@@ -80,7 +81,7 @@ import {
   tapMapOverlay,
   tapRotateNotice,
 } from "./menus";
-import { gameTime, togglePause } from "./pause";
+import { gameTime } from "./pause";
 import { createFrameStats, recordFrame } from "./render/frameStats";
 import { inventoryRightClickOrder } from "./render/inventoryPanel";
 import { panelFocusSpots } from "./render/panelFocus";
@@ -420,7 +421,19 @@ export default function GameCanvas() {
       const tick = (realNow: number) => {
         if (isLoading(menus)) {
           // Nothing is drawn or simulated yet; the keys and the controller
-          // may ask for Retry, and everything else does nothing.
+          // may ask for Retry, and everything else does nothing. A failed
+          // load turned upright shows the Rotate Notice over the page's
+          // Loading Screen, which then hides.
+          fitMenus(menus, viewportOf(app.screen), realNow);
+          menus.fullscreen = fullscreen.read();
+          const { screen } = menus;
+          const covered =
+            menus.rotateNotice && screen.type === "loading" && screen.failed;
+          drawLoadingScreen(menus.screen, covered);
+          if (covered) {
+            renderer.drawRotateNoticeOnly(menus.fullscreen);
+            app.render();
+          }
           const asked = [
             ...keys.map((key) => pressKey(menus, key, realNow, noHero)),
             ...readLoadingPad().map((button) =>
@@ -451,7 +464,7 @@ export default function GameCanvas() {
         menus.fullscreen = fullscreen.read();
         // A controller gone while it was played opens the pause menu, so the
         // Hero isn't killed while it's plugged back in.
-        if (controllerLost && !pause.paused) togglePause(pause, realNow);
+        if (controllerLost) pauseForLostController(menus, realNow);
         controllerLost = false;
         let pressed = clickedAt !== null;
         /** What the menus asked for this frame, carried out below. */
@@ -759,6 +772,9 @@ export default function GameCanvas() {
       const tickStart = (realNow: number, viewport: Viewport) => {
         const start = menus.screen;
         if (start.type !== "start") return;
+        // Nothing runs, so the Rotate Notice pauses nothing here; it only
+        // takes the input and covers the screen.
+        fitMenus(menus, viewport, realNow);
         menus.fullscreen = fullscreen.read();
         let asked: MenuRequest | null = null;
         const take = (request: MenuRequest | "handled" | null) => {
@@ -802,7 +818,12 @@ export default function GameCanvas() {
         const focus = startFocusAt(world.hero.pos, realNow);
         worldCamera = worldCameraOn(viewport, focus);
         drawnTarget = null;
-        renderer.drawStart(start, world.hero.progress.level, menus.fullscreen);
+        renderer.drawStart(
+          start,
+          world.hero.progress.level,
+          menus.fullscreen,
+          menus.menuFocus,
+        );
         drawWorld3d(loaded, {
           area: world.areas[world.areaName],
           view: startViewOf(world, focus, realNow),

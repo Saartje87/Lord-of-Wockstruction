@@ -927,11 +927,37 @@ export function createRenderer(
      * HUD, the Area Banner and every overlay hidden. `level` is the Level of
      * the Hero a New Hero would give up.
      */
-    drawStart(screenState: StartScreen, level: number, fullscreen: Fullscreen) {
+    drawStart(
+      screenState: StartScreen,
+      level: number,
+      fullscreen: Fullscreen,
+      focus: MenuChoice | null,
+    ) {
       hudHidden = true;
       for (const layer of hudLayers) layer.visible = false;
       menu.layer.visible = false;
-      start.draw(viewportOf(app.screen), screenState, level, fullscreen);
+      const viewport = viewportOf(app.screen);
+      // Only a controller picks with the focus.
+      start.draw(
+        viewport,
+        screenState,
+        level,
+        fullscreen,
+        activeInput.way === "controller" ? focus : null,
+      );
+      notice.draw(viewport, fullscreen);
+    },
+
+    /**
+     * Draws only the Rotate Notice, over the failed Loading Screen's place
+     * before any World shows.
+     */
+    drawRotateNoticeOnly(fullscreen: Fullscreen) {
+      hudHidden = true;
+      for (const layer of hudLayers) layer.visible = false;
+      menu.layer.visible = false;
+      start.layer.visible = false;
+      notice.draw(viewportOf(app.screen), fullscreen);
     },
 
     /** Turns a step's events into effects. */
@@ -3195,6 +3221,7 @@ function startScreenView(activeInput: Readonly<ActiveInput>) {
       start: StartScreen,
       level: number,
       fullscreen: Fullscreen,
+      focus: MenuChoice | null,
     ) {
       layer.visible = true;
       dark.scale.set(screen.width, screen.height);
@@ -3221,7 +3248,7 @@ function startScreenView(activeInput: Readonly<ActiveInput>) {
           layout.buttons[0].rect.y - gap * scale,
         );
       }
-      buttons.draw(layout.buttons, scale, null);
+      buttons.draw(layout.buttons, scale, focus);
     },
   };
 }

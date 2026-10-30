@@ -4,12 +4,14 @@ import type { Screen } from "./menus";
  * Draws `screen` on the Loading Screen the page itself made (see
  * `src/app/page.tsx`): the bar filled by what has loaded, the failure
  * message and the Retry button once loading failed, and the whole screen
- * hidden once play shows. Untested glue, like `attachPointer`.
+ * hidden once play shows. `covered` hides it too, for the Rotate Notice
+ * drawn over a failed load on the canvas beneath. Untested glue, like
+ * `attachPointer`.
  */
-export function drawLoadingScreen(screen: Screen) {
+export function drawLoadingScreen(screen: Screen, covered = false) {
   const root = document.getElementById("loading-screen");
   if (!root) return;
-  root.hidden = screen.type !== "loading";
+  root.hidden = screen.type !== "loading" || covered;
   if (screen.type !== "loading") return;
   const share = screen.total > 0 ? screen.loaded / screen.total : 0;
   const fill = document.getElementById("loading-fill");

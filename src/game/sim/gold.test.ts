@@ -287,7 +287,7 @@ describe("Picking up Gold", () => {
         })),
         ...[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].flatMap((column) =>
           [3].map((row) => ({
-            type: "ringOfLife" as const,
+            type: "ring" as const,
             cell: { column, row },
           })),
         ),

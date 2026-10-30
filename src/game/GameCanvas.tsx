@@ -56,17 +56,25 @@ import {
   readTouch,
   touchOnButton,
 } from "./input/touch";
+import { drawLoadingScreen, onRetryClick } from "./loadingScreen";
 import {
+  clickLoading,
   clickPaused,
   createMenus,
   currentPanel,
+  failLoad,
+  finishLoading,
   fitMenus,
+  isLoading,
+  loadingScreen,
   MAP_KEY,
   type MenuRequest,
   type Menus,
   pressKey,
   pressPad,
   reactMenus,
+  reportLoad,
+  startLoad,
   tapMapOverlay,
   tapRotateNotice,
 } from "./menus";
@@ -88,7 +96,7 @@ import {
   saveOf,
   writeSave,
 } from "./save";
-import { isFloor } from "./sim/area";
+import { isFloor, TOWN } from "./sim/area";
 import { cursorItemOf } from "./sim/inventory";
 import { tileOf, type Vec } from "./sim/vec";
 import { createWorld, type MonsterId, type Order, step } from "./sim/world";
@@ -151,7 +159,7 @@ export default function GameCanvas() {
       canvas: shared.canvas,
       context: shared.context,
     });
-    init.then(async () => {
+    init.then(() => {
       if (cancelled) return;
       const storage = browserStorage();
       // The Save's Hero, or a fresh one when there's no Save.
@@ -170,14 +178,6 @@ export default function GameCanvas() {
       });
       const loaded = createWorld3d(shared);
       world3d = loaded;
-      try {
-        await loadModels(loaded);
-      } catch (error) {
-        console.error("The 3D World failed to load", error);
-        container.textContent = "The 3D World failed to load.";
-        return;
-      }
-      if (cancelled) return;
       // The 3D World draws first and Pixi's HUD over it, so Pixi clears
       // nothing.
       app.renderer.background.clearBeforeRender = false;
@@ -203,7 +203,9 @@ export default function GameCanvas() {
       const frameStats = createFrameStats(performance.now());
       const clock = createClock();
       const input = createPointerInput();
-      const menus = createMenus();
+      // The Loading Screen shows from the start, drawn by the page itself;
+      // play begins once the models are in.
+      const menus = createMenus(loadingScreen());
       const { pause } = menus;
       const fullscreen = browserFullscreen(listeners.signal);
       let orders: Order[] = [];
@@ -366,7 +368,54 @@ export default function GameCanvas() {
         { signal: listeners.signal },
       );
 
+      /**
+       * Loads the models and the Town's Walls and Props, the bar following,
+       * then lets play begin. A failure stays on the Loading Screen until
+       * Retry loads again.
+       */
+      const load = async () => {
+        startLoad(menus);
+        drawLoadingScreen(menus.screen);
+        try {
+          await loadModels(loaded, world.areas[TOWN], (progress) => {
+            if (cancelled) return;
+            reportLoad(menus, progress);
+            drawLoadingScreen(menus.screen);
+          });
+        } catch (error) {
+          if (cancelled) return;
+          console.error("The 3D World failed to load", error);
+          failLoad(menus);
+          drawLoadingScreen(menus.screen);
+          return;
+        }
+        if (cancelled) return;
+        // The clock owes nothing for the time spent loading.
+        last = gameTime(pause, performance.now());
+        finishLoading(menus);
+        drawLoadingScreen(menus.screen);
+      };
+      onRetryClick(() => {
+        if (clickLoading(menus, "retry") === "retry") void load();
+      }, listeners.signal);
+
       const tick = (realNow: number) => {
+        if (isLoading(menus)) {
+          // Nothing is drawn or simulated yet; the keys and the controller
+          // may ask for Retry, and everything else does nothing.
+          const asked = [
+            ...keys.map((key) => pressKey(menus, key, realNow, noHero)),
+            ...readLoadingPad().map((button) =>
+              pressPad(menus, button, realNow, noHero),
+            ),
+          ];
+          clickedAt = null;
+          keys = [];
+          last = gameTime(pause, realNow);
+          if (asked.includes("retry")) void load();
+          frame = requestAnimationFrame(tick);
+          return;
+        }
         const wasPaused = pause.paused;
         const inventoryWasOpen = menus.inventoryOpen;
         // Read every frame, so a resize into the Compact Layout shuts all
@@ -675,6 +724,14 @@ export default function GameCanvas() {
         }
         frame = requestAnimationFrame(tick);
       };
+      /** The controller buttons pressed this frame, for the Loading Screen. */
+      const readLoadingPad = (): readonly PadButton[] => {
+        const controller = readGamepad(padHeld);
+        padHeld = controller.held;
+        return controller.pressed;
+      };
+      const noHero = { heroDead: false };
+      void load();
       frame = requestAnimationFrame(tick);
     });
 

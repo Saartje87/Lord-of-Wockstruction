@@ -16,6 +16,8 @@ import type { Viewport } from "./viewport";
  * Layout each panel fills the screen, so any one opening shuts the others.
  */
 export type Menus = {
+  /** Which screen shows: the Loading Screen, or play. */
+  screen: Screen;
   pause: Pause;
   heroPanelOpen: boolean;
   inventoryOpen: boolean;
@@ -57,11 +59,73 @@ export type Menus = {
   fullscreen: Fullscreen;
 };
 
+/**
+ * The screen the game is on. The Loading Screen shows how many files have
+ * `loaded` out of `total`, and whether loading has `failed`, which offers
+ * Retry. On it, keys, panels, the map and the pause menu do nothing.
+ */
+export type Screen =
+  | { type: "loading"; loaded: number; total: number; failed: boolean }
+  | { type: "playing" };
+
+/** The Loading Screen as loading starts: nothing loaded yet. */
+export function loadingScreen(): Screen {
+  return { type: "loading", loaded: 0, total: 0, failed: false };
+}
+
+/** Whether the game is on its Loading Screen. */
+export function isLoading(menus: Pick<Menus, "screen">): boolean {
+  return menus.screen.type === "loading";
+}
+
+/** Notes that `progress` of the load is done. */
+export function reportLoad(
+  menus: Menus,
+  progress: { loaded: number; total: number },
+) {
+  if (menus.screen.type !== "loading") return;
+  menus.screen = { ...menus.screen, ...progress };
+}
+
+/** Notes that loading failed, which offers Retry. */
+export function failLoad(menus: Menus) {
+  if (menus.screen.type !== "loading") return;
+  menus.screen = { ...menus.screen, failed: true };
+}
+
+/** Starts loading over, as Retry asks, with an empty bar. */
+export function startLoad(menus: Menus) {
+  menus.screen = loadingScreen();
+}
+
+/** Notes that loading is done, and play begins. */
+export function finishLoading(menus: Menus) {
+  menus.screen = { type: "playing" };
+}
+
+/** The Retry button, the Loading Screen's one choice. */
+export type LoadingChoice = "retry";
+
+/**
+ * A click on the Loading Screen, on its Retry button (`choice`) or, for
+ * null, anywhere else. Asks for `"retry"` only once loading has failed.
+ */
+export function clickLoading(
+  menus: Menus,
+  choice: LoadingChoice | null,
+): MenuRequest | null {
+  const { screen } = menus;
+  return screen.type === "loading" && screen.failed && choice === "retry"
+    ? "retry"
+    : null;
+}
+
 /** A count of Pending Attribute Points on each Attribute. */
 export type PendingPoints = Record<Attribute, number>;
 
-export function createMenus(): Menus {
+export function createMenus(screen: Screen = { type: "playing" }): Menus {
   return {
+    screen,
     pause: createPause(),
     heroPanelOpen: false,
     inventoryOpen: false,
@@ -101,10 +165,10 @@ export type MenuChoice = "newHero" | "confirm" | "goBack" | "fullscreen";
 export type FullscreenChoice = Extract<MenuChoice, "fullscreen">;
 
 /**
- * What the menus ask the game loop to carry out: start a New Hero, or take
- * the game in or out of fullscreen.
+ * What the menus ask the game loop to carry out: start a New Hero, take the
+ * game in or out of fullscreen, or load again after a failed load.
  */
-export type MenuRequest = "newHero" | "fullscreen";
+export type MenuRequest = "newHero" | "fullscreen" | "retry";
 
 /**
  * The pause menu's buttons in their row from left to right: New Hero, and
@@ -142,6 +206,9 @@ export function pressKey(
   const { pause } = menus;
   if (menus.rotateNotice) return "handled";
   const letter = key.toLowerCase();
+  if (menus.screen.type === "loading") {
+    return menus.screen.failed && letter === "r" ? "retry" : "handled";
+  }
   if (pause.confirming) {
     if (letter === "y") return choose(menus, "confirm", nowMs) ?? "handled";
     if (letter === "n" || key === "Escape") choose(menus, "goBack", nowMs);
@@ -207,7 +274,7 @@ export function anyPanelOpen(menus: OpenPanels): boolean {
 
 /** Opens the Map Overlay or shuts it, as Tab and LT do: not while `hero` lies dead. */
 export function toggleMap(menus: Menus, hero: HeroState) {
-  if (!hero.heroDead) menus.mapOpen = !menus.mapOpen;
+  if (!hero.heroDead && !isLoading(menus)) menus.mapOpen = !menus.mapOpen;
 }
 
 /**
@@ -215,7 +282,7 @@ export function toggleMap(menus: Menus, hero: HeroState) {
  * lies dead, nor under the Rotate Notice.
  */
 export function clickMiniMap(menus: Menus, hero: HeroState) {
-  if (hero.heroDead || menus.rotateNotice) return;
+  if (hero.heroDead || menus.rotateNotice || isLoading(menus)) return;
   menus.mapOpen = true;
 }
 
@@ -238,7 +305,7 @@ export function clickPanelButton(menus: Menus, panel: Panel, hero: HeroState) {
  * `hero` lies dead.
  */
 function togglePanel(menus: Menus, panel: Panel, hero: HeroState) {
-  if (hero.heroDead || menus.rotateNotice) return;
+  if (hero.heroDead || menus.rotateNotice || isLoading(menus)) return;
   if (panelOpen(menus, panel)) shutPanel(menus, panel);
   else openPanel(menus, panel);
 }
@@ -316,7 +383,7 @@ export function clickLevelUp(
   menus: Menus,
   hero: HeroState & { attributePoints: number; skillPoints: number },
 ) {
-  if (hero.heroDead || menus.rotateNotice) return;
+  if (hero.heroDead || menus.rotateNotice || isLoading(menus)) return;
   const attributes = hero.attributePoints > 0;
   if (hero.skillPoints > 0 && !(attributes && menus.compact)) {
     openPanel(menus, "skillTree");
@@ -428,7 +495,7 @@ export function clickPaused(
   choice: MenuChoice | null,
   nowMs: number,
 ): MenuRequest | null {
-  if (menus.rotateNotice) return null;
+  if (menus.rotateNotice || isLoading(menus)) return null;
   menus.menuFocus = null;
   if (choice === null) {
     togglePause(menus.pause, nowMs);
@@ -474,6 +541,9 @@ export function pressPad(
 ): MenuRequest | "handled" | null {
   const { pause } = menus;
   if (menus.rotateNotice) return "handled";
+  if (menus.screen.type === "loading") {
+    return menus.screen.failed && button === "a" ? "retry" : "handled";
+  }
   if (pause.paused) return pressPaused(menus, button, nowMs);
   if (button === "menu") {
     togglePause(pause, nowMs);

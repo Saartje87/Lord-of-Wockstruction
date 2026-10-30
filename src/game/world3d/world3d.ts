@@ -164,10 +164,21 @@ export function createWorld3d(shared: SharedCanvas): World3d {
   };
 }
 
-/** Loads the models into the scene: the Hero, and the pieces of the floor. */
-export async function loadModels(world3d: World3d) {
+/** How far loading has got: files loaded out of all of them. */
+export type LoadProgress = { loaded: number; total: number };
+
+/**
+ * Loads the models into the scene: the Hero, and the pieces of the floor,
+ * plus the Walls and Props pieces `town` uses, so its first frame is built
+ * whole. Calls `onProgress` as each file arrives. Rejects if any file
+ * won't load, leaving the scene as it was, so it can be called again.
+ */
+export async function loadModels(
+  world3d: World3d,
+  town: Area,
+  onProgress: (progress: LoadProgress) => void = () => {},
+) {
   const loader = new GLTFLoader();
-  const load = (path: string) => loader.loadAsync(`${MODELS}/${path}.glb`);
   const monsterFiles = [
     ...new Set(
       [
@@ -181,18 +192,42 @@ export async function loadModels(world3d: World3d) {
     ),
   ];
   const floorNames = [...Object.values(FLOOR_MIX), ...TOWN_FLOOR];
+  const pieceNames = sceneryPiecesOf(town).filter(
+    (name) => !world3d.pieces[name],
+  );
+  const total =
+    1 +
+    floorNames.length +
+    monsterFiles.length +
+    LOOT_MODELS.length +
+    pieceNames.length;
+  let loaded = 0;
+  onProgress({ loaded, total });
+  const load = async (path: string) => {
+    const gltf = await loader.loadAsync(`${MODELS}/${path}.glb`);
+    loaded += 1;
+    onProgress({ loaded, total });
+    return gltf;
+  };
   const [knight, ...rest] = await Promise.all([
     load("characters/Knight"),
-    ...floorNames.map(load),
+    ...floorNames.map((name) => load(name)),
     ...monsterFiles.map((file) => load(`characters/${file}`)),
     ...LOOT_MODELS.map((file) => load(file)),
+    ...pieceNames.map((name) => load(name)),
   ]);
   const floorGltfs = rest.slice(0, floorNames.length);
   const monsterGltfs = rest.slice(
     floorNames.length,
     floorNames.length + monsterFiles.length,
   );
-  const lootGltfs = rest.slice(floorNames.length + monsterFiles.length);
+  const lootStart = floorNames.length + monsterFiles.length;
+  const lootGltfs = rest.slice(lootStart, lootStart + LOOT_MODELS.length);
+  const pieceGltfs = rest.slice(lootStart + LOOT_MODELS.length);
+  pieceNames.forEach((name, i) => {
+    toonShade(pieceGltfs[i].scene, lookOf(name));
+    world3d.pieces[name] = pieceGltfs[i].scene;
+  });
   const monsters: MonsterModels = {};
   monsterFiles.forEach((file, i) => {
     monsters[file] = monsterGltfs[i];
@@ -247,6 +282,17 @@ function showFloor(world3d: World3d, area: Area) {
   world3d.shown = { area, floor, exits, scenery: null };
 }
 
+/** The pieces `area`'s Walls, Props and torches are made of. */
+function sceneryPiecesOf(area: Area, torches = true): string[] {
+  return [
+    ...new Set([
+      ...wallPlacementsOf(area.walls).map((placement) => placement.piece),
+      ...area.props.map((prop) => prop.piece),
+      ...(torches ? [TORCH_PIECE] : []),
+    ]),
+  ];
+}
+
 /**
  * Puts the shown Area's Walls and Props in the scene once their pieces are
  * loaded, asking for the ones that aren't.
@@ -255,11 +301,7 @@ function showScenery(world3d: World3d, view: WorldView) {
   const { shown, pieces, loading } = world3d;
   if (!shown || shown.scenery) return;
   const { area } = shown;
-  const names = new Set([
-    ...wallPlacementsOf(area.walls).map((placement) => placement.piece),
-    ...area.props.map((prop) => prop.piece),
-    ...(view.torches.length > 0 ? [TORCH_PIECE] : []),
-  ]);
+  const names = sceneryPiecesOf(area, view.torches.length > 0);
   const missing = [...names].filter((name) => !pieces[name]);
   if (missing.length > 0) {
     const loader = new GLTFLoader();

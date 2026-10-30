@@ -4,17 +4,23 @@ import {
   addPendingPoint,
   clickClose,
   clickLevelUp,
+  clickLoading,
   clickMiniMap,
   clickPanelButton,
   clickPaused,
   createMenus,
+  failLoad,
+  finishLoading,
   fitMenus,
+  loadingScreen,
   type Menus,
   panelOpen,
   pressKey,
   pressPad,
   reactMenus,
   removePendingPoint,
+  reportLoad,
+  startLoad,
   tapMapOverlay,
   tapRotateNotice,
   toggleMap,
@@ -1512,5 +1518,127 @@ describe("the controller", () => {
     expect(openPanels(menus)).toEqual(["hero"]);
     fitMenus(menus, { compact: false, rotateNotice: null }, 3000);
     expect(menus.pause.paused).toBe(false);
+  });
+});
+
+describe("the Loading Screen", () => {
+  const loadingMenus = () => createMenus(loadingScreen());
+
+  it("starts empty, not failed", () => {
+    expect(loadingMenus().screen).toEqual({
+      type: "loading",
+      loaded: 0,
+      total: 0,
+      failed: false,
+    });
+  });
+
+  it("follows the load's progress", () => {
+    const menus = loadingMenus();
+
+    reportLoad(menus, { loaded: 3, total: 10 });
+
+    expect(menus.screen).toMatchObject({ loaded: 3, total: 10 });
+  });
+
+  it("gives way to play when loading is done", () => {
+    const menus = loadingMenus();
+
+    finishLoading(menus);
+
+    expect(menus.screen).toEqual({ type: "playing" });
+  });
+
+  it("does nothing for keys, panels, the map and the pause menu", () => {
+    const menus = loadingMenus();
+
+    for (const key of ["Escape", "c", "i", "t", "Tab", "n", "y", "p"]) {
+      expect(pressKey(menus, key, 1000, alive)).toBe("handled");
+    }
+    clickPanelButton(menus, "inventory", alive);
+    clickMiniMap(menus, alive);
+    toggleMap(menus, alive);
+    clickLevelUp(menus, {
+      ...alive,
+      attributePoints: 5,
+      skillPoints: 1,
+    });
+
+    expect(menus.pause.paused).toBe(false);
+    expect(menus.mapOpen).toBe(false);
+    expect(menus.heroPanelOpen).toBe(false);
+    expect(menus.inventoryOpen).toBe(false);
+    expect(menus.skillTreeOpen).toBe(false);
+  });
+
+  it("does nothing for the controller either", () => {
+    const menus = loadingMenus();
+
+    for (const button of ["menu", "view", "lt", "a", "b"] as const) {
+      expect(pressPad(menus, button, 1000, alive)).toBe("handled");
+    }
+
+    expect(menus.pause.paused).toBe(false);
+    expect(menus.mapOpen).toBe(false);
+    expect(menus.inventoryOpen).toBe(false);
+  });
+
+  it("asks for no Retry while loading goes on", () => {
+    const menus = loadingMenus();
+
+    expect(pressKey(menus, "r", 1000, alive)).toBe("handled");
+    expect(pressPad(menus, "a", 1000, alive)).toBe("handled");
+    expect(clickLoading(menus, "retry")).toBeNull();
+  });
+
+  describe("after a failed load", () => {
+    const failedMenus = () => {
+      const menus = loadingMenus();
+      reportLoad(menus, { loaded: 4, total: 10 });
+      failLoad(menus);
+      return menus;
+    };
+
+    it("says so, keeping the progress", () => {
+      expect(failedMenus().screen).toMatchObject({
+        type: "loading",
+        loaded: 4,
+        total: 10,
+        failed: true,
+      });
+    });
+
+    it("asks for Retry by a click, R or the controller's A", () => {
+      expect(clickLoading(failedMenus(), "retry")).toBe("retry");
+      expect(pressKey(failedMenus(), "r", 1000, alive)).toBe("retry");
+      expect(pressPad(failedMenus(), "a", 1000, alive)).toBe("retry");
+    });
+
+    it("takes a click elsewhere for nothing", () => {
+      expect(clickLoading(failedMenus(), null)).toBeNull();
+    });
+
+    it("still does nothing for other keys", () => {
+      const menus = failedMenus();
+
+      expect(pressKey(menus, "Escape", 1000, alive)).toBe("handled");
+      expect(pressKey(menus, "c", 1000, alive)).toBe("handled");
+      expect(menus.heroPanelOpen).toBe(false);
+      expect(menus.pause.paused).toBe(false);
+    });
+
+    it("loads again from the start of the bar when told to", () => {
+      const menus = failedMenus();
+
+      startLoad(menus);
+
+      expect(menus.screen).toEqual({
+        type: "loading",
+        loaded: 0,
+        total: 0,
+        failed: false,
+      });
+      expect(pressKey(menus, "r", 1000, alive)).toBe("handled");
+    });
   });
 });

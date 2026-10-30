@@ -3422,7 +3422,7 @@
       {
        "name": "monster",
        "type": "string",
-       "value": "zombie"
+       "value": "bog_spitter"
       }
      ]
     },

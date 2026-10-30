@@ -155,6 +155,24 @@ describe("tuningReport", () => {
     });
   });
 
+  it("gives the Bog Spitter's numbers in the Areas that place it, and not elsewhere", () => {
+    const { levels, areas } = tuningReport("bog_spitter", [
+      area("spa", 2, ["bog_spitter", "skeleton"]),
+      area("soggy-bog", 3, ["bog_spitter", "zombie"]),
+      area("cozy-plains", 1, ["wockwolf", "skeleton"]),
+    ]);
+
+    // 500 to go at 120 a kill: the fifth kill gets there.
+    expect(levels[0]).toMatchObject({
+      level: 1,
+      toNext: 500,
+      killExperience: 120,
+      kills: 5,
+    });
+    expect(areas.map((row) => row.area)).toEqual(["spa", "soggy-bog"]);
+    expect(areas[1]).toMatchObject({ areaLevel: 3 });
+  });
+
   describe("Gold earned per Hero Level", () => {
     const places = [
       area("town", null, []),

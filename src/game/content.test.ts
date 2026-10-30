@@ -1622,6 +1622,48 @@ describe("the Soggy Bog's ponds and mud", () => {
   });
 });
 
+describe("the shipped Bog Spitters", () => {
+  const spitters = (area: Area) => sum(packsOf(area, "bog_spitter"));
+
+  it("are the most common Monster in the Soggy Bog, and more of them than in any other Area", () => {
+    const { areas } = shippedWorld();
+    const bog = areas["soggy-bog"];
+    const count = (monster: MonsterType) => sum(packsOf(bog, monster));
+
+    for (const other of [
+      "skeleton",
+      "zombie",
+      "wockwolf",
+      "skeleton_archer",
+    ] as const) {
+      expect(count("bog_spitter")).toBeGreaterThan(count(other));
+    }
+    for (const [name, area] of Object.entries(areas)) {
+      if (name !== "soggy-bog") {
+        expect(spitters(bog)).toBeGreaterThan(spitters(area));
+      }
+    }
+  });
+
+  it("are placed in the Spa and the Old Mill, and never underground", () => {
+    const { areas } = shippedWorld();
+
+    expect(spitters(areas.spa)).toBeGreaterThan(0);
+    expect(spitters(areas["old-mill"])).toBeGreaterThan(0);
+    for (const name of ["catacombs", "crypt", "ossuary"]) {
+      expect(spitters(areas[name])).toBe(0);
+    }
+  });
+
+  it("meet the Hero when they arrive in the Soggy Bog", () => {
+    const world = worldEntering("soggy-bog", "from-cozy-plains");
+
+    expect(
+      world.monsters.filter((monster) => monster.type === "bog_spitter").length,
+    ).toBe(spitters(world.areas["soggy-bog"]));
+  });
+});
+
 describe("the shipped Wockwolf packs", () => {
   const wolves = (area: Area) => sum(packsOf(area, "wockwolf"));
 

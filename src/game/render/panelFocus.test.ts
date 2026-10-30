@@ -16,7 +16,12 @@ import {
 } from "../sim/world";
 import { heroTuning } from "../tuning/hero";
 import { inventoryTuning } from "../tuning/items";
-import { skillTuning } from "../tuning/skills";
+import {
+  BRANCHES,
+  branchSkills,
+  isPassive,
+  skillTuning,
+} from "../tuning/skills";
 import { type Viewport, viewportOf } from "../viewport";
 import { cursorHitAt } from "./cursorHit";
 import {
@@ -351,6 +356,8 @@ describe("the Skill Tree panel's Focus spots", () => {
           level: everySkillOpen,
           experience: heroTuning.experienceTable[everySkillOpen - 1],
           skillPoints: 1,
+          // Every Prerequisite learned, so a point can go into any Skill.
+          skillLevels: learnedSkills,
         }),
     ],
     ["learned Skills", () => world(undefined, { skillLevels: learnedSkills })],
@@ -376,7 +383,7 @@ describe("the Skill Tree panel's Focus spots", () => {
 
   it("picks a learned Skill up with the second face button", () => {
     const spots = panelFocusSpots("skillTree", worlds[1][1](), WIDE);
-    for (const skill of SKILLS) {
+    for (const skill of SKILLS.filter((one) => !isPassive(one))) {
       expect(spotOf(spots, pickUp(skill)).secondHit).toEqual(pickUp(skill));
     }
   });
@@ -406,11 +413,13 @@ describe("the Skill Tree panel's Focus spots", () => {
 
   it("goes down from the last Skill to the Skill Bar, and up to the ×", () => {
     const spots = panelFocusSpots("skillTree", worlds[1][1](), WIDE);
-    const last = pickUp(SKILLS[SKILLS.length - 1]);
-    const first = pickUp(SKILLS[0]);
+    const inOrder = BRANCHES.flatMap((branch) => branchSkills[branch]);
+    // The last Skill is a Passive Skill, whose spot has no hit of its own.
+    const last = spots[inOrder.length - 1];
+    const first = pickUp(inOrder[0]);
 
     expect(SKILL_BAR_SLOTS.map(barSlot)).toContainEqual(
-      move(spots, last, "down"),
+      moveFocus(spots, last, "down").hit,
     );
     expect(move(spots, first, "up")).toEqual(treeClose);
     expect(move(spots, barSlot("key1"), "right")).toEqual(barSlot("key2"));

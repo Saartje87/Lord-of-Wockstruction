@@ -12,6 +12,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { Area } from "../sim/area";
 import { type Atmosphere, createAtmosphere, driftEmbers } from "./atmosphere";
 import { type BoneAltarMeshes, boneAltarMeshesOf } from "./boneAltarMeshes";
+import { type BoneWallMeshes, boneWallMeshesOf } from "./boneWallMeshes";
 import { placeCamera, type WorldCamera } from "./camera";
 import { type ExitMeshes, exitMeshesOf } from "./exitMeshes";
 import {
@@ -73,6 +74,7 @@ export type World3d = {
   townPortals: TownPortalMeshes;
   /** The Bone Altars standing in the Area. */
   boneAltars: BoneAltarMeshes;
+  boneWalls: BoneWallMeshes;
   /** Telegraphs, Curses, Corpse bursts and the Level-Up ring on the floor. */
   floorEffects: FloorEffectMeshes;
   /** Set once `loadModels` is done. */
@@ -152,6 +154,8 @@ export function createWorld3d(shared: SharedCanvas): World3d {
   scene.add(townPortals.group);
   const boneAltars = boneAltarMeshesOf();
   scene.add(boneAltars.group);
+  const boneWalls = boneWallMeshesOf();
+  scene.add(boneWalls.group);
   const floorEffects = floorEffectMeshesOf();
   scene.add(floorEffects.group);
   return {
@@ -163,6 +167,7 @@ export function createWorld3d(shared: SharedCanvas): World3d {
     atmosphere,
     townPortals,
     boneAltars,
+    boneWalls,
     floorEffects,
     models: null,
     monsters: new Map(),
@@ -500,6 +505,7 @@ export function drawWorld3d(
   lightScene(world3d.lighting, view, seconds, scene);
   world3d.townPortals.show(view.townPortals, seconds);
   world3d.boneAltars.show(view.boneAltars, seconds);
+  world3d.boneWalls.show(view.boneWalls);
   world3d.floorEffects.show(view.floorEffects);
   world3d.shown?.exits.update(seconds);
   world3d.shown?.water.update(seconds);

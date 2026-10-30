@@ -4,7 +4,9 @@
  * Experience to the next, the kills of own-Level Monsters it takes and the
  * Gold they drop in the Areas played at that Level, and
  * per Combat Area in `content/areas/` that places it, its Area Level and the
- * Monster there.
+ * Monster there. Then each cast Skill's numbers per Skill Level, with Synergies
+ * and Passive Skills, and the casts it takes to kill each kind of Monster in
+ * each Combat Area (`skillReport` in `src/game/sim/skillReport.ts`).
  *
  * Run it with `npm run tuning:report`.
  */
@@ -12,6 +14,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { basename } from "node:path";
 import { runnerImport } from "vite";
 import type * as AreaModule from "../src/game/sim/area.ts";
+import type * as SkillReportModule from "../src/game/sim/skillReport.ts";
 import type * as ReportModule from "../src/game/sim/tuningReport.ts";
 import type * as MonstersModule from "../src/game/tuning/monsters.ts";
 import type { MonsterType } from "../src/game/tuning/monsters.ts";
@@ -23,6 +26,9 @@ const load = async <T,>(path: string) =>
 const { loadArea } = await load<typeof AreaModule>("./src/game/sim/area.ts");
 const { tuningReport } = await load<typeof ReportModule>(
   "./src/game/sim/tuningReport.ts",
+);
+const { skillReport } = await load<typeof SkillReportModule>(
+  "./src/game/sim/skillReport.ts",
 );
 const { monsterTuning } = await load<typeof MonstersModule>(
   "./src/game/tuning/monsters.ts",
@@ -108,3 +114,58 @@ for (const [type, { name }] of Object.entries(monsterTuning)) {
   );
   console.log();
 }
+
+const rows = skillReport(areas);
+const num = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+console.log(
+  "# Skills: per Skill Level, every Synergy giver and Passive Skill at the same Skill Level\n",
+);
+console.log(
+  table(
+    [
+      "Skill",
+      "Hero Lvl",
+      "Skill Lvl",
+      "Mana",
+      "Number",
+      "Base",
+      "+Synergies",
+      "+Passive",
+    ],
+    rows.flatMap((row) =>
+      row.numbers.map((n, i) => [
+        i === 0 ? row.name : "",
+        i === 0 ? row.requiredLevel : "",
+        i === 0 ? row.skillLevel : "",
+        i === 0 ? row.mana : "",
+        n.label,
+        num(n.base),
+        num(n.withSynergies),
+        num(n.withPassive),
+      ]),
+    ),
+  ),
+);
+const killColumns = rows.find((row) => row.kills.length > 0)?.kills ?? [];
+console.log(
+  "\n# Skills: casts, with Synergies, to kill each Monster of each Combat Area\n",
+);
+console.log(
+  table(
+    [
+      "Skill",
+      "Skill Lvl",
+      ...killColumns.map(
+        (kill) =>
+          `${kill.area} ${monsterTuning[kill.monster].name} (${kill.areaLevel})`,
+      ),
+    ],
+    rows
+      .filter((row) => row.kills.length > 0)
+      .map((row) => [
+        row.name,
+        row.skillLevel,
+        ...row.kills.map((kill) => kill.casts),
+      ]),
+  ),
+);

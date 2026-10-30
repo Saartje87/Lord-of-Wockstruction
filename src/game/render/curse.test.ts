@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CURSE_CIRCLE, curseCircle } from "./curse";
+import { CURSE_CIRCLE, curseCircle, curseLook } from "./curse";
 
 describe("curseCircle", () => {
   it("lies flat on the floor over the whole radius at once", () => {
@@ -26,5 +26,15 @@ describe("curseCircle", () => {
 
   it("is gone once it has played", () => {
     expect(curseCircle(CURSE_CIRCLE.ms, 2)).toBeNull();
+  });
+});
+
+describe("curseLook", () => {
+  it("gives Weaken a mark of its own, apart from Amplify Damage's", () => {
+    const weaken = curseLook("weaken");
+    const amplify = curseLook("amplifyDamage");
+
+    expect(weaken.mark).not.toBe(amplify.mark);
+    expect(weaken.shape).not.toBe(amplify.shape);
   });
 });

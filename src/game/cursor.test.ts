@@ -61,6 +61,8 @@ const belongings: Belongings = {
 
 function scene() {
   const world = createWorld({ areas: { town }, seed: 1, belongings });
+  // The Golem's Prerequisite, so a Skill Point can go into it.
+  world.hero.progress.skillLevels.raiseSkeleton = 1;
   return { world, screen: SCREEN };
 }
 

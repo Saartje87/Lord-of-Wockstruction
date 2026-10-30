@@ -6,15 +6,23 @@ import {
   monsterTuning,
   type RangedTuning,
 } from "../tuning/monsters";
+import { skillTuning } from "../tuning/skills";
 import { uniqueTuning } from "../tuning/uniqueMonsters";
 import { attackSpot, heroSideBodies, wallRadius } from "./bodies";
+import { BONE_WALL_HALF, type BoneWallPiece } from "./boneWalls";
 import { faceToward, lands } from "./melee";
-import { canSee, isClear } from "./path";
+import { canReach, canSee, isClear } from "./path";
 import type { AttackNumbers } from "./projectiles";
 import { random, randomInt } from "./random";
 import { msToSteps, perStep } from "./units";
 import { distance, type Vec } from "./vec";
-import { type Gait, goToward, holdBack, walkAlong } from "./walking";
+import {
+  type Gait,
+  goToward,
+  holdBack,
+  stepInDirection,
+  walkAlong,
+} from "./walking";
 import type { Monster, MonsterTarget, World } from "./world";
 
 /** Each Monster type's tuning converted to steps. */
@@ -171,16 +179,56 @@ export function killExperience(
   return Math.round(monsterExperience(monster) * factor);
 }
 
-/** The numbers a Monster's attacks roll with at its Monster Level. */
-export function monsterAttack(monster: MonsterOfLevel): AttackNumbers {
+/**
+ * The numbers a Monster's attacks roll with at its Monster Level, its damage
+ * cut by a Weaken Curse. This is the one place Monster damage is Weakened:
+ * a swing and an Arrow (whose numbers are fixed as it is loosed) both take
+ * their numbers from here.
+ */
+export function monsterAttack(
+  monster: MonsterOfLevel & { curse?: Monster["curse"] },
+): AttackNumbers {
+  const dealt = cursedWith(monster.curse, "weaken")?.damageDealt ?? 1;
+  const weakened = (damage: number) =>
+    dealt === 1 ? damage : Math.max(1, Math.round(damage * dealt));
+  const [least, most] = monsterDamageRange(monster);
   return {
     attackRating: monsterAttackRating(monster),
-    damage: monsterDamageRange(monster),
+    damage: [weakened(least), weakened(most)],
   };
 }
 
-/** A Monster's attack landing on its target this step. */
-export type Strike = { monster: Monster; target: MonsterTarget };
+/** The tuning of the Curse `kind` a Monster is under, or null if not under it. */
+function cursedWith<Kind extends "weaken" | "leadenLimbs">(
+  curse: Monster["curse"] | undefined,
+  kind: Kind,
+) {
+  if (!curse) return null;
+  const { effect } = skillTuning[curse.skill];
+  return effect.type === "curse" && effect.kind === kind
+    ? (effect as Extract<typeof effect, { kind: Kind }>)
+    : null;
+}
+
+/** What share of its speed a Monster with `curse` walks at. */
+function walkPace(curse: Monster["curse"]): number {
+  return cursedWith(curse, "leadenLimbs")?.walkSpeed ?? 1;
+}
+
+/** What share as often a Monster with `curse` swings or shoots. */
+function attackPace(curse: Monster["curse"]): number {
+  return cursedWith(curse, "leadenLimbs")?.attackSpeed ?? 1;
+}
+
+/**
+ * A Monster's attack landing this step: on its target, or, with `wall` set,
+ * on the Bone Wall piece it was attacking instead.
+ */
+export type Strike = {
+  monster: Monster;
+  target: MonsterTarget;
+  wall: BoneWallPiece | null;
+};
 
 /**
  * Moves every Monster one step: noticing, chasing, attacking, walking home
@@ -194,11 +242,19 @@ export function stepMonsters(world: World): Strike[] {
     if (monster.cooldown > 0) monster.cooldown -= 1;
     if (monster.curse) {
       monster.curse.left -= 1;
-      if (monster.curse.left <= 0) monster.curse = null;
+      if (monster.curse.left <= 0) {
+        monster.curse = null;
+        // A Monster whose Dread ends takes up the fight again.
+        if (monster.state === "flee") wake(monster);
+      }
     }
     if (monster.state === "windup") {
       if (windUp(world, monster)) {
-        strikes.push({ monster, target: monster.target });
+        strikes.push({
+          monster,
+          target: monster.target,
+          wall: attackedWall(world, monster),
+        });
       }
       continue;
     }
@@ -225,6 +281,9 @@ export function stepMonsters(world: World): Strike[] {
         break;
       case "return":
         goHome(world, monster);
+        break;
+      case "flee":
+        flee(world, monster);
         break;
     }
   }
@@ -349,7 +408,11 @@ function wander(world: World, monster: Monster) {
   ) {
     const before = monster.pos;
     const gait = gaitOf(world, monster);
-    walkAlong(monster, monster.path, STEPPED[monster.type].wanderSpeed);
+    walkAlong(
+      monster,
+      monster.path,
+      STEPPED[monster.type].wanderSpeed * walkPace(monster.curse),
+    );
     holdBack(area, monster, before, gait);
     if (monster.path.length > 0) return;
   }
@@ -377,7 +440,17 @@ function chase(world: World, monster: Monster) {
   const chased = nearestTarget(world, monster);
   if (!chased) return;
   monster.target = chased.target;
+  monster.wall = null;
   const area = world.areas[world.areaName];
+  // A melee Monster a Bone Wall cuts off from its target attacks the Wall.
+  if (
+    attack.kind === "melee" &&
+    world.boneWalls.length > 0 &&
+    !canReach(area, monster.pos, chased.pos)
+  ) {
+    attackWall(world, monster, attack.reach);
+    return;
+  }
   const gap = distance(monster.pos, chased.pos);
   // A ranged Monster stops only where it can also see its target, and walks
   // on, behind a wall, until it can.
@@ -405,7 +478,7 @@ function chase(world: World, monster: Monster) {
         monster,
         gait,
         spot,
-        STEPPED[monster.type].speed,
+        STEPPED[monster.type].speed * walkPace(monster.curse),
         distance(monster.pos, spot),
       );
       return;
@@ -420,7 +493,7 @@ function chase(world: World, monster: Monster) {
       monster,
       gait,
       chased.pos,
-      STEPPED[monster.type].speed,
+      STEPPED[monster.type].speed * walkPace(monster.curse),
       gap - wait,
     );
     return;
@@ -430,9 +503,72 @@ function chase(world: World, monster: Monster) {
     monster,
     gait,
     chased.pos,
-    STEPPED[monster.type].speed,
+    STEPPED[monster.type].speed * walkPace(monster.curse),
     inSight ? gap - stopAt : gap,
   );
+}
+
+/** The Bone Wall piece `monster` is attacking, if it still stands. */
+function attackedWall(world: World, monster: Monster): BoneWallPiece | null {
+  if (monster.wall === null) return null;
+  return world.boneWalls.find((piece) => piece.id === monster.wall) ?? null;
+}
+
+/**
+ * Walks up to the nearest Bone Wall piece and, once its edge is in reach,
+ * winds up an attack on it.
+ */
+function attackWall(world: World, monster: Monster, reach: number) {
+  const area = world.areas[world.areaName];
+  let nearest = world.boneWalls[0];
+  for (const piece of world.boneWalls) {
+    if (distance(monster.pos, piece.pos) < distance(monster.pos, nearest.pos)) {
+      nearest = piece;
+    }
+  }
+  const gap = distance(monster.pos, nearest.pos) - BONE_WALL_HALF;
+  // A swing at a piece is made at its edge, which is an attack's reach
+  // from the middle only up to rounding.
+  if (gap <= reach + 1e-9) {
+    monster.path = [];
+    monster.wall = nearest.id;
+    if (canWindUp(world, monster)) startWindUp(monster, nearest.pos);
+    return;
+  }
+  goToward(
+    area,
+    monster,
+    gaitOf(world, monster),
+    nearest.pos,
+    STEPPED[monster.type].speed * walkPace(monster.curse),
+  );
+}
+
+/**
+ * Runs from the nearest of the Hero and their Minions at its usual speed,
+ * never attacking, and stands where it is cornered.
+ */
+function flee(world: World, monster: Monster) {
+  const chased = nearestTarget(world, monster);
+  if (!chased) return;
+  const away = {
+    x: monster.pos.x - chased.pos.x,
+    y: monster.pos.y - chased.pos.y,
+  };
+  // On top of its target it runs whichever way.
+  if (away.x === 0 && away.y === 0) away.x = 1;
+  const area = world.areas[world.areaName];
+  const budget = STEPPED[monster.type].speed * walkPace(monster.curse);
+  const to = stepInDirection(
+    area,
+    monster.pos,
+    away,
+    budget,
+    gaitOf(world, monster).radius,
+  );
+  monster.path = [];
+  monster.facing = Math.atan2(away.y, away.x);
+  if (to) monster.pos = to;
 }
 
 /** Gives up on the Hero and their Minions and walks home. */
@@ -483,11 +619,33 @@ function windUp(world: World, monster: Monster): boolean {
   if (monster.attack < stepped.windUpSteps) return false;
   monster.state = "recover";
   monster.attack = stepped.rootSteps;
-  monster.cooldown =
+  // Leaden Limbs stretches the whole cycle (wind-up included) by waiting
+  // longer here, so the telegraph and animation lengths stay as they are.
+  const cooldown =
     stepped.rootSteps +
     stepped.recoverySteps +
     randomInt(world.rng, [0, stepped.jitterSteps]);
+  monster.cooldown = Math.max(
+    0,
+    Math.round(
+      (cooldown + stepped.windUpSteps) / attackPace(monster.curse) -
+        stepped.windUpSteps,
+    ),
+  );
   const { attack } = stepped;
+  if (monster.wall !== null) {
+    const wall = attackedWall(world, monster);
+    return (
+      wall !== null &&
+      attack.kind === "melee" &&
+      lands(
+        monster,
+        wall.pos,
+        attack.reach + attack.reachGrace + BONE_WALL_HALF,
+        attack.arc,
+      )
+    );
+  }
   const at = targetPos(world, monster.target);
   if (!at) return false;
   if (attack.kind === "ranged") {
@@ -530,7 +688,7 @@ function goHome(world: World, monster: Monster) {
     monster,
     gaitOf(world, monster),
     monster.home,
-    stepped.returnSpeed,
+    stepped.returnSpeed * walkPace(monster.curse),
   );
   if (distance(monster.pos, monster.home) > 0) return;
   monster.state = "idle";

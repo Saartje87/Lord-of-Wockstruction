@@ -201,6 +201,21 @@ describe("the Hero's Minions", () => {
   });
 });
 
+describe("a Golem learned before its Prerequisite", () => {
+  it("still casts, as in a Save made before Prerequisites, with no Skill Level in Raise Skeleton", () => {
+    const w = inField(GOLEM_HERO);
+    expect(w.hero.progress.skillLevels.raiseSkeleton).toBe(0);
+
+    summonAt(w, { x: 3.5, y: 4.5 });
+
+    expect(w.minions).toHaveLength(1);
+    expect(w.hero.progress.skillLevels).toMatchObject({
+      golem: 1,
+      raiseSkeleton: 0,
+    });
+  });
+});
+
 describe("the Golem following the Hero", () => {
   it("walks around walls after a Hero who left it behind and stops within the follow distance", () => {
     const w = inField();

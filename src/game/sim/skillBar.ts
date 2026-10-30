@@ -1,4 +1,4 @@
-import type { Skill } from "../tuning/skills";
+import type { CastSkill, Skill } from "../tuning/skills";
 import type { World } from "./world";
 
 /** The Skill Bar's keyed slots, cast by keys Q, W, E and R in turn. */
@@ -22,10 +22,13 @@ export function slotKey(slot: KeyedSlot): string {
 }
 
 /** The Skill in each slot of the Skill Bar, or null for an empty one. */
-export type SkillBar = Record<SkillBarSlot, Skill | null>;
+export type SkillBar = Record<SkillBarSlot, CastSkill | null>;
 
 /** The Skill in the Hero's Skill Bar slot `slot`, or null for an empty one. */
-export function skillInSlot(world: World, slot: SkillBarSlot): Skill | null {
+export function skillInSlot(
+  world: World,
+  slot: SkillBarSlot,
+): CastSkill | null {
   return world.hero.progress.skillBar[slot];
 }
 
@@ -50,7 +53,7 @@ export function placeLearnedSkill(bar: SkillBar, skill: Skill): SkillBar {
  */
 export function putSkillOnBar(
   bar: SkillBar,
-  skill: Skill,
+  skill: CastSkill,
   slot: SkillBarSlot,
 ): SkillBar {
   const from = SKILL_BAR_SLOTS.find((name) => bar[name] === skill);

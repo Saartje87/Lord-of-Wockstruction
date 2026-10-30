@@ -4,12 +4,13 @@ import {
   minionTuning,
 } from "../tuning/minions";
 import { monsterTuning } from "../tuning/monsters";
-import type { Skill } from "../tuning/skills";
+import type { ProjectileKind } from "../tuning/projectiles";
+import type { CastSkill } from "../tuning/skills";
 import { isWalkable } from "./area";
 import { attackSpot, freeSpot, monsterBodies, wallRadius } from "./bodies";
 import { altarRadiusOf, type BoneAltar, targetsOf } from "./boneAltars";
 import { faceToward, lands } from "./melee";
-import { isClear } from "./path";
+import { canSee, isClear } from "./path";
 import { msToSteps, perStep } from "./units";
 import { distance, type Vec } from "./vec";
 import { type Gait, goToward } from "./walking";
@@ -33,9 +34,14 @@ export type Minion = {
   id: MinionId;
   type: MinionType;
   /** The Skill that brought it. */
-  skill: Skill;
+  skill: CastSkill;
   /** The Skill Level of the Skill that brought it. */
   skillLevel: number;
+  /**
+   * What its Skill's Synergies multiplied its Life and damage by when it
+   * was brought, 1 for none.
+   */
+  synergy: number;
   pos: Vec;
   /** Where it was one step ago, for the renderer to interpolate from. */
   prevPos: Vec;
@@ -77,6 +83,12 @@ const STEPPED = Object.fromEntries(
       rootSteps: msToSteps(tuning.rootMs),
       recoverySteps: msToSteps(tuning.recoveryMs),
       arc: (tuning.arcDegrees * Math.PI) / 180,
+      shot: tuning.shot && {
+        projectile: tuning.shot.projectile,
+        range: tuning.shot.range,
+        speed: perStep(tuning.shot.projectileSpeed),
+        flyRange: tuning.shot.projectileRange,
+      },
     },
   ]),
 ) as Record<
@@ -90,11 +102,22 @@ const STEPPED = Object.fromEntries(
     rootSteps: number;
     recoverySteps: number;
     arc: number;
+    /** Its shot, with the Projectile's speed per step. */
+    shot?: {
+      projectile: ProjectileKind;
+      range: number;
+      speed: number;
+      flyRange: number;
+    };
   }
 >;
 
-/** A Minion type at a Skill Level: all its scaled numbers depend on. */
-export type MinionOfLevel = Pick<Minion, "type" | "skillLevel">;
+/**
+ * A Minion type at a Skill Level, with the Synergy multiplier it was
+ * brought with (1 if left out): all its scaled numbers depend on.
+ */
+export type MinionOfLevel = Pick<Minion, "type" | "skillLevel"> &
+  Partial<Pick<Minion, "synergy">>;
 
 /**
  * A Skill Level 1 number grown by `rate` of itself for each Skill Level
@@ -115,18 +138,19 @@ function scaled(
 
 /** A Minion's full Life at its Skill Level, which it is summoned with. */
 export function minionMaxLife(minion: MinionOfLevel): number {
-  return scaled(minion, "life");
+  return Math.round(scaled(minion, "life") * (minion.synergy ?? 1));
 }
 
 /** The least and most damage a Minion's hit deals at its Skill Level. */
 export function minionDamageRange({
   type,
   skillLevel,
+  synergy = 1,
 }: MinionOfLevel): [number, number] {
   const { damage, growth } = minionTuning[type];
   return [
-    grown(damage[0], growth.damage, skillLevel),
-    grown(damage[1], growth.damage, skillLevel),
+    Math.round(grown(damage[0], growth.damage, skillLevel) * synergy),
+    Math.round(grown(damage[1], growth.damage, skillLevel) * synergy),
   ];
 }
 
@@ -160,19 +184,21 @@ export function minionRecoveryProgress(minion: Minion): number {
 export function newMinion(
   id: MinionId,
   type: MinionType,
-  skill: Skill,
+  skill: CastSkill,
   skillLevel: number,
   pos: Vec,
   facing: number,
+  synergy = 1,
 ): Minion {
   return {
     id,
     type,
     skill,
     skillLevel,
+    synergy,
     pos: { ...pos },
     prevPos: { ...pos },
-    life: minionMaxLife({ type, skillLevel }),
+    life: minionMaxLife({ type, skillLevel, synergy }),
     facing,
     state: "follow",
     target: null,
@@ -308,6 +334,11 @@ function stopChasing(minion: Minion) {
  * teleports next to the Hero when stuck for a while.
  */
 function chase(world: World, minion: Minion, monster: Monster | BoneAltar) {
+  const { shot } = STEPPED[minion.type];
+  if (shot) {
+    chaseInSight(world, minion, monster, shot.range);
+    return;
+  }
   const reach = minionTuning[minion.type].reach + altarRadiusOf(monster);
   const gap = distance(minion.pos, monster.pos);
   // A chase stops at reach only up to rounding.
@@ -343,6 +374,32 @@ function chase(world: World, minion: Minion, monster: Monster | BoneAltar) {
 }
 
 /**
+ * A shooting Minion's chase: it stops once its Monster is within `range` and
+ * in sight, and attacks when ready; else it walks on towards it.
+ */
+function chaseInSight(
+  world: World,
+  minion: Minion,
+  monster: Monster | BoneAltar,
+  range: number,
+) {
+  const area = world.areas[world.areaName];
+  const gap = distance(minion.pos, monster.pos);
+  // A Bone Altar blocks its own tile, so it is seen up to its edge.
+  const edge = altarRadiusOf(monster);
+  const inSight = canSee(area, minion.pos, monster.pos) || edge > 0;
+  if (gap <= range + edge + 1e-9 && inSight) {
+    minion.path = [];
+    minion.stuck = 0;
+    if (minion.cooldown === 0) startWindUp(minion, monster.pos);
+    return;
+  }
+  // In range behind a wall it walks on to see its Monster, else to its range.
+  const limit = gap <= range ? gap : gap - range;
+  walkOrTeleport(world, minion, monster.pos, limit, monster);
+}
+
+/**
  * The nearest to `minion` of the Monsters within its guard radius of the
  * Hero, bar `except`, that has a free attack spot round it.
  */
@@ -369,7 +426,7 @@ function anotherTarget(
   return nearest;
 }
 
-/** Starts winding up an attack, facing its Monster at `at`. */
+/** Starts winding up an attack or a shot, facing its Monster at `at`. */
 function startWindUp(minion: Minion, at: Vec) {
   minion.state = "windup";
   minion.attackSteps = 0;
@@ -391,6 +448,10 @@ function windUp(world: World, minion: Minion): Monster | BoneAltar | null {
   minion.cooldown = stepped.rootSteps + stepped.recoverySteps;
   const monster = targetsOf(world).find((m) => m.id === minion.target);
   if (!monster) return null;
+  if (stepped.shot) {
+    looseShot(world, minion, stepped.shot, monster.pos);
+    return null;
+  }
   const { reach, reachGrace } = minionTuning[minion.type];
   return lands(
     minion,
@@ -400,6 +461,30 @@ function windUp(world: World, minion: Minion): Monster | BoneAltar | null {
   )
     ? monster
     : null;
+}
+
+/** Looses a shooting Minion's Projectile from where it stands at `at`. */
+function looseShot(
+  world: World,
+  minion: Minion,
+  shot: NonNullable<(typeof STEPPED)[MinionType]["shot"]>,
+  at: Vec,
+) {
+  faceToward(minion, at);
+  world.projectiles.push({
+    kind: shot.projectile,
+    pos: { ...minion.pos },
+    prevPos: { ...minion.pos },
+    direction: { x: Math.cos(minion.facing), y: Math.sin(minion.facing) },
+    speed: shot.speed,
+    rangeLeft: shot.flyRange,
+    from: "minion",
+    minion: {
+      type: minion.type,
+      skillLevel: minion.skillLevel,
+      synergy: minion.synergy,
+    },
+  });
 }
 
 /**

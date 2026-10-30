@@ -72,7 +72,7 @@ import {
 } from "../tuning/items";
 import type { MinionType } from "../tuning/minions";
 import type { MonsterType } from "../tuning/monsters";
-import { type Skill, skillTuning } from "../tuning/skills";
+import { type Branch, type Skill, skillTuning } from "../tuning/skills";
 import { townPortalLook } from "../tuning/townPortalLook";
 import { vendorTuning } from "../tuning/vendor";
 import { atUiScale, type Viewport, viewportOf } from "../viewport";
@@ -97,7 +97,13 @@ import {
 import { beltStripLayout, beltStripSheet } from "./beltStrip";
 import { CLOSE_BUTTON } from "./closeButton";
 import { corpseBurst } from "./corpseBurst";
-import { CURSE_MARK, curseCircle, curseMarkAlpha } from "./curse";
+import {
+  CURSE_MARK,
+  type CurseLook,
+  curseCircle,
+  curseLook,
+  curseMarkAlpha,
+} from "./curse";
 import { cursorHitAt, type ShownPanels } from "./cursorHit";
 import {
   DAMAGE_NUMBER,
@@ -207,7 +213,7 @@ import { SKILL_BAR, skillBarLayout, skillBarSheet } from "./skillBar";
 import {
   SKILL_TREE_PANEL,
   SKILL_TREE_ROWS,
-  skillRow,
+  skillTreeBranchRow,
   skillTreeColumns,
   skillTreePanelLayout,
   skillTreeRow,
@@ -737,7 +743,12 @@ export function createRenderer(
   /** Corpses bursting in the active Area, each over its radius (tiles). */
   const bursts: { pos: Vec; radius: number; atMs: number }[] = [];
   /** Curses cast in the active Area, each over its radius (tiles). */
-  const curses: { pos: Vec; radius: number; atMs: number }[] = [];
+  const curses: {
+    skill: Skill;
+    pos: Vec;
+    radius: number;
+    atMs: number;
+  }[] = [];
   /** When the Hero last arrived in an Area, for the Area Banner. */
   let arrivedAtMs: number | null = null;
   /** Starts the Area Banner showing `displayName`, as of `nowMs`. */
@@ -955,7 +966,10 @@ export function createRenderer(
         deadForMs,
         portals,
         bursts: bursts.map(ageOf),
-        curses: curses.map(ageOf),
+        curses: curses.map((curse) => ({
+          ...ageOf(curse),
+          skill: curse.skill,
+        })),
         levelUpAgoMs: levelAtMs === null ? null : nowMs - levelAtMs,
         departedMinions: departing.map(({ atMs, ...minion }) => ({
           ...minion,
@@ -1123,7 +1137,12 @@ export function createRenderer(
           bursts.push({ pos: event.pos, radius: event.radius, atMs: nowMs });
         }
         if (event.type === "CurseCast") {
-          curses.push({ pos: event.pos, radius: event.radius, atMs: nowMs });
+          curses.push({
+            skill: event.skill,
+            pos: event.pos,
+            radius: event.radius,
+            atMs: nowMs,
+          });
         }
         if (event.type === "TownPortalClosed") {
           closingTownPortals.push({
@@ -1255,7 +1274,13 @@ export function createRenderer(
       for (const monster of world.monsters) {
         if (!monster.curse) continue;
         const anchor = barAnchor(monster);
-        curseMark(overheads, anchor.x, anchor.y, markAlpha);
+        curseMark(
+          overheads,
+          anchor.x,
+          anchor.y,
+          markAlpha,
+          curseLook(monster.curse.skill),
+        );
       }
       // A mark over each NPC with a Quest to give or take back.
       for (const npc of npcsIn(world)) {
@@ -1502,30 +1527,80 @@ function questMark(graphics: Graphics, x: number, bottom: number) {
     .stroke({ color: outline, width: outlineWidth });
 }
 
+/** The outline of a plus centred on (`x`, `y`) reaching `half` each way. */
+function crossPoints(x: number, y: number, half: number): number[] {
+  const arm = half / 3;
+  return [
+    x - arm,
+    y - half,
+    x + arm,
+    y - half,
+    x + arm,
+    y - arm,
+    x + half,
+    y - arm,
+    x + half,
+    y + arm,
+    x + arm,
+    y + arm,
+    x + arm,
+    y + half,
+    x - arm,
+    y + half,
+    x - arm,
+    y + arm,
+    x - half,
+    y + arm,
+    x - half,
+    y - arm,
+    x - arm,
+    y - arm,
+  ];
+}
+
 /**
- * The mark over a Cursed Monster: a diamond centred on `x`, its foot `gap`
- * above `lifeBarTop`, where its Life bar's top is or would be.
+ * The mark over a Cursed Monster, in its Curse's `look`: centred on `x`, its
+ * foot `gap` above `lifeBarTop`, where its Life bar's top is or would be.
  */
 function curseMark(
   graphics: Graphics,
   x: number,
   lifeBarTop: number,
   alpha: number,
+  look: CurseLook,
 ) {
-  const { size, gap, colour, outline, outlineWidth } = CURSE_MARK;
+  const { size, gap, outline, outlineWidth } = CURSE_MARK;
+  const colour = look.mark;
   const half = size / 2;
   const bottom = lifeBarTop - gap;
+  const shape =
+    look.shape === "triangle"
+      ? [x - half, bottom - size, x + half, bottom - size, x, bottom]
+      : look.shape === "cross"
+        ? crossPoints(x, bottom - half, half)
+        : look.shape === "square"
+          ? [
+              x - half,
+              bottom - size,
+              x + half,
+              bottom - size,
+              x + half,
+              bottom,
+              x - half,
+              bottom,
+            ]
+          : [
+              x,
+              bottom - size,
+              x + half,
+              bottom - half,
+              x,
+              bottom,
+              x - half,
+              bottom - half,
+            ];
   graphics
-    .poly([
-      x,
-      bottom - size,
-      x + half,
-      bottom - half,
-      x,
-      bottom,
-      x - half,
-      bottom - half,
-    ])
+    .poly(shape)
     .fill({ color: colour, alpha })
     .stroke({ color: outline, width: outlineWidth, alpha });
 }
@@ -3003,10 +3078,10 @@ function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
     t.anchor.set(1, 0.5);
     return t;
   };
-  const headings = {
-    skillLevel: heading("Skill Level"),
-    manaCost: heading("Mana"),
-  };
+  /** Each Branch's heading row: its name at the left, its columns' headings. */
+  const branchHeadings: Partial<
+    Record<Branch, { name: Text; skillLevel: Text; manaCost: Text }>
+  > = {};
   /** A Skill row's cell, at its left (`anchorX` 0) or right (1) edge. */
   const cell = (fill: number, anchorX: 0 | 1) => {
     const t = text(fill);
@@ -3058,15 +3133,31 @@ function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
       points.value.position.set(pointsRow.x + pointsRow.w, middle(pointsRow));
       points.value.style.fill = anyRaisable ? style.title : style.value;
 
-      const headingsRow = skillTreeRow(screen, SKILL_TREE_ROWS.headings);
-      const headingAt = skillTreeColumns(screen, headingsRow);
-      headings.skillLevel.position.set(
-        headingAt.skillLevel,
-        middle(headingsRow),
-      );
-      headings.manaCost.position.set(headingAt.manaCost, middle(headingsRow));
-      const ruleY = headingsRow.y - style.ruleGap * scale;
-      graphics.rect(headingsRow.x, ruleY, headingsRow.w, 1).fill(style.edge);
+      for (const { branch, name } of sheet.branches) {
+        if (!branchHeadings[branch]) {
+          const nameText = text(style.hint, style.hintSize);
+          nameText.anchor.set(0, 0.5);
+          branchHeadings[branch] = {
+            name: nameText,
+            skillLevel: heading("Skill Level"),
+            manaCost: heading("Mana"),
+          };
+        }
+        const shown = branchHeadings[branch];
+        const headingsRow = skillTreeBranchRow(screen, branch);
+        const headingAt = skillTreeColumns(screen, headingsRow);
+        shown.name.text = name;
+        shown.name.position.set(headingsRow.x, middle(headingsRow));
+        shown.skillLevel.visible = !screen.compact;
+        shown.manaCost.visible = !screen.compact;
+        shown.skillLevel.position.set(
+          headingAt.skillLevel,
+          middle(headingsRow),
+        );
+        shown.manaCost.position.set(headingAt.manaCost, middle(headingsRow));
+        const ruleY = headingsRow.y + rowHeight - style.ruleGap * scale;
+        graphics.rect(headingsRow.x, ruleY, headingsRow.w, 1).fill(style.edge);
+      }
 
       sheet.skills.forEach((skill, index) => {
         if (!skills[index]) {
@@ -3082,16 +3173,31 @@ function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
           };
         }
         const shown = skills[index];
-        const row = skillTreeRow(screen, skillRow(index));
+        const row = layout.skills[skill.skill];
         const column = skillTreeColumns(screen, row);
         const y = middle(row);
+        // What holds it back: its Prerequisite first, else its Level.
+        const heldBack = skill.prerequisite
+          ? "Locked"
+          : skill.requiredLevel !== null
+            ? `Level ${skill.requiredLevel}`
+            : null;
+        // A Passive Skill sits in its own frame: it's never cast, so it
+        // isn't looked for on the Skill Bar.
+        if (skill.passive) {
+          graphics
+            .rect(row.x - 3, row.y + 1, row.w + 6, row.h - 2)
+            .stroke({ width: 1, color: style.edge });
+        }
         shown.name.text = skill.name;
+        shown.name.style.fill = heldBack ? style.hint : style.title;
         shown.name.position.set(row.x, y);
-        shown.requiredLevel.visible = skill.requiredLevel !== null;
-        shown.requiredLevel.text = `Level ${skill.requiredLevel}`;
+        shown.requiredLevel.visible = heldBack !== null && !screen.compact;
+        shown.requiredLevel.text = heldBack ?? "";
         shown.requiredLevel.position.set(column.requiredLevel, y);
         shown.skillLevel.text = skill.skillLevel;
         shown.skillLevel.position.set(column.skillLevel, y);
+        shown.manaCost.visible = !screen.compact;
         shown.manaCost.text = skill.manaCost;
         shown.manaCost.position.set(column.manaCost, y);
         const rect = layout.raise[skill.skill];

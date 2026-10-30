@@ -1,25 +1,24 @@
+import type { Skill } from "../tuning/skills";
 import { type FloorOval, onFloor } from "./corpseBurst";
 
 /**
- * A Curse being cast: its length (ms), and a dark violet circle flat on the
- * floor over the whole radius, a faint fill inside a ring of `ringWidth`
+ * A Curse being cast: its length (ms), and a circle (coloured by the Curse,
+ * see `CURSE_LOOKS`) flat on the floor over the whole radius, a faint fill inside a ring of `ringWidth`
  * (CSS px), fading out.
  */
 export const CURSE_CIRCLE = {
   ms: 700,
-  colour: 0x8a3fc2,
   fillAlpha: 0.2,
   ringWidth: 4,
 };
 
 /**
- * The mark over a Cursed Monster's head: a violet diamond `size` across,
- * edged `outlineWidth` wide in `outline`, its foot `gap` above where its
+ * The mark over a Cursed Monster's head: a `size` shape coloured by its
+ * Curse (see `CURSE_LOOKS`), edged `outlineWidth` wide in `outline`, its foot `gap` above where its
  * Life bar is drawn (CSS px), pulsing between `minAlpha` and fully opaque
  * every `pulseMs`.
  */
 export const CURSE_MARK = {
-  colour: 0xb05ce6,
   outline: 0x1a0826,
   outlineWidth: 1.5,
   size: 10,
@@ -44,4 +43,28 @@ export function curseMarkAlpha(ms: number): number {
   const { minAlpha, pulseMs } = CURSE_MARK;
   const wave = (1 + Math.cos((2 * Math.PI * ms) / pulseMs)) / 2;
   return minAlpha + (1 - minAlpha) * wave;
+}
+
+/** How one Curse shows: its floor circle's colour, and its mark's colour and shape. */
+export type CurseLook = {
+  circle: number;
+  mark: number;
+  shape: "diamond" | "triangle" | "square" | "cross";
+};
+
+/**
+ * Each Curse's own look, so a Cursed Monster tells which Curse it has:
+ * Amplify Damage a violet diamond, Weaken an ochre triangle pointing down
+ * (its damage going down), Leaden Limbs a steel-blue square (weighed down).
+ */
+export const CURSE_LOOKS: Partial<Record<Skill, CurseLook>> = {
+  amplifyDamage: { circle: 0x8a3fc2, mark: 0xb05ce6, shape: "diamond" },
+  weaken: { circle: 0xb8862b, mark: 0xe6b84d, shape: "triangle" },
+  leadenLimbs: { circle: 0x4a6f8a, mark: 0x7fb3d9, shape: "square" },
+  dread: { circle: 0x3f8a5c, mark: 0x7fe0a0, shape: "cross" },
+};
+
+/** The look of the Curse `skill` casts (Amplify Damage's for any without one). */
+export function curseLook(skill: Skill): CurseLook {
+  return CURSE_LOOKS[skill] ?? (CURSE_LOOKS.amplifyDamage as CurseLook);
 }

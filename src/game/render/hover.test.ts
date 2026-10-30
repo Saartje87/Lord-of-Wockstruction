@@ -66,6 +66,7 @@ const golem = (life: number): Minion => ({
   type: "golem",
   skill: "golem",
   skillLevel: 1,
+  synergy: 1,
   pos: { x: 1, y: 1 },
   prevPos: { x: 1, y: 1 },
   life,

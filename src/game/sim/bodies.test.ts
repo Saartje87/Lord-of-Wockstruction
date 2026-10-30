@@ -691,7 +691,7 @@ describe("creatures spreading around their target", () => {
     return skeleton;
   }
 
-  const reachOf = (minion: { type: "raisedSkeleton" | "golem" }) =>
+  const reachOf = (minion: { type: keyof typeof minionTuning }) =>
     minionTuning[minion.type].reach + minionTuning[minion.type].reachGrace;
 
   it("gets four Raised Skeletons from one side all within reach of one Monster, on different sides of it", () => {

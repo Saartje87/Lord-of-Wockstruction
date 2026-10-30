@@ -6,7 +6,7 @@ import { emptySkillBar, SKILL_BAR_SLOTS } from "../sim/skillBar";
 import { ATTRIBUTES, createWorld, FRESH_PROGRESS, SKILLS } from "../sim/world";
 import { heroTuning } from "../tuning/hero";
 import { inventoryTuning } from "../tuning/items";
-import type { Skill } from "../tuning/skills";
+import { BRANCHES, isPassive, type Skill } from "../tuning/skills";
 import { type Viewport, viewportOf } from "../viewport";
 import { beltStripLayout } from "./beltStrip";
 import { cursorHitAt } from "./cursorHit";
@@ -21,16 +21,14 @@ import { inventoryHitAt, inventoryPanelLayout } from "./inventoryPanel";
 import { panelButtonsLayout } from "./panelButtons";
 import { skillBarLayout } from "./skillBar";
 import {
+  fullRooms,
   SKILL_TREE_PANEL,
-  skillRow,
+  skillTreeBranchRow,
   skillTreeHitAt,
   skillTreePanelLayout,
   skillTreePanelRect,
-  skillTreeRow,
+  skillTreeSkillRow,
 } from "./skillTreePanel";
-
-/** The Skills the Skill Tree must fit: Golem and Necromancy's five. */
-const SIX_SKILLS = 6;
 
 /** A Town of one tile with the Hero's `start` on it. */
 const town = {
@@ -226,20 +224,35 @@ describe("the panels in the Compact Layout", () => {
     const layout = skillTreePanelLayout(viewport);
     const at = (rect: Rect) =>
       skillTreeHitAt(viewport, centre(rect), world, true);
-    // Room for six Skills, Golem and the five to come.
-    const panel = skillTreePanelRect(viewport, SIX_SKILLS);
+    // Room for 15 Skills: Bone 6, Summoning 4 and Curses 5.
+    const rooms = fullRooms();
+    const panel = skillTreePanelRect(viewport, rooms);
     const hint =
       (SKILL_TREE_PANEL.hintHeight + SKILL_TREE_PANEL.padding) *
       viewport.uiScale;
 
     expect(panel).toEqual(layout.panel);
-    for (let row = 0; row <= skillRow(SIX_SKILLS - 1); row++) {
-      const rect = skillTreeRow(viewport, row);
-      expectInside(rect, panel, `row ${row}`);
-      expect(rect.y + rect.h, `row ${row} over the hint`).toBeLessThanOrEqual(
+    const slots: [string, Rect][] = [];
+    for (const branch of BRANCHES) {
+      slots.push([`${branch} heading`, skillTreeBranchRow(viewport, branch)]);
+      for (let index = 0; index < rooms[branch]; index++) {
+        slots.push([
+          `${branch} ${index}`,
+          skillTreeSkillRow(viewport, branch, index, rooms),
+        ]);
+      }
+    }
+    expect(slots).toHaveLength(15 + 3);
+    for (const [name, rect] of slots) {
+      expectInside(rect, panel, name);
+      expect(rect.y + rect.h, `${name} over the hint`).toBeLessThanOrEqual(
         panel.y + panel.h - hint,
       );
+      expect(rect.y, `${name} under the ×`).toBeGreaterThanOrEqual(
+        layout.closeButton.y + layout.closeButton.h,
+      );
     }
+    expectApart(slots);
     for (const skill of SKILLS) {
       expectInside(layout.skills[skill], layout.panel, `${skill} rows`);
       expectInside(layout.raise[skill], layout.skills[skill], `${skill} +`);
@@ -248,7 +261,12 @@ describe("the panels in the Compact Layout", () => {
       });
       const rows = layout.skills[skill];
       const name = { ...rows, w: layout.raise[skill].x - rows.x };
-      expect(at(name)).toEqual({ button: { type: "pickUpSkill", skill } });
+      // A Passive Skill can't be lifted.
+      expect(at(name)).toEqual(
+        isPassive(skill)
+          ? { button: null }
+          : { button: { type: "pickUpSkill", skill } },
+      );
     }
     expect(overlaps(layout.closeButton, layout.skills.golem)).toBe(false);
     expect(at(layout.closeButton)).toEqual({

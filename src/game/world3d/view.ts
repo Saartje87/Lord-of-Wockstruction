@@ -1,5 +1,5 @@
 import { corpseBurst, tileRadiusOf } from "../render/corpseBurst";
-import { curseCircle } from "../render/curse";
+import { curseCircle, curseLook } from "../render/curse";
 import type { CharacterId } from "../render/hover";
 import { LEVEL_UP, levelRing, levelUpLeft } from "../render/levelUp";
 import type { ShownTownPortal } from "../render/townPortalLook";
@@ -7,7 +7,7 @@ import { type Area, type Placed, TOWN } from "../sim/area";
 import type { ItemId } from "../sim/inventory";
 import { minionRecoveryProgress, minionWindUpProgress } from "../sim/minions";
 import { recoveryProgress, windUpProgress } from "../sim/monsters";
-import { STEP_MS } from "../sim/units";
+import { msToSteps, STEP_MS } from "../sim/units";
 import type { Vec } from "../sim/vec";
 import {
   CAST_STEPS,
@@ -31,7 +31,9 @@ import type { ItemType } from "../tuning/items";
 import type { MinionType } from "../tuning/minions";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import type { ProjectileKind } from "../tuning/projectiles";
+import { type Skill, skillTuning } from "../tuning/skills";
 import type { BoneAltarView } from "./boneAltarMeshes";
+import type { BoneWallView } from "./boneWallMeshes";
 import { ATTACK_CONTACT, type HeroClip } from "./clips";
 import { type Crumble, crumbleOf } from "./crumble";
 import { MINION_LOOKS } from "./minionLook";
@@ -141,7 +143,7 @@ export type Effects = {
   /** The Corpse bursts so far, with how long ago each began. */
   bursts: AgedCircle[];
   /** The Curses cast so far, with how long ago each was cast. */
-  curses: AgedCircle[];
+  curses: (AgedCircle & { skill: Skill })[];
   /** How long ago (ms) the Hero reached a Level, if the ring may still show. */
   levelUpAgoMs: number | null;
   /**
@@ -186,7 +188,7 @@ export type FloorCircle = { radius: number; alpha: number };
 /** What the World draws flat on the floor, apart from its pieces. */
 export type FloorEffectsView = {
   telegraphs: TelegraphView[];
-  curses: (FloorCircle & { pos: Vec })[];
+  curses: (FloorCircle & { pos: Vec; colour: number })[];
   /** A flash disc and a spreading ring round a burst Corpse. */
   bursts: { pos: Vec; flash: FloorCircle; ring: FloorCircle }[];
   /** The gold ring round the Hero's feet on a Level-Up. */
@@ -234,6 +236,8 @@ export type WorldView = {
   townPortals: ShownTownPortal[];
   /** The Bone Altars still standing in the Area. */
   boneAltars: BoneAltarView[];
+  /** The Bone Wall pieces standing in the Area. */
+  boneWalls: BoneWallView[];
   /** The Exits out of the Area. */
   exits: ExitView[];
   projectiles: ProjectileView[];
@@ -394,6 +398,12 @@ export function worldViewOf(
       pos: altar.pos,
       fraction: altar.life / boneAltarTuning.life,
     })),
+    boneWalls: world.boneWalls.map((piece) => ({
+      id: piece.id,
+      pos: piece.pos,
+      fraction: piece.life / boneWallLife(),
+      sunk: Math.max(0, 1 - piece.left / BONE_WALL_SINK_STEPS),
+    })),
     exits: area.exits.map(({ x, y, width, height, area: to }) => ({
       x,
       y,
@@ -460,9 +470,12 @@ function floorEffectsOf(
     });
   }
   const curses: FloorEffectsView["curses"] = [];
-  for (const { pos, radius, ageMs } of effects.curses) {
+  for (const { pos, radius, ageMs, skill } of effects.curses) {
     const circle = curseCircle(ageMs, radius);
-    if (circle) curses.push({ pos, radius, alpha: circle.alpha });
+    if (circle) {
+      const { circle: colour } = curseLook(skill);
+      curses.push({ pos, radius, alpha: circle.alpha, colour });
+    }
   }
   const bursts: FloorEffectsView["bursts"] = [];
   for (const { pos, radius, ageMs } of effects.bursts) {
@@ -529,7 +542,11 @@ function monsterViewOf(
     };
   } else {
     const seconds = (world.tick * STEP_MS) / 1000;
-    const clip = !moving ? "idle" : monster.state === "chase" ? "run" : "walk";
+    const clip = !moving
+      ? "idle"
+      : monster.state === "chase" || monster.state === "flee"
+        ? "run"
+        : "walk";
     animation = { clip, seconds };
   }
   return {
@@ -655,4 +672,13 @@ function clickMarkerOf(click: PointerState["click"]): ClickMarkerView | null {
   if (!click) return null;
   const progress = click.ageMs / inputTuning.clickMarkerMs;
   return progress < 1 ? { at: click.at, progress } : null;
+}
+
+/** How long a Bone Wall piece sinks away as it crumbles (steps). */
+const BONE_WALL_SINK_STEPS = msToSteps(400);
+
+/** The Life a fresh Bone Wall piece has. */
+function boneWallLife(): number {
+  const { effect } = skillTuning.boneWall;
+  return effect.type === "wall" ? effect.pieceLife : 1;
 }

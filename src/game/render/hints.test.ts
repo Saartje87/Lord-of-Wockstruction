@@ -100,8 +100,13 @@ describe("the hints and labels that name buttons", () => {
   const golem = {
     skill: "golem",
     name: "Golem",
+    branch: "summoning",
+    prerequisite: null,
+    synergies: [],
+    synergyTotal: "0",
     manaCost: "15",
     requiredLevel: null,
+    passive: null,
   } as const;
   it.each([
     [
@@ -143,6 +148,79 @@ describe("the hints and labels that name buttons", () => {
       { ...golem, skillLevel: "1", canRaise: true },
       "touch",
       ["Golem", "Skill Level 1"],
+    ],
+    [
+      "with Synergies",
+      {
+        ...golem,
+        skillLevel: "1",
+        canRaise: false,
+        synergies: [
+          { giver: "Bone Ward", percentPerSkillLevel: "8", total: "16" },
+          { giver: "Amplify Damage", percentPerSkillLevel: "5", total: "5" },
+        ],
+        synergyTotal: "21",
+      },
+      "touch",
+      [
+        "Golem",
+        "Skill Level 1",
+        "Synergy: Bone Ward +8% per Skill Level, +16% now",
+        "Synergy: Amplify Damage +5% per Skill Level, +5% now",
+        "Synergies add +21% now",
+      ],
+    ],
+    [
+      "a learned Passive Skill",
+      {
+        ...golem,
+        name: "Grave Command",
+        skillLevel: "2",
+        canRaise: true,
+        manaCost: "",
+        passive: {
+          percentPerSkillLevel: "5",
+          total: "10",
+          boosts: "Golem, Raise Skeleton",
+        },
+      },
+      "controller",
+      [
+        "Grave Command",
+        "Skill Level 2",
+        "Passive: +5% per Skill Level to Golem, Raise Skeleton",
+        "Passive adds +10% now",
+        "Press A to spend a Skill Point",
+      ],
+    ],
+    [
+      "held back by its Prerequisite",
+      {
+        ...golem,
+        skillLevel: "0",
+        canRaise: false,
+        prerequisite: "Raise Skeleton",
+      },
+      "touch",
+      ["Golem", "Skill Level 0", "Needs Raise Skeleton first"],
+    ],
+    [
+      "held back by its Level",
+      { ...golem, skillLevel: "0", canRaise: false, requiredLevel: "6" },
+      "touch",
+      ["Golem", "Skill Level 0", "Needs Level 6"],
+    ],
+    [
+      "held back by both",
+      {
+        ...golem,
+        skillLevel: "0",
+        canRaise: false,
+        prerequisite: "Raise Skeleton",
+        requiredLevel: "6",
+      },
+      "controller",
+      ["Golem", "Skill Level 0", "Needs Raise Skeleton first", "Needs Level 6"],
     ],
   ] as const)("give a Skill's tooltip, %s, with %s", (_, sheet, way, lines) => {
     expect(skillTooltip(sheet, way)).toEqual(lines);

@@ -174,16 +174,36 @@ const SKILL_ACTIONS: Record<
 };
 
 /**
- * A Skill's tooltip with `way`: its name and Skill Level, then, but for
- * touch, how to spend a Skill Point on it while one can be, and how to put
+ * A Skill's tooltip with `way`: its name and Skill Level, each Synergy and what they add now, what holds it
+ * back (its Prerequisite and its Level), then, but for touch, how to spend a Skill Point on it while one can be, and how to put
  * it on the Skill Bar once learned.
  */
 export function skillTooltip(sheet: SkillSheet, way: InputWay): string[] {
   const lines = [sheet.name, `Skill Level ${sheet.skillLevel}`];
+  for (const { giver, percentPerSkillLevel, total } of sheet.synergies) {
+    lines.push(
+      `Synergy: ${giver} +${percentPerSkillLevel}% per Skill Level, +${total}% now`,
+    );
+  }
+  if (sheet.synergies.length) {
+    lines.push(`Synergies add +${sheet.synergyTotal}% now`);
+  }
+  if (sheet.prerequisite) lines.push(`Needs ${sheet.prerequisite} first`);
+  if (sheet.requiredLevel) lines.push(`Needs Level ${sheet.requiredLevel}`);
+  if (sheet.passive) {
+    const { percentPerSkillLevel, boosts, total } = sheet.passive;
+    lines.push(
+      `Passive: +${percentPerSkillLevel}% per Skill Level to ${boosts}`,
+    );
+    lines.push(`Passive adds +${total}% now`);
+  }
   const actions = SKILL_ACTIONS[way];
   if (!actions) return lines;
   const { learn, pickUp } = actions;
   if (sheet.canRaise) lines.push(`${learn} to spend a Skill Point`);
-  if (sheet.skillLevel !== "0") lines.push(`${pickUp} to put on the Skill Bar`);
+  // A Passive Skill can't be put on the Skill Bar.
+  if (sheet.skillLevel !== "0" && !sheet.passive) {
+    lines.push(`${pickUp} to put on the Skill Bar`);
+  }
   return lines;
 }

@@ -14,13 +14,18 @@ import { minionTuning } from "../tuning/minions";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import { questTuning } from "../tuning/quests";
 import {
+  type CastSkill,
   type CurseEffect,
+  castTuning,
   corpseTuning,
   type ExplodeEffect,
+  isPassive,
   type ProjectileEffect,
   type RaiseEffect,
   type Skill,
   skillTuning,
+  type VolleyEffect,
+  type WallEffect,
   type WardEffect,
 } from "../tuning/skills";
 import { townPortalTuning } from "../tuning/townPortal";
@@ -39,13 +44,21 @@ import {
   TOWN,
 } from "./area";
 import { type BeltColumns, emptyBelt, putInBelt } from "./belt";
-import { freeSpot, monsterBodies, separateBodies, summonPoint } from "./bodies";
+import {
+  freeSpot,
+  heroSideBodies,
+  monsterBodies,
+  separateBodies,
+  summonPoint,
+  wallRadius,
+} from "./bodies";
 import {
   altarRadiusOf,
   type BoneAltar,
   isBoneAltar,
   targetsOf,
 } from "./boneAltars";
+import { type BoneWallPiece, wallSpots } from "./boneWalls";
 import {
   type Belongings,
   type Cell,
@@ -70,6 +83,7 @@ import { faceToward, lands } from "./melee";
 import {
   type Minion,
   type MinionId,
+  type MinionOfLevel,
   type MinionType,
   minionAttackRating,
   minionDamageRange,
@@ -127,6 +141,7 @@ import {
   type SkillBarSlot,
 } from "./skillBar";
 import { giveSmithBonus, SMITH } from "./smith";
+import { passiveMultiplier, skillPower } from "./synergies";
 import { msToSteps, perStep } from "./units";
 import { validateAreas } from "./validate";
 import { distance, type Vec } from "./vec";
@@ -166,11 +181,10 @@ export const FLINCH_STEPS = Object.fromEntries(
 ) as Record<MonsterType, number>;
 /** How many steps a cast of each Skill roots the Hero for. */
 export const CAST_STEPS = Object.fromEntries(
-  Object.entries(skillTuning).map(([skill, tuning]) => [
-    skill,
-    msToSteps(tuning.castMs),
-  ]),
-) as Record<Skill, number>;
+  (Object.keys(skillTuning) as Skill[])
+    .filter((skill): skill is CastSkill => !isPassive(skill))
+    .map((skill) => [skill, msToSteps(castTuning(skill).castMs)]),
+) as Record<CastSkill, number>;
 
 /** How many steps opening a Town Portal roots the Hero for. */
 export const OPENING_STEPS = msToSteps(townPortalTuning.openingMs);
@@ -246,7 +260,7 @@ export type BoneWard = { left: number; full: number };
 
 /** A Skill being cast: its effect happened as it started. */
 export type Cast = {
-  skill: Skill;
+  skill: CastSkill;
   /** Steps since the cast started, not counting hitstop. */
   elapsed: number;
 };
@@ -327,10 +341,15 @@ export type Monster = {
   pause: number;
   /** Its Curse, if it has one. */
   curse: MonsterCurse | null;
+  /**
+   * The Bone Wall piece (its `id`) it is attacking in place of its target,
+   * because the Wall cuts it off from them; null when it isn't.
+   */
+  wall: number | null;
 };
 
 /** A Curse on a Monster: the Skill that put it there, and steps left. */
-export type MonsterCurse = { skill: Skill; left: number };
+export type MonsterCurse = { skill: CastSkill; left: number };
 
 /** Who a Monster goes after: the Hero, or one of their Minions. */
 export type MonsterTarget = "hero" | MinionId;
@@ -338,8 +357,9 @@ export type MonsterTarget = "hero" | MinionId;
 /**
  * `idle` and `wander` stroll around the spawn, `chase` goes after the nearest
  * of the Hero and their Minions, `windup` telegraphs an attack on it,
- * `recover` stands rooted after it and `return` walks home after giving up,
- * ignoring both.
+ * `recover` stands rooted after it, `return` walks home after giving up,
+ * ignoring both, and `flee` runs from them under Dread, never attacking and
+ * unmoved by a hit.
  */
 export type MonsterState =
   | "idle"
@@ -347,7 +367,8 @@ export type MonsterState =
   | "chase"
   | "windup"
   | "recover"
-  | "return";
+  | "return"
+  | "flee";
 
 /**
  * Walking through an Exit to Entry `entry` in Area `area`, or through a Town
@@ -444,6 +465,8 @@ export type World = {
   monsters: Monster[];
   /** The Bone Altars still standing in the active Area. */
   boneAltars: BoneAltar[];
+  /** The Bone Wall pieces standing in the active Area. */
+  boneWalls: BoneWallPiece[];
   /** The Projectiles in flight in the active Area. */
   projectiles: Projectile[];
   /** The Corpses in the active Area. */
@@ -687,6 +710,12 @@ export type SimEvent =
   | { type: "WaveRaised"; boss: MonsterId; monsters: MonsterId[] }
   /** The Hero killed the Act Boss of Act `act` with its Quest not yet Done. */
   | { type: "ActCompleted"; act: number }
+  /** The Hero raised a Bone Wall of pieces standing at `pieces`. */
+  | { type: "BoneWallRaised"; pieces: Vec[] }
+  /** A Monster hit the Bone Wall piece at `pos` for `damage`. */
+  | { type: "BoneWallHit"; pos: Vec; damage: number }
+  /** The Bone Wall piece at `pos` is gone: `broken` by Monsters, else crumbled. */
+  | { type: "BoneWallCrumbled"; pos: Vec; broken: boolean }
   | { type: "BoneAltarHit"; altar: MonsterId; damage: number }
   /** Bone Altar `altar` raised Monster `monster` at `pos`. */
   | { type: "BoneAltarRaised"; altar: MonsterId; monster: MonsterId; pos: Vec }
@@ -731,14 +760,14 @@ export type SimEvent =
   /** A `PutSkillOnBar` order rearranged the Skill Bar. */
   | { type: "SkillBarChanged" }
   /** The Hero started casting `skill` at `target`, its Mana spent. */
-  | { type: "SkillCast"; skill: Skill; target: Vec }
+  | { type: "SkillCast"; skill: CastSkill; target: Vec }
   /**
    * The Corpse `corpse` at `pos` burst, hurting every Monster within
    * `radius` (tiles).
    */
   | { type: "CorpseExploded"; corpse: MonsterId; pos: Vec; radius: number }
   /** `skill` Cursed every Monster within `radius` (tiles) of `pos`. */
-  | { type: "CurseCast"; skill: Skill; pos: Vec; radius: number }
+  | { type: "CurseCast"; skill: CastSkill; pos: Vec; radius: number }
   /** A cast did nothing, spending no Mana. */
   | { type: "CastFailed"; reason: CastFailure }
   /** Minion `minion` appeared at `pos`. */
@@ -933,6 +962,7 @@ export function createWorld(options: {
     },
     monsters: [],
     boneAltars: [],
+    boneWalls: [],
     projectiles: [],
     corpses: [],
     groundItems: [],
@@ -975,26 +1005,29 @@ export function progressOf(world: World): Progress {
 
 /**
  * Whether a Skill Point can be spent on `skill` now: one is unspent, the
- * Hero lives and their Level is up to the Skill's required Level.
+ * Hero lives, their Level is up to the Skill's required Level and its
+ * Prerequisite, if any, has a Skill Level.
  */
 export function canRaiseSkill(world: World, skill: Skill): boolean {
   const { progress } = world.hero;
+  const { requiredLevel, prerequisite } = skillTuning[skill];
   return (
     progress.skillPoints > 0 &&
     !world.death &&
-    progress.level >= skillTuning[skill].requiredLevel
+    progress.level >= requiredLevel &&
+    (!prerequisite || progress.skillLevels[prerequisite] > 0)
   );
 }
 
 /** Whether `skill` uses a Corpse up, so a cast needs one near its point. */
-export function usesCorpse(skill: Skill): boolean {
-  const { type } = skillTuning[skill].effect;
+export function usesCorpse(skill: CastSkill): boolean {
+  const { type } = castTuning(skill).effect;
   return type === "raise" || type === "explode";
 }
 
 /** The Mana a cast of `skill` costs at Skill Level `skillLevel` (1 and up). */
-export function skillManaCost(skill: Skill, skillLevel: number): number {
-  const { manaCost, manaCostPerSkillLevel } = skillTuning[skill];
+export function skillManaCost(skill: CastSkill, skillLevel: number): number {
+  const { manaCost, manaCostPerSkillLevel } = castTuning(skill);
   return manaCost + manaCostPerSkillLevel * (skillLevel - 1);
 }
 
@@ -1251,7 +1284,7 @@ function startAreaChange(
   world.areaChange = { area, entry, waypoint, elapsed: 0 };
   // Monsters in pursuit give up, as on Death, and head home once stepped.
   for (const monster of world.monsters) {
-    if (["chase", "windup", "recover"].includes(monster.state)) {
+    if (["chase", "windup", "recover", "flee"].includes(monster.state)) {
       sendHome(monster);
     }
   }
@@ -1320,6 +1353,10 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   }
   world.death = null;
   world.trading = false;
+  // A Bone Wall stands only in the Area it was raised in.
+  for (const piece of [...world.boneWalls]) {
+    removeWallPiece(world, piece, false, events);
+  }
   const { monsters, projectiles, corpses, groundItems, explored } = world;
   const { boneAltars, goldPiles } = world;
   world.keptAreas[world.areaName] = {
@@ -1645,6 +1682,7 @@ function placeMonster(
     // So a pack doesn't set off strolling in step.
     pause: wanderPause(world, type),
     curse: null,
+    wall: null,
     waves:
       type === "grave_wockington"
         ? { cooldown: msToSteps(graveWockingtonTuning.firstWaveMs), raised: [] }
@@ -1770,7 +1808,9 @@ function stepWaves(world: World, events: SimEvent[]) {
   for (const boss of [...world.monsters]) {
     const { waves } = boss;
     if (!waves) continue;
-    const afterHero = !["idle", "wander", "return"].includes(boss.state);
+    const afterHero = !["idle", "wander", "return", "flee"].includes(
+      boss.state,
+    );
     const made = raiseWhenDue(world, waves, afterHero, {
       from: boss.pos,
       distance: graveWockingtonTuning.raiseDistance,
@@ -1902,9 +1942,13 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   landProjectiles(world, events);
   const strikes = stepMonsters(world);
   separateBodies(world);
-  for (const { monster, target } of strikes) {
-    strike(world, target, monsterAttack(monster), events);
+  for (const { monster, target, wall } of strikes) {
+    const attack = monsterAttack(monster);
+    if (wall)
+      hurtWall(world, wall, randomInt(world.rng, attack.damage), events);
+    else strike(world, target, attack, events);
   }
+  stepBoneWalls(world, events);
   stepBoneAltars(world, events);
   stepWaves(world, events);
   if (isRegenerating(world)) {
@@ -1944,6 +1988,7 @@ function stepDeath(
   landProjectiles(world, events);
   stepMonsters(world);
   separateBodies(world);
+  stepBoneWalls(world, events);
 }
 
 /**
@@ -1964,6 +2009,10 @@ function landProjectiles(world: World, events: SimEvent[]) {
         "skill",
         events,
       ),
+    (projectile, piece) =>
+      hurtWall(world, piece, randomInt(world.rng, projectile.damage), events),
+    (projectile, target) =>
+      minionStrike(world, projectile.minion, target, events),
   );
 }
 
@@ -2059,7 +2108,8 @@ function spendSkillPoint(world: World, skill: Skill, events: SimEvent[]) {
   if (!canRaiseSkill(world, skill)) return;
   const { progress } = world.hero;
   progress.skillPoints -= 1;
-  if (progress.skillLevels[skill] === 0) {
+  // A Passive Skill is never cast, so it never goes on the Skill Bar.
+  if (progress.skillLevels[skill] === 0 && !isPassive(skill)) {
     progress.skillBar = placeLearnedSkill(progress.skillBar, skill);
   }
   progress.skillLevels[skill] += 1;
@@ -2078,7 +2128,7 @@ function putOnBar(
   events: SimEvent[],
 ) {
   const { progress } = world.hero;
-  if (progress.skillLevels[skill] === 0) return;
+  if (progress.skillLevels[skill] === 0 || isPassive(skill)) return;
   if (progress.skillBar[slot] === skill) return;
   progress.skillBar = putSkillOnBar(progress.skillBar, skill, slot);
   events.push({ type: "SkillBarChanged" });
@@ -2238,7 +2288,7 @@ function castFrom(
     events.push({ type: "CastFailed", reason: "town" });
     return;
   }
-  const { effect } = skillTuning[skill];
+  const { effect } = castTuning(skill);
   const corpse = usesCorpse(skill) ? nearestCorpse(world, target) : null;
   if (usesCorpse(skill) && !corpse) {
     events.push({ type: "CastFailed", reason: "corpse" });
@@ -2266,16 +2316,37 @@ function castFrom(
       if (corpse) raise(world, skill, effect, skillLevel, corpse, events);
       break;
     case "explode":
-      if (corpse) explode(world, effect, skillLevel, corpse, events);
+      if (corpse) explode(world, skill, effect, skillLevel, corpse, events);
       break;
     case "curse":
       curse(world, skill, effect, skillLevel, target, events);
       break;
     case "projectile":
-      looseFromHero(world, effect, skillLevel);
+      looseFromHero(
+        world,
+        effect,
+        skillLevel,
+        skillPower(hero.progress.skillLevels, skill),
+      );
       break;
     case "ward":
-      putOnBoneWard(hero, effect, skillLevel);
+      putOnBoneWard(
+        hero,
+        effect,
+        skillLevel,
+        skillPower(hero.progress.skillLevels, skill),
+      );
+      break;
+    case "wall":
+      raiseBoneWall(world, effect, target, events);
+      break;
+    case "volley":
+      loosePlume(
+        world,
+        effect,
+        skillLevel,
+        skillPower(hero.progress.skillLevels, skill),
+      );
       break;
   }
 }
@@ -2301,7 +2372,7 @@ function nearestCorpse(world: World, point: Vec): Corpse | null {
  */
 function summon(
   world: World,
-  skill: Skill,
+  skill: CastSkill,
   type: MinionType,
   skillLevel: number,
   target: Vec,
@@ -2322,7 +2393,7 @@ function summon(
  */
 function raise(
   world: World,
-  skill: Skill,
+  skill: CastSkill,
   effect: RaiseEffect,
   skillLevel: number,
   corpse: Corpse,
@@ -2355,6 +2426,7 @@ export function explodeRadius(
  */
 function explode(
   world: World,
+  skill: CastSkill,
   effect: ExplodeEffect,
   skillLevel: number,
   corpse: Corpse,
@@ -2370,9 +2442,10 @@ function explode(
   });
   const life = monsterMaxLife(corpse);
   const [least, most] = effect.share;
+  const synergy = skillPower(world.hero.progress.skillLevels, skill);
   const range: [number, number] = [
-    Math.ceil(life * least),
-    Math.floor(life * most),
+    Math.ceil(life * least * synergy),
+    Math.floor(life * most * synergy),
   ];
   const victims = targetsOf(world).filter(
     (target) => distance(target.pos, corpse.pos) <= radius,
@@ -2383,15 +2456,29 @@ function explode(
   }
 }
 
-/** How far `effect` reaches from the cast point at `skillLevel` (tiles). */
-export function curseRadius(effect: CurseEffect, skillLevel: number): number {
-  return effect.radius + effect.radiusPerSkillLevel * (skillLevel - 1);
+/**
+ * How far `effect` reaches from the cast point at `skillLevel` (tiles),
+ * times `reach`, what the Skill's Passive Skills make it.
+ */
+export function curseRadius(
+  effect: CurseEffect,
+  skillLevel: number,
+  reach = 1,
+): number {
+  return (
+    (effect.radius + effect.radiusPerSkillLevel * (skillLevel - 1)) * reach
+  );
 }
 
 /** How long `effect` lasts at `skillLevel` (steps). */
-export function curseSteps(effect: CurseEffect, skillLevel: number): number {
+export function curseSteps(
+  effect: CurseEffect,
+  skillLevel: number,
+  synergy = 1,
+): number {
   return msToSteps(
-    effect.durationMs + effect.durationMsPerSkillLevel * (skillLevel - 1),
+    (effect.durationMs + effect.durationMsPerSkillLevel * (skillLevel - 1)) *
+      synergy,
   );
 }
 
@@ -2401,69 +2488,226 @@ export function curseSteps(effect: CurseEffect, skillLevel: number): number {
  */
 function curse(
   world: World,
-  skill: Skill,
+  skill: CastSkill,
   effect: CurseEffect,
   skillLevel: number,
   target: Vec,
   events: SimEvent[],
 ) {
-  const radius = curseRadius(effect, skillLevel);
+  const { skillLevels } = world.hero.progress;
+  const radius = curseRadius(
+    effect,
+    skillLevel,
+    passiveMultiplier(skillLevels, skill),
+  );
   events.push({ type: "CurseCast", skill, pos: { ...target }, radius });
-  const left = curseSteps(effect, skillLevel);
+  const left = curseSteps(
+    effect,
+    skillLevel,
+    skillPower(world.hero.progress.skillLevels, skill),
+  );
   for (const monster of world.monsters) {
     if (distance(monster.pos, target) <= radius) {
+      const was = monster.curse && skillTuning[monster.curse.skill].effect;
       monster.curse = { skill, left };
+      // A new Curse replaces the old: Dread's Fleeing ends with it, and a
+      // Monster walking home keeps walking.
+      const fleeing = effect.kind === "dread";
+      if (fleeing && monster.state !== "return") {
+        monster.state = "flee";
+        monster.path = [];
+        monster.attack = 0;
+      } else if (
+        !fleeing &&
+        monster.state === "flee" &&
+        was?.type === "curse" &&
+        was.kind === "dread"
+      ) {
+        monster.state = "chase";
+        monster.path = [];
+        monster.replan = 0;
+      }
     }
   }
 }
 
-/** The damage `effect`'s Projectile deals per hit at `skillLevel`. */
+/**
+ * The damage `effect`'s Projectile deals per hit at `skillLevel`, times the
+ * Skill's Synergies (`synergy`).
+ */
 export function projectileDamage(
-  effect: ProjectileEffect,
+  effect: ProjectileEffect | VolleyEffect,
   skillLevel: number,
+  synergy = 1,
 ): [number, number] {
   const more = effect.damagePerSkillLevel * (skillLevel - 1);
-  return [effect.damage[0] + more, effect.damage[1] + more];
+  return [
+    Math.round((effect.damage[0] + more) * synergy),
+    Math.round((effect.damage[1] + more) * synergy),
+  ];
 }
 
-/** Looses `effect`'s Projectile from the Hero the way they face. */
+/**
+ * Looses `effect`'s Projectile from the Hero the way they face, its damage
+ * grown by the Skill's Synergies (`synergy`).
+ */
 function looseFromHero(
   world: World,
   effect: ProjectileEffect,
   skillLevel: number,
+  synergy: number,
+) {
+  looseShard(world, effect, skillLevel, synergy, world.hero.facing);
+}
+
+/**
+ * Looses `effect`'s fan of shards from the Hero, centred on the way they
+ * face, each its own Projectile growing with the Skill's Synergies.
+ */
+function loosePlume(
+  world: World,
+  effect: VolleyEffect,
+  skillLevel: number,
+  synergy: number,
+) {
+  const spread = (effect.spreadDegrees * Math.PI) / 180;
+  for (let i = 0; i < effect.shards; i++) {
+    const along = effect.shards === 1 ? 0.5 : i / (effect.shards - 1);
+    const angle = world.hero.facing + (along - 0.5) * spread;
+    looseShard(world, effect, skillLevel, synergy, angle);
+  }
+}
+
+/** Looses one Hero Projectile of `effect` from the Hero along `angle`. */
+function looseShard(
+  world: World,
+  effect: ProjectileEffect | VolleyEffect,
+  skillLevel: number,
+  synergy: number,
+  angle: number,
 ) {
   const { hero } = world;
   world.projectiles.push({
     kind: effect.projectile,
     pos: { ...hero.pos },
     prevPos: { ...hero.pos },
-    direction: { x: Math.cos(hero.facing), y: Math.sin(hero.facing) },
+    direction: { x: Math.cos(angle), y: Math.sin(angle) },
     speed: perStep(effect.speed),
     rangeLeft: effect.range,
     from: "hero",
-    damage: projectileDamage(effect, skillLevel),
+    damage: projectileDamage(effect, skillLevel, synergy),
     hit: [],
   });
 }
 
-/** How much `effect`'s Bone Ward soaks up at `skillLevel`. */
-export function wardAmount(effect: WardEffect, skillLevel: number): number {
-  return effect.amount + effect.amountPerSkillLevel * (skillLevel - 1);
+/**
+ * How much `effect`'s Bone Ward soaks up at `skillLevel`, times the Skill's
+ * Synergies (`synergy`).
+ */
+export function wardAmount(
+  effect: WardEffect,
+  skillLevel: number,
+  synergy = 1,
+): number {
+  return Math.round(
+    (effect.amount + effect.amountPerSkillLevel * (skillLevel - 1)) * synergy,
+  );
 }
 
 /**
  * Puts a full Bone Ward on the Hero for `skillLevel`, replacing whatever is
  * left of theirs.
  */
-function putOnBoneWard(hero: Hero, effect: WardEffect, skillLevel: number) {
-  const full = wardAmount(effect, skillLevel);
+function putOnBoneWard(
+  hero: Hero,
+  effect: WardEffect,
+  skillLevel: number,
+  synergy: number,
+) {
+  const full = wardAmount(effect, skillLevel, synergy);
   hero.boneWard = { left: full, full };
+}
+
+/**
+ * Raises `effect`'s Bone Wall across the Hero's line to `target`, a piece on
+ * each of its tiles that is walkable and has no Body in it.
+ */
+function raiseBoneWall(
+  world: World,
+  effect: WallEffect,
+  target: Vec,
+  events: SimEvent[],
+) {
+  const area = world.areas[world.areaName];
+  const { hero } = world;
+  const raised: Vec[] = [];
+  for (const spot of wallSpots(hero.pos, target, hero.facing, effect.length)) {
+    const id = tileIndex(area, spot);
+    if (!isWalkable(area, spot) || bodyInTile(world, spot)) continue;
+    area.walkable[id] = false;
+    area.lowWalled[id] = true;
+    world.boneWalls.push({
+      id,
+      pos: spot,
+      life: effect.pieceLife,
+      left: msToSteps(effect.durationMs),
+    });
+    raised.push({ ...spot });
+  }
+  if (raised.length > 0)
+    events.push({ type: "BoneWallRaised", pieces: raised });
+}
+
+/** Whether the Body of the Hero, a Minion or a Monster touches the tile at `spot`. */
+function bodyInTile(world: World, spot: Vec): boolean {
+  const bodies = monsterBodies(world).concat(heroSideBodies(world));
+  return bodies.some(
+    (body) =>
+      Math.abs(body.pos.x - spot.x) < 0.5 + wallRadius(body.radius) &&
+      Math.abs(body.pos.y - spot.y) < 0.5 + wallRadius(body.radius),
+  );
+}
+
+/** Takes `piece` down, freeing its tile; `broken` when Monsters did it. */
+function removeWallPiece(
+  world: World,
+  piece: BoneWallPiece,
+  broken: boolean,
+  events: SimEvent[],
+) {
+  const area = world.areas[world.areaName];
+  area.walkable[piece.id] = true;
+  area.lowWalled[piece.id] = false;
+  world.boneWalls = world.boneWalls.filter((one) => one !== piece);
+  events.push({ type: "BoneWallCrumbled", pos: { ...piece.pos }, broken });
+}
+
+/** Lands `damage` from a Monster's side on a Bone Wall piece. */
+function hurtWall(
+  world: World,
+  piece: BoneWallPiece,
+  damage: number,
+  events: SimEvent[],
+) {
+  // Whatever hit it after it fell finds nothing.
+  if (!world.boneWalls.includes(piece)) return;
+  piece.life = Math.max(0, piece.life - damage);
+  events.push({ type: "BoneWallHit", pos: { ...piece.pos }, damage });
+  if (piece.life <= 0) removeWallPiece(world, piece, true, events);
+}
+
+/** Counts every Bone Wall piece down, crumbling those whose time is up. */
+function stepBoneWalls(world: World, events: SimEvent[]) {
+  for (const piece of [...world.boneWalls]) {
+    piece.left -= 1;
+    if (piece.left <= 0) removeWallPiece(world, piece, false, events);
+  }
 }
 
 /** Adds a fresh Minion at full Life at `pos` to the Hero's Minions. */
 function bringMinion(
   world: World,
-  skill: Skill,
+  skill: CastSkill,
   type: MinionType,
   skillLevel: number,
   pos: Vec,
@@ -2476,6 +2720,7 @@ function bringMinion(
     skillLevel,
     pos,
     world.hero.facing,
+    skillPower(world.hero.progress.skillLevels, skill),
   );
   world.minions.push(minion);
   events.push({ type: "MinionSummoned", minion: minion.id, pos: { ...pos } });
@@ -2877,7 +3122,9 @@ function takeDamage(
 function damageTaken(monster: Monster): number {
   if (!monster.curse) return 1;
   const { effect } = skillTuning[monster.curse.skill];
-  return effect.type === "curse" ? effect.damageTaken : 1;
+  return effect.type === "curse" && effect.kind === "amplifyDamage"
+    ? effect.damageTaken
+    : 1;
 }
 
 /**
@@ -2966,7 +3213,7 @@ function rollAttack(
  */
 function minionStrike(
   world: World,
-  minion: Minion,
+  minion: MinionOfLevel,
   monster: Monster | BoneAltar,
   events: SimEvent[],
 ) {

@@ -363,7 +363,7 @@ describe("Branches and Prerequisites", () => {
         "boneWall",
         "splinterVolley",
       ],
-      summoning: ["raiseSkeleton", "golem"],
+      summoning: ["raiseSkeleton", "golem", "raiseArcher"],
       curses: ["amplifyDamage", "weaken", "leadenLimbs", "dread"],
     });
     for (const branch of BRANCHES) {

@@ -109,6 +109,7 @@ describe("skillTreeSheet", () => {
       "splinterVolley",
       "raiseSkeleton",
       "golem",
+      "raiseArcher",
       "amplifyDamage",
       "weaken",
       "leadenLimbs",

@@ -198,7 +198,8 @@ export type Skill =
   | "corpseExplosion"
   | "boneSpear"
   | "boneWall"
-  | "splinterVolley";
+  | "splinterVolley"
+  | "raiseArcher";
 
 /**
  * Every Skill's tuning. Each cast roots the Hero 400 ms, a touch longer than
@@ -241,7 +242,10 @@ export const skillTuning: Record<Skill, SkillTuning> = {
       count: 2,
       countEvery: 3,
     },
-    synergies: [{ skill: "golem", percentPerSkillLevel: 8 }],
+    synergies: [
+      { skill: "golem", percentPerSkillLevel: 8 },
+      { skill: "raiseArcher", percentPerSkillLevel: 8 },
+    ],
   },
   // Diablo 2's Amplify Damage: its Mana, 8 seconds and 3 more each Skill
   // Level. Its +100% damage taken there is softened to +50%, so a Cursed
@@ -433,7 +437,32 @@ export const skillTuning: Record<Skill, SkillTuning> = {
       damage: [14, 22],
       damagePerSkillLevel: 2,
     },
-    synergies: [{ skill: "boneSpear", percentPerSkillLevel: 7 }],
+    synergies: [
+      { skill: "boneSpear", percentPerSkillLevel: 7 },
+      { skill: "raiseArcher", percentPerSkillLevel: 7 },
+    ],
+  },
+  // Raise Skeleton's rules for a Minion that shoots instead of swinging: as
+  // many at once, from a Corpse each, and a little more Mana for the reach.
+  // Level 6 keeps it within SKILLS.length + 1 and after Golem's Level 1.
+  raiseArcher: {
+    name: "Raise Archer",
+    branch: "summoning",
+    prerequisite: "golem",
+    requiredLevel: 6,
+    manaCost: 8,
+    manaCostPerSkillLevel: 1,
+    castMs: 400,
+    effect: {
+      type: "raise",
+      minion: "raisedArcher",
+      count: 2,
+      countEvery: 3,
+    },
+    synergies: [
+      { skill: "raiseSkeleton", percentPerSkillLevel: 8 },
+      { skill: "splinterVolley", percentPerSkillLevel: 7 },
+    ],
   },
 };
 

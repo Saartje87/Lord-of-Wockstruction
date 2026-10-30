@@ -4,6 +4,7 @@ import { monsterTuning } from "../tuning/monsters";
 import type { ProjectileKind } from "../tuning/projectiles";
 import { altarRadiusOf, type BoneAltar, targetsOf } from "./boneAltars";
 import { BONE_WALL_REACH, type BoneWallPiece } from "./boneWalls";
+import type { MinionOfLevel } from "./minions";
 import { canSee } from "./path";
 import type { Vec } from "./vec";
 import type { Monster, MonsterId, MonsterTarget, World } from "./world";
@@ -22,7 +23,7 @@ export type AttackNumbers = {
  * Something loosed by an attack or a Skill, flying in a straight line through
  * the Area: a Skeleton Archer's Arrow, or the Hero's Bone Spear.
  */
-export type Projectile = MonsterProjectile | HeroProjectile;
+export type Projectile = MonsterProjectile | HeroProjectile | MinionProjectile;
 
 /** What every Projectile has, whoever loosed it. */
 type Flight = {
@@ -60,7 +61,21 @@ export type HeroProjectile = Flight & {
 };
 
 /**
- * Moves every Projectile one step along its line, in order. A Monster's
+ * A Minion's Projectile, a Monster's reversed: it hits the first Monster or
+ * Bone Altar it touches with no wall between, and flies through the Hero and
+ * their Minions and Bone Wall pieces. It rolls its hit as the Minion's
+ * swings do, with the Minion's numbers as they were when it was loosed.
+ */
+export type MinionProjectile = Flight & {
+  from: "minion";
+  /** The type, Skill Level and Synergy of the Minion that loosed it. */
+  minion: MinionOfLevel;
+};
+
+/**
+ * Moves every Projectile one step along its line, in order. A Minion's calls
+ * `shoot` on the first Monster or Bone Altar it touches with no wall between.
+ * A Monster's
  * calls `land` on the Hero, unless they are in Death, or one of their
  * Minions, the first of them it touches, with no wall between. Each lands
  * before the next moves, so one reaching the Hero on the step another kills
@@ -76,6 +91,7 @@ export function stepProjectiles(
   land: (projectile: MonsterProjectile, target: MonsterTarget) => void,
   strike: (projectile: HeroProjectile, target: Monster | BoneAltar) => void,
   hitWall: (projectile: MonsterProjectile, piece: BoneWallPiece) => void,
+  shoot: (projectile: MinionProjectile, target: Monster | BoneAltar) => void,
 ) {
   const area = world.areas[world.areaName];
   world.projectiles = world.projectiles.filter((projectile) => {
@@ -94,6 +110,12 @@ export function stepProjectiles(
         projectile.hit.push(target.id);
         strike(projectile, target);
       }
+    } else if (projectile.from === "minion") {
+      const [first] = targetsTouched(world, { hit: [] }, from, to);
+      if (first) {
+        shoot(projectile, first);
+        return false;
+      }
     } else {
       stopper = firstPiece(world, from, to);
       const touched = firstTouched(world, from, stopper?.at ?? to);
@@ -103,7 +125,7 @@ export function stepProjectiles(
         return false;
       }
     }
-    if (stopper && projectile.from !== "hero") {
+    if (stopper && projectile.from !== "hero" && projectile.from !== "minion") {
       hitWall(projectile, stopper.piece);
       return false;
     }
@@ -113,13 +135,14 @@ export function stepProjectiles(
 }
 
 /**
- * The Monsters and Bone Altars the Hero's `projectile`, flying from `from` to
- * `to`, touches with no wall between and hasn't hit before, nearest `from`
- * first. A Bone Altar blocks its own tile, so it is seen up to its edge.
+ * The Monsters and Bone Altars a Hero's or Minion's `projectile`, flying from
+ * `from` to `to`, touches with no wall between and isn't already in its `hit`
+ * list, nearest `from` first. A Bone Altar blocks its own tile, so it is seen
+ * up to its edge.
  */
 function targetsTouched(
   world: World,
-  projectile: HeroProjectile,
+  projectile: Pick<HeroProjectile, "hit">,
   from: Vec,
   to: Vec,
 ): (Monster | BoneAltar)[] {

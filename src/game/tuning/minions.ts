@@ -1,3 +1,5 @@
+import type { ProjectileKind } from "./projectiles";
+
 /** Minion tuning, in human units. The sim converts it to steps once. */
 export type MinionTuning = {
   /** Shown on the nameplate. */
@@ -64,6 +66,24 @@ export type MinionTuning = {
   rootMs: number;
   /** The wait after rooting before it can attack again (ms). */
   recoveryMs: number;
+  /**
+   * Set for a Minion that shoots: it stops once a Monster is within
+   * `range` and in sight, winds up, and looses a Projectile at where the
+   * Monster then is, in place of a swing within `reach`.
+   */
+  shot?: MinionShot;
+};
+
+/** What a shooting Minion looses, and from how far. */
+export type MinionShot = {
+  /** What it looses. */
+  projectile: ProjectileKind;
+  /** How near a Monster must be, and in sight, to start an attack (tiles). */
+  range: number;
+  /** How fast its Projectile flies (tiles per second). */
+  projectileSpeed: number;
+  /** How far its Projectile flies before it vanishes (tiles). */
+  projectileRange: number;
 };
 
 /** A growth rate per Skill Level for each number that scales with it. */
@@ -75,7 +95,7 @@ export type MinionGrowth = {
 };
 
 /** One of the Minions, by the name the sim knows it by. */
-export type MinionType = "golem" | "raisedSkeleton";
+export type MinionType = "golem" | "raisedSkeleton" | "raisedArcher";
 
 /** Every Minion's tuning. */
 export const minionTuning: Record<MinionType, MinionTuning> = {
@@ -141,5 +161,41 @@ export const minionTuning: Record<MinionType, MinionTuning> = {
     windUpMs: 400,
     rootMs: 200,
     recoveryMs: 1000,
+  },
+  // Starts from a Monster Level 1 Skeleton Archer's numbers and its shot,
+  // but keeps the Raised Skeleton's Attack Rating: it hits a Monster Level 1
+  // Skeleton about a quarter of the time.
+  raisedArcher: {
+    name: "Raised Archer",
+    life: 36,
+    damage: [3, 6],
+    attackRating: 20,
+    defense: 135,
+    growth: { life: 0.2, damage: 0.2, attackRating: 0.1, defense: 0.1 },
+    radius: 0.32,
+    speed: 4,
+    followDistance: 3,
+    teleportDistance: 12,
+    besideDistance: 1,
+    stuckStride: 0.5,
+    stuckMs: 1000,
+    replanMs: 400,
+    guardRadius: 7,
+    leash: 9,
+    // Never swings; kept for how near a Monster counts as a fight.
+    reach: 1.2,
+    fightRange: 1,
+    reachGrace: 0.25,
+    arcDegrees: 60,
+    // The Skeleton Archer's draw and recovery.
+    windUpMs: 600,
+    rootMs: 200,
+    recoveryMs: 1600,
+    shot: {
+      projectile: "arrow",
+      range: 6,
+      projectileSpeed: 9,
+      projectileRange: 10,
+    },
   },
 };

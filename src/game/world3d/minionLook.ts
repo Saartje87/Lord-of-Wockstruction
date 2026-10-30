@@ -33,4 +33,14 @@ export const MINION_LOOKS: Record<MinionType, MonsterLook> = {
     look: "raised",
     weapons: [],
   },
+  // The Skeleton Archer's rig and crossbow shot, in the raised look.
+  raisedArcher: {
+    model: "SkeletonArcher",
+    scale: 0.36,
+    height: 0.9,
+    clips: { ...STANDING, attack: "2H_Ranged_Shoot" },
+    contact: 0.3,
+    look: "raised",
+    weapons: [{ slot: "handslot.r", model: "Skeleton_Crossbow" }],
+  },
 };

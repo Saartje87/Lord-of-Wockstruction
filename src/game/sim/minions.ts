@@ -4,12 +4,13 @@ import {
   minionTuning,
 } from "../tuning/minions";
 import { monsterTuning } from "../tuning/monsters";
+import type { ProjectileKind } from "../tuning/projectiles";
 import type { Skill } from "../tuning/skills";
 import { isWalkable } from "./area";
 import { attackSpot, freeSpot, monsterBodies, wallRadius } from "./bodies";
 import { altarRadiusOf, type BoneAltar, targetsOf } from "./boneAltars";
 import { faceToward, lands } from "./melee";
-import { isClear } from "./path";
+import { canSee, isClear } from "./path";
 import { msToSteps, perStep } from "./units";
 import { distance, type Vec } from "./vec";
 import { type Gait, goToward } from "./walking";
@@ -82,6 +83,12 @@ const STEPPED = Object.fromEntries(
       rootSteps: msToSteps(tuning.rootMs),
       recoverySteps: msToSteps(tuning.recoveryMs),
       arc: (tuning.arcDegrees * Math.PI) / 180,
+      shot: tuning.shot && {
+        projectile: tuning.shot.projectile,
+        range: tuning.shot.range,
+        speed: perStep(tuning.shot.projectileSpeed),
+        flyRange: tuning.shot.projectileRange,
+      },
     },
   ]),
 ) as Record<
@@ -95,6 +102,13 @@ const STEPPED = Object.fromEntries(
     rootSteps: number;
     recoverySteps: number;
     arc: number;
+    /** Its shot, with the Projectile's speed per step. */
+    shot?: {
+      projectile: ProjectileKind;
+      range: number;
+      speed: number;
+      flyRange: number;
+    };
   }
 >;
 
@@ -320,6 +334,11 @@ function stopChasing(minion: Minion) {
  * teleports next to the Hero when stuck for a while.
  */
 function chase(world: World, minion: Minion, monster: Monster | BoneAltar) {
+  const { shot } = STEPPED[minion.type];
+  if (shot) {
+    chaseInSight(world, minion, monster, shot.range);
+    return;
+  }
   const reach = minionTuning[minion.type].reach + altarRadiusOf(monster);
   const gap = distance(minion.pos, monster.pos);
   // A chase stops at reach only up to rounding.
@@ -355,6 +374,32 @@ function chase(world: World, minion: Minion, monster: Monster | BoneAltar) {
 }
 
 /**
+ * A shooting Minion's chase: it stops once its Monster is within `range` and
+ * in sight, and attacks when ready; else it walks on towards it.
+ */
+function chaseInSight(
+  world: World,
+  minion: Minion,
+  monster: Monster | BoneAltar,
+  range: number,
+) {
+  const area = world.areas[world.areaName];
+  const gap = distance(minion.pos, monster.pos);
+  // A Bone Altar blocks its own tile, so it is seen up to its edge.
+  const edge = altarRadiusOf(monster);
+  const inSight = canSee(area, minion.pos, monster.pos) || edge > 0;
+  if (gap <= range + edge + 1e-9 && inSight) {
+    minion.path = [];
+    minion.stuck = 0;
+    if (minion.cooldown === 0) startWindUp(minion, monster.pos);
+    return;
+  }
+  // In range behind a wall it walks on to see its Monster, else to its range.
+  const limit = gap <= range ? gap : gap - range;
+  walkOrTeleport(world, minion, monster.pos, limit, monster);
+}
+
+/**
  * The nearest to `minion` of the Monsters within its guard radius of the
  * Hero, bar `except`, that has a free attack spot round it.
  */
@@ -381,7 +426,7 @@ function anotherTarget(
   return nearest;
 }
 
-/** Starts winding up an attack, facing its Monster at `at`. */
+/** Starts winding up an attack or a shot, facing its Monster at `at`. */
 function startWindUp(minion: Minion, at: Vec) {
   minion.state = "windup";
   minion.attackSteps = 0;
@@ -403,6 +448,10 @@ function windUp(world: World, minion: Minion): Monster | BoneAltar | null {
   minion.cooldown = stepped.rootSteps + stepped.recoverySteps;
   const monster = targetsOf(world).find((m) => m.id === minion.target);
   if (!monster) return null;
+  if (stepped.shot) {
+    loose(world, minion, stepped.shot, monster.pos);
+    return null;
+  }
   const { reach, reachGrace } = minionTuning[minion.type];
   return lands(
     minion,
@@ -412,6 +461,30 @@ function windUp(world: World, minion: Minion): Monster | BoneAltar | null {
   )
     ? monster
     : null;
+}
+
+/** Looses a shooting Minion's Projectile from where it stands at `at`. */
+function loose(
+  world: World,
+  minion: Minion,
+  shot: NonNullable<(typeof STEPPED)[MinionType]["shot"]>,
+  at: Vec,
+) {
+  faceToward(minion, at);
+  world.projectiles.push({
+    kind: shot.projectile,
+    pos: { ...minion.pos },
+    prevPos: { ...minion.pos },
+    direction: { x: Math.cos(minion.facing), y: Math.sin(minion.facing) },
+    speed: shot.speed,
+    rangeLeft: shot.flyRange,
+    from: "minion",
+    minion: {
+      type: minion.type,
+      skillLevel: minion.skillLevel,
+      synergy: minion.synergy,
+    },
+  });
 }
 
 /**

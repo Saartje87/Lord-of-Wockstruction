@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { heroTuning } from "../tuning/hero";
 import { branchSkills, type Skill, skillTuning } from "../tuning/skills";
+import type { HeroProjectile } from "./projectiles";
 import { emptySkillBar } from "./skillBar";
 import { combatArea } from "./testAreas";
 import type { Vec } from "./vec";
@@ -9,7 +10,6 @@ import {
   FRESH_PROGRESS,
   type Monster,
   type Progress,
-  type Projectile,
   type SimEvent,
   step,
   type World,
@@ -204,8 +204,10 @@ function volley() {
 }
 
 /** The shards in flight. */
-function shards(w: World): Projectile[] {
-  return w.projectiles.filter((p) => p.kind === "splinter");
+function shards(w: World): HeroProjectile[] {
+  return w.projectiles.filter(
+    (p): p is HeroProjectile => p.from === "hero" && p.kind === "splinter",
+  );
 }
 
 /** Steps until no Projectile is left in flight, the events on the way. */
@@ -324,7 +326,9 @@ describe("Bone Spear's Synergy with Splinter Volley", () => {
       progress.skillBar = { ...emptySkillBar(), right: "boneSpear" };
       const w = inField([], { progress });
       volleyAt(w, { x: 10, y: 4 });
-      return w.projectiles[0].damage[0];
+      const [spear] = w.projectiles;
+      if (spear?.from !== "hero") throw new Error("No Bone Spear");
+      return spear.damage[0];
     };
     expect(spearDamage(5)).toBe(
       Math.round(

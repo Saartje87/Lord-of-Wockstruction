@@ -78,6 +78,7 @@ import { faceToward, lands } from "./melee";
 import {
   type Minion,
   type MinionId,
+  type MinionOfLevel,
   type MinionType,
   minionAttackRating,
   minionDamageRange,
@@ -1927,6 +1928,8 @@ function landProjectiles(world: World, events: SimEvent[]) {
       ),
     (projectile, piece) =>
       hurtWall(world, piece, randomInt(world.rng, projectile.damage), events),
+    (projectile, target) =>
+      minionStrike(world, projectile.minion, target, events),
   );
 }
 
@@ -3088,7 +3091,7 @@ function rollAttack(
  */
 function minionStrike(
   world: World,
-  minion: Minion,
+  minion: MinionOfLevel,
   monster: Monster | BoneAltar,
   events: SimEvent[],
 ) {

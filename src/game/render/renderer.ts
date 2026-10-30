@@ -3647,6 +3647,8 @@ function vendorPanelView(activeInput: Readonly<ActiveInput>) {
       }
       if (!shown) return;
       const { item } = shown;
+      // Over the Item names, which are made as more Items are drawn.
+      layer.setChildIndex(tooltipBox, layer.children.length - 1);
       const { lines, affordable } = shown.value
         ? goodTooltip(item, world.hero.progress.gold)
         : { lines: itemTooltip(item), affordable: true };

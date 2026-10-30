@@ -66,6 +66,7 @@ import {
   failLoad,
   finishLoading,
   fitMenus,
+  followHero,
   isLoading,
   loadingScreen,
   MAP_KEY,
@@ -102,7 +103,13 @@ import {
 import { isFloor, TOWN } from "./sim/area";
 import { cursorItemOf } from "./sim/inventory";
 import { tileOf, type Vec } from "./sim/vec";
-import { createWorld, type MonsterId, type Order, step } from "./sim/world";
+import {
+  createWorld,
+  type MonsterId,
+  type Order,
+  step,
+  waypointUnderHero,
+} from "./sim/world";
 import { type Viewport, viewportOf } from "./viewport";
 import { screenToTile, worldCameraOn } from "./world3d/camera";
 import { createSharedCanvas } from "./world3d/sharedCanvas";
@@ -682,6 +689,10 @@ export default function GameCanvas() {
           // shuts finds nothing to do, and is harmless.
           const inventoryOpen = menus.inventoryOpen;
           reactMenus(menus, events);
+          // The Waypoint list stays open only while the Hero stands on it.
+          followHero(menus, {
+            standingOnWaypoint: waypointUnderHero(world) !== null,
+          });
           orders = [];
           returnOnShut(orders, inventoryOpen, menus);
         }

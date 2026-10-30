@@ -1,4 +1,4 @@
-import type { Panel } from "../menus";
+import type { ClosablePanel } from "../menus";
 import { inside, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
 import { atUiScale } from "../viewport";
@@ -12,7 +12,7 @@ import { atUiScale } from "../viewport";
 export const CLOSE_BUTTON = { size: 22, inset: 10, cross: 6 };
 
 /** A panel's × close button, which shuts it as its key does. */
-export type CloseButton = { type: "close"; panel: Panel };
+export type CloseButton = { type: "close"; panel: ClosablePanel };
 
 /**
  * Where the × close button of a panel drawn at `panel` goes, at the UI
@@ -32,7 +32,7 @@ export function closeButtonRect(panel: Rect, uiScale: number): Rect {
 export function closeHitAt(
   layout: { closeButton: Rect },
   point: Vec,
-  panel: Panel,
+  panel: ClosablePanel,
 ): { button: CloseButton } | null {
   if (!inside(layout.closeButton, point)) return null;
   return { button: { type: "close", panel } };

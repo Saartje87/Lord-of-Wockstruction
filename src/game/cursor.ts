@@ -13,6 +13,7 @@ import type { MiniMapHit } from "./render/miniMap";
 import type { PanelButtonHit } from "./render/panelButtons";
 import type { SkillBarHit } from "./render/skillBar";
 import type { SkillTreeHit } from "./render/skillTreePanel";
+import type { WaypointListHit } from "./render/waypointList";
 import { isBeltCell } from "./sim/belt";
 import { cursorItemOf, type ItemSpot, isSlot } from "./sim/inventory";
 import { type SkillBarSlot, skillInSlot } from "./sim/skillBar";
@@ -49,6 +50,7 @@ export type Cursor = {
 export type CursorHit =
   | PanelHit
   | SkillTreeHit
+  | WaypointListHit
   | SkillBarHit
   | BeltStripHit
   | PanelButtonHit

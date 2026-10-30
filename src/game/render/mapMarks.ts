@@ -34,6 +34,8 @@ export const MAP_LOOK = {
   },
   /** The Town Portal's ring, `width` by `height`, round a centre dot. */
   townPortal: { colour: 0x6ab4ff, width: 14, height: 8, dot: 1.5 },
+  /** The Waypoint's ring, `width` by `height`, round a centre diamond. */
+  waypoint: { colour: 0xb48cff, width: 14, height: 8, diamond: 2.5 },
   /** An NPC's name, in bold. */
   npc: { nameColour: 0xd4a84a, nameSize: 11 },
   /** The Area's display name at the top right of the Map Overlay. */
@@ -59,6 +61,8 @@ export type MapMarks = {
   townPortal: Vec | null;
   /** Explored NPCs, by name. */
   npcs: { at: Vec; name: string }[];
+  /** The Area's Waypoint, when its tile is Explored. */
+  waypoint: Vec | null;
 };
 
 /**
@@ -82,7 +86,7 @@ export type MapInputs = {
 /**
  * The marks of `area`: a wall edge on each side of a walkable tile that
  * meets a wall, a floor edge on each that meets void or the Area's end; only
- * of tiles that are Explored. Exits, the Town Portal and NPCs are marked
+ * of tiles that are Explored. Exits, the Town Portal, the Waypoint and NPCs are marked
  * only where Explored too; the Minions always. Never Monsters, Corpses,
  * Ground Items or Projectiles.
  */
@@ -130,6 +134,8 @@ export function mapMarks(inputs: MapInputs): MapMarks {
     npcs: area.npcs
       .filter((npc) => isExplored(npc.pos))
       .map((npc) => ({ at: { ...npc.pos }, name: npc.name })),
+    waypoint:
+      area.waypoint && isExplored(area.waypoint) ? { ...area.waypoint } : null,
   };
 }
 

@@ -3,6 +3,7 @@ import { NO_FULLSCREEN } from "./fullscreen";
 import {
   acceptPendingPoints,
   addPendingPoint,
+  anyPanelOpen,
   clickClose,
   clickLevelUp,
   clickLoading,
@@ -11,9 +12,11 @@ import {
   clickPaused,
   clickStart,
   createMenus,
+  currentPanel,
   failLoad,
   finishLoading,
   fitMenus,
+  followHero,
   loadingScreen,
   type Menus,
   panelOpen,
@@ -33,6 +36,7 @@ import {
   unplacedPoints,
 } from "./menus";
 import { gameTime } from "./pause";
+import type { SimEvent } from "./sim/world";
 
 /** Whether the World has the Hero lying dead, as the menus are told. */
 const alive = { heroDead: false };
@@ -1966,5 +1970,90 @@ describe("the Start Screen", () => {
 
     expect(menus.pause.paused).toBe(false);
     expect(menus.screen.type).toBe("start");
+  });
+});
+
+describe("the Waypoint list", () => {
+  const reached: SimEvent = { type: "WaypointReached", area: "town" };
+
+  it("opens as the Hero walks onto a Waypoint, shutting the other panels", () => {
+    const menus = createMenus();
+    pressKey(menus, "c", 1000, alive);
+    pressKey(menus, "i", 1000, alive);
+
+    reactMenus(menus, [reached]);
+
+    expect(menus.waypointsOpen).toBe(true);
+    expect(menus.heroPanelOpen).toBe(false);
+    expect(menus.inventoryOpen).toBe(false);
+  });
+
+  it("shuts with Esc before Esc pauses, and then Esc pauses as before", () => {
+    const menus = createMenus();
+    reactMenus(menus, [reached]);
+
+    expect(pressKey(menus, "Escape", 1000, alive)).toBe("handled");
+    expect(menus.waypointsOpen).toBe(false);
+    expect(menus.pause.paused).toBe(false);
+
+    pressKey(menus, "Escape", 2000, alive);
+    expect(menus.pause.paused).toBe(true);
+  });
+
+  it("shuts with its ×, with B and as the Hero dies or walks off", () => {
+    const menus = createMenus();
+    reactMenus(menus, [reached]);
+    clickClose(menus, "waypoints");
+    expect(menus.waypointsOpen).toBe(false);
+
+    reactMenus(menus, [reached]);
+    expect(pressPad(menus, "b", 1000, alive)).toBe("handled");
+    expect(menus.waypointsOpen).toBe(false);
+
+    reactMenus(menus, [reached]);
+    reactMenus(menus, [{ type: "HeroDied" }]);
+    expect(menus.waypointsOpen).toBe(false);
+
+    reactMenus(menus, [reached]);
+    followHero(menus, { standingOnWaypoint: false });
+    expect(menus.waypointsOpen).toBe(false);
+  });
+
+  it("stays open while the Hero stands on the Waypoint", () => {
+    const menus = createMenus();
+    reactMenus(menus, [reached]);
+
+    followHero(menus, { standingOnWaypoint: true });
+
+    expect(menus.waypointsOpen).toBe(true);
+  });
+
+  it("is the panel the controller acts on, and a Panel key shuts it", () => {
+    const menus = createMenus();
+    reactMenus(menus, [reached]);
+    expect(currentPanel(menus)).toBe("waypoints");
+    expect(anyPanelOpen(menus)).toBe(true);
+
+    pressKey(menus, "c", 1000, alive);
+
+    expect(menus.waypointsOpen).toBe(false);
+    expect(menus.heroPanelOpen).toBe(true);
+  });
+
+  it("ignores LB and RB", () => {
+    const menus = createMenus();
+    reactMenus(menus, [reached]);
+
+    pressPad(menus, "rb", 1000, alive);
+
+    expect(menus.waypointsOpen).toBe(true);
+    expect(menus.heroPanelOpen).toBe(false);
+  });
+
+  it("does not open under the Rotate Notice", () => {
+    const menus = createMenus();
+    fitMenus(menus, { compact: false, rotateNotice: "turn" }, 1000);
+    reactMenus(menus, [reached]);
+    expect(menus.waypointsOpen).toBe(false);
   });
 });

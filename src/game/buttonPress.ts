@@ -61,6 +61,11 @@ export function pressButton(
       return [];
     case "learn":
       return [{ type: "SpendSkillPoint", skill: button.skill }];
+    case "travel":
+      // The list shuts as the Hero leaves; shutting it now keeps it from
+      // showing over the fade.
+      clickClose(menus, "waypoints");
+      return heroDead ? [] : [{ type: "TravelToWaypoint", area: button.area }];
     case "townPortal":
       return heroDead || inTown(world) ? [] : [{ type: "OpenTownPortal" }];
     default:

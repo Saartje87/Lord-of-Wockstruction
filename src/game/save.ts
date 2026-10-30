@@ -1,3 +1,4 @@
+import type { RolledAffix } from "./sim/affixes";
 import { TOWN } from "./sim/area";
 import { emptyBelt, isValidBelt } from "./sim/belt";
 import {
@@ -6,6 +7,9 @@ import {
   EQUIPMENT_SLOTS,
   isValidBelongings,
   type SmithBonus,
+  type StoredItem,
+  savedItem,
+  storedOf,
 } from "./sim/inventory";
 import {
   freshQuests,
@@ -40,7 +44,7 @@ import { isPassive } from "./tuning/skills";
  * fresh instead of loading something misread; text of the versions between
  * loads through `ADDED_FIELDS`.
  */
-export const SAVE_VERSION = 10;
+export const SAVE_VERSION = 12;
 
 /** The oldest version whose text still loads (the one before the Belt). */
 const OLDEST_LOADABLE_VERSION = 6;
@@ -65,6 +69,8 @@ const ADDED_FIELDS: readonly {
   },
   // Every Quest Not given.
   { since: 9, field: "quests", fresh: freshQuests },
+  // No Gold.
+  { since: 12, field: "gold", fresh: () => 0 },
 ];
 
 /**
@@ -73,6 +79,13 @@ const ADDED_FIELDS: readonly {
  * with a Smith bonus.
  */
 const SMITH_SINCE_VERSION = 10;
+
+/**
+ * The version that added Rarity and Affixes and saved each Equipment slot
+ * as a whole stored Item: older text loads with every Item Normal, its
+ * `smithBonuses` side map folded into the slots.
+ */
+const AFFIXES_SINCE_VERSION = 11;
 
 /** The states the Smith's service goes through, in order. */
 const SMITH_SERVICES: readonly SmithService[] = ["locked", "unlocked", "used"];
@@ -117,6 +130,9 @@ const SAVE_CHANGING_EVENTS: readonly SimEvent["type"][] = [
   "SkillLevelRaised",
   "SkillBarChanged",
   "ItemPickedUp",
+  "GoldPickedUp",
+  "ItemBought",
+  "ItemSold",
   "InventoryChanged",
   "ItemEquipped",
   "ItemUnequipped",
@@ -185,9 +201,16 @@ export function encodeSave({ progress, belongings }: HeroSave): string {
   return JSON.stringify({
     version: SAVE_VERSION,
     ...progress,
-    inventory: belongings.inventory,
-    equipment: belongings.equipment,
-    smithBonuses: belongings.smithBonuses,
+    inventory: belongings.inventory.map((placed) => ({
+      ...savedItem(placed),
+      cell: placed.cell,
+    })),
+    equipment: Object.fromEntries(
+      Object.entries(belongings.equipment).map(([slot, stored]) => [
+        slot,
+        savedItem(stored),
+      ]),
+    ),
     belt: belongings.belt,
   });
 }
@@ -251,6 +274,7 @@ export function parseSave(text: string | null): HeroSave | null {
     quests,
     smithService,
   } as Progress;
+  if (progress.gold < 0) return null;
   if (!fitsTable(progress.level, progress.experience)) return null;
   if (!fitsPoints(progress)) return null;
   if (!fitsSkillPoints(progress)) return null;
@@ -259,6 +283,7 @@ export function parseSave(text: string | null): HeroSave | null {
     fields.equipment,
     fields.belt,
     fields.smithBonuses,
+    version < AFFIXES_SINCE_VERSION,
   );
   return belongings && { progress, belongings };
 }
@@ -274,38 +299,141 @@ function parseBelongings(
   equipment: unknown,
   belt: unknown,
   smithBonuses: unknown,
+  older: boolean,
 ): Belongings | null {
   // How many rows the Belt Columns have is checked with the Equipment.
   if (!isValidBelt(belt, Number.POSITIVE_INFINITY)) return null;
   if (!Array.isArray(inventory)) return null;
   if (typeof equipment !== "object" || equipment === null) return null;
   if (Array.isArray(equipment)) return null;
+  // Older text kept Smith bonuses apart, by slot; this version has none.
+  if (!older && smithBonuses !== undefined) return null;
+  if (
+    older &&
+    smithBonuses !== undefined &&
+    !objectWithin(smithBonuses, SLOTS)
+  ) {
+    return null;
+  }
+  const bonuses = (smithBonuses ?? {}) as Record<string, unknown>;
   const placed: Belongings["inventory"] = [];
   for (const entry of inventory) {
     if (typeof entry !== "object" || entry === null) return null;
-    const { type, cell, smithBonus } = entry;
+    const { cell } = entry;
     if (typeof cell !== "object" || cell === null) return null;
+    const stored = parseStoredItem(entry, older);
+    if (!stored) return null;
     placed.push({
-      type,
+      ...stored,
       cell: { column: cell.column, row: cell.row },
-      ...(smithBonus !== undefined && { smithBonus: copyBonus(smithBonus) }),
     });
   }
-  if (smithBonuses !== undefined && !objectWithin(smithBonuses, SLOTS)) {
+  const worn: Belongings["equipment"] = {};
+  for (const [slot, entry] of Object.entries(equipment)) {
+    const stored = older
+      ? parseOlderEquipped(entry, bonuses[slot])
+      : parseStoredItem(entry, false);
+    if (!stored) return null;
+    worn[slot as keyof typeof worn] = stored;
+  }
+  // A Smith bonus for an empty slot belongs to nothing.
+  if (older && Object.keys(bonuses).some((slot) => !(slot in worn))) {
     return null;
   }
-  const bonuses = Object.entries(smithBonuses ?? {});
   const belongings: Belongings = {
     inventory: placed,
-    equipment: { ...equipment },
-    ...(bonuses.length > 0 && {
-      smithBonuses: Object.fromEntries(
-        bonuses.map(([slot, bonus]) => [slot, copyBonus(bonus)]),
-      ),
-    }),
+    equipment: worn,
     belt: belt.map((column) => [...column]),
   };
-  return isValidBelongings(belongings) ? belongings : null;
+  if (!isValidBelongings(belongings)) return null;
+  return {
+    inventory: belongings.inventory.map((item) => ({
+      ...storedOf(item),
+      cell: item.cell,
+    })),
+    equipment: Object.fromEntries(
+      Object.entries(belongings.equipment).map(([slot, item]) => [
+        slot,
+        storedOf(item),
+      ]),
+    ),
+    belt: belongings.belt,
+  };
+}
+
+/**
+ * The Rings and Amulet older Saves named, each as the plain type and the
+ * one Affix that gives the bonus it had, in the grade whose range holds it.
+ */
+const NAMED_JEWELLERY: Record<
+  string,
+  { type: "ring" | "amulet"; affix: RolledAffix }
+> = {
+  ringOfStrength: {
+    type: "ring",
+    affix: { kind: "strength", grade: 1, value: 5 },
+  },
+  ringOfDexterity: {
+    type: "ring",
+    affix: { kind: "dexterity", grade: 1, value: 5 },
+  },
+  ringOfLife: { type: "ring", affix: { kind: "life", grade: 0, value: 10 } },
+  amuletOfVitality: {
+    type: "amulet",
+    affix: { kind: "vitality", grade: 1, value: 5 },
+  },
+};
+
+/**
+ * A stored Item as a fresh one, its parts checked with the Belongings, or
+ * null when it isn't an object. Text of this version names the Rarity and
+ * the Affixes; older text names neither and its Items are Normal.
+ */
+function parseStoredItem(entry: unknown, older: boolean): StoredItem | null {
+  if (typeof entry !== "object" || entry === null) return null;
+  const { type, rarity, affixes, rareName, smithBonus } = entry as Record<
+    string,
+    unknown
+  >;
+  if (older) {
+    if (rarity !== undefined || affixes !== undefined || rareName !== undefined)
+      return null;
+  } else if (rarity === undefined || !Array.isArray(affixes)) {
+    return null;
+  }
+  const named =
+    older && typeof type === "string" && Object.hasOwn(NAMED_JEWELLERY, type)
+      ? NAMED_JEWELLERY[type]
+      : undefined;
+  const rolled = (affixes ?? []) as unknown[];
+  const item = {
+    type: named?.type ?? type,
+    rarity: named ? "magic" : (rarity ?? "normal"),
+    affixes: named
+      ? [{ ...named.affix }]
+      : rolled.map((affix) => {
+          const { kind, grade, value } = (affix ?? {}) as Record<
+            string,
+            unknown
+          >;
+          return { kind, grade, value };
+        }),
+    ...(rareName !== undefined && { rareName }),
+    ...(smithBonus !== undefined && { smithBonus: copyBonus(smithBonus) }),
+  } as StoredItem;
+  return item;
+}
+
+/** An older Save's Equipped Item type, with the Smith bonus kept for its slot. */
+function parseOlderEquipped(
+  type: unknown,
+  smithBonus: unknown,
+): StoredItem | null {
+  if (typeof type !== "string") return null;
+  return parseStoredItem(
+    { type, ...(smithBonus !== undefined && { smithBonus }) },
+    true,
+  );
 }
 
 /** A stored Smith bonus as a fresh object, its parts checked with the Belongings. */

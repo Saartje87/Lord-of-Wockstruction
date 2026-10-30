@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   GROUND_LABEL,
+  goldLabelId,
+  groundItemLabelAt,
   groundItemUnder,
   groundLabelAt,
   groundLabels,
@@ -86,6 +88,37 @@ describe("groundLabelAt", () => {
     expect(groundLabelAt(labels, { x: 100, y: 200 - above - 1 })).toBe(1);
     expect(groundLabelAt(labels, { x: 100, y: 200 })).toBeNull();
     expect(groundLabelAt(labels, { x: 20, y: 190 })).toBeNull();
+  });
+});
+
+describe("Gold Pile labels", () => {
+  it("are laid out with the Ground Item labels, stacking clear of them", () => {
+    const labels = groundLabels(
+      [
+        { id: 1, at: { x: 100, y: 200 }, width: 60 },
+        { id: goldLabelId(1), at: { x: 100, y: 200 }, width: 60 },
+      ],
+      1,
+    );
+
+    expect(labels).toHaveLength(2);
+    const [a, b] = labels;
+    expect(a.rect.y).not.toBe(b.rect.y);
+  });
+
+  it("never name a Ground Item to pick up, wherever the point is", () => {
+    const labels = groundLabels(
+      [
+        { id: 1, at: { x: 100, y: 200 }, width: 60 },
+        { id: goldLabelId(1), at: { x: 400, y: 200 }, width: 60 },
+      ],
+      1,
+    );
+    const onItem = { x: 100, y: 200 - above - 1 };
+    const onGold = { x: 400, y: 200 - above - 1 };
+
+    expect(groundItemLabelAt(labels, onItem)).toBe(1);
+    expect(groundItemLabelAt(labels, onGold)).toBeNull();
   });
 });
 

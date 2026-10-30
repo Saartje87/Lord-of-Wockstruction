@@ -358,12 +358,12 @@ describe("where a held Item lands", () => {
   });
 
   it("is the cell under the pointer for a 1×1 Item", () => {
-    expect(landingCell(layout, point(3.5, 2.5), "ringOfLife")).toEqual({
+    expect(landingCell(layout, point(3.5, 2.5), "ring")).toEqual({
       column: 3,
       row: 2,
     });
     // On the line between two cells, the right and lower one.
-    expect(landingCell(layout, point(3, 2), "ringOfLife")).toEqual({
+    expect(landingCell(layout, point(3, 2), "ring")).toEqual({
       column: 3,
       row: 2,
     });
@@ -426,7 +426,10 @@ describe("the order a click on the Inventory gives", () => {
   });
 
   it("puts the held Item down on the grid below every row of the Equipped Belt", () => {
-    const w = world({ ...belongings, equipment: { belt: "platedBelt" } });
+    const w = world({
+      ...belongings,
+      equipment: { belt: { type: "platedBelt" } },
+    });
     step(w, [{ type: "LiftItem", from: { column: 4, row: 1 } }]);
     const four = inventoryPanelLayout(WIDE, 4);
     const centre = { x: four.grid.x + 2 * cell, y: four.grid.y + 1.5 * cell };
@@ -464,7 +467,7 @@ describe("the order a click on the Inventory gives", () => {
   it("lifts the Item out of a slot with nothing held, and nothing from an empty one", () => {
     const w = world({
       inventory: [],
-      equipment: { weapon: "axe" },
+      equipment: { weapon: { type: "axe" } },
       belt: emptyBelt(),
     });
     const point = { x: 0, y: 0 };
@@ -529,7 +532,7 @@ describe("the order a right-click on the Inventory gives", () => {
   });
   const belongings: Belongings = {
     inventory: [{ type: "axe", cell: { column: 4, row: 1 } }],
-    equipment: { armour: "chainMail" },
+    equipment: { armour: { type: "chainMail" } },
     belt: emptyBelt(),
   };
 
@@ -597,7 +600,7 @@ describe("the order a right-click on the Inventory gives", () => {
 describe("the Item under a point", () => {
   const belongings: Belongings = {
     inventory: [{ type: "axe", cell: { column: 4, row: 1 } }],
-    equipment: { weapon: "shortSword" },
+    equipment: { weapon: { type: "shortSword" } },
     belt: emptyBelt(),
   };
 
@@ -630,53 +633,135 @@ describe("the Item under a point", () => {
 
 describe("an Item's tooltip", () => {
   it("names a Weapon and its own damage, before the Hero's Strength", () => {
-    expect(itemTooltip("shortSword")).toEqual(["Short Sword", "Damage: 17–25"]);
-    expect(itemTooltip("axe")).toEqual(["Axe", "Damage: 25–40"]);
+    expect(itemTooltip({ type: "shortSword" })).toEqual([
+      "Short Sword",
+      "Damage: 17–25",
+    ]);
+    expect(itemTooltip({ type: "axe" })).toEqual(["Axe", "Damage: 25–40"]);
   });
 
   it("lists the Smith bonus after the Item's own bonuses", () => {
-    expect(itemTooltip("ringOfLife", { bonus: "life", amount: 5 })).toEqual([
-      "Ring of Life",
-      "+10 to Life",
-      "Smith: +5 to Life",
-    ]);
-    expect(itemTooltip("axe", { bonus: "attackRating", amount: 30 })).toEqual([
-      "Axe",
-      "Damage: 25–40",
-      "Smith: +30 to Attack Rating",
-    ]);
+    expect(
+      itemTooltip({
+        type: "axe",
+        smithBonus: { bonus: "attackRating", amount: 30 },
+      }),
+    ).toEqual(["Axe", "Damage: 25–40", "Smith: +30 to Attack Rating"]);
   });
 
   it("names an Armour and its Defense", () => {
-    expect(itemTooltip("chainMail")).toEqual(["Chain Mail", "Defense: 40"]);
+    expect(itemTooltip({ type: "chainMail" })).toEqual([
+      "Chain Mail",
+      "Defense: 40",
+    ]);
   });
 
-  it("lists a Ring's or Amulet's bonuses", () => {
-    expect(itemTooltip("ringOfStrength")).toEqual([
-      "Ring of Strength",
-      "+5 to Strength",
-    ]);
-    expect(itemTooltip("ringOfLife")).toEqual(["Ring of Life", "+10 to Life"]);
+  it("names a plain Ring or Amulet with no bonuses of its own", () => {
+    expect(itemTooltip({ type: "ring" })).toEqual(["Ring"]);
+    expect(itemTooltip({ type: "amulet" })).toEqual(["Amulet"]);
   });
 
   it("says what a Potion gives back, and how fast", () => {
-    expect(itemTooltip("lifePotion")).toEqual([
+    expect(itemTooltip({ type: "lifePotion" })).toEqual([
       "Life Potion",
       "Gives back 30 Life over 4 seconds",
     ]);
-    expect(itemTooltip("manaPotion")).toEqual([
+    expect(itemTooltip({ type: "manaPotion" })).toEqual([
       "Mana Potion",
       "Gives back 20 Mana over 4 seconds",
     ]);
-    expect(itemTooltip("rejuvenationPotion")).toEqual([
+    expect(itemTooltip({ type: "rejuvenationPotion" })).toEqual([
       "Rejuvenation Potion",
       "Gives back 35% of Life and Mana at once",
     ]);
   });
 
   it("gives a Belt's rows", () => {
-    expect(itemTooltip("sash")).toEqual(["Sash", "Rows: 2"]);
-    expect(itemTooltip("heavyBelt")).toEqual(["Heavy Belt", "Rows: 3"]);
-    expect(itemTooltip("platedBelt")).toEqual(["Plated Belt", "Rows: 4"]);
+    expect(itemTooltip({ type: "sash" })).toEqual(["Sash", "Rows: 2"]);
+    expect(itemTooltip({ type: "heavyBelt" })).toEqual([
+      "Heavy Belt",
+      "Rows: 3",
+    ]);
+    expect(itemTooltip({ type: "platedBelt" })).toEqual([
+      "Plated Belt",
+      "Rows: 4",
+    ]);
+  });
+});
+
+describe("a Magic Item's tooltip", () => {
+  const stout = {
+    type: "chainMail" as const,
+    affixes: [
+      { kind: "defense" as const, grade: 1, value: 15 },
+      { kind: "strength" as const, grade: 1, value: 5 },
+    ],
+  };
+
+  it("is named for its Affixes' grades around its type's name", () => {
+    expect(itemTooltip(stout)[0]).toBe("Stout Chain Mail of the Bear");
+  });
+
+  it("lists one line per Affix after the type's bonuses, then the Smith bonus last", () => {
+    expect(
+      itemTooltip({
+        ...stout,
+        smithBonus: { bonus: "life", amount: 20 },
+      }),
+    ).toEqual([
+      "Stout Chain Mail of the Bear",
+      "Defense: 40",
+      "+15 to Defense",
+      "+5 to Strength",
+      "Smith: +20 to Life",
+    ]);
+  });
+
+  it("shows a Rare Item's Rare name, then its type's name, then its Affix lines", () => {
+    expect(
+      itemTooltip({
+        type: "chainMail",
+        rareName: "Gloom Bane",
+        affixes: stout.affixes,
+      }),
+    ).toEqual([
+      "Gloom Bane",
+      "Chain Mail",
+      "Defense: 40",
+      "+15 to Defense",
+      "+5 to Strength",
+    ]);
+  });
+
+  it("names the Mana and enhanced percent Affixes", () => {
+    expect(
+      itemTooltip({
+        type: "axe",
+        affixes: [
+          { kind: "enhancedDamage", grade: 0, value: 12 },
+          { kind: "mana", grade: 0, value: 6 },
+        ],
+      }),
+    ).toEqual([
+      "Jagged Axe of the Spark",
+      "Damage: 25–40",
+      "+12% Enhanced Damage",
+      "+6 to Mana",
+    ]);
+    expect(
+      itemTooltip({
+        type: "chainMail",
+        affixes: [{ kind: "enhancedDefense", grade: 1, value: 25 }],
+      })[2],
+    ).toBe("+25% Enhanced Defense");
+  });
+
+  it("names Brutality's flat damage", () => {
+    expect(
+      itemTooltip({
+        type: "axe",
+        affixes: [{ kind: "brutality", grade: 0, value: 2 }],
+      }),
+    ).toEqual(["Brutal Axe", "Damage: 25–40", "+2 to Damage"]);
   });
 });

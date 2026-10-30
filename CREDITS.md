@@ -18,6 +18,7 @@ licence (CC0). Crediting him is not required, and we do.
 - Medieval Hexagon 1.0: [KayKit-Medieval-Hexagon-Pack-1.0](https://github.com/KayKit-Game-Assets/KayKit-Medieval-Hexagon-Pack-1.0) (commit `84fa4e9`)
 - Mystery Monthly Series 6: [itch.io](https://kaylousberg.itch.io/kaykit-series-6), paid and CC0
 - City Builder Bits (Bits Bundle 1): [itch.io](https://kaylousberg.itch.io/kaykit-bits-bundle), paid and CC0
+- Resource Bits (Bits Bundle 2): [itch.io](https://kaylousberg.itch.io/kaykit-bits-bundle), paid and CC0
 
 **Changes:** the Knight is cut down to the animations the game uses and to
 the 1-handed sword and the round shield. The Monstrosity gets the
@@ -25,7 +26,7 @@ the 1-handed sword and the round shield. The Monstrosity gets the
 retargeted onto its rig. Town's NPCs get the `Rig_Medium` idles, with no
 animation track for a bone they lack. Halloween Bits, Medieval Hexagon and
 City Builder Bits pieces, which come as glTF with a binary and a texture, are
-packed into one glb each. Nothing is recoloured.
+packed into one glb each, as are Resource Bits' coin stacks. Nothing is recoloured.
 
 ### Imported files
 
@@ -47,6 +48,10 @@ packed into one glb each. Nothing is recoloured.
 | `addons/kaykit_dungeon_remastered/Assets/gltf/bottle_A_brown.gltf.glb` | Ground Items (Potions) |
 | `addons/kaykit_dungeon_remastered/Assets/gltf/bottle_B_green.gltf.glb` | Ground Items (Potions) |
 | `addons/kaykit_dungeon_remastered/Assets/gltf/bottle_C_brown.gltf.glb` | Ground Items (Potions) |
+| Resource Bits (Bits Bundle 2): `Assets/gltf/Money_Coins_Stack_Single.gltf` | Gold Piles |
+| Resource Bits (Bits Bundle 2): `Assets/gltf/Money_Coins_Stack_Small.gltf` | Gold Piles |
+| Resource Bits (Bits Bundle 2): `Assets/gltf/Money_Coins_Stack_Medium.gltf` | Gold Piles |
+| Resource Bits (Bits Bundle 2): `Assets/gltf/Money_Coins_Stack_Large.gltf` | Gold Piles |
 | `addons/kaykit_dungeon_remastered/Assets/gltf/floor_tile_large.gltf.glb` | floors |
 | `addons/kaykit_dungeon_remastered/Assets/gltf/floor_tile_small_broken_A.gltf.glb` | floors |
 | `addons/kaykit_dungeon_remastered/Assets/gltf/floor_dirt_large.gltf.glb` | floors |

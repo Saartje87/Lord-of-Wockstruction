@@ -59,7 +59,7 @@ export function panelCloseHint(panel: ClosablePanel, way: InputWay): string {
   if (way === "touch") return "";
   // A World panel has no key of its own: Esc shuts it.
   const key =
-    panel === "waypoints" || panel === "dialogue"
+    panel === "waypoints" || panel === "dialogue" || panel === "vendor"
       ? "Esc"
       : PANEL_KEYS[panel].toUpperCase();
   const button = way === "controller" ? PAD_BUTTON_NAMES.b : key;

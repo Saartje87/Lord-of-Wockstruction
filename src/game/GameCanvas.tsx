@@ -107,6 +107,7 @@ import {
   type MonsterId,
   type Order,
   step,
+  type World,
   waypointUnderHero,
   withinNpcReach,
 } from "./sim/world";
@@ -452,7 +453,7 @@ export default function GameCanvas() {
           return;
         }
         const wasPaused = pause.paused;
-        const inventoryWasOpen = menus.inventoryOpen;
+        const inventoryWasOpen = menus.inventoryOpen || menus.vendorOpen;
         // Read every frame, so a resize into the Compact Layout shuts all
         // but the latest panel at once, the Inventory's Held Item going back
         // as it would by hand, and the Rotate Notice pauses the World before
@@ -680,13 +681,17 @@ export default function GameCanvas() {
         const { steps, alpha } = advance(clock, now - last);
         last = now;
         for (let i = 0; i < steps; i++) {
-          const events = step(world, [...orders, ...walking]);
+          const events = step(world, [
+            ...tradeOrders(world, menus),
+            ...orders,
+            ...walking,
+          ]);
           if (changesSave(events)) writeSave(storage, saveOf(world));
           renderer.react(events, now);
           // The Hero's Death closes the panels. The World has already put
           // back an Item held then, so the return sent as the Inventory
           // shuts finds nothing to do, and is harmless.
-          const inventoryOpen = menus.inventoryOpen;
+          const inventoryOpen = menus.inventoryOpen || menus.vendorOpen;
           reactMenus(menus, events);
           // The Waypoint list stays open only while the Hero stands on it, and
           // the Dialogue panel while they are near the NPC.
@@ -907,11 +912,21 @@ export default function GameCanvas() {
 }
 
 /**
- * Orders an Item held as the Inventory shuts back where it came from, if it
- * `wasOpen` and the menus have it shut now.
+ * The order bringing Trade in step with the Vendor panel: open as the panel
+ * opens, shut as it shuts any way.
+ */
+function tradeOrders(world: World, menus: Menus): Order[] {
+  if (menus.vendorOpen === world.trading) return [];
+  return [{ type: menus.vendorOpen ? "OpenTrade" : "CloseTrade" }];
+}
+
+/**
+ * Orders an Item held as the Inventory or Vendor panel shuts back where it
+ * came from (a good back to the Vendor at no cost), if one `wasOpen` and the
+ * menus have both shut now.
  */
 function returnOnShut(orders: Order[], wasOpen: boolean, menus: Menus) {
-  if (wasOpen && !menus.inventoryOpen) {
+  if (wasOpen && !menus.inventoryOpen && !menus.vendorOpen) {
     orders.push({ type: "ReturnCursorItem" });
   }
 }

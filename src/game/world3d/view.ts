@@ -207,6 +207,9 @@ export type ProjectileView = {
 /** A Ground Item lying on the floor as the 3D World shows it. */
 export type GroundItemView = { id: ItemId; type: ItemType; pos: Vec };
 
+/** A Gold Pile lying on the floor as the 3D World shows it. */
+export type GoldPileView = { id: number; amount: number; pos: Vec };
+
 /** The click marker on the floor, `progress` of the way through its life. */
 export type ClickMarkerView = { at: Vec; progress: number };
 
@@ -239,6 +242,7 @@ export type WorldView = {
   exits: ExitView[];
   projectiles: ProjectileView[];
   groundItems: GroundItemView[];
+  goldPiles: GoldPileView[];
   clickMarker: ClickMarkerView | null;
   hoverTile: Vec | null;
   /**
@@ -422,6 +426,11 @@ export function worldViewOf(
     groundItems: world.groundItems.map(({ item, pos }) => ({
       id: item.id,
       type: item.type,
+      pos: { ...pos },
+    })),
+    goldPiles: world.goldPiles.map(({ id, amount, pos }) => ({
+      id,
+      amount,
       pos: { ...pos },
     })),
     clickMarker: clickMarkerOf(pointer.click),

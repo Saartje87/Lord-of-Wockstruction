@@ -33,6 +33,13 @@ export type Menus = {
    * it shuts with Esc, B, its ×, the Hero taking damage or walking away.
    */
   dialogueOpen: boolean;
+  /**
+   * Whether the Vendor panel is open. A World panel that stands in for the
+   * Inventory panel: the Dialogue panel's Trade opens it in its place, and
+   * it shuts with Esc, B, its ×, I or View, the Hero walking away or another
+   * panel opening. The Vendor is the NPC `dialogueNpc`.
+   */
+  vendorOpen: boolean;
   /** The NPC (index in the Area's `npcs`) the Dialogue panel is with. */
   dialogueNpc: number;
   /**
@@ -181,6 +188,7 @@ export function createMenus(screen: Screen = { type: "playing" }): Menus {
     questOpen: false,
     waypointsOpen: false,
     dialogueOpen: false,
+    vendorOpen: false,
     dialogueNpc: 0,
     dialoguePage: 0,
     mapOpen: false,
@@ -469,15 +477,20 @@ const OPEN_FLAGS = {
  * other shuts it. Esc, B and its × shut it, and so does the Hero leaving
  * whatever opened it. Later panels that talk (Dialogue, Quest) join it here.
  */
-export type WorldPanel = "waypoints" | "dialogue";
+export type WorldPanel = "waypoints" | "dialogue" | "vendor";
 
 /** The World panels, the one drawn on top first. */
-export const WORLD_PANELS: readonly WorldPanel[] = ["dialogue", "waypoints"];
+export const WORLD_PANELS: readonly WorldPanel[] = [
+  "vendor",
+  "dialogue",
+  "waypoints",
+];
 
 /** The flag on the menus that says whether each World panel is open. */
 const WORLD_OPEN_FLAGS = {
   waypoints: "waypointsOpen",
   dialogue: "dialogueOpen",
+  vendor: "vendorOpen",
 } as const satisfies Record<WorldPanel, keyof Menus>;
 
 /** A panel with an × close button: one with a Panel button, or a World panel. */
@@ -532,6 +545,17 @@ export function followHero(
   if (menus.dialogueOpen && !hero.withinReachOf(menus.dialogueNpc)) {
     menus.dialogueOpen = false;
   }
+  if (menus.vendorOpen && !hero.withinReachOf(menus.dialogueNpc)) {
+    menus.vendorOpen = false;
+  }
+}
+
+/**
+ * A click on Trade in the Vendor's Dialogue panel: opens the Vendor panel in
+ * its place, for the same NPC.
+ */
+export function clickTrade(menus: Menus) {
+  openWorldPanel(menus, "vendor");
 }
 
 /** Whether `panel` is open. */
@@ -581,7 +605,9 @@ export function clickPanelButton(menus: Menus, panel: Panel, hero: HeroState) {
  */
 function togglePanel(menus: Menus, panel: Panel, hero: HeroState) {
   if (hero.heroDead || menus.rotateNotice || !isPlaying(menus)) return;
-  if (panelOpen(menus, panel)) shutPanel(menus, panel);
+  // The Vendor panel stands in for the Inventory panel, so its key shuts it.
+  if (panel === "inventory" && menus.vendorOpen) menus.vendorOpen = false;
+  else if (panelOpen(menus, panel)) shutPanel(menus, panel);
   else openPanel(menus, panel);
 }
 
@@ -689,6 +715,7 @@ export const PANELS: readonly Panel[] = [
 export function clickClose(menus: Menus, panel: ClosablePanel) {
   if (panel === "waypoints") menus.waypointsOpen = false;
   else if (panel === "dialogue") menus.dialogueOpen = false;
+  else if (panel === "vendor") menus.vendorOpen = false;
   else shutPanel(menus, panel);
 }
 
@@ -857,7 +884,7 @@ export function pressPad(
   const panel = currentPanel(menus);
   if (!panel) return null;
   if (button === "b" && dismissWorldPanel(menus)) return "handled";
-  if (panel === "waypoints" || panel === "dialogue") {
+  if (panel === "waypoints" || panel === "dialogue" || panel === "vendor") {
     // Only B and the Focus work here, not LB and RB.
     return button === "lb" || button === "rb" ? "handled" : null;
   }

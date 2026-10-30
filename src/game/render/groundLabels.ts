@@ -59,6 +59,26 @@ export function groundLabelAt(
 }
 
 /**
+ * The id a Gold Pile's label is laid out under, beside the Ground Items':
+ * negative, so it is never an `ItemId`.
+ */
+export function goldLabelId(pile: number): number {
+  return -pile;
+}
+
+/**
+ * The Ground Item whose label is under `point`, or null: a Gold Pile's label
+ * is never one, as a Gold Pile is picked up by walking, not by a click.
+ */
+export function groundItemLabelAt(
+  labels: readonly GroundLabel[],
+  point: Vec,
+): ItemId | null {
+  const id = groundLabelAt(labels, point);
+  return id !== null && id > 0 ? id : null;
+}
+
+/**
  * The Ground Item drawn on the floor under `point`: within `half` of its
  * centre `at` across and down, the one nearest the viewer where they
  * overlap, or null.

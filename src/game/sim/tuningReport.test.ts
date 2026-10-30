@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { goldTuning } from "../tuning/gold";
 import type { MonsterType } from "../tuning/monsters";
 import { tuningReport } from "./tuningReport";
 
@@ -16,14 +17,14 @@ describe("tuningReport", () => {
   it("gives each Hero Level's Experience to the next and the kills of own-Level Skeletons it takes", () => {
     const { levels } = tuningReport("skeleton", []);
 
-    expect(levels[0]).toEqual({
+    expect(levels[0]).toMatchObject({
       level: 1,
       toNext: 500,
       killExperience: 100,
       kills: 5,
     });
     // 1,000 to go at 400 a kill: the third kill gets there.
-    expect(levels[1]).toEqual({
+    expect(levels[1]).toMatchObject({
       level: 2,
       toNext: 1_000,
       killExperience: 400,
@@ -104,7 +105,7 @@ describe("tuningReport", () => {
     ]);
 
     // 500 to go at 110 a kill: the fifth kill gets there.
-    expect(levels[0]).toEqual({
+    expect(levels[0]).toMatchObject({
       level: 1,
       toNext: 500,
       killExperience: 110,
@@ -130,5 +131,62 @@ describe("tuningReport", () => {
         experience: 2_420,
       },
     ]);
+  });
+
+  describe("Gold earned per Hero Level", () => {
+    const places = [
+      area("town", null, []),
+      area("catacombs", 1, ["skeleton"]),
+      area("crypt", 4, ["skeleton"]),
+      area("ossuary", 8, ["skeleton"]),
+      area("bog", 6, ["zombie"]),
+    ];
+
+    it("is the Gold Pile chance times the mean amount at the Area Level, times the kills the Level takes", () => {
+      const { levels } = tuningReport("skeleton", places);
+
+      // A kill is worth the chance times the mean amount a Monster Level.
+      // Level 1 plays Area Level 1, and 5 kills reach Level 2.
+      const [least, most] = goldTuning.perMonsterLevel;
+      const perLevel = (goldTuning.chance * (least + most)) / 2;
+      expect(levels[0].gold).toEqual({
+        areaLevel: 1,
+        perKill: perLevel,
+        total: perLevel * 5,
+      });
+    });
+
+    it("plays in the deepest Area that places the Monster at or below the Hero Level", () => {
+      const { levels } = tuningReport("skeleton", places);
+
+      expect(levels[2].gold?.areaLevel).toBe(1);
+      expect(levels[3].gold?.areaLevel).toBe(4);
+      expect(levels[6].gold?.areaLevel).toBe(4);
+      expect(levels[7].gold?.areaLevel).toBe(8);
+      // Past the deepest Area, a Hero keeps to it.
+      expect(levels[50].gold?.areaLevel).toBe(8);
+    });
+
+    it("grows with the Area Levels a Level plays in", () => {
+      const { levels } = tuningReport("skeleton", places);
+
+      const perLevel = levels[0].gold?.perKill ?? 0;
+      expect(levels[3].gold?.perKill).toBe(perLevel * 4);
+      expect(levels[7].gold?.perKill).toBe(perLevel * 8);
+    });
+
+    it("starts a Hero below the shallowest Area there", () => {
+      const { levels } = tuningReport("skeleton", [
+        area("crypt", 4, ["skeleton"]),
+      ]);
+
+      expect(levels[0].gold?.areaLevel).toBe(4);
+    });
+
+    it("is none where no Area places the Monster", () => {
+      const { levels } = tuningReport("skeleton", []);
+
+      expect(levels[0].gold).toBeNull();
+    });
   });
 });

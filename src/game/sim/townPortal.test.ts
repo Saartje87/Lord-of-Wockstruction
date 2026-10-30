@@ -248,7 +248,7 @@ function walkTo(world: World, target: Vec, limit = 600): SimEvent[] {
 function leave(
   world: World,
   target: Vec,
-): Omit<KeptArea, "explored" | "boneAltars"> {
+): Omit<KeptArea, "explored" | "boneAltars" | "goldPiles"> {
   clearOf(world, target);
   step(world, [{ type: "MoveTo", target }]);
   for (let i = 0; i < 600 && !world.areaChange; i++) step(world, []);

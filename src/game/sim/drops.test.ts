@@ -211,11 +211,7 @@ afterEach(() => {
 });
 
 /** A Town where every kill drops just one Item, of `type`. */
-function dropping(
-  type: ItemType = "ringOfLife",
-  belongings?: Belongings,
-  pack = 1,
-) {
+function dropping(type: ItemType = "ring", belongings?: Belongings, pack = 1) {
   const potion = isPotion(type);
   dropTuning.chance = potion ? 0 : 1;
   dropTuning.items = [type];
@@ -254,7 +250,7 @@ function inRow(type: ItemType, row: number, columns: number[]) {
 
 describe("Picking up", () => {
   it("walks the Hero to the Ground Item and puts it in the Inventory", () => {
-    const world = dropping("ringOfLife", {
+    const world = dropping("ring", {
       inventory: [],
       equipment: {},
       belt: emptyBelt(),
@@ -276,11 +272,11 @@ describe("Picking up", () => {
 
   it("fills the first free spot column by column from the top-left", () => {
     const belongings: Belongings = {
-      inventory: inRow("ringOfStrength", 0, [0]),
+      inventory: inRow("ring", 0, [0]),
       equipment: {},
       belt: emptyBelt(),
     };
-    const world = dropping("ringOfLife", belongings, 4);
+    const world = dropping("ring", belongings, 4);
     const dropped = ofType(kill(world, 4), "ItemDropped");
     const cells = [];
     for (const { item } of dropped) {
@@ -298,10 +294,7 @@ describe("Picking up", () => {
 
   it("keeps a sized Item on the grid, finding room at its far edge", () => {
     const belongings: Belongings = {
-      inventory: [
-        ...inRow("ringOfStrength", 1, [0]),
-        ...inRow("axe", 0, [1, 3, 5, 7]),
-      ],
+      inventory: [...inRow("ring", 1, [0]), ...inRow("axe", 0, [1, 3, 5, 7])],
       equipment: {},
       belt: emptyBelt(),
     };
@@ -318,12 +311,12 @@ describe("Picking up", () => {
     const full: Belongings = {
       inventory: [
         ...inRow("axe", 0, [0, 2, 4, 6, 8]),
-        ...inRow("ringOfLife", 3, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
+        ...inRow("ring", 3, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
       ],
       equipment: {},
       belt: emptyBelt(),
     };
-    const world = dropping("ringOfStrength", full);
+    const world = dropping("ring", full);
     const dropped = killForDrop(world);
     const before = inventoryOf(world);
 
@@ -450,7 +443,7 @@ describe("Picking up a Potion", () => {
       ["lifePotion"],
     ];
     const inventory = [0, 1, 2, 3].flatMap((row) =>
-      inRow("ringOfLife", row, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
+      inRow("ring", row, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
     );
     const world = dropping("lifePotion", belted(full, inventory));
     const dropped = killForDrop(world);

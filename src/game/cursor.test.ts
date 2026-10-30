@@ -549,9 +549,9 @@ describe("the cursor and casting", () => {
 const packed: Belongings = {
   inventory: [
     { type: "axe", cell: { column: 4, row: 1 } },
-    { type: "ringOfStrength", cell: { column: 0, row: 0 } },
+    { type: "ring", cell: { column: 0, row: 0 } },
   ],
-  equipment: { weapon: "shortSword" },
+  equipment: { weapon: { type: "shortSword" } },
   belt: [["lifePotion"], [], [], []],
 };
 
@@ -615,7 +615,7 @@ describe("dragging an Item", () => {
   it("Equips it when let go over an empty Equipment slot of its kind", () => {
     const { world } = drag(at({ column: 0, row: 0 }), at("ring1"));
 
-    expect(equipmentOf(world).ring1?.type).toBe("ringOfStrength");
+    expect(equipmentOf(world).ring1?.type).toBe("ring");
     expect(typeAt(world, 0, 0)).toBeUndefined();
   });
 

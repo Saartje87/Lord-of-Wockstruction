@@ -1,5 +1,6 @@
 import { areaTuning } from "../tuning/areas";
 import { boneAltarTuning } from "../tuning/boneAltars";
+import { goldTuning } from "../tuning/gold";
 import { graveWockingtonTuning } from "../tuning/graveWockington";
 import { heroTuning } from "../tuning/hero";
 import {
@@ -31,6 +32,7 @@ import { townPortalTuning } from "../tuning/townPortal";
 import { townPortalLook } from "../tuning/townPortalLook";
 import { uniqueTuning } from "../tuning/uniqueMonsters";
 import { waypointTuning } from "../tuning/waypoints";
+import { affixTotal, rollItem } from "./affixes";
 import {
   type Area,
   cellAt,
@@ -143,6 +145,7 @@ import { passiveMultiplier, skillPower } from "./synergies";
 import { msToSteps, perStep } from "./units";
 import { validateAreas } from "./validate";
 import { distance, type Vec } from "./vec";
+import { moveGood, newVendor, restockVendor, type Vendor } from "./vendor";
 import { holdBack, slideAround, stepInDirection } from "./walking";
 
 const EXPERIENCE_TABLE = heroTuning.experienceTable;
@@ -410,6 +413,7 @@ export type KeptArea = Pick<
   | "projectiles"
   | "corpses"
   | "groundItems"
+  | "goldPiles"
   | "explored"
   | "boneAltars"
 >;
@@ -429,6 +433,15 @@ export type Corpse = {
  * An Item lying in the active Area, until picked up or the Session ends.
  */
 export type GroundItem = { item: Item; pos: Vec };
+
+/** Identifies a Gold Pile among the others in the World. */
+export type GoldPileId = number;
+
+/**
+ * Gold lying in the active Area, until the Hero walks near it or the Session
+ * ends: never an Item, never kept by the Save.
+ */
+export type GoldPile = { id: GoldPileId; amount: number; pos: Vec };
 
 export type World = {
   seed: number;
@@ -460,6 +473,10 @@ export type World = {
   corpses: Corpse[];
   /** The Ground Items in the active Area, never kept by the Save. */
   groundItems: GroundItem[];
+  /** The Gold Piles in the active Area, never kept by the Save. */
+  goldPiles: GoldPile[];
+  /** The id the next Gold Pile gets. */
+  nextGoldPileId: GoldPileId;
   /**
    * Which tiles of the active Area are Explored, row by row like
    * `Area.floor`; never kept by the Save.
@@ -488,6 +505,13 @@ export type World = {
   nextMinionId: MinionId;
   /** The id the next Item gets. */
   nextItemId: ItemId;
+  /**
+   * The Vendor's goods in Wockville, restocked on each arrival in Town and
+   * never kept by the Save.
+   */
+  vendor: Vendor;
+  /** Whether Trade is open: the Vendor panel is, in Town. Never saved. */
+  trading: boolean;
 };
 
 /** Input reaching the simulation. */
@@ -514,6 +538,28 @@ export type Order =
    * moving Items happen at once, whatever the Hero is doing.
    */
   | { type: "LiftItem"; from: ItemSpot }
+  /**
+   * Lift the Vendor's good covering cell `from` of their grid onto the
+   * cursor, if it's empty and the Hero's Gold covers its Value. Putting it
+   * down with `PlaceItem` into an Inventory cell or, for a Potion, a Belt
+   * Column buys it; `DropItem` and `ReturnCursorItem` give it back.
+   */
+  | { type: "LiftGood"; from: Cell }
+  /**
+   * Open Trade, as the Vendor panel opens: only in Town and not in Death.
+   * Buying and selling need it. It ends by itself with `CloseTrade`, the
+   * Hero leaving Town or dying.
+   */
+  | { type: "OpenTrade" }
+  /** End Trade, as the Vendor panel shuts any way; a held good goes back. */
+  | { type: "CloseTrade" }
+  /**
+   * Sell the cursor Item to the Vendor, put down on their grid: it is gone
+   * and a share of its Value, set by tuning, is added to Gold. Only with
+   * Trade open, never in Death, and never a held good or an Item lifted
+   * from an Equipment slot.
+   */
+  | { type: "SellItem" }
   /**
    * Put the cursor Item down with its top-left at cell `to`, into slot
    * `to`, or into the Belt Column of Belt Column cell `to` at its lowest
@@ -677,12 +723,24 @@ export type SimEvent =
   | { type: "BoneAltarDestroyed"; altar: MonsterId; area: string; pos: Vec }
   /** A dying Monster or the Hero dropped `item`, which now lies at `pos`. */
   | { type: "ItemDropped"; item: Item; pos: Vec }
+  /** A dying Monster dropped Gold Pile `pile` of `amount` at `pos`. */
+  | { type: "GoldDropped"; pile: GoldPileId; amount: number; pos: Vec }
+  /** The Hero picked up a Gold Pile of `amount`, which went into their Gold. */
+  | { type: "GoldPickedUp"; amount: number }
   /** The Hero picked up `item`, which now has its top-left at `cell`. */
   | { type: "ItemPickedUp"; item: Item; cell: Cell }
   /** The Hero picked up the Potion `item` into the top of Belt Column `column`. */
   | { type: "PotionPickedUp"; item: Item; column: number }
   /** The Hero got to a Ground Item with no room for it in the Inventory. */
   | { type: "NoRoom" }
+  /** The Vendor's goods were stocked afresh, as the Hero arrived in Town. */
+  | { type: "VendorRestocked" }
+  /** The Hero couldn't lift `item` from the Vendor, whose Value is `value`. */
+  | { type: "CantAfford"; item: Item; value: number }
+  /** The Hero bought `item` from the Vendor, paying `value` Gold. */
+  | { type: "ItemBought"; item: Item; value: number }
+  /** The Hero sold `item` to the Vendor for `value` Gold. */
+  | { type: "ItemSold"; item: Item; value: number }
   /** An Item moved in the Inventory or Equipment, onto the cursor or off it. */
   | { type: "InventoryChanged" }
   /** `item` went into Equipment slot `slot`. */
@@ -796,6 +854,8 @@ export type Progress = {
    * unlocked until the Hero uses it on an Item, and used after.
    */
   smithService: SmithService;
+  /** The Hero's money: a whole number, never below 0, kept through Death. */
+  gold: number;
 };
 
 /** Where the Smith's one-time service stands. */
@@ -819,6 +879,7 @@ export const FRESH_PROGRESS: Progress = {
   touchedWaypoints: [TOWN],
   quests: freshQuests(),
   smithService: "locked",
+  gold: 0,
 };
 
 /** A copy of `progress` sharing nothing with it. */
@@ -905,6 +966,8 @@ export function createWorld(options: {
     projectiles: [],
     corpses: [],
     groundItems: [],
+    goldPiles: [],
+    nextGoldPileId: 1,
     // All of Town is Explored from the start.
     explored: new Array(town.width * town.height).fill(true),
     minions: [],
@@ -914,8 +977,11 @@ export function createWorld(options: {
     nextMonsterId: 1,
     nextMinionId: 1,
     nextItemId: 1,
+    vendor: newVendor(options.seed),
+    trading: false,
   };
   giveBelongings(world, belongings);
+  restockVendor(world, []);
   world.standing = standingIn(world, town);
   world.hero.life = maxLife(world);
   world.hero.mana = maxMana(world);
@@ -1015,6 +1081,7 @@ function bonusOf(world: World, bonus: Bonus): number {
     const item = world.hero.equipment[slot];
     if (!item) continue;
     total += itemOf(item.type).bonuses[bonus] ?? 0;
+    total += affixTotal(item.affixes, bonus);
     if (item.smithBonus?.bonus === bonus) total += item.smithBonus.amount;
   }
   return total;
@@ -1054,7 +1121,8 @@ export function maxMana(world: World): number {
   return (
     heroTuning.mana +
     heroTuning.manaPerLevel * (level - 1) +
-    heroTuning.manaPerEnergy * attributesOf(world).energy
+    heroTuning.manaPerEnergy * attributesOf(world).energy +
+    bonusOf(world, "mana")
   );
 }
 
@@ -1070,8 +1138,12 @@ function maxima(world: World): PotionMaxima {
  */
 export function heroDefense(world: World): number {
   const armour = world.hero.equipment.armour;
-  const base = (armour && itemOf(armour.type).defense) ?? 0;
-  return base + bonusOf(world, "defense");
+  const own = (armour && itemOf(armour.type).defense) ?? 0;
+  // The Armour's own Defense is scaled before flat Defense is added.
+  const enhanced = Math.round(
+    own * (1 + bonusOf(world, "enhancedDefense") / 100),
+  );
+  return enhanced + bonusOf(world, "defense");
 }
 
 /** Whether the Hero is regaining Life: alive, out of combat and below full. */
@@ -1087,9 +1159,13 @@ export function isRegenerating(world: World): boolean {
 export function damageRange(world: World): [number, number] {
   const weapon = world.hero.equipment.weapon;
   const scale = 1 + attributesOf(world).strength / 100;
-  const [min, max] =
+  const [ownMin, ownMax] =
     (weapon && itemOf(weapon.type).damage) ?? heroTuning.unarmedDamage;
-  return [min * scale, max * scale];
+  // The Weapon's own damage is scaled before flat damage is added.
+  const enhance = 1 + bonusOf(world, "enhancedDamage") / 100;
+  const [min, max] = [ownMin * enhance, ownMax * enhance];
+  const flat = bonusOf(world, "weaponDamage");
+  return [(min + flat) * scale, (max + flat) * scale];
 }
 
 /**
@@ -1273,19 +1349,22 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   if (area.name === TOWN) {
     hero.life = maxLife(world);
     hero.combat = 0;
+    restockVendor(world, events);
   }
   world.death = null;
+  world.trading = false;
   // A Bone Wall stands only in the Area it was raised in.
   for (const piece of [...world.boneWalls]) {
     removeWallPiece(world, piece, false, events);
   }
   const { monsters, projectiles, corpses, groundItems, explored } = world;
-  const { boneAltars } = world;
+  const { boneAltars, goldPiles } = world;
   world.keptAreas[world.areaName] = {
     monsters,
     projectiles,
     corpses,
     groundItems,
+    goldPiles,
     explored,
     boneAltars,
   };
@@ -1296,6 +1375,7 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   world.projectiles = kept?.projectiles ?? [];
   world.corpses = kept?.corpses ?? [];
   world.groundItems = kept?.groundItems ?? [];
+  world.goldPiles = kept?.goldPiles ?? [];
   world.boneAltars = kept?.boneAltars ?? [];
   world.explored =
     kept?.explored ??
@@ -1856,6 +1936,7 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   touchWaypoint(world, events);
   approach(world);
   reachGroundItem(world, events);
+  reachGoldPiles(world, events);
   reachNpc(world, events);
   // Before the Monsters, so an Arrow first shows where it is loosed.
   landProjectiles(world, events);
@@ -2107,7 +2188,7 @@ function give(world: World, order: Order, events: SimEvent[]) {
     drinkItem(world, order.item, maxima(world), events);
     return;
   }
-  if (moveItem(world, order, events)) {
+  if (moveGood(world, order, events) || moveItem(world, order, events)) {
     // Taking off an Item's bonuses can leave Life or Mana over the new max.
     hero.life = Math.min(hero.life, maxLife(world));
     hero.mana = Math.min(hero.mana, maxMana(world));
@@ -2871,6 +2952,24 @@ function reachGroundItem(world: World, events: SimEvent[]) {
   });
 }
 
+/**
+ * Picks up every Gold Pile the Hero has come within `goldTuning.pickupReach`
+ * of, with no Order, whatever the Inventory holds. Never during Death.
+ */
+function reachGoldPiles(world: World, events: SimEvent[]) {
+  if (world.death) return;
+  const { hero } = world;
+  const reached = world.goldPiles.filter(
+    (pile) => distance(hero.pos, pile.pos) <= goldTuning.pickupReach,
+  );
+  if (reached.length === 0) return;
+  world.goldPiles = world.goldPiles.filter((pile) => !reached.includes(pile));
+  for (const { amount } of reached) {
+    hero.progress.gold += amount;
+    events.push({ type: "GoldPickedUp", amount });
+  }
+}
+
 function startSwing(hero: Hero, monster: MonsterId | null, toward: Vec) {
   faceToward(hero, toward);
   hero.swing = { elapsed: 0, landed: false, monster };
@@ -3047,7 +3146,13 @@ function hurt(world: World, monster: Monster, events: SimEvent[]) {
       killExperience(monster, world.hero.progress.level),
       events,
     );
-    rollDrop(world, monster.pos, events, monster.unique !== null);
+    rollDrop(
+      world,
+      monster.pos,
+      events,
+      monster.unique !== null,
+      monster.monsterLevel,
+    );
     if (monster.unique !== null) {
       const { name } = world.areas[world.areaName];
       noteDeed(world, { type: "uniqueKilled", area: name }, events);
@@ -3137,10 +3242,17 @@ function minionStrike(
 /**
  * Rolls a dying Monster's drops, each lying where it died: by
  * `dropTuning.chance` one Item, then by `potionDropTuning.chance` one Potion,
- * each of a type picked with equal odds. A Unique Monster's Items are
+ * each of a type picked with equal odds. `monsterLevel` is the dying
+ * Monster's, which decides the grades its Items' Affixes can roll. A Unique Monster's Items are
  * rolled once for each of `uniqueTuning.itemDropChances` instead.
  */
-function rollDrop(world: World, pos: Vec, events: SimEvent[], unique: boolean) {
+function rollDrop(
+  world: World,
+  pos: Vec,
+  events: SimEvent[],
+  unique: boolean,
+  monsterLevel: number,
+) {
   const itemDrops = unique
     ? uniqueTuning.itemDropChances.map((chance) => ({
         chance,
@@ -3150,10 +3262,47 @@ function rollDrop(world: World, pos: Vec, events: SimEvent[], unique: boolean) {
   for (const { chance, items } of [...itemDrops, potionDropTuning]) {
     if (chance < 1 && random(world.rng) >= chance) continue;
     const type = items[randomInt(world.rng, [0, items.length - 1])];
-    const item = { id: world.nextItemId++, type };
+    const item: Item = {
+      id: world.nextItemId++,
+      type,
+      ...rollItem(world.rng, type, monsterLevel, unique),
+    };
     world.groundItems.push({ item, pos: { ...pos } });
-    events.push({ type: "ItemDropped", item: { ...item }, pos: { ...pos } });
+    events.push({
+      type: "ItemDropped",
+      item: { ...item, affixes: item.affixes.map((a) => ({ ...a })) },
+      pos: { ...pos },
+    });
   }
+  rollGold(world, pos, events, monsterLevel);
+}
+
+/**
+ * Rolls a dying Monster's Gold Pile, apart from its Items: by
+ * `goldTuning.chance` one pile where it died, holding an amount from
+ * `goldTuning.perMonsterLevel` times `monsterLevel`. Rolled last, so the
+ * Item rolls stay as they were.
+ */
+function rollGold(
+  world: World,
+  pos: Vec,
+  events: SimEvent[],
+  monsterLevel: number,
+) {
+  if (goldTuning.chance < 1 && random(world.rng) >= goldTuning.chance) return;
+  const [least, most] = goldTuning.perMonsterLevel;
+  const amount = randomInt(world.rng, [
+    least * monsterLevel,
+    most * monsterLevel,
+  ]);
+  const pile = { id: world.nextGoldPileId++, amount, pos: { ...pos } };
+  world.goldPiles.push(pile);
+  events.push({
+    type: "GoldDropped",
+    pile: pile.id,
+    amount,
+    pos: { ...pos },
+  });
 }
 
 /**
@@ -3258,6 +3407,7 @@ function removeMinion(world: World, minion: Minion) {
  */
 function die(world: World, events: SimEvent[]) {
   world.death = { elapsed: 0 };
+  world.trading = false;
   world.hero.potionEffects = [];
   world.hero.boneWard = null;
   for (const minion of world.minions) crumbleMinion(world, minion, events);

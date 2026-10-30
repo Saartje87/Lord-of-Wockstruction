@@ -300,7 +300,7 @@ describe("a Monster's scaled numbers in play", () => {
       seed: 1,
       belongings: {
         inventory: [],
-        equipment: { armour: "leatherArmour" },
+        equipment: { armour: { type: "leatherArmour" } },
         belt: emptyBelt(),
       },
     });

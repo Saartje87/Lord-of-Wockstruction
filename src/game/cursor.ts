@@ -15,11 +15,25 @@ import type { PanelButtonHit } from "./render/panelButtons";
 import type { QuestPanelHit } from "./render/questPanel";
 import type { SkillBarHit } from "./render/skillBar";
 import type { SkillTreeHit } from "./render/skillTreePanel";
+import {
+  type VendorCloseHit,
+  type VendorHit,
+  vendorOrder,
+  vendorPutDownOrder,
+} from "./render/vendorPanel";
 import type { WaypointListHit } from "./render/waypointList";
 import { isBeltCell } from "./sim/belt";
-import { cursorItemOf, type ItemSpot, isSlot } from "./sim/inventory";
+import {
+  type Cell,
+  type CursorSpot,
+  cursorItemOf,
+  type ItemSpot,
+  isGoodSpot,
+  isSlot,
+} from "./sim/inventory";
 import { type SkillBarSlot, skillInSlot } from "./sim/skillBar";
 import type { Vec } from "./sim/vec";
+import { goodAt } from "./sim/vendor";
 import type { Order, World } from "./sim/world";
 import type { ItemType } from "./tuning/items";
 import type { Skill } from "./tuning/skills";
@@ -42,7 +56,7 @@ export type Cursor = {
    * type, so letting go elsewhere after a drag puts it down there. Null when
    * that press lifted nothing.
    */
-  liftedFrom: { spot: ItemSpot; type: ItemType } | null;
+  liftedFrom: { spot: CursorSpot; type: ItemType } | null;
 };
 
 /**
@@ -61,6 +75,8 @@ export type CursorHit =
   | MiniMapHit
   | InventoryHit
   | InventoryCloseHit
+  | VendorHit
+  | VendorCloseHit
   | DropHit;
 
 /** Where a press or release was, and what it hit there. */
@@ -138,6 +154,23 @@ export function pressCursor(
       return { cursor, orders: [], taken: false };
     }
     return { cursor, orders: [{ type: "DropItem" }], taken: true };
+  }
+  if ("vendor" in hit) {
+    const order = vendorOrder(world, screen, at, hit);
+    const spot = hit.vendor;
+    if (order?.type === "LiftGood") {
+      const good = goodAt(world, order.from);
+      if (good) {
+        cursor.liftedFrom = {
+          spot: { good: order.from },
+          type: good.item.type,
+        };
+      }
+    } else if (order?.type === "LiftItem" && spot && "inventory" in spot) {
+      const item = itemUnder(world, order.from);
+      if (item) cursor.liftedFrom = { spot: order.from, type: item.type };
+    }
+    return { cursor, orders: order ? [order] : [], taken: true };
   }
   if (!("button" in hit)) {
     const order = inventoryOrder(world, screen, at, hit);
@@ -256,10 +289,40 @@ function putDownOnRelease(
   const hit = asItemSpot(release.hit);
   if (at === null) return [];
   if (hit === null || "drop" in hit) return [{ type: "DropItem" }];
+  if ("vendor" in hit) return putDownOnVendor(hit, at, lifted, world, screen);
   if (!("inventory" in hit) || hit.inventory === null) return [];
   const spot = hit.inventory;
   if (sameSpot(spot, lifted.spot)) return [];
   return [putDownOrder(world, screen, at, spot, lifted.type)];
+}
+
+/**
+ * What letting go of a lifted Held Item over the Vendor panel does: put it
+ * down on the Inventory grid, but give a lifted good back anywhere else
+ * (over the cell it was lifted from it stays held), and leave a lifted
+ * Inventory Item as it is elsewhere on the panel.
+ */
+function putDownOnVendor(
+  hit: VendorHit,
+  at: Vec,
+  lifted: NonNullable<Cursor["liftedFrom"]>,
+  world: World,
+  screen: Viewport,
+): Order[] {
+  const spot = hit.vendor;
+  const good = isGoodSpot(lifted.spot);
+  if (spot && "inventory" in spot) {
+    if (!good && sameSpot(spot.inventory, lifted.spot)) return [];
+    return [vendorPutDownOrder(screen, at, lifted.type)];
+  }
+  if (!good) {
+    // One of the Hero's own Items let go over the Vendor's grid is sold.
+    return spot && "good" in spot ? [{ type: "SellItem" }] : [];
+  }
+  const here = spot && "good" in spot ? spot.good : null;
+  const from = (lifted.spot as { good: Cell }).good;
+  if (here && here.column === from.column && here.row === from.row) return [];
+  return cursorItemOf(world) ? [{ type: "DropItem" }] : [];
 }
 
 /**
@@ -272,8 +335,12 @@ function asItemSpot(hit: CursorHit | null): CursorHit | null {
   return { inventory: { beltColumn: hit.beltColumn, row: 0 } };
 }
 
-/** Whether two spots are the same slot, cell or Belt Column cell. */
-function sameSpot(a: ItemSpot, b: ItemSpot): boolean {
+/**
+ * Whether two spots are the same slot, cell or Belt Column cell; a good's
+ * spot on the Vendor's grid is never the same as an Item's.
+ */
+function sameSpot(a: ItemSpot, b: CursorSpot): boolean {
+  if (isGoodSpot(b)) return false;
   if (isSlot(a) || isSlot(b)) return a === b;
   if (isBeltCell(a) || isBeltCell(b)) {
     return (

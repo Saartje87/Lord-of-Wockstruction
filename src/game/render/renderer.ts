@@ -22,6 +22,7 @@ import {
   type StartScreen,
 } from "../menus";
 import type { Pause } from "../pause";
+import { itemTitle } from "../sim/affixes";
 import type { Area } from "../sim/area";
 import { beltOf, beltRows, isBeltCell } from "../sim/belt";
 import {
@@ -29,10 +30,13 @@ import {
   EQUIPMENT_SLOTS,
   type EquipmentSlot,
   equipmentOf,
+  type Item,
   type ItemId,
   type ItemSpot,
+  inventoryItemAt,
   inventoryOf,
   isCell,
+  isGoodSpot,
   isSlot,
   placement,
 } from "../sim/inventory";
@@ -40,6 +44,7 @@ import { monsterMaxLife } from "../sim/monsters";
 import { inside, middleOf, type Rect } from "../sim/rect";
 import type { SkillBarSlot } from "../sim/skillBar";
 import { cornersOf, type Vec } from "../sim/vec";
+import { buyable, goodAt, goodsOf } from "../sim/vendor";
 import {
   ATTRIBUTES,
   areaFade,
@@ -59,11 +64,17 @@ import {
   type World,
 } from "../sim/world";
 import { heroTuning } from "../tuning/hero";
-import { type ItemType, itemOf } from "../tuning/items";
+import {
+  type ItemType,
+  inventoryTuning,
+  itemOf,
+  type Rarity,
+} from "../tuning/items";
 import type { MinionType } from "../tuning/minions";
 import type { MonsterType } from "../tuning/monsters";
 import { type Branch, type Skill, skillTuning } from "../tuning/skills";
 import { townPortalLook } from "../tuning/townPortalLook";
+import { vendorTuning } from "../tuning/vendor";
 import { atUiScale, type Viewport, viewportOf } from "../viewport";
 import { tileToScreen, type WorldCamera } from "../world3d/camera";
 import { CRUMBLE_SECONDS } from "../world3d/crumble";
@@ -108,10 +119,17 @@ import {
   experienceBarLayout,
 } from "./experienceBar";
 import {
+  GOLD_COLOUR,
+  goldPileLabel,
+  goldTotalLabel,
+  UNAFFORDABLE_COLOUR,
+} from "./goldArt";
+import {
   GROUND_LABEL,
   type GroundLabel,
+  goldLabelId,
+  groundItemLabelAt,
   groundItemUnder,
-  groundLabelAt,
   groundLabels,
 } from "./groundLabels";
 import {
@@ -145,7 +163,7 @@ import {
   itemUnder,
   landingCell,
 } from "./inventoryPanel";
-import { itemColour, itemLabel } from "./itemArt";
+import { itemColour, itemLabel, rarityColour } from "./itemArt";
 import {
   MAP_LOOK,
   MAP_OVERLAY,
@@ -205,6 +223,15 @@ import { GAME_NAME, startChoiceAt, startScreenLayout } from "./startScreen";
 import { tooltipRect } from "./tooltip";
 import { touchControlsLayout, touchControlsShown } from "./touchControls";
 import { shownTownPortals, townPortalCloseScale } from "./townPortalLook";
+import {
+  goodsGrid,
+  goodTooltip,
+  inventoryGrid,
+  sellTooltip,
+  VENDOR_PANEL,
+  type VendorHit,
+  vendorPanelLayout,
+} from "./vendorPanel";
 import {
   WAYPOINT_LIST,
   waypointListLayout,
@@ -499,8 +526,8 @@ const GROUND_ITEM_GRAB = 24;
 const GROUND_ITEM = {
   label: 0x000000,
   labelAlpha: 0.7,
-  name: 0xe8e0c8,
-  hoveredName: 0xe8d27a,
+  /** The back of a hovered label, which keeps its Rarity colour. */
+  hoveredAlpha: 0.95,
 };
 
 /** The name shown in each empty Equipment slot. */
@@ -609,6 +636,8 @@ export function createRenderer(
   app.stage.addChild(heroPanel.layer);
   const inventoryPanel = inventoryPanelView(activeInput);
   app.stage.addChild(inventoryPanel.layer);
+  const vendorPanel = vendorPanelView(activeInput);
+  app.stage.addChild(vendorPanel.layer);
   const skillTreePanel = skillTreePanelView(activeInput);
   app.stage.addChild(skillTreePanel.layer);
   const questPanel = questPanelView(activeInput);
@@ -740,6 +769,7 @@ export function createRenderer(
     questOpen: false,
     waypointsOpen: false,
     dialogueOpen: false,
+    vendorOpen: false,
     dialogueNpc: 0,
     dialoguePage: 0,
     pendingPoints: noPendingPoints(),
@@ -814,7 +844,7 @@ export function createRenderer(
 
   /** The Ground Item whose label is under a canvas point (CSS px). */
   const groundLabelUnder = (screen: Vec): ItemId | null =>
-    groundLabelAt(labels, screen);
+    groundItemLabelAt(labels, screen);
 
   /** The Ground Item drawn on the floor under a canvas point (CSS px). */
   const groundItemAt = (screen: Vec): ItemId | null =>
@@ -836,37 +866,57 @@ export function createRenderer(
       cameraOf(),
       lying.map(({ item, pos }) => ({ id: item.id, type: item.type, pos })),
     );
-    const sized = lying.map(({ item }, i) => {
-      const { at } = spots[i];
-      let text = labelTexts.get(item.id);
+    const piles = world.goldPiles.map(({ id, amount, pos }) => ({
+      id: goldLabelId(id),
+      amount,
+      pos,
+    }));
+    const pileSpots = groundSpotsOf(cameraOf(), piles);
+    const labelled = [
+      ...lying.map(({ item }, i) => ({
+        id: item.id,
+        name: itemTitle(item),
+        at: spots[i].at,
+      })),
+      ...piles.map(({ id, amount }, i) => ({
+        id,
+        name: goldPileLabel(amount),
+        at: pileSpots[i].at,
+      })),
+    ];
+    const sized = labelled.map(({ id, name, at }) => {
+      let text = labelTexts.get(id);
       if (!text) {
-        text = new Text({
-          text: itemOf(item.type).name,
-          style: { fontFamily: SERIF },
-        });
+        text = new Text({ text: name, style: { fontFamily: SERIF } });
         text.anchor.set(0.5, 0.5);
-        labelTexts.set(item.id, text);
+        labelTexts.set(id, text);
         labels3d.addChild(text);
       }
       sizeText(text, GROUND_LABEL.textSize * uiScale);
       const width = text.width + 2 * GROUND_LABEL.padding * uiScale;
-      return { id: item.id, at, width };
+      return { id, at, width };
     });
     // Labels are laid out on the screen, at the UI Scale.
     labels = groundLabels(sized, uiScale);
-    lyingAt = sized.map(({ id, at }) => ({ id, at }));
+    const rarityOf = new Map(lying.map(({ item }) => [item.id, item.rarity]));
+    // A Gold Pile is never grabbed by a click: only Items are looked for.
+    lyingAt = sized
+      .filter(({ id }) => id > 0)
+      .map(({ id, at }) => ({ id, at }));
     for (const { id, rect } of labels) {
-      labelBacks
-        .rect(rect.x, rect.y, rect.w, rect.h)
-        .fill({ color: GROUND_ITEM.label, alpha: GROUND_ITEM.labelAlpha });
+      labelBacks.rect(rect.x, rect.y, rect.w, rect.h).fill({
+        color: GROUND_ITEM.label,
+        alpha:
+          id === hovered ? GROUND_ITEM.hoveredAlpha : GROUND_ITEM.labelAlpha,
+      });
       const text = labelTexts.get(id);
       if (!text) continue;
       text.style.fill =
-        id === hovered ? GROUND_ITEM.hoveredName : GROUND_ITEM.name;
+        id < 0 ? GOLD_COLOUR : rarityColour(rarityOf.get(id) ?? "normal");
       text.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
     }
     for (const [id, text] of labelTexts) {
-      if (lying.some(({ item }) => item.id === id)) continue;
+      if (sized.some((shown) => shown.id === id)) continue;
       text.destroy();
       labelTexts.delete(id);
     }
@@ -1147,6 +1197,7 @@ export function createRenderer(
         questOpen: menus.questOpen,
         waypointsOpen: menus.waypointsOpen,
         dialogueOpen: menus.dialogueOpen,
+        vendorOpen: menus.vendorOpen,
         dialogueNpc: menus.dialogueNpc,
         dialoguePage: menus.dialoguePage,
         pendingPoints: { ...menus.pendingPoints },
@@ -1372,7 +1423,22 @@ export function createRenderer(
       );
       heldSkillView.draw(heldSkill, pointer, uiScale);
       const spot = onPanel && "inventory" in onPanel ? onPanel.inventory : null;
-      inventoryPanel.draw(viewport, world, menus.inventoryOpen, spot, pointer);
+      // The Held Item over the Vendor panel is drawn at its cells' size.
+      inventoryPanel.draw(
+        viewport,
+        world,
+        menus.inventoryOpen,
+        spot,
+        pointer,
+        menus.vendorOpen ? vendorPanelLayout(viewport).cell : null,
+      );
+      vendorPanel.draw(
+        viewport,
+        world,
+        menus.vendorOpen,
+        onPanel && "vendor" in onPanel ? onPanel.vendor : undefined,
+        pointer,
+      );
       focusRing.clear();
       if (focus) {
         const { colour, width } = FOCUS_RING;
@@ -3280,6 +3346,9 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
   const title = text(style.title, style.titleSize);
   title.text = "Inventory";
   title.anchor.set(0.5, 0);
+  /** The Hero's Gold, at the top left. */
+  const gold = text(GOLD_COLOUR, style.textSize);
+  gold.anchor.set(0, 0);
   const hint = text(style.hint, style.hintSize);
   hint.anchor.set(0.5, 1);
   const slotLabels = Object.fromEntries(
@@ -3328,6 +3397,7 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
     name: Text,
     rect: Rect,
     type: ItemType,
+    rarity: Rarity,
     scale: number,
     alpha = look.itemAlpha,
   ) => {
@@ -3336,6 +3406,7 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
       .stroke({ color: look.itemEdge, width: 1 });
     name.visible = true;
     labelItem(name, type, rect.w, scale);
+    name.style.fill = rarityColour(rarity);
     name.anchor.set(0.5);
     name.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
   };
@@ -3354,9 +3425,9 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
     heldName.visible = false;
     const held = cursorItemOf(world);
     if (!held || !pointer) return;
-    const { type } = held.item;
+    const { type, rarity } = held.item;
     const rect = heldItemRect(layout, pointer, type);
-    drawItem(heldBox, heldName, rect, type, scale, look.heldAlpha);
+    drawItem(heldBox, heldName, rect, type, rarity, scale, look.heldAlpha);
   };
 
   return {
@@ -3372,6 +3443,7 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
       open: boolean,
       hovered: ItemSpot | null,
       pointer: Vec | null,
+      heldCell: number | null = null,
     ) {
       const layout = inventoryPanelLayout(screen, beltRows(world));
       const { panel, grid, cell, slots } = layout;
@@ -3380,7 +3452,12 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
       // Before any return: the Held Item's name, drawn with the panel shut.
       // Names and tooltip lines made this draw are sized as they're made.
       texts.size(scale);
-      drawHeld(world, pointer, layout, scale);
+      drawHeld(
+        world,
+        pointer,
+        heldCell === null ? layout : { ...layout, cell: heldCell },
+        scale,
+      );
       layer.visible = open;
       if (!open) return;
       hint.text = panelCloseHint("inventory", activeInput.way);
@@ -3389,6 +3466,8 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
       panelFrame(graphics, panel);
       closeButton(graphics, layout.closeButton, scale);
       title.position.set(panel.x + panel.w / 2, panel.y + padding);
+      gold.text = goldTotalLabel(world.hero.progress.gold);
+      gold.position.set(panel.x + padding, panel.y + padding + 4 * scale);
       hint.position.set(panel.x + panel.w / 2, panel.y + panel.h - padding);
 
       const box = (rect: Rect) =>
@@ -3407,7 +3486,7 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
         }
       }
 
-      const items: { rect: Rect; type: ItemType }[] = [];
+      const items: { rect: Rect; type: ItemType; rarity: Rarity }[] = [];
       const equipment = equipmentOf(world);
       for (const slot of EQUIPMENT_SLOTS) {
         const rect = slots[slot];
@@ -3415,22 +3494,27 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
         const item = equipment[slot];
         slotLabels[slot].visible = item === null;
         slotLabels[slot].position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
-        if (item) items.push({ rect, type: item.type });
+        if (item) items.push({ rect, type: item.type, rarity: item.rarity });
       }
       for (const { item, cell: at } of inventoryOf(world)) {
-        items.push({ rect: itemRect(layout, at, item.type), type: item.type });
+        items.push({
+          rect: itemRect(layout, at, item.type),
+          type: item.type,
+          rarity: item.rarity,
+        });
       }
       const potions = beltOf(world);
       layout.belt.forEach((cells, column) => {
         cells.forEach((rect, row) => {
           box(rect);
           const potion = potions[column]?.[row];
-          if (potion) items.push({ rect, type: potion.type });
+          if (potion)
+            items.push({ rect, type: potion.type, rarity: potion.rarity });
         });
       });
-      items.forEach(({ rect, type }, i) => {
+      items.forEach(({ rect, type, rarity }, i) => {
         names[i] ??= itemName();
-        drawItem(graphics, names[i], rect, type, scale);
+        drawItem(graphics, names[i], rect, type, rarity, scale);
       });
       for (const name of names.slice(items.length)) name.visible = false;
 
@@ -3490,7 +3574,7 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
                 ?.cell ?? hovered,
               item.type,
             );
-      const lines = itemTooltip(item.type, item.smithBonus);
+      const lines = itemTooltip(item);
       lines.forEach((line, i) => {
         if (!tooltipLines[i]) {
           tooltipLines[i] = text(look.tooltipLine, look.tooltipSize);
@@ -3501,10 +3585,201 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
         layer.setChildIndex(shown, layer.children.length - 1);
         shown.visible = true;
         shown.text = line;
-        shown.style.fill = i === 0 ? look.tooltipName : look.tooltipLine;
+        shown.style.fill =
+          i === 0 ? rarityColour(item.rarity) : look.tooltipLine;
         shown.anchor.set(0.5, 0);
       });
       // Over the Item, or under it where there's no room above.
+      drawTooltip(
+        tooltipBox,
+        tooltipLines.slice(0, lines.length),
+        screen,
+        (size, gap) => tooltipRect(under, size, screen, gap),
+      );
+    },
+  };
+}
+
+/**
+ * The Vendor panel, in the Inventory panel's look: the Vendor's grid beside
+ * the Hero's Inventory grid, each Item drawn at its size, the Hero's Gold,
+ * and the tooltip of the Item under the cursor, a good's with its Value.
+ */
+function vendorPanelView(activeInput: Readonly<ActiveInput>) {
+  const style = HERO_PANEL_STYLE;
+  const look = INVENTORY_STYLE;
+  const { layer, graphics, texts, text } = panelScaffold();
+  const title = text(style.title, style.titleSize);
+  title.anchor.set(0.5, 0);
+  const gold = text(GOLD_COLOUR, style.textSize);
+  gold.anchor.set(0, 0);
+  const hint = text(style.hint, style.hintSize);
+  hint.anchor.set(0.5, 1);
+  /** Item names, one per Item drawn, made as more are needed. */
+  const names: Text[] = [];
+  const itemName = () => {
+    const name = new Text({
+      text: "",
+      style: { fill: look.itemText, fontFamily: SERIF },
+    });
+    layer.addChild(name);
+    return name;
+  };
+  const tooltipBox = new Graphics();
+  layer.addChild(tooltipBox);
+  const tooltipLines: Text[] = [];
+
+  return {
+    layer,
+    /**
+     * `hovered` is the spot under `pointer`, the cursor on the canvas (CSS
+     * px), if it's on the panel.
+     */
+    draw(
+      screen: Viewport,
+      world: World,
+      open: boolean,
+      hovered: VendorHit["vendor"] | undefined,
+      pointer: Vec | null,
+    ) {
+      layer.visible = open;
+      if (!open) return;
+      const layout = vendorPanelLayout(screen);
+      const { panel, cell } = layout;
+      const scale = screen.uiScale;
+      const { padding } = atUiScale(VENDOR_PANEL, scale);
+      const vendor = world.areas[world.areaName].npcs.find((npc) => npc.vendor);
+      title.text = vendor?.name ?? "Vendor";
+      hint.text = panelCloseHint("vendor", activeInput.way);
+      graphics.clear();
+      panelFrame(graphics, panel);
+      closeButton(graphics, layout.closeButton, scale);
+      title.position.set(panel.x + panel.w / 2, panel.y + padding);
+      gold.text = goldTotalLabel(world.hero.progress.gold);
+      gold.position.set(panel.x + padding, panel.y + padding + 4 * scale);
+      hint.position.set(panel.x + panel.w / 2, panel.y + panel.h - padding);
+
+      const box = (rect: Rect) =>
+        graphics
+          .rect(rect.x, rect.y, rect.w, rect.h)
+          .fill(look.cell)
+          .stroke({ color: look.cellEdge, width: 1 });
+      for (const [grid, columns, rows] of [
+        [layout.goods, vendorTuning.grid.columns, vendorTuning.grid.rows],
+        [layout.inventory, inventoryTuning.columns, inventoryTuning.rows],
+      ] as const) {
+        for (let column = 0; column < columns; column++) {
+          for (let row = 0; row < rows; row++) {
+            box({
+              x: grid.x + column * cell,
+              y: grid.y + row * cell,
+              w: cell,
+              h: cell,
+            });
+          }
+        }
+      }
+
+      const goodsLayout = goodsGrid(layout);
+      const mine = inventoryGrid(layout);
+      const drawn: { rect: Rect; item: Item }[] = [
+        ...goodsOf(world).map(({ item, cell: at }) => ({
+          rect: itemRect(goodsLayout, at, item.type),
+          item,
+        })),
+        ...inventoryOf(world).map(({ item, cell: at }) => ({
+          rect: itemRect(mine, at, item.type),
+          item,
+        })),
+      ];
+      drawn.forEach(({ rect, item }, i) => {
+        names[i] ??= itemName();
+        const name = names[i];
+        graphics
+          .rect(rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2)
+          .fill({ color: itemColour(item.type), alpha: look.itemAlpha })
+          .stroke({ color: look.itemEdge, width: 1 });
+        name.visible = true;
+        labelItem(name, item.type, rect.w, scale);
+        name.style.fill = rarityColour(item.rarity);
+        name.anchor.set(0.5);
+        name.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
+      });
+      for (const name of names.slice(drawn.length)) name.visible = false;
+      texts.size(scale);
+
+      tooltipBox.clear();
+      for (const line of tooltipLines) line.visible = false;
+      const held = cursorItemOf(world);
+      if (held) {
+        // Where it would land on the Inventory grid, and whether it would.
+        if (pointer && hovered && "inventory" in hovered) {
+          const to = landingCell(mine, pointer, held.item.type);
+          const rect = itemRect(mine, to, held.item.type);
+          const x = Math.max(rect.x, mine.grid.x);
+          const y = Math.max(rect.y, mine.grid.y);
+          const w = Math.min(rect.x + rect.w, mine.grid.x + mine.grid.w) - x;
+          const h = Math.min(rect.y + rect.h, mine.grid.y + mine.grid.h) - y;
+          const fits = isGoodSpot(held.from)
+            ? buyable(world, to)
+            : placement(world, to) !== null;
+          graphics.rect(x, y, w, h).fill({
+            color: fits ? look.fits : look.refused,
+            alpha: look.landingAlpha,
+          });
+        }
+        // No tooltip while holding an Item, as in the Inventory panel.
+        return;
+      }
+      if (!hovered) return;
+      let shown: { item: Item; rect: Rect; value: boolean } | null = null;
+      if ("good" in hovered) {
+        const good = goodAt(world, hovered.good);
+        if (good) {
+          shown = {
+            item: good.item,
+            rect: itemRect(goodsLayout, good.cell, good.item.type),
+            value: true,
+          };
+        }
+      } else {
+        const placed = inventoryItemAt(world, hovered.inventory);
+        if (placed) {
+          shown = {
+            item: placed.item,
+            rect: itemRect(mine, placed.cell, placed.item.type),
+            value: false,
+          };
+        }
+      }
+      if (!shown) return;
+      const { item } = shown;
+      // Over the Item names, which are made as more Items are drawn.
+      layer.setChildIndex(tooltipBox, layer.children.length - 1);
+      const { lines, affordable } = shown.value
+        ? goodTooltip(item, world.hero.progress.gold)
+        : { lines: sellTooltip(item), affordable: true };
+      lines.forEach((line, i) => {
+        if (!tooltipLines[i]) {
+          tooltipLines[i] = text(look.tooltipLine, look.tooltipSize);
+          sizeText(tooltipLines[i], look.tooltipSize * scale);
+        }
+        const row = tooltipLines[i];
+        layer.setChildIndex(row, layer.children.length - 1);
+        row.visible = true;
+        row.text = line;
+        const isValue = i === lines.length - 1;
+        row.style.fill =
+          i === 0
+            ? rarityColour(item.rarity)
+            : isValue
+              ? affordable
+                ? GOLD_COLOUR
+                : UNAFFORDABLE_COLOUR
+              : look.tooltipLine;
+        row.anchor.set(0.5, 0);
+      });
+      const under = shown.rect;
       drawTooltip(
         tooltipBox,
         tooltipLines.slice(0, lines.length),

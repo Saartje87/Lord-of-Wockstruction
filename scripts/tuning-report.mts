@@ -1,7 +1,8 @@
 /**
  * Prints each Monster type's numbers from the live tuning, as `tuningReport`
  * in `src/game/sim/tuningReport.ts` works them out: per Hero Level, the
- * Experience to the next and the kills of own-Level Monsters it takes, and
+ * Experience to the next, the kills of own-Level Monsters it takes and the
+ * Gold they drop in the Areas played at that Level, and
  * per Combat Area in `content/areas/` that places it, its Area Level and the
  * Monster there. Then each cast Skill's numbers per Skill Level, with Synergies
  * and Passive Skills, and the casts it takes to kill each kind of Monster in
@@ -68,12 +69,23 @@ for (const [type, { name }] of Object.entries(monsterTuning)) {
   console.log(`# ${name}: Hero Levels, against own-Level ${name}s\n`);
   console.log(
     table(
-      ["Level", "To next", `${name} Experience`, "Kills"],
+      [
+        "Level",
+        "To next",
+        `${name} Experience`,
+        "Kills",
+        "Area Level",
+        "Gold a kill",
+        "Gold",
+      ],
       report.levels.map((row) => [
         row.level,
         grouped(row.toNext),
         grouped(row.killExperience),
         grouped(row.kills),
+        row.gold?.areaLevel ?? "–",
+        row.gold ? row.gold.perKill.toFixed(2) : "–",
+        row.gold ? row.gold.total.toFixed(1) : "–",
       ]),
     ),
   );

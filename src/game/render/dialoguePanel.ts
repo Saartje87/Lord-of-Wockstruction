@@ -41,7 +41,8 @@ export type DialogueButton =
   | { type: "handInQuest"; quest: QuestId }
   | { type: "smithService" }
   | { type: "smithForge"; item: ItemId }
-  | { type: "smithMore" };
+  | { type: "smithMore" }
+  | { type: "trade" };
 
 /** How many Items the Smith's list shows at a time. */
 export const SMITH_PAGE_SIZE = 2;
@@ -83,6 +84,9 @@ export function dialogueSheet(
   const there = world.areas[world.areaName].npcs[npc];
   if (!there) return null;
   const goodbye = { label: "Goodbye", button: { type: "goodbye" } } as const;
+  const trade: DialogueSheet["buttons"] = there.vendor
+    ? [{ label: "Trade", button: { type: "trade" } }]
+    : [];
   const service =
     there.name === SMITH && world.hero.progress.smithService === "unlocked";
   if (service && page >= 1) return smithList(world, there.name, page, goodbye);
@@ -91,7 +95,7 @@ export function dialogueSheet(
     return {
       name: there.name,
       lines: [NPC_LINES[there.name] ?? "..."],
-      buttons: [goodbye],
+      buttons: [...trade, goodbye],
     };
   }
   const { name, lines } = questTuning[quest];
@@ -109,8 +113,8 @@ export function dialogueSheet(
     name: there.name,
     lines: [lines[state]],
     buttons: offer
-      ? [offer as DialogueSheet["buttons"][number], goodbye]
-      : [...smithService, goodbye],
+      ? [offer as DialogueSheet["buttons"][number], ...trade, goodbye]
+      : [...smithService, ...trade, goodbye],
   };
 }
 

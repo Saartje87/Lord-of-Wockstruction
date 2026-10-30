@@ -56,7 +56,7 @@ function progressWith(smithService: Progress["smithService"]): Progress {
 function newWorld(
   smithService: Progress["smithService"] = "unlocked",
   inventory: {
-    type: "axe" | "chainMail" | "ringOfLife" | "lifePotion";
+    type: "axe" | "chainMail" | "ring" | "lifePotion";
     cell: { column: number; row: number };
   }[] = [],
 ): World {
@@ -67,7 +67,10 @@ function newWorld(
     belongings: {
       ...FRESH_BELONGINGS,
       inventory,
-      equipment: { weapon: "shortSword", armour: "chainMail" },
+      equipment: {
+        weapon: { type: "shortSword" },
+        armour: { type: "chainMail" },
+      },
     },
   });
 }
@@ -185,7 +188,7 @@ describe("The Smith bonus", () => {
 
   it("can't pick an Item that isn't a Weapon or Armour, and keeps the service", () => {
     const world = newWorld("unlocked", [
-      { type: "ringOfLife", cell: { column: 0, row: 0 } },
+      { type: "ring", cell: { column: 0, row: 0 } },
       { type: "lifePotion", cell: { column: 2, row: 0 } },
     ]);
 

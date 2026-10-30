@@ -315,3 +315,30 @@ describe("a press on the Smith's service buttons of the Dialogue panel", () => {
     expect(orders).toEqual([]);
   });
 });
+
+describe("a press on Trade in the Dialogue panel", () => {
+  it("opens the Vendor panel in its place, for the same NPC", () => {
+    const menus = createMenus();
+    menus.dialogueOpen = true;
+    menus.dialogueNpc = 2;
+
+    const orders = pressButton(menus, worldWith({}), { type: "trade" });
+
+    expect(orders).toEqual([]);
+    expect(menus.vendorOpen).toBe(true);
+    expect(menus.dialogueOpen).toBe(false);
+    expect(menus.dialogueNpc).toBe(2);
+  });
+
+  it("shuts the Vendor panel from its ×", () => {
+    const menus = createMenus();
+    menus.vendorOpen = true;
+
+    pressButton(menus, worldWith({}), {
+      type: "close",
+      panel: "vendor",
+    });
+
+    expect(menus.vendorOpen).toBe(false);
+  });
+});

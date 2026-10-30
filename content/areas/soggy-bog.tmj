@@ -8508,12 +8508,12 @@
       {
        "name": "count",
        "type": "int",
-       "value": 3
+       "value": 4
       },
       {
        "name": "monster",
        "type": "string",
-       "value": "skeleton"
+       "value": "wockwolf"
       }
      ],
      "rotation": 0,

@@ -79,6 +79,37 @@ describe("the 3D World view of the Monsters", () => {
     expect(firstMonster(world).animation.clip).toBe("flinch");
   });
 
+  it("draws a Wockwolf as the Werewolf, scaled down, with the clip of its state", () => {
+    const { world, monster } = withSkeleton();
+    monster.type = "wockwolf";
+
+    const look = MONSTER_LOOKS.wockwolf;
+    expect(look.model).toBe("Werewolf");
+    expect(look.scale).toBeLessThan(1);
+    expect(look.height).toBeLessThan(1.2);
+    expect(firstMonster(world).type).toBe("wockwolf");
+    expect(firstMonster(world).animation.clip).toBe("idle");
+    monster.state = "chase";
+    monster.prevPos = { x: 12.1, y: 10 };
+    expect(firstMonster(world).animation.clip).toBe("run");
+    monster.state = "windup";
+    monster.attack = 0;
+    expect(firstMonster(world).animation.clip).toBe("attack");
+    monster.state = "wander";
+    monster.flinch = 3;
+    expect(firstMonster(world).animation.clip).toBe("flinch");
+    for (const clip of [
+      "idle",
+      "walk",
+      "run",
+      "attack",
+      "flinch",
+      "death",
+    ] as const) {
+      expect(look.clips[clip]).toBeTruthy();
+    }
+  });
+
   it("flashes a hit Monster by the strength it is given", () => {
     const { world, monster } = withSkeleton();
     const effects = { ...NO_EFFECTS, flashes: new Map([[monster.id, 0.8]]) };

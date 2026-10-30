@@ -64,6 +64,24 @@ export const MONSTER_LOOKS: Record<MonsterType, MonsterLook> = {
     contact: 0.3,
     weapons: [{ slot: "handslot.r", model: "Skeleton_Crossbow" }],
   },
+  // The Werewolf (KayKit Mystery Monthly Series 4) in its wolf form, smaller
+  // than the Golem's Monstrosity; its clips come from `Rig_Medium`, the
+  // attack from the Knight's chop.
+  wockwolf: {
+    model: "Werewolf",
+    scale: 0.32,
+    height: 0.75,
+    clips: {
+      idle: "Idle_A",
+      walk: "Walking_A",
+      run: "Running_A",
+      attack: "1H_Melee_Attack_Chop",
+      flinch: "Hit_A",
+      death: "Death_A",
+    },
+    contact: ATTACK_CONTACT,
+    weapons: [],
+  },
   // A big, pale Skeleton with a blade for a staff, until he has a model of his own.
   grave_wockington: {
     model: "Skeleton",

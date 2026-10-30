@@ -115,6 +115,7 @@ export type MonsterType =
   | "skeleton"
   | "zombie"
   | "skeleton_archer"
+  | "wockwolf"
   | "grave_wockington";
 
 export const monsterTuning: Record<MonsterType, MonsterTuning> = {
@@ -256,6 +257,51 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
     flinchInterrupts: true,
     // The Skeleton's rates, so it stays as fragile next to one in every
     // Combat Area: 99 Life and 7–14 an Arrow in the Ossuary.
+    growth: {
+      life: 0.25,
+      damage: 0.2,
+      attackRating: 0.1,
+      defense: 0.15,
+      experience: 3,
+    },
+  },
+  // The outdoors' pack animal: faster than the Hero walks (5.5), fragile and
+  // light-hitting, with a quick bite. A pack of 4–6 wears the Hero down by
+  // surrounding them rather than bursting them. Set against the Skeleton's
+  // numbers (T470); expected to move in playtesting.
+  wockwolf: {
+    name: "Wockwolf",
+    life: 30,
+    // Half a Skeleton's: a pack is worth more than one Skeleton, a single
+    // Wockwolf is not.
+    experience: 50,
+    speed: 6,
+    damage: [2, 5],
+    // Easier to hit than a Skeleton.
+    defense: 110,
+    attackRating: 20,
+    radius: 0.3,
+    wanderRadius: 3,
+    wanderSpeed: 0.35,
+    wanderPauseMs: [800, 2500],
+    aggroRadius: 8,
+    replanMs: 300,
+    needsSight: true,
+    // Packs wake together.
+    spreadRadius: 2.5,
+    attack: { kind: "melee", reach: 1.1, reachGrace: 0.25, arcDegrees: 60 },
+    windUpMs: 250,
+    rootMs: 150,
+    recoveryMs: 700,
+    jitterMs: 300,
+    maxAttackers: 0,
+    leash: 16,
+    returnSpeed: 1.2,
+    graceMs: 2000,
+    flinchChance: 0.25,
+    flinchMs: 200,
+    flinchInterrupts: false,
+    // The Skeleton's rates, so it stays as fragile next to one in every Area.
     growth: {
       life: 0.25,
       damage: 0.2,

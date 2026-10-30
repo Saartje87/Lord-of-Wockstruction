@@ -13,6 +13,7 @@ describe("attack clip contact fractions", () => {
       ATTACK_CONTACT,
       MONSTER_LOOKS.skeleton.contact,
       MONSTER_LOOKS.zombie.contact,
+      MONSTER_LOOKS.wockwolf.contact,
       MINION_LOOKS.raisedSkeleton.contact,
     ]) {
       expect(contact).toBeGreaterThanOrEqual(0.55);

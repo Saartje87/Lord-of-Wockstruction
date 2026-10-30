@@ -133,6 +133,28 @@ describe("tuningReport", () => {
     ]);
   });
 
+  it("gives the Wockwolf's numbers in the Areas that place it, and not elsewhere", () => {
+    const { levels, areas } = tuningReport("wockwolf", [
+      area("cozy-plains", 1, ["wockwolf", "skeleton", "zombie"]),
+      area("spa", 2, ["wockwolf", "skeleton"]),
+      area("old-mill", 4, ["skeleton", "zombie"]),
+    ]);
+
+    // 500 to go at 50 a kill: the tenth kill gets there.
+    expect(levels[0]).toMatchObject({
+      level: 1,
+      toNext: 500,
+      killExperience: 50,
+      kills: 10,
+    });
+    expect(areas.map((row) => row.area)).toEqual(["cozy-plains", "spa"]);
+    expect(areas[0]).toMatchObject({
+      maxLife: 30,
+      damage: [2, 5],
+      experience: 50,
+    });
+  });
+
   describe("Gold earned per Hero Level", () => {
     const places = [
       area("town", null, []),

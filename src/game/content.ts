@@ -1,8 +1,10 @@
 import catacombs from "../../content/areas/catacombs.tmj";
 import cozyPlains from "../../content/areas/cozy-plains.tmj";
 import crypt from "../../content/areas/crypt.tmj";
+import oldMill from "../../content/areas/old-mill.tmj";
 import ossuary from "../../content/areas/ossuary.tmj";
 import soggyBog from "../../content/areas/soggy-bog.tmj";
+import spa from "../../content/areas/spa.tmj";
 import town from "../../content/areas/town.tmj";
 import wockyard from "../../content/areas/wockyard.tmj";
 import kaykit from "../../content/tilesets/kaykit.tsj";
@@ -13,6 +15,8 @@ export const areas: Record<string, unknown> = {
   "cozy-plains": cozyPlains,
   "soggy-bog": soggyBog,
   wockyard,
+  spa,
+  "old-mill": oldMill,
   catacombs,
   crypt,
   ossuary,
@@ -29,6 +33,8 @@ export const areaDisplayNames: Record<string, string> = {
   "cozy-plains": "Cozy Plains",
   "soggy-bog": "Soggy Bog",
   wockyard: "Wockyard",
+  spa: "Spa",
+  "old-mill": "Old Mill",
   catacombs: "Catacombs",
   crypt: "Crypt",
   ossuary: "Ossuary",

@@ -115,8 +115,8 @@ function fightThrough(world: World, exit: Exit, reach = 2) {
   return changed;
 }
 
-/** The longest a leg of the Hero's walk across the shipped Areas may take. */
-const LEG_TIMEOUT_MS = 15_000;
+/** The longest a leg of the Hero's walk across the shipped Areas may take: the slowest is about 0.1s alone. */
+const LEG_TIMEOUT_MS = 3_000;
 
 /** An Area's one Exit to Area `to`; throws when it has none or several. */
 function exitTo(area: Area, to: string): Exit {
@@ -658,8 +658,8 @@ describe("the shipped Areas", () => {
     ];
 
     // The legs run in order on one World, so each starts where the last ended.
-    // Each is a test of its own, so a failure names the leg; a leg can take a
-    // few seconds on a loaded machine.
+    // Each is a test of its own, so a failure names the leg; the slowest
+    // takes about 0.1s, and the timeout leaves room for a loaded machine.
     it.each(route)(
       "from %s to %s",
       (from, to) => {

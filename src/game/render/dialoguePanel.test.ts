@@ -451,3 +451,48 @@ describe("the Dialogue panel on touch", () => {
     }
   });
 });
+
+describe("the Vendor's Dialogue panel", () => {
+  const vendorWorld = () => {
+    const w = world();
+    w.areas.town.npcs[TRADER].vendor = true;
+    return w;
+  };
+
+  it.each(SCREENS)("offers Trade just ahead of Goodbye (%s)", (_, screen) => {
+    const w = vendorWorld();
+    const types = dialogueSheet(w, TRADER)?.buttons.map((b) => b.button.type);
+    expect(types?.slice(-2)).toEqual(["trade", "goodbye"]);
+    const spots = panelFocusSpots("dialogue", w, screen, undefined, TRADER);
+    expect(spots.map((spot) => spot.hit)).toContainEqual({
+      button: { type: "trade" },
+    });
+  });
+
+  it.each(SCREENS)("takes a click and a tap on Trade (%s)", (_, screen) => {
+    const w = vendorWorld();
+    const sheet = dialogueSheet(w, TRADER);
+    const index = sheet?.buttons.findIndex((b) => b.button.type === "trade");
+    const open = { ...createMenus(), dialogueOpen: true, dialogueNpc: TRADER };
+    const { buttons } = dialogueLayout(screen, sheet?.buttons.length ?? 0);
+    for (const touch of [false, true]) {
+      expect(
+        cursorHitAt(screen, middleOf(buttons[index ?? 0]), w, open, touch),
+      ).toEqual({ button: { type: "trade" } });
+    }
+  });
+
+  it("offers Trade after the Quest it has to give, never ahead of it", () => {
+    const w = vendorWorld();
+    const types = dialogueSheet(w, TRADER)?.buttons.map((b) => b.button.type);
+    expect(types?.indexOf("trade")).toBeGreaterThan(0);
+  });
+
+  it("is offered by no one else", () => {
+    const w = vendorWorld();
+    for (const npc of [SMITH, ELDER, WANDERER]) {
+      const types = dialogueSheet(w, npc)?.buttons.map((b) => b.button.type);
+      expect(types).not.toContain("trade");
+    }
+  });
+});

@@ -1078,6 +1078,14 @@ describe('the shipped "Lost Wanderer" Quest', () => {
     expect(names.sort()).toEqual(["Elder", "Smith", "Trader"]);
   });
 
+  it("flags the Trader, and only the Trader, as the Vendor", () => {
+    const vendors = shippedWorld()
+      .areas.town.npcs.filter((npc) => npc.vendor)
+      .map(({ name }) => name);
+
+    expect(vendors).toEqual(["Trader"]);
+  });
+
   it("stands the Wanderer in the Old Mill, on open ground among its Monsters", () => {
     const world = inOldMill();
     const [wanderer] = npcsIn(world);

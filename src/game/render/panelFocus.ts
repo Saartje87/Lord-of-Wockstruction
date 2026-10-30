@@ -7,6 +7,7 @@ import { heroFocusSpots } from "./heroPanel";
 import { inventoryFocusSpots } from "./inventoryPanel";
 import { questFocusSpots } from "./questPanel";
 import { skillTreeFocusSpots } from "./skillTreePanel";
+import { vendorFocusSpots } from "./vendorPanel";
 import { waypointListFocusSpots } from "./waypointList";
 
 /**
@@ -32,6 +33,8 @@ export function panelFocusSpots(
       return questFocusSpots(world, screen);
     case "dialogue":
       return dialogueFocusSpots(world, screen, dialogueNpc, dialoguePage);
+    case "vendor":
+      return vendorFocusSpots(world, screen);
     case "waypoints":
       return waypointListFocusSpots(world, screen);
     default:

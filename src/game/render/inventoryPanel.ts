@@ -250,12 +250,11 @@ function slotRects(
   ) as Record<EquipmentSlot, Rect>;
 }
 
+/** A grid of cells: where it is drawn, and one cell's side (CSS px). */
+export type GridLayout = Pick<InventoryPanelLayout, "grid" | "cell">;
+
 /** Where an Item of `type` with its top-left at `at` is drawn on the grid. */
-export function itemRect(
-  layout: InventoryPanelLayout,
-  at: Cell,
-  type: ItemType,
-): Rect {
+export function itemRect(layout: GridLayout, at: Cell, type: ItemType): Rect {
   const { grid, cell } = layout;
   const { columns, rows } = itemOf(type).size;
   return {
@@ -271,7 +270,7 @@ export function itemRect(
  * of the grid's cells, so it covers the cells it would land on.
  */
 export function heldItemRect(
-  layout: InventoryPanelLayout,
+  layout: Pick<GridLayout, "cell">,
   pointer: Vec,
   type: ItemType,
 ): Rect {
@@ -348,7 +347,7 @@ export function inventoryHitAt(
  * off the grid.
  */
 export function landingCell(
-  layout: InventoryPanelLayout,
+  layout: GridLayout,
   point: Vec,
   type: ItemType,
 ): Cell {
@@ -411,9 +410,10 @@ export function putDownOrder(
  */
 export function inventoryRightClickOrder(
   world: World,
-  hit: InventoryHit | DropHit,
+  hit: InventoryHit | DropHit | { vendor: unknown },
 ): Order | null {
-  if ("drop" in hit || !hit.inventory || cursorItemOf(world)) return null;
+  if ("drop" in hit || "vendor" in hit || !hit.inventory || cursorItemOf(world))
+    return null;
   const spot = hit.inventory;
   const item = itemUnder(world, spot);
   if (!item || isBeltCell(spot)) return null;

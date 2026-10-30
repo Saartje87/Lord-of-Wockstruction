@@ -64,6 +64,7 @@ const NO_PANEL_OPEN: OpenPanels = {
   questOpen: false,
   waypointsOpen: false,
   dialogueOpen: false,
+  vendorOpen: false,
 };
 
 /**

@@ -115,22 +115,37 @@ export type PlacedType = StoredItem & { cell: Cell };
  */
 export type ItemSpot = Cell | EquipmentSlot | BeltCell;
 
+/**
+ * Where a Held Item came from besides the Hero's own spots: the Vendor's
+ * grid, `good` its top-left cell there.
+ */
+export type GoodSpot = { good: Cell };
+
+/** Where a Held Item came from: an `ItemSpot` or a Vendor's good. */
+export type CursorSpot = ItemSpot | GoodSpot;
+
 /** Whether a spot is an Equipment slot rather than a cell. */
-export function isSlot(spot: ItemSpot): spot is EquipmentSlot {
+export function isSlot(spot: CursorSpot): spot is EquipmentSlot {
   return typeof spot === "string";
 }
 
+/** Whether a spot is a good on the Vendor's grid. */
+export function isGoodSpot(spot: CursorSpot): spot is GoodSpot {
+  return typeof spot === "object" && "good" in spot;
+}
+
 /** Whether a spot is an Inventory cell, not a slot or a Belt Column cell. */
-export function isCell(spot: ItemSpot): spot is Cell {
-  return !isSlot(spot) && !isBeltCell(spot);
+export function isCell(spot: CursorSpot): spot is Cell {
+  return !isSlot(spot) && !isGoodSpot(spot) && !isBeltCell(spot);
 }
 
 /**
  * The Item held on the cursor, with `from` the top-left cell or the slot it
  * goes back to if it's never put down, kept free for it all the while it's
- * held.
+ * held. A good lifted from the Vendor is not Belongings: it goes back to the
+ * Vendor, and is bought only by being put down.
  */
-export type CursorItem = { item: Item; from: ItemSpot };
+export type CursorItem = { item: Item; from: CursorSpot };
 
 /** The Hero's Equipment slots, in the order they're listed. */
 export const EQUIPMENT_SLOTS = [
@@ -389,8 +404,10 @@ export function cursorItemOf(world: World): CursorItem | null {
 }
 
 /** A copy of a spot, so a query's answer can't change the World. */
-function copySpot(spot: ItemSpot): ItemSpot {
-  return isSlot(spot) ? spot : ({ ...spot } as ItemSpot);
+function copySpot(spot: CursorSpot): CursorSpot {
+  if (isSlot(spot)) return spot;
+  if (isGoodSpot(spot)) return { good: { ...spot.good } };
+  return { ...spot } as ItemSpot;
 }
 
 /** What's in each Equipment slot. */
@@ -540,9 +557,10 @@ function planPlacing(world: World, to: ItemSpot): Placing | "noRoom" | null {
  */
 function homeFor(
   type: ItemType,
-  from: ItemSpot,
+  from: CursorSpot,
   placed: readonly PlacedType[],
 ): ItemSpot | null {
+  if (isGoodSpot(from)) return firstFreeCell(placed, type);
   if (isBeltCell(from)) {
     // The cursor Item's row is kept for it, so another Potion fits there.
     return isPotion(type) ? from : firstFreeCell(placed, type);
@@ -701,6 +719,14 @@ export function returnCursorItem(world: World, events: SimEvent[]) {
   const { hero } = world;
   if (!hero.cursor) return;
   const { item, from } = hero.cursor;
+  if (isGoodSpot(from)) {
+    // A Potion stayed in the Vendor's grid when it was lifted.
+    if (!isPotion(item.type)) {
+      world.vendor.goods.push({ item, cell: { ...from.good } });
+    }
+    hero.cursor = null;
+    return;
+  }
   if (isBeltCell(from)) {
     hero.belt[from.beltColumn].splice(from.row, 0, item);
     events.push({ type: "BeltChanged" });

@@ -11,6 +11,7 @@ import {
   clickPanelButton,
   clickPaused,
   clickStart,
+  clickTrade,
   createMenus,
   currentPanel,
   failLoad,
@@ -2165,5 +2166,91 @@ describe("the Dialogue panel", () => {
     fitMenus(noticed, { compact: false, rotateNotice: "turn" }, 1000);
     reactMenus(noticed, [talked]);
     expect(noticed.dialogueOpen).toBe(false);
+  });
+});
+
+describe("the Vendor panel", () => {
+  const talked: SimEvent = { type: "Talked", npc: 2, name: "Trader" };
+  const opened = () => {
+    const menus = createMenus();
+    reactMenus(menus, [talked]);
+    clickTrade(menus);
+    return menus;
+  };
+
+  it("opens in place of the Dialogue panel, with the same NPC", () => {
+    const menus = opened();
+
+    expect(menus.vendorOpen).toBe(true);
+    expect(menus.dialogueOpen).toBe(false);
+    expect(menus.dialogueNpc).toBe(2);
+    expect(currentPanel(menus)).toBe("vendor");
+    expect(anyPanelOpen(menus)).toBe(true);
+  });
+
+  it("shuts with Esc before Esc pauses, with its ×, B and as the Hero dies", () => {
+    let menus = opened();
+    expect(pressKey(menus, "Escape", 1000, alive)).toBe("handled");
+    expect(menus.vendorOpen).toBe(false);
+    expect(menus.pause.paused).toBe(false);
+
+    menus = opened();
+    clickClose(menus, "vendor");
+    expect(menus.vendorOpen).toBe(false);
+
+    menus = opened();
+    expect(pressPad(menus, "b", 1000, alive)).toBe("handled");
+    expect(menus.vendorOpen).toBe(false);
+
+    menus = opened();
+    reactMenus(menus, [{ type: "HeroDied" }]);
+    expect(menus.vendorOpen).toBe(false);
+  });
+
+  it("shuts with the Inventory panel's key and View, opening nothing", () => {
+    let menus = opened();
+    pressKey(menus, "i", 1000, alive);
+    expect(menus.vendorOpen).toBe(false);
+    expect(menus.inventoryOpen).toBe(false);
+
+    menus = opened();
+    pressPad(menus, "view", 1000, alive);
+    expect(menus.vendorOpen).toBe(false);
+    expect(menus.inventoryOpen).toBe(false);
+  });
+
+  it("shuts as another panel opens", () => {
+    const menus = opened();
+    pressKey(menus, "t", 1000, alive);
+    expect(menus.vendorOpen).toBe(false);
+    expect(menus.skillTreeOpen).toBe(true);
+  });
+
+  it("shuts as the Hero walks away from the Vendor, and not before", () => {
+    const menus = opened();
+    const standing = { standingOnWaypoint: false };
+
+    followHero(menus, { ...standing, withinReachOf: (npc) => npc === 2 });
+    expect(menus.vendorOpen).toBe(true);
+
+    followHero(menus, { ...standing, withinReachOf: () => false });
+    expect(menus.vendorOpen).toBe(false);
+  });
+
+  it("stays open as the Hero takes damage, the World playing on", () => {
+    const menus = opened();
+    reactMenus(menus, [{ type: "HeroHit", damage: 3, warded: 0 }]);
+    expect(menus.vendorOpen).toBe(true);
+  });
+
+  it("ignores LB and RB, and does not open under the Rotate Notice", () => {
+    const menus = opened();
+    pressPad(menus, "rb", 1000, alive);
+    expect(menus.vendorOpen).toBe(true);
+
+    const noticed = createMenus();
+    fitMenus(noticed, { compact: false, rotateNotice: "turn" }, 1000);
+    clickTrade(noticed);
+    expect(noticed.vendorOpen).toBe(false);
   });
 });

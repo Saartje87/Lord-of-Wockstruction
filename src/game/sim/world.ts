@@ -130,6 +130,7 @@ import { giveSmithBonus, SMITH } from "./smith";
 import { msToSteps, perStep } from "./units";
 import { validateAreas } from "./validate";
 import { distance, type Vec } from "./vec";
+import { moveGood, newVendor, restockVendor, type Vendor } from "./vendor";
 import { holdBack, slideAround, stepInDirection } from "./walking";
 
 const EXPERIENCE_TABLE = heroTuning.experienceTable;
@@ -481,6 +482,11 @@ export type World = {
   nextMinionId: MinionId;
   /** The id the next Item gets. */
   nextItemId: ItemId;
+  /**
+   * The Vendor's goods in Wockville, restocked on each arrival in Town and
+   * never kept by the Save.
+   */
+  vendor: Vendor;
 };
 
 /** Input reaching the simulation. */
@@ -507,6 +513,13 @@ export type Order =
    * moving Items happen at once, whatever the Hero is doing.
    */
   | { type: "LiftItem"; from: ItemSpot }
+  /**
+   * Lift the Vendor's good covering cell `from` of their grid onto the
+   * cursor, if it's empty and the Hero's Gold covers its Value. Putting it
+   * down with `PlaceItem` into an Inventory cell or, for a Potion, a Belt
+   * Column buys it; `DropItem` and `ReturnCursorItem` give it back.
+   */
+  | { type: "LiftGood"; from: Cell }
   /**
    * Put the cursor Item down with its top-left at cell `to`, into slot
    * `to`, or into the Belt Column of Belt Column cell `to` at its lowest
@@ -674,6 +687,12 @@ export type SimEvent =
   | { type: "PotionPickedUp"; item: Item; column: number }
   /** The Hero got to a Ground Item with no room for it in the Inventory. */
   | { type: "NoRoom" }
+  /** The Vendor's goods were stocked afresh, as the Hero arrived in Town. */
+  | { type: "VendorRestocked" }
+  /** The Hero couldn't lift `item` from the Vendor, whose Value is `value`. */
+  | { type: "CantAfford"; item: Item; value: number }
+  /** The Hero bought `item` from the Vendor, paying `value` Gold. */
+  | { type: "ItemBought"; item: Item; value: number }
   /** An Item moved in the Inventory or Equipment, onto the cursor or off it. */
   | { type: "InventoryChanged" }
   /** `item` went into Equipment slot `slot`. */
@@ -909,8 +928,10 @@ export function createWorld(options: {
     nextMonsterId: 1,
     nextMinionId: 1,
     nextItemId: 1,
+    vendor: newVendor(options.seed),
   };
   giveBelongings(world, belongings);
+  restockVendor(world, []);
   world.standing = standingIn(world, town);
   world.hero.life = maxLife(world);
   world.hero.mana = maxMana(world);
@@ -1275,6 +1296,7 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   if (area.name === TOWN) {
     hero.life = maxLife(world);
     hero.combat = 0;
+    restockVendor(world, events);
   }
   world.death = null;
   const { monsters, projectiles, corpses, groundItems, explored } = world;
@@ -2095,7 +2117,7 @@ function give(world: World, order: Order, events: SimEvent[]) {
     drinkItem(world, order.item, maxima(world), events);
     return;
   }
-  if (moveItem(world, order, events)) {
+  if (moveGood(world, order, events) || moveItem(world, order, events)) {
     // Taking off an Item's bonuses can leave Life or Mana over the new max.
     hero.life = Math.min(hero.life, maxLife(world));
     hero.mana = Math.min(hero.mana, maxMana(world));

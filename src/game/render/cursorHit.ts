@@ -35,6 +35,7 @@ import { skillBarHitAt, skillBarLayout } from "./skillBar";
 import { skillTreeHitAt, skillTreePanelLayout } from "./skillTreePanel";
 import { touchControlsLayout } from "./touchControls";
 import { touchHitRect } from "./touchHitArea";
+import { vendorHitAt, vendorPanelLayout } from "./vendorPanel";
 import {
   waypointListHitAt,
   waypointListLayout,
@@ -69,6 +70,7 @@ export function cursorHitAt(
   const holding = cursorItemOf(world) !== null;
   const waypoints = shown.waypointsOpen ? waypointListSheet(world, {}) : [];
   return (
+    vendorHitAt(screen, point, shown.vendorOpen, holding) ??
     dialogueHitAt(
       screen,
       point,
@@ -153,6 +155,12 @@ function touchTargets(
       panel: over,
     });
 
+  if (shown.vendorOpen) {
+    const vendor = vendorPanelLayout(screen);
+    panels.push(vendor.panel);
+    close("vendor", vendor.closeButton, vendor.panel);
+    stops.push(vendor.goods, vendor.inventory);
+  }
   if (shown.dialogueOpen) {
     const sheet = dialogueSheet(world, shown.dialogueNpc, shown.dialoguePage);
     const dialogue = dialogueLayout(screen, sheet?.buttons.length ?? 0);

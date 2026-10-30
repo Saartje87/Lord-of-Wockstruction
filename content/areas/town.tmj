@@ -2184,7 +2184,14 @@
      "height": 0,
      "rotation": 0,
      "visible": true,
-     "point": true
+     "point": true,
+     "properties": [
+      {
+       "name": "vendor",
+       "type": "bool",
+       "value": true
+      }
+     ]
     },
     {
      "id": 7,

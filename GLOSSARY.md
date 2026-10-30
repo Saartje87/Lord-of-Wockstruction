@@ -132,6 +132,10 @@ _Avoid_: Level (that's the Hero's), tier, difficulty
 How far a Monster will chase the Hero or their Minion from where it was placed before it gives up and starts Returning.
 _Avoid_: Tether, chase range, aggro range
 
+**Body**:
+The room the Hero, a Monster or a Minion takes up while alive, its size set by its Monster type or Minion kind, a Unique Monster's bigger than its type's. Bodies on opposite sides block each other: Monsters can hem the Hero in and Minions can hold a line against them. Bodies on the same side shove each other apart instead, never staying stacked, and the Hero's Minions always give way to the Hero. Every Body fits wherever the Hero's does; a Corpse, a Ground Item or a Gold Pile has none.
+_Avoid_: Footprint, hitbox, collider, radius
+
 **Returning**:
 A Monster walking back to where it was placed after giving up on the Hero or their Minion, ignoring both on the way and healing to full on arrival; it happens past the Leash or on the Hero's Death.
 _Avoid_: Resetting, evading, retreating
@@ -162,7 +166,7 @@ _Avoid_: Aggro, engaged
 
 **Corpse**:
 What remains of a dead Monster, lying in its Area until the Hero leaves or a Skill uses it up. A Skill that needs one takes the nearest Corpse a short way from where it is cast, and with none there the cast does nothing and costs nothing.
-_Avoid_: Body, remains
+_Avoid_: Body (that's the living creature's room), dead body, remains
 
 **Experience**:
 What the Hero earns when they or their Minions kill Monsters, less for a Monster whose Monster Level is well below the Hero's Level; enough of it raises the Hero's Level.

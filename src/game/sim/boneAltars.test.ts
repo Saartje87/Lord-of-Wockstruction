@@ -324,6 +324,30 @@ describe("Bone Altars", () => {
   });
 });
 
+describe("a Bone Altar placed out of reach", () => {
+  it("fails the Area's validation, naming the Area", () => {
+    const hole = strip(14, 5, [
+      point("entry", "start", 2, 2),
+      point("entry", "from-town", 2, 2),
+      point("boneAltar", "", 5, 2),
+    ]);
+    hole.layers[0] = {
+      type: "tilelayer",
+      name: "floor",
+      width: 14,
+      height: 5,
+      data: Array.from({ length: 70 }, (_, i) => (i === 2 * 14 + 5 ? 0 : 1)),
+    } as (typeof hole.layers)[0];
+
+    expect(() =>
+      createWorld({
+        areas: { town, "soggy-bog": combatArea(hole, 3) },
+        seed: 1,
+      }),
+    ).toThrow(/soggy-bog.*Bone Altar/);
+  });
+});
+
 describe("Bone Altars and the Session", () => {
   it("stay as they were when the Hero returns, wounded or destroyed", () => {
     boneAltarTuning.life = 5;

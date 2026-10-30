@@ -61,6 +61,7 @@ const NO_PANEL_OPEN: OpenPanels = {
   heroPanelOpen: false,
   inventoryOpen: false,
   skillTreeOpen: false,
+  questOpen: false,
   waypointsOpen: false,
   dialogueOpen: false,
 };
@@ -69,7 +70,8 @@ const NO_PANEL_OPEN: OpenPanels = {
  * Where the touch controls go: the Virtual Stick zone at the bottom left,
  * over the Life orb and its Level Up button, the Virtual Stick resting low
  * in it over the orb; the attack button over the Mana orb and the five
- * Skill buttons in a row over that, ending at the orb's right; the pause
+ * Skill buttons in a row over that, ending at the orb's right, or short of
+ * the Panel buttons' column where that meets them; the pause
  * button just below the Mini Map, right-aligned with it, which it stays
  * under while the Map Overlay hides the Mini Map. While a panel is
  * open only the pause button shows, moved clear of the panels and their ×:
@@ -104,8 +106,14 @@ export function touchControlsLayout(
     h: attack,
   };
   const rowY = attackRect.y - gap - skill;
-  const rowLeft = right - SHOWN_ORDER.length * (skill + gap) + gap;
   const { buttons, townPortal } = panelButtonsLayout(screen);
+  // On a short screen the Panel buttons' column runs down far enough to meet
+  // the Skill buttons' row, which then stops short of it.
+  const column = buttons[PANELS[0]];
+  const meetsColumn =
+    screen.compact && rowY < townPortal.y + townPortal.h + gap;
+  const rowRight = meetsColumn ? Math.min(right, column.x - gap) : right;
+  const rowLeft = rowRight - SHOWN_ORDER.length * (skill + gap) + gap;
   const pauseOnly = anyPanelOpen(open);
   const nameplate = nameplateLayout(screen).panel;
   // Just below the Mini Map, even while the Map Overlay hides it.
@@ -119,7 +127,6 @@ export function touchControlsLayout(
   if (pauseOnly) {
     // The bottom row has no room after the Town Portal button on a 4:3
     // screen, so it goes up top unless the column leaves room below.
-    const column = buttons[PANELS[0]];
     pauseRect = screen.compact
       ? { ...pauseRect, x: column.x, y: townPortal.y + townPortal.h + gap }
       : {

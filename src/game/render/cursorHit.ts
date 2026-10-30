@@ -26,6 +26,11 @@ import {
 import { inventoryHitAt, inventoryPanelLayout } from "./inventoryPanel";
 import { miniMapHitAt, miniMapLayout, miniMapShown } from "./miniMap";
 import { panelButtonHitAt, panelButtonsLayout } from "./panelButtons";
+import {
+  questPanelHitAt,
+  questPanelLayout,
+  questPanelSheet,
+} from "./questPanel";
 import { skillBarHitAt, skillBarLayout } from "./skillBar";
 import { skillTreeHitAt, skillTreePanelLayout } from "./skillTreePanel";
 import { touchControlsLayout } from "./touchControls";
@@ -79,6 +84,7 @@ export function cursorHitAt(
       shown.pendingPoints,
     ) ??
     skillTreeHitAt(screen, point, world, shown.skillTreeOpen) ??
+    questPanelHitAt(screen, point, world, shown.questOpen) ??
     // Only on the panel itself here: off it, the HUD comes before a drop.
     inventoryHitAt(screen, point, inventoryOpen, false, rows) ??
     // Under the panels, which cover it in the Compact Layout.
@@ -189,6 +195,12 @@ function touchTargets(
         });
       }
     }
+  }
+  if (shown.questOpen) {
+    const quests = questPanelLayout(screen, questPanelSheet(world).length);
+    panels.push(quests.panel);
+    close("quest", quests.closeButton, quests.panel);
+    stops.push(...quests.rows);
   }
   if (shown.inventoryOpen) {
     const inventory = inventoryPanelLayout(screen, beltRows(world));

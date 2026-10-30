@@ -64,6 +64,7 @@ export function miniMapShown(
     | "heroPanelOpen"
     | "inventoryOpen"
     | "skillTreeOpen"
+    | "questOpen"
     | "waypointsOpen"
     | "dialogueOpen"
   >,

@@ -22,6 +22,7 @@ export type Menus = {
   heroPanelOpen: boolean;
   inventoryOpen: boolean;
   skillTreeOpen: boolean;
+  questOpen: boolean;
   /**
    * Whether the Waypoint list is open. A World panel: the World opens it,
    * and it shuts with Esc, B, its × or by the Hero walking off.
@@ -172,6 +173,7 @@ export function createMenus(screen: Screen = { type: "playing" }): Menus {
     heroPanelOpen: false,
     inventoryOpen: false,
     skillTreeOpen: false,
+    questOpen: false,
     waypointsOpen: false,
     dialogueOpen: false,
     dialogueNpc: 0,
@@ -437,6 +439,7 @@ export const PANEL_KEYS: Record<Panel, string> = {
   hero: "c",
   inventory: "i",
   skillTree: "t",
+  quest: "q",
 };
 
 /** The panel `letter` opens and shuts, if any. */
@@ -451,6 +454,7 @@ const OPEN_FLAGS = {
   hero: "heroPanelOpen",
   inventory: "inventoryOpen",
   skillTree: "skillTreeOpen",
+  quest: "questOpen",
 } as const satisfies Record<Panel, keyof Menus>;
 
 /**
@@ -662,10 +666,15 @@ export function clickLevelUp(
  * A panel with an × close button in its top-right corner and a Panel button
  * on the HUD.
  */
-export type Panel = "hero" | "inventory" | "skillTree";
+export type Panel = "hero" | "inventory" | "skillTree" | "quest";
 
-/** The three panels, in their Panel buttons' order from left to right. */
-export const PANELS: readonly Panel[] = ["hero", "inventory", "skillTree"];
+/** The four panels, in their Panel buttons' order from left to right. */
+export const PANELS: readonly Panel[] = [
+  "hero",
+  "inventory",
+  "skillTree",
+  "quest",
+];
 
 /**
  * A click on a panel's × button, which shuts it as its key (C, I or T)

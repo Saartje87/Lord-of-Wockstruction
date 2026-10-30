@@ -1,6 +1,11 @@
 import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { areaDisplayNames, areas, tilesets } from "./content";
+import {
+  areaDisplayNames,
+  areas,
+  createShippedWorld,
+  tilesets,
+} from "./content";
 import { encodeSave, parseSave, saveOf } from "./save";
 import type { Area, Exit, Spawn } from "./sim/area";
 import { type MonsterOfLevel, monsterExperience } from "./sim/monsters";
@@ -1069,6 +1074,46 @@ describe("the shipped Act 1", () => {
 
     expect(() => validateActs(shipped)).not.toThrow();
     expect(() => validateQuests(shipped)).not.toThrow();
+  });
+});
+
+describe("loading the shipped content into a World", () => {
+  it("checks the Act and the Quests are whole", () => {
+    expect(() => createShippedWorld({ seed: 1 })).not.toThrow();
+
+    const bossless = JSON.parse(JSON.stringify(areas.ossuary));
+    for (const layer of bossless.layers) {
+      if (layer.type !== "objectgroup") continue;
+      layer.objects = layer.objects.filter(
+        (object: { type?: string }) => object.type !== "actBoss",
+      );
+    }
+    expect(() =>
+      createShippedWorld(
+        { seed: 1 },
+        { areas: { ...areas, ossuary: bossless }, tilesets },
+      ),
+    ).toThrow(/Act 1 has 0 Act Boss spawns/);
+  });
+});
+
+describe("the shipped Act 1's Main Path", () => {
+  it("lists the Waypoints from Wockville out to the Ossuary", () => {
+    expect(waypointList(shippedWorld()).map((w) => w.area)).toEqual([
+      "town",
+      "soggy-bog",
+      "catacombs",
+      "ossuary",
+    ]);
+  });
+
+  it("names the Spa's Unique Monster as its map does", () => {
+    const spa = Object.values(shippedWorld().areas).find(
+      (area) => area.name === "spa",
+    );
+    expect(spa?.uniques.map((unique) => unique.name)).toEqual([
+      "Sir Soaks-a-Lot",
+    ]);
   });
 });
 

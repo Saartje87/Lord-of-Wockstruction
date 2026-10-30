@@ -200,10 +200,10 @@ import { tooltipRect } from "./tooltip";
 import { touchControlsLayout, touchControlsShown } from "./touchControls";
 import { shownTownPortals, townPortalCloseScale } from "./townPortalLook";
 import {
-  canTravel,
   WAYPOINT_LIST,
   waypointListLayout,
   waypointListSheet,
+  waypointPickable,
 } from "./waypointList";
 
 /** How long a hit Monster flashes white (ms), fading out. */
@@ -2258,7 +2258,7 @@ function mapView(withNames: boolean) {
             (portal.width / 2) * uiScale,
             (portal.height / 2) * uiScale,
           )
-          .stroke({ color: portal.colour, width: 1.5 * uiScale })
+          .stroke({ color: portal.colour, width: portal.ringWidth * uiScale })
           .circle(point.x, point.y, portal.dot * uiScale)
           .fill(portal.colour);
       }
@@ -2273,7 +2273,10 @@ function mapView(withNames: boolean) {
             (waypoint.width / 2) * uiScale,
             (waypoint.height / 2) * uiScale,
           )
-          .stroke({ color: waypoint.colour, width: 1.5 * uiScale })
+          .stroke({
+            color: waypoint.colour,
+            width: waypoint.ringWidth * uiScale,
+          })
           .poly([
             point.x - halfWidth,
             point.y,
@@ -2609,19 +2612,7 @@ function scaledTexts() {
  */
 function heroPanelView(activeInput: Readonly<ActiveInput>) {
   const style = HERO_PANEL_STYLE;
-  const layer = new Container();
-  const graphics = new Graphics();
-  layer.addChild(graphics);
-  layer.visible = false;
-  const texts = scaledTexts();
-  const text = (fill: number, size = style.textSize) => {
-    const t = new Text({
-      text: "",
-      style: { fill, fontSize: size, fontFamily: SERIF },
-    });
-    layer.addChild(t);
-    return texts.add(t, size);
-  };
+  const { layer, graphics, texts, text } = panelScaffold();
 
   const title = text(style.title, style.titleSize);
   title.text = "Hero";
@@ -2675,10 +2666,7 @@ function heroPanelView(activeInput: Readonly<ActiveInput>) {
       const beforeButtons = layout.accept.x - style.plusGap * scale;
 
       graphics.clear();
-      graphics
-        .rect(panel.x, panel.y, panel.w, panel.h)
-        .fill({ color: style.fill, alpha: style.alpha })
-        .stroke({ color: style.edge, width: 2 });
+      panelFrame(graphics, panel);
       closeButton(graphics, layout.closeButton, scale);
       title.position.set(panel.x + panel.w / 2, panel.y + padding);
       const { closeHint } = layout;
@@ -2754,6 +2742,37 @@ function heroPanelView(activeInput: Readonly<ActiveInput>) {
 }
 
 /**
+ * What a Hero-panel-look panel view starts with: a hidden layer holding a
+ * Graphics, and `text`, which adds Text to the layer and keeps it at the
+ * UI Scale (`texts.size(scale)` after drawing).
+ */
+function panelScaffold() {
+  const layer = new Container();
+  const graphics = new Graphics();
+  layer.addChild(graphics);
+  layer.visible = false;
+  const texts = scaledTexts();
+  const text = (fill: number, size: number = HERO_PANEL_STYLE.textSize) => {
+    const t = new Text({
+      text: "",
+      style: { fill, fontSize: size, fontFamily: SERIF },
+    });
+    layer.addChild(t);
+    return texts.add(t, size);
+  };
+  return { layer, graphics, texts, text };
+}
+
+/** Fills and edges a Hero-panel-look panel. */
+function panelFrame(graphics: Graphics, panel: Rect) {
+  const style = HERO_PANEL_STYLE;
+  graphics
+    .rect(panel.x, panel.y, panel.w, panel.h)
+    .fill({ color: style.fill, alpha: style.alpha })
+    .stroke({ color: style.edge, width: 2 });
+}
+
+/**
  * The Waypoint list, in the Hero panel's look: a row for each of Act 1's
  * Waypoints, the untouched greyed out and the one the Hero stands on marked,
  * under a title and over a hint how to close it.
@@ -2763,19 +2782,7 @@ function waypointListView(
   displayNames: Readonly<Record<string, string>>,
 ) {
   const style = HERO_PANEL_STYLE;
-  const layer = new Container();
-  const graphics = new Graphics();
-  layer.addChild(graphics);
-  layer.visible = false;
-  const texts = scaledTexts();
-  const text = (fill: number, size = style.textSize) => {
-    const t = new Text({
-      text: "",
-      style: { fill, fontSize: size, fontFamily: SERIF },
-    });
-    layer.addChild(t);
-    return texts.add(t, size);
-  };
+  const { layer, graphics, texts, text } = panelScaffold();
   const title = text(style.title, style.titleSize);
   title.text = "Waypoints";
   title.anchor.set(0.5, 0);
@@ -2798,10 +2805,7 @@ function waypointListView(
       const { padding } = atUiScale(WAYPOINT_LIST, scale);
 
       graphics.clear();
-      graphics
-        .rect(panel.x, panel.y, panel.w, panel.h)
-        .fill({ color: style.fill, alpha: style.alpha })
-        .stroke({ color: style.edge, width: 2 });
+      panelFrame(graphics, panel);
       closeButton(graphics, layout.closeButton, scale);
       title.position.set(panel.x + panel.w / 2, panel.y + padding);
       hint.position.set(panel.x + panel.w / 2, panel.y + panel.h - padding);
@@ -2811,7 +2815,7 @@ function waypointListView(
         notes[index] ??= text(style.hint, style.hintSize);
         const row = layout.rows[index];
         const y = row.y + row.h / 2;
-        if (canTravel(waypoint)) button(graphics, row);
+        if (waypointPickable(waypoint)) button(graphics, row);
         else graphics.rect(row.x, row.y, row.w, row.h).stroke(style.edge);
         const name = names[index];
         name.text = waypoint.name;
@@ -2837,19 +2841,7 @@ function waypointListView(
  */
 function dialoguePanelView(activeInput: Readonly<ActiveInput>) {
   const style = HERO_PANEL_STYLE;
-  const layer = new Container();
-  const graphics = new Graphics();
-  layer.addChild(graphics);
-  layer.visible = false;
-  const texts = scaledTexts();
-  const text = (fill: number, size = style.textSize) => {
-    const t = new Text({
-      text: "",
-      style: { fill, fontSize: size, fontFamily: SERIF },
-    });
-    layer.addChild(t);
-    return texts.add(t, size);
-  };
+  const { layer, graphics, texts, text } = panelScaffold();
   const title = text(style.title, style.titleSize);
   title.anchor.set(0.5, 0);
   const hint = text(style.hint, style.hintSize);
@@ -2878,10 +2870,7 @@ function dialoguePanelView(activeInput: Readonly<ActiveInput>) {
       const { padding } = atUiScale(DIALOGUE, scale);
 
       graphics.clear();
-      graphics
-        .rect(panel.x, panel.y, panel.w, panel.h)
-        .fill({ color: style.fill, alpha: style.alpha })
-        .stroke({ color: style.edge, width: 2 });
+      panelFrame(graphics, panel);
       closeButton(graphics, layout.closeButton, scale);
       title.text = sheet.name;
       title.position.set(panel.x + panel.w / 2, panel.y + padding);
@@ -2914,19 +2903,7 @@ function dialoguePanelView(activeInput: Readonly<ActiveInput>) {
  */
 function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
   const style = HERO_PANEL_STYLE;
-  const layer = new Container();
-  const graphics = new Graphics();
-  layer.addChild(graphics);
-  layer.visible = false;
-  const texts = scaledTexts();
-  const text = (fill: number, size = style.textSize) => {
-    const t = new Text({
-      text: "",
-      style: { fill, fontSize: size, fontFamily: SERIF },
-    });
-    layer.addChild(t);
-    return texts.add(t, size);
-  };
+  const { layer, graphics, texts, text } = panelScaffold();
 
   const title = text(style.title, style.titleSize);
   title.text = "Skill Tree";
@@ -2990,10 +2967,7 @@ function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
       const { padding, rowHeight } = atUiScale(SKILL_TREE_PANEL, scale);
 
       graphics.clear();
-      graphics
-        .rect(panel.x, panel.y, panel.w, panel.h)
-        .fill({ color: style.fill, alpha: style.alpha })
-        .stroke({ color: style.edge, width: 2 });
+      panelFrame(graphics, panel);
       closeButton(graphics, layout.closeButton, scale);
       title.position.set(panel.x + panel.w / 2, panel.y + padding);
       hint.position.set(panel.x + panel.w / 2, panel.y + panel.h - padding);
@@ -3099,19 +3073,7 @@ function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
  */
 function questPanelView(activeInput: Readonly<ActiveInput>) {
   const style = HERO_PANEL_STYLE;
-  const layer = new Container();
-  const graphics = new Graphics();
-  layer.addChild(graphics);
-  layer.visible = false;
-  const texts = scaledTexts();
-  const text = (fill: number, size = style.textSize) => {
-    const t = new Text({
-      text: "",
-      style: { fill, fontSize: size, fontFamily: SERIF },
-    });
-    layer.addChild(t);
-    return texts.add(t, size);
-  };
+  const { layer, graphics, texts, text } = panelScaffold();
 
   const title = text(style.title, style.titleSize);
   title.text = "Quests";
@@ -3131,13 +3093,10 @@ function questPanelView(activeInput: Readonly<ActiveInput>) {
       const layout = questPanelLayout(screen, sheet.length);
       const { panel } = layout;
       const scale = screen.uiScale;
-      const { padding } = atUiScale(QUEST_PANEL, scale);
+      const { padding, nextOffset, ruleInset } = atUiScale(QUEST_PANEL, scale);
 
       graphics.clear();
-      graphics
-        .rect(panel.x, panel.y, panel.w, panel.h)
-        .fill({ color: style.fill, alpha: style.alpha })
-        .stroke({ color: style.edge, width: 2 });
+      panelFrame(graphics, panel);
       closeButton(graphics, layout.closeButton, scale);
       title.position.set(panel.x + panel.w / 2, panel.y + padding);
       hint.position.set(panel.x + panel.w / 2, panel.y + panel.h - padding);
@@ -3169,9 +3128,9 @@ function questPanelView(activeInput: Readonly<ActiveInput>) {
         shown.next.visible = quest.nextStep !== null;
         shown.next.text = quest.nextStep ?? "";
         shown.next.style.wordWrapWidth = row.w;
-        shown.next.position.set(row.x, row.y + 24 * scale);
+        shown.next.position.set(row.x, row.y + nextOffset);
         graphics
-          .rect(row.x, row.y + row.h - 4 * scale, row.w, 1)
+          .rect(row.x, row.y + row.h - ruleInset, row.w, 1)
           .fill(style.edge);
       });
       // Rows made this draw too.
@@ -3310,10 +3269,7 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
       hint.text = panelCloseHint("inventory", activeInput.way);
 
       graphics.clear();
-      graphics
-        .rect(panel.x, panel.y, panel.w, panel.h)
-        .fill({ color: style.fill, alpha: style.alpha })
-        .stroke({ color: style.edge, width: 2 });
+      panelFrame(graphics, panel);
       closeButton(graphics, layout.closeButton, scale);
       title.position.set(panel.x + panel.w / 2, panel.y + padding);
       hint.position.set(panel.x + panel.w / 2, panel.y + panel.h - padding);

@@ -2,7 +2,7 @@ import { itemOf } from "../tuning/items";
 import { QUEST_IDS, questTuning } from "../tuning/quests";
 import { smithTuning } from "../tuning/smith";
 import { EQUIPMENT_SLOTS, type Item, type ItemId } from "./inventory";
-import type { QuestLog } from "./quests";
+import type { QuestStates } from "./quests";
 import { randomInt } from "./random";
 import type { SimEvent, World } from "./world";
 
@@ -10,7 +10,7 @@ import type { SimEvent, World } from "./world";
 export const SMITH = "Smith";
 
 /** Whether the Quest that unlocks the Smith's service is Done. */
-export function smithQuestDone(quests: QuestLog): boolean {
+export function smithQuestDone(quests: QuestStates): boolean {
   return QUEST_IDS.some(
     (id) =>
       questTuning[id].reward.type === "smithService" &&

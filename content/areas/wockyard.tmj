@@ -14,6 +14,11 @@
  "nextobjectid": 17,
  "properties": [
   {
+   "name": "mainPath",
+   "type": "int",
+   "value": 3
+  },
+  {
    "name": "act",
    "type": "int",
    "value": 1

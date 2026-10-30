@@ -19,6 +19,12 @@ export type Area = {
    */
   act: number | null;
   /**
+   * Where the Area lies on its Act's Main Path, Town 0, the next 1 and so on.
+   * Null for an Area off the Main Path, or one the map doesn't place. From the
+   * map's `mainPath` property.
+   */
+  mainPath: number | null;
+  /**
    * Whether the Area lies under the open sky, not in a cave or crypt: the
    * 3D World lights it by day. From the map's `outdoors` property.
    */
@@ -309,6 +315,7 @@ export function loadArea(
     name,
     areaLevel: readAreaLevel(name, tmj),
     act: readAct(name, tmj),
+    mainPath: readMainPath(name, tmj),
     outdoors:
       tmj.properties?.find((p) => p.name === "outdoors")?.value === true,
     width: tmj.width,
@@ -377,6 +384,20 @@ function readAct(name: string, tmj: Tmj): number | null {
     throw new Error(`Area "${name}" has a bad Act: ${act}`);
   }
   return act;
+}
+
+/** The map's `mainPath` property: a whole number from 0, or null when it has none. */
+function readMainPath(name: string, tmj: Tmj): number | null {
+  const position = tmj.properties?.find((p) => p.name === "mainPath")?.value;
+  if (position === undefined) return null;
+  if (
+    typeof position !== "number" ||
+    !Number.isInteger(position) ||
+    position < 0
+  ) {
+    throw new Error(`Area "${name}" has a bad Main Path position: ${position}`);
+  }
+  return position;
 }
 
 /** An `exit` object's zone and its `area` and `entry` properties. */

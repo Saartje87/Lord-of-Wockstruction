@@ -17,64 +17,64 @@ export type QuestProgress = {
 };
 
 /** Every Quest's progress, kept by the Save. */
-export type QuestLog = Record<QuestId, QuestProgress>;
+export type QuestStates = Record<QuestId, QuestProgress>;
 
 /** Something the Hero did that a Quest may be asking for. */
-export type QuestTask =
+export type QuestDeed =
   | { type: "talked"; npc: string }
   | { type: "boneAltarDestroyed"; area: string }
   | { type: "uniqueKilled"; area: string }
   | { type: "actBossKilled"; act: number };
 
-/** A log with every Quest Not given. */
-export function freshQuests(): QuestLog {
+/** A states with every Quest Not given. */
+export function freshQuests(): QuestStates {
   return Object.fromEntries(
     QUEST_IDS.map((id) => [id, { state: "notGiven", count: 0 }]),
-  ) as QuestLog;
+  ) as QuestStates;
 }
 
-/** A copy of `log` sharing nothing with it. */
-export function copyQuests(log: QuestLog): QuestLog {
+/** A copy of `states` sharing nothing with it. */
+export function copyQuests(states: QuestStates): QuestStates {
   return Object.fromEntries(
-    QUEST_IDS.map((id) => [id, { ...log[id] }]),
-  ) as QuestLog;
+    QUEST_IDS.map((id) => [id, { ...states[id] }]),
+  ) as QuestStates;
 }
 
 /** How many parts `trigger` asks for. */
-export function partsOf(trigger: QuestTrigger): number {
+export function questPartsOf(trigger: QuestTrigger): number {
   return trigger.type === "boneAltars" ? trigger.count : 1;
 }
 
-/** Whether `task` is a part of what `trigger` asks for. */
-function counts(trigger: QuestTrigger, task: QuestTask): boolean {
+/** Whether `deed` is a part of what `trigger` asks for. */
+function deedCounts(trigger: QuestTrigger, deed: QuestDeed): boolean {
   switch (trigger.type) {
     case "talk":
-      return task.type === "talked" && task.npc === trigger.npc;
+      return deed.type === "talked" && deed.npc === trigger.npc;
     case "boneAltars":
-      return task.type === "boneAltarDestroyed" && task.area === trigger.area;
+      return deed.type === "boneAltarDestroyed" && deed.area === trigger.area;
     case "uniqueKilled":
-      return task.type === "uniqueKilled" && task.area === trigger.area;
+      return deed.type === "uniqueKilled" && deed.area === trigger.area;
     case "actBossKilled":
-      return task.type === "actBossKilled" && task.act === trigger.act;
+      return deed.type === "actBossKilled" && deed.act === trigger.act;
   }
 }
 
 /**
- * What `task` did to the Quest `id` in `log`: counted towards it, or made it
+ * What `deed` did to the Quest `id` in `states`: counted towards it, or made it
  * Ready to hand in from Not given or Given; nothing for a Quest already
  * Ready or Done, or one that doesn't ask for it.
  */
 export function advanceQuest(
-  log: QuestLog,
+  states: QuestStates,
   id: QuestId,
-  task: QuestTask,
+  deed: QuestDeed,
 ): "counted" | "ready" | null {
-  const quest = log[id];
+  const quest = states[id];
   const { trigger } = questTuning[id];
   if (quest.state === "ready" || quest.state === "done") return null;
-  if (!counts(trigger, task)) return null;
-  quest.count = Math.min(quest.count + 1, partsOf(trigger));
-  if (quest.count < partsOf(trigger)) return "counted";
+  if (!deedCounts(trigger, deed)) return null;
+  quest.count = Math.min(quest.count + 1, questPartsOf(trigger));
+  if (quest.count < questPartsOf(trigger)) return "counted";
   quest.state = "ready";
   return "ready";
 }
@@ -85,9 +85,9 @@ export function questsOf(npc: string): QuestId[] {
 }
 
 /** Whether the NPC called `npc` has a Quest to give or to take back. */
-export function hasQuestToDealIn(log: QuestLog, npc: string): boolean {
+export function hasQuestBusiness(states: QuestStates, npc: string): boolean {
   return questsOf(npc).some(
-    (id) => log[id].state === "notGiven" || log[id].state === "ready",
+    (id) => states[id].state === "notGiven" || states[id].state === "ready",
   );
 }
 
@@ -95,17 +95,44 @@ export function hasQuestToDealIn(log: QuestLog, npc: string): boolean {
  * The points the Done Quests gave: the Attribute Points and Skill Points
  * that no Level granted.
  */
-export function questPointsOf(log: QuestLog): {
+export function questPointsOf(states: QuestStates): {
   attributePoints: number;
   skillPoints: number;
 } {
   let attributePoints = 0;
   let skillPoints = 0;
   for (const id of QUEST_IDS) {
-    if (log[id].state !== "done") continue;
+    if (states[id].state !== "done") continue;
     const { reward } = questTuning[id];
     if (reward.type === "attributePoints") attributePoints += reward.amount;
     if (reward.type === "skillPoints") skillPoints += reward.amount;
   }
   return { attributePoints, skillPoints };
+}
+
+/**
+ * Whether a Done Quest has put away the Bone Altars of the Area called
+ * `area` for good.
+ */
+export function boneAltarsPutAway(states: QuestStates, area: string): boolean {
+  return QUEST_IDS.some((id) => {
+    const { trigger } = questTuning[id];
+    return (
+      trigger.type === "boneAltars" &&
+      trigger.area === area &&
+      states[id].state === "done"
+    );
+  });
+}
+
+/** Whether a Quest that asks for killing the Act Boss of Act `act` isn't Done. */
+export function actBossQuestOpen(states: QuestStates, act: number): boolean {
+  return QUEST_IDS.some((id) => {
+    const { trigger } = questTuning[id];
+    return (
+      trigger.type === "actBossKilled" &&
+      trigger.act === act &&
+      states[id].state !== "done"
+    );
+  });
 }

@@ -2239,6 +2239,11 @@
  ],
  "properties": [
   {
+   "name": "mainPath",
+   "type": "int",
+   "value": 0
+  },
+  {
    "name": "act",
    "type": "int",
    "value": 1

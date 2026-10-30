@@ -37,7 +37,12 @@ import {
   TOWN,
 } from "./area";
 import { type BeltColumns, emptyBelt, putInBelt } from "./belt";
-import { type BoneAltar, bodyRadius, isBoneAltar } from "./boneAltars";
+import {
+  altarRadiusOf,
+  type BoneAltar,
+  isBoneAltar,
+  targetsOf,
+} from "./boneAltars";
 import {
   type Belongings,
   type Cell,
@@ -99,14 +104,16 @@ import {
   stepProjectiles,
 } from "./projectiles";
 import {
+  actBossQuestOpen,
   advanceQuest,
+  boneAltarsPutAway,
   copyQuests,
   freshQuests,
-  hasQuestToDealIn,
+  hasQuestBusiness,
+  type QuestDeed,
   type QuestId,
-  type QuestLog,
   type QuestProgress,
-  type QuestTask,
+  type QuestStates,
   questsOf,
 } from "./quests";
 import { createRng, type Rng, random, randomInt } from "./random";
@@ -259,6 +266,7 @@ export type Swing = {
 export type MonsterId = number;
 
 export type Monster = {
+  kind: "monster";
   /** Unique within the World and never reused. */
   id: MonsterId;
   type: MonsterType;
@@ -621,7 +629,7 @@ export type SimEvent =
   | { type: "QuestGiven"; quest: QuestId }
   /** Quest `quest` now has `count` of its parts done, not all yet. */
   | { type: "QuestCounted"; quest: QuestId; count: number }
-  /** Quest `quest`'s task is done, and it can be handed in. */
+  /** Quest `quest` has all it asks, so it can be handed in. */
   | { type: "QuestReady"; quest: QuestId }
   /** The Hero handed in Quest `quest`, which paid its reward. */
   | { type: "QuestDone"; quest: QuestId }
@@ -753,7 +761,7 @@ export type Progress = {
   /** The Areas whose Waypoints the Hero has touched, in the order they did. */
   touchedWaypoints: string[];
   /** How far each Quest has got. */
-  quests: QuestLog;
+  quests: QuestStates;
   /**
    * The Smith's one-time service: locked until "Spa Day" is Done, then
    * unlocked until the Hero uses it on an Item, and used after.
@@ -1360,8 +1368,9 @@ export function waypointUnderHero(world: World): string | null {
 }
 
 /**
- * The Waypoints of the active Area's Act in Main Path order (by Area Level,
- * Town first), each with whether the Hero has touched it.
+ * The Waypoints of the active Area's Act in Main Path order (by the maps'
+ * `mainPath` positions, Town first; any without one last, by Area Level),
+ * each with whether the Hero has touched it.
  */
 export function waypointList(
   world: World,
@@ -1369,7 +1378,12 @@ export function waypointList(
   const { act } = world.areas[world.areaName];
   return Object.values(world.areas)
     .filter((area) => area.waypoint && area.act === act)
-    .sort((a, b) => (a.areaLevel ?? 0) - (b.areaLevel ?? 0))
+    .sort(
+      (a, b) =>
+        (a.mainPath ?? Number.POSITIVE_INFINITY) -
+          (b.mainPath ?? Number.POSITIVE_INFINITY) ||
+        (a.areaLevel ?? 0) - (b.areaLevel ?? 0),
+    )
     .map((area) => ({
       area: area.name,
       touched: world.hero.progress.touchedWaypoints.includes(area.name),
@@ -1527,6 +1541,7 @@ function placeMonster(
     unique,
   };
   const monster: Monster = {
+    kind: "monster",
     id: world.nextMonsterId++,
     type,
     monsterLevel: typeAtLevel.monsterLevel,
@@ -1563,30 +1578,16 @@ function raiseSteps(): number {
 }
 
 /**
- * Whether a Done Quest has put away the Bone Altars of the Area called
- * `name` for good.
- */
-function altarsPutAway(world: World, name: string): boolean {
-  return (Object.keys(questTuning) as QuestId[]).some((id) => {
-    const { trigger } = questTuning[id];
-    return (
-      trigger.type === "boneAltars" &&
-      trigger.area === name &&
-      world.hero.progress.quests[id].state === "done"
-    );
-  });
-}
-
-/**
  * Stands the Area's Bone Altars where the map puts them, each blocking its
  * tile, unless a Done Quest has put them away.
  */
 function placeBoneAltars(world: World, area: Area) {
-  if (altarsPutAway(world, area.name)) return;
+  if (boneAltarsPutAway(world.hero.progress.quests, area.name)) return;
   for (const spot of area.boneAltars) {
     const pos = { x: Math.floor(spot.x) + 0.5, y: Math.floor(spot.y) + 0.5 };
     area.walkable[tileIndex(area, pos)] = false;
     world.boneAltars.push({
+      kind: "boneAltar",
       id: world.nextMonsterId++,
       pos,
       life: boneAltarTuning.life,
@@ -1606,35 +1607,71 @@ function tileIndex(area: Area, point: Vec): number {
  * living than its limit, raise a zombie or skeleton beside itself.
  */
 function stepBoneAltars(world: World, events: SimEvent[]) {
-  const area = world.areas[world.areaName];
+  const { raises } = boneAltarTuning;
   for (const altar of world.boneAltars) {
-    altar.raised = altar.raised.filter((id) => monsterById(world, id));
-    if (altar.cooldown > 0) altar.cooldown -= 1;
-    if (altar.cooldown > 0) continue;
-    if (altar.raised.length >= boneAltarTuning.raisedLimit) continue;
-    const spot = besideAltar(world, area, altar);
-    // No room beside it: try again next step.
-    if (!spot) continue;
-    const { raises } = boneAltarTuning;
-    const type = raises[randomInt(world.rng, [0, raises.length - 1])];
-    const monster = placeMonster(world, area, type, spot);
-    altar.raised.push(monster.id);
-    altar.cooldown = raiseSteps();
-    events.push({
-      type: "BoneAltarRaised",
-      altar: altar.id,
-      monster: monster.id,
-      pos: { ...spot },
+    const made = raiseWhenDue(world, altar, true, {
+      from: altar.pos,
+      distance: boneAltarTuning.raiseDistance,
+      limit: boneAltarTuning.raisedLimit,
+      size: 1,
+      type: () => raises[randomInt(world.rng, [0, raises.length - 1])],
+      cooldown: raiseSteps(),
     });
+    for (const { monster, spot } of made) {
+      events.push({
+        type: "BoneAltarRaised",
+        altar: altar.id,
+        monster: monster.id,
+        pos: { ...spot },
+      });
+    }
   }
 }
 
-/** The Quests that ask for killing the Act Boss of Act `act`. */
-function actQuestsOf(act: number): QuestId[] {
-  return (Object.keys(questTuning) as QuestId[]).filter((id) => {
-    const { trigger } = questTuning[id];
-    return trigger.type === "actBossKilled" && trigger.act === act;
-  });
+/** How one Bone Altar or Act Boss raises Monsters. */
+type Raising = {
+  /** What it raises round (the middle of its body). */
+  from: Vec;
+  /** How far from `from` a raised Monster stands (tiles). */
+  distance: number;
+  /** How many raised Monsters can be alive at once. */
+  limit: number;
+  /** How many Monsters one raising makes, room permitting. */
+  size: number;
+  /** The type of the next Monster raised. */
+  type: () => MonsterType;
+  /** Steps until the next raising once this one is made. */
+  cooldown: number;
+};
+
+/**
+ * Prunes `raiser`'s dead, and when `active` counts its cooldown down and,
+ * once due and with room under the limit, raises up to `raising.size`
+ * Monsters round it, restarting the cooldown. With no room to stand them it
+ * tries again next step.
+ */
+function raiseWhenDue(
+  world: World,
+  raiser: { raised: MonsterId[]; cooldown: number },
+  active: boolean,
+  raising: Raising,
+): { monster: Monster; spot: Vec }[] {
+  raiser.raised = raiser.raised.filter((id) => monsterById(world, id));
+  if (!active) return [];
+  if (raiser.cooldown > 0) raiser.cooldown -= 1;
+  if (raiser.cooldown > 0) return [];
+  const count = Math.min(raising.size, raising.limit - raiser.raised.length);
+  if (count <= 0) return [];
+  const area = world.areas[world.areaName];
+  const spots = spotsAround(world, area, raising.from, raising.distance, count);
+  const made = spots.map((spot) => ({
+    monster: placeMonster(world, area, raising.type(), spot),
+    spot,
+  }));
+  if (made.length === 0) return [];
+  raiser.raised.push(...made.map((m) => m.monster.id));
+  raiser.cooldown = raising.cooldown;
+  return made;
 }
 
 /**
@@ -1643,76 +1680,54 @@ function actQuestsOf(act: number): QuestId[] {
  * to its limit of living ones.
  */
 function stepWaves(world: World, events: SimEvent[]) {
-  const area = world.areas[world.areaName];
   for (const boss of [...world.monsters]) {
     const { waves } = boss;
     if (!waves) continue;
-    waves.raised = waves.raised.filter((id) => monsterById(world, id));
-    const awake = boss.state !== "idle" && boss.state !== "wander";
-    if (!awake || boss.state === "return") continue;
-    if (waves.cooldown > 0) waves.cooldown -= 1;
-    if (waves.cooldown > 0) continue;
-    const room = graveWockingtonTuning.raisedLimit - waves.raised.length;
-    const count = Math.min(graveWockingtonTuning.waveSize, room);
-    if (count <= 0) continue;
-    const raised: MonsterId[] = [];
-    for (const spot of aroundBoss(world, area, boss, count)) {
-      const monster = placeMonster(
-        world,
-        area,
-        graveWockingtonTuning.raises,
-        spot,
-      );
-      // Raised already after the Hero.
-      monster.state = "chase";
-      raised.push(monster.id);
-    }
-    waves.raised.push(...raised);
-    waves.cooldown = msToSteps(graveWockingtonTuning.waveEveryMs);
-    events.push({ type: "WaveRaised", boss: boss.id, monsters: raised });
+    const afterHero = !["idle", "wander", "return"].includes(boss.state);
+    const made = raiseWhenDue(world, waves, afterHero, {
+      from: boss.pos,
+      distance: graveWockingtonTuning.raiseDistance,
+      limit: graveWockingtonTuning.raisedLimit,
+      size: graveWockingtonTuning.waveSize,
+      type: () => graveWockingtonTuning.raises,
+      cooldown: msToSteps(graveWockingtonTuning.waveEveryMs),
+    });
+    if (made.length === 0) continue;
+    // Raised already after the Hero.
+    for (const { monster } of made) monster.state = "chase";
+    events.push({
+      type: "WaveRaised",
+      boss: boss.id,
+      monsters: made.map((m) => m.monster.id),
+    });
   }
 }
 
+/** How many ways round a body a raised Monster may be stood. */
+const RAISE_TURNS = 8;
+
 /**
- * Up to `count` walkable spots round `boss` at the tuned distance, evenly
- * spaced from a different starting way each time.
+ * Up to `count` walkable spots round `from` at `distance`, evenly spaced from
+ * a different starting way each time.
  */
-function aroundBoss(
+function spotsAround(
   world: World,
   area: Area,
-  boss: Monster,
+  from: Vec,
+  distance: number,
   count: number,
 ): Vec[] {
-  const turns = 8;
-  const first = randomInt(world.rng, [0, turns - 1]);
+  const first = randomInt(world.rng, [0, RAISE_TURNS - 1]);
   const spots: Vec[] = [];
-  for (let i = 0; i < turns && spots.length < count; i++) {
-    const angle = (2 * Math.PI * (first + i)) / turns;
+  for (let i = 0; i < RAISE_TURNS && spots.length < count; i++) {
+    const angle = (2 * Math.PI * (first + i)) / RAISE_TURNS;
     const at = {
-      x: boss.pos.x + graveWockingtonTuning.raiseDistance * Math.cos(angle),
-      y: boss.pos.y + graveWockingtonTuning.raiseDistance * Math.sin(angle),
+      x: from.x + distance * Math.cos(angle),
+      y: from.y + distance * Math.sin(angle),
     };
     if (isWalkable(area, at)) spots.push(at);
   }
   return spots;
-}
-
-/**
- * Where a Monster raised by `altar` stands: at the tuned distance from it,
- * the first walkable way round starting from a different one each time.
- */
-function besideAltar(world: World, area: Area, altar: BoneAltar): Vec | null {
-  const turns = 8;
-  const first = randomInt(world.rng, [0, turns - 1]);
-  for (let i = 0; i < turns; i++) {
-    const angle = (2 * Math.PI * (first + i)) / turns;
-    const at = {
-      x: altar.pos.x + boneAltarTuning.raiseDistance * Math.cos(angle),
-      y: altar.pos.y + boneAltarTuning.raiseDistance * Math.sin(angle),
-    };
-    if (isWalkable(area, at)) return at;
-  }
-  return null;
 }
 
 /**
@@ -2267,7 +2282,7 @@ function explode(
     Math.ceil(life * least),
     Math.floor(life * most),
   ];
-  const victims = [...world.monsters, ...world.boneAltars].filter(
+  const victims = targetsOf(world).filter(
     (target) => distance(target.pos, corpse.pos) <= radius,
   );
   // A Skill's damage always hits: no roll against Defense, and no hitstop.
@@ -2441,7 +2456,7 @@ function standingIn(world: World, area: Area): number[] {
 /** Whether `npc`'s condition holds as the Quests stand now. */
 function stillStands(world: World, npc: Npc): boolean {
   if (!npc.stands) return true;
-  const { state } = world.hero.progress.quests[npc.stands.quest];
+  const { state } = questOf(world, npc.stands.quest);
   return (state === "ready" || state === "done") === npc.stands.ready;
 }
 
@@ -2467,18 +2482,18 @@ export function hasQuestToDeal(world: World, npc: number): boolean {
   return (
     !!there &&
     world.standing.includes(npc) &&
-    hasQuestToDealIn(world.hero.progress.quests, there.name)
+    hasQuestBusiness(world.hero.progress.quests, there.name)
   );
 }
 
 /**
- * Notes that the Hero did `task`, moving on every Quest that asks for it
- * and reporting it. Tasks count whenever they happen, given or not.
+ * Notes that the Hero did `deed`, moving on every Quest that asks for it
+ * and reporting it. Deeds count whenever they happen, given or not.
  */
-function noteTask(world: World, task: QuestTask, events: SimEvent[]) {
+function noteDeed(world: World, deed: QuestDeed, events: SimEvent[]) {
   const { quests } = world.hero.progress;
   for (const quest of Object.keys(quests) as QuestId[]) {
-    const result = advanceQuest(quests, quest, task);
+    const result = advanceQuest(quests, quest, deed);
     if (result === "counted") {
       events.push({ type: "QuestCounted", quest, count: quests[quest].count });
     }
@@ -2499,7 +2514,7 @@ function answerQuest(
 ) {
   const { progress } = world.hero;
   const { giver, reward } = questTuning[quest];
-  const state = progress.quests[quest].state;
+  const { state } = questOf(world, quest);
   if (state !== (handIn ? "ready" : "notGiven")) return;
   const there = npcsIn(world).find(
     (npc) => npc.name === giver && withinNpcReach(world, npc.id),
@@ -2540,7 +2555,7 @@ function reachNpc(world: World, events: SimEvent[]) {
   const talkedTo = hero.talkingTo;
   hero.talkingTo = null;
   hero.path = [];
-  noteTask(world, { type: "talked", npc: npc.name }, events);
+  noteDeed(world, { type: "talked", npc: npc.name }, events);
   // An NPC whose condition no longer holds goes home now, though the
   // Dialogue panel keeps their words; the Area judges them again on the next
   // arrival.
@@ -2631,7 +2646,7 @@ function giveBuffered(world: World, events: SimEvent[]) {
 function land(world: World, swing: Swing, events: SimEvent[]) {
   const { hero } = world;
   swing.landed = true;
-  const victims = [...world.monsters, ...world.boneAltars].filter((target) => {
+  const victims = targetsOf(world).filter((target) => {
     const gap = gapTo(hero.pos, target);
     if (swing.monster !== null) {
       return (
@@ -2639,7 +2654,12 @@ function land(world: World, swing: Swing, events: SimEvent[]) {
         gap <= heroTuning.reach + heroTuning.reachGrace
       );
     }
-    return lands(hero, target.pos, heroTuning.reach + bodyRadius(target), ARC);
+    return lands(
+      hero,
+      target.pos,
+      heroTuning.reach + altarRadiusOf(target),
+      ARC,
+    );
   });
 
   for (const target of victims) {
@@ -2658,7 +2678,7 @@ function land(world: World, swing: Swing, events: SimEvent[]) {
 
 /** How far `from` is from the edge of `target` (tiles). */
 function gapTo(from: Vec, target: Monster | BoneAltar): number {
-  return Math.max(0, distance(from, target.pos) - bodyRadius(target));
+  return Math.max(0, distance(from, target.pos) - altarRadiusOf(target));
 }
 
 /**
@@ -2715,7 +2735,7 @@ function hurtAltar(
     area: area.name,
     pos: { ...altar.pos },
   });
-  noteTask(world, { type: "boneAltarDestroyed", area: area.name }, events);
+  noteDeed(world, { type: "boneAltarDestroyed", area: area.name }, events);
 }
 
 /**
@@ -2764,7 +2784,7 @@ function hurt(world: World, monster: Monster, events: SimEvent[]) {
     rollDrop(world, monster.pos, events, monster.unique !== null);
     if (monster.unique !== null) {
       const { name } = world.areas[world.areaName];
-      noteTask(world, { type: "uniqueKilled", area: name }, events);
+      noteDeed(world, { type: "uniqueKilled", area: name }, events);
     }
     const { actBoss, act } = world.areas[world.areaName];
     if (
@@ -2773,10 +2793,8 @@ function hurt(world: World, monster: Monster, events: SimEvent[]) {
       monster.unique === actBoss.name &&
       monster.type === actBoss.monster
     ) {
-      const completes = actQuestsOf(act).some(
-        (id) => world.hero.progress.quests[id].state !== "done",
-      );
-      noteTask(world, { type: "actBossKilled", act }, events);
+      const completes = actBossQuestOpen(world.hero.progress.quests, act);
+      noteDeed(world, { type: "actBossKilled", act }, events);
       if (completes) events.push({ type: "ActCompleted", act });
     }
     return;

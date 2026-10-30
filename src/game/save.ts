@@ -9,10 +9,10 @@ import {
 } from "./sim/inventory";
 import {
   freshQuests,
-  partsOf,
   QUEST_IDS,
-  type QuestLog,
   type QuestState,
+  type QuestStates,
+  questPartsOf,
   questPointsOf,
 } from "./sim/quests";
 import { SKILL_BAR_SLOTS, type SkillBar } from "./sim/skillBar";
@@ -34,37 +34,44 @@ import { heroTuning } from "./tuning/hero";
 import { questTuning } from "./tuning/quests";
 
 /**
- * Raised whenever the stored text changes shape. Text of any other version
- * is no Save, so the Hero starts fresh instead of loading something
- * misread, but for `BELTLESS_VERSION`, `WAYPOINTLESS_VERSION` and
- * `QUESTLESS_VERSION`.
+ * Raised whenever the stored text changes shape. Text of a version before
+ * `OLDEST_LOADABLE_VERSION` or after this one is no Save, so the Hero starts
+ * fresh instead of loading something misread; text of the versions between
+ * loads through `ADDED_FIELDS`.
  */
 export const SAVE_VERSION = 10;
 
-/**
- * The version before Waypoints: its text, otherwise the same, loads with
- * only Wockville's Waypoint touched.
- */
-const WAYPOINTLESS_VERSION = 7;
+/** The oldest version whose text still loads (the one before the Belt). */
+const OLDEST_LOADABLE_VERSION = 6;
 
 /**
- * The version before Quests: its text, otherwise the same, loads with every
- * Quest Not given.
+ * The fields the versions since `OLDEST_LOADABLE_VERSION` added, each with
+ * the version that first wrote it and what text from before it loads with.
+ * Older text must not hold the field.
  */
-const QUESTLESS_VERSION = 8;
+const ADDED_FIELDS: readonly {
+  since: number;
+  field: string;
+  fresh: () => unknown;
+}[] = [
+  // An empty Belt.
+  { since: 7, field: "belt", fresh: emptyBelt },
+  // Only Wockville's Waypoint touched.
+  {
+    since: 8,
+    field: "touchedWaypoints",
+    fresh: () => [...FRESH_PROGRESS.touchedWaypoints],
+  },
+  // Every Quest Not given.
+  { since: 9, field: "quests", fresh: freshQuests },
+];
 
 /**
- * The version before the Smith's service and bonuses: its text, otherwise
- * the same, loads with the service unlocked if "Spa Day" is Done, else
- * locked, and no Item with a Smith bonus.
+ * The version that added the Smith's service and bonuses: older text loads
+ * with the service unlocked if "Spa Day" is Done, else locked, and no Item
+ * with a Smith bonus.
  */
-const SMITHLESS_VERSION = 9;
-
-/**
- * The version before the Belt: its text, otherwise the same, loads with an
- * empty Belt.
- */
-const BELTLESS_VERSION = 6;
+const SMITH_SINCE_VERSION = 10;
 
 /** The states the Smith's service goes through, in order. */
 const SMITH_SERVICES: readonly SmithService[] = ["locked", "unlocked", "used"];
@@ -202,31 +209,20 @@ export function parseSave(text: string | null): HeroSave | null {
   }
   if (typeof stored !== "object" || stored === null) return null;
   const fields = stored as Record<string, unknown>;
-  if (fields.version === BELTLESS_VERSION) {
-    if (fields.belt !== undefined) return null;
-    fields.belt = emptyBelt();
-  }
+  const version = fields.version as number;
   if (
-    fields.version === BELTLESS_VERSION ||
-    fields.version === WAYPOINTLESS_VERSION
-  ) {
-    if (fields.touchedWaypoints !== undefined) return null;
-    fields.touchedWaypoints = [...FRESH_PROGRESS.touchedWaypoints];
-  }
-  if (
-    fields.version === BELTLESS_VERSION ||
-    fields.version === WAYPOINTLESS_VERSION ||
-    fields.version === QUESTLESS_VERSION
-  ) {
-    if (fields.quests !== undefined) return null;
-    fields.quests = freshQuests();
-  } else if (
-    fields.version !== SAVE_VERSION &&
-    fields.version !== SMITHLESS_VERSION
+    !Number.isInteger(version) ||
+    version < OLDEST_LOADABLE_VERSION ||
+    version > SAVE_VERSION
   ) {
     return null;
   }
-  const smithless = fields.version !== SAVE_VERSION;
+  for (const { since, field, fresh } of ADDED_FIELDS) {
+    if (version >= since) continue;
+    if (fields[field] !== undefined) return null;
+    fields[field] = fresh();
+  }
+  const smithless = version < SMITH_SINCE_VERSION;
   if (smithless && fields.smithService !== undefined) return null;
   if (!PROGRESS_FIELDS.every((field) => Number.isInteger(fields[field]))) {
     return null;
@@ -318,7 +314,7 @@ function copyBonus(stored: unknown): SmithBonus {
 }
 
 /** What the service is for Quests that unlock it: unlocked once that Quest is Done. */
-function smithServiceFor(quests: QuestLog): SmithService {
+function smithServiceFor(quests: QuestStates): SmithService {
   return smithQuestDone(quests) ? "unlocked" : "locked";
 }
 
@@ -328,7 +324,7 @@ function smithServiceFor(quests: QuestLog): SmithService {
  */
 function parseSmithService(
   stored: unknown,
-  quests: QuestLog,
+  quests: QuestStates,
 ): SmithService | null {
   if (!SMITH_SERVICES.includes(stored as SmithService)) return null;
   const locked = stored === "locked";
@@ -399,7 +395,7 @@ function parseTouchedWaypoints(stored: unknown): string[] | null {
  * and nothing else, a state and a count of parts done that the Quest has. A
  * Quest missing from them is Not given.
  */
-function parseQuests(stored: unknown): QuestLog | null {
+function parseQuests(stored: unknown): QuestStates | null {
   const log = objectWithin(stored, QUEST_IDS);
   if (!log) return null;
   const quests = freshQuests();
@@ -410,7 +406,7 @@ function parseQuests(stored: unknown): QuestLog | null {
     if (!entry) return null;
     const { state, count } = entry;
     if (!QUEST_STATES.includes(state as QuestState)) return null;
-    const parts = partsOf(questTuning[id].trigger);
+    const parts = questPartsOf(questTuning[id].trigger);
     if (!Number.isInteger(count) || (count as number) < 0) return null;
     if ((count as number) > parts) return null;
     quests[id] = { state: state as QuestState, count: count as number };

@@ -2,7 +2,7 @@ import { heroTuning } from "../tuning/hero";
 import { minionTuning } from "../tuning/minions";
 import { monsterTuning } from "../tuning/monsters";
 import type { ProjectileKind } from "../tuning/projectiles";
-import { type BoneAltar, bodyRadius } from "./boneAltars";
+import { altarRadiusOf, type BoneAltar, targetsOf } from "./boneAltars";
 import { canSee } from "./path";
 import type { Vec } from "./vec";
 import type { Monster, MonsterId, MonsterTarget, World } from "./world";
@@ -115,16 +115,16 @@ function targetsTouched(
 ): (Monster | BoneAltar)[] {
   const area = world.areas[world.areaName];
   const touched: { target: Monster | BoneAltar; along: number }[] = [];
-  for (const target of [...world.monsters, ...world.boneAltars]) {
+  for (const target of targetsOf(world)) {
     if (projectile.hit.includes(target.id)) continue;
-    const altar = bodyRadius(target) > 0;
+    const altar = altarRadiusOf(target) > 0;
     const radius = altar
-      ? bodyRadius(target) + ALTAR_GRAZE
+      ? altarRadiusOf(target) + ALTAR_GRAZE
       : monsterTuning[(target as Monster).type].radius;
     const at = touching(target.pos, radius, from, to);
     if (!at) continue;
     const seen = altar
-      ? backedOff(from, at.nearest, bodyRadius(target))
+      ? backedOff(from, at.nearest, altarRadiusOf(target))
       : at.nearest;
     if (canSee(area, from, seen)) touched.push({ target, along: at.along });
   }

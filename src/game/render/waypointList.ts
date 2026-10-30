@@ -119,14 +119,14 @@ export function waypointListHitAt(
   if (closeHit) return closeHit;
   const row = layout.rows.findIndex((rect) => inside(rect, point));
   const waypoint = sheet[row];
-  if (waypoint && canTravel(waypoint)) {
+  if (waypoint && waypointPickable(waypoint)) {
     return { button: { type: "travel", area: waypoint.area } };
   }
   return { button: null };
 }
 
 /** Whether a Waypoint of the list can be picked: touched, and not here. */
-export function canTravel(waypoint: WaypointSheet): boolean {
+export function waypointPickable(waypoint: WaypointSheet): boolean {
   return waypoint.touched && !waypoint.here;
 }
 

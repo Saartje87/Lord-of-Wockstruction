@@ -11,7 +11,7 @@
  "infinite": false,
  "compressionlevel": -1,
  "nextlayerid": 5,
- "nextobjectid": 16,
+ "nextobjectid": 18,
  "properties": [
   {
    "name": "areaLevel",
@@ -8593,6 +8593,37 @@
        "value": "skeleton_archer"
       }
      ]
+    },
+    {
+     "id": 16,
+     "name": "Grave Wockington",
+     "type": "actBoss",
+     "x": 1392,
+     "y": 5424,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true,
+     "properties": [
+      {
+       "name": "monster",
+       "type": "string",
+       "value": "grave_wockington"
+      }
+     ]
+    },
+    {
+     "id": 17,
+     "name": "waypoint",
+     "type": "waypoint",
+     "x": 5136,
+     "y": 816,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true
     }
    ]
   }

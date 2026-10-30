@@ -69,6 +69,11 @@ export type Area = {
    * Session places them again, whatever Quests are Done.
    */
   uniques: UniqueSpawn[];
+  /**
+   * Where the Act Boss of the Act this Area belongs to waits, or null when it
+   * isn't in this Area. A Unique Monster placed like the others.
+   */
+  actBoss: UniqueSpawn | null;
 };
 
 /** A named Unique Monster of one Monster type, placed at `pos` (tile units). */
@@ -251,6 +256,7 @@ export function loadArea(
   let waypoint: Vec | null = null;
   const boneAltars: Vec[] = [];
   const uniques: UniqueSpawn[] = [];
+  let actBoss: UniqueSpawn | null = null;
   for (const layer of tmj.layers) {
     if (layer.type !== "objectgroup") continue;
     for (const object of layer.objects) {
@@ -259,6 +265,10 @@ export function loadArea(
       if (kind === "entry") entries[object.name] = pos;
       if (kind === "monsterSpawn") spawns.push(readSpawn(name, object, pos));
       if (kind === "uniqueMonster") uniques.push(readUnique(name, object, pos));
+      if (kind === "actBoss") {
+        if (actBoss) throw new Error(`Area "${name}" has two Act Boss spawns`);
+        actBoss = readUnique(name, object, pos);
+      }
       if (kind === "exit") {
         const size = {
           width: (object.width ?? 0) / unitX,
@@ -316,6 +326,7 @@ export function loadArea(
     waypoint,
     boneAltars,
     uniques,
+    actBoss,
   };
 }
 
@@ -402,7 +413,7 @@ function readSpawn(name: string, object: TmjObject, pos: Vec): Spawn {
   return { monster, count, pos };
 }
 
-/** A `uniqueMonster` object's name and `monster` property. */
+/** A `uniqueMonster` or `actBoss` object's name and `monster` property. */
 function readUnique(name: string, object: TmjObject, pos: Vec): UniqueSpawn {
   const monster = propertyOf(object, "monster");
   if (!isMonsterType(monster)) {

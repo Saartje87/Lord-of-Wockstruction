@@ -1,5 +1,6 @@
 import { areaTuning } from "../tuning/areas";
 import { boneAltarTuning } from "../tuning/boneAltars";
+import { graveWockingtonTuning } from "../tuning/graveWockington";
 import { heroTuning } from "../tuning/hero";
 import {
   type Bonus,
@@ -271,6 +272,12 @@ export type Monster = {
    * (see `uniqueTuning`); null for an ordinary one.
    */
   unique: string | null;
+  /**
+   * Grave Wockington's Skeleton waves: steps left until the next, counted
+   * while he is after the Hero, and the Monsters he raised. Null for the
+   * others.
+   */
+  waves: { cooldown: number; raised: MonsterId[] } | null;
   pos: Vec;
   prevPos: Vec;
   life: number;
@@ -622,6 +629,10 @@ export type SimEvent =
   | { type: "SmithBonusGiven"; item: ItemId; bonus: SmithBonus }
   | { type: "MonsterDied"; id: MonsterId }
   /** The Hero's side hit Bone Altar `altar` for `damage`. */
+  /** Monster `boss` raised a wave of `monsters` around itself. */
+  | { type: "WaveRaised"; boss: MonsterId; monsters: MonsterId[] }
+  /** The Hero killed the Act Boss of Act `act` with its Quest not yet Done. */
+  | { type: "ActCompleted"; act: number }
   | { type: "BoneAltarHit"; altar: MonsterId; damage: number }
   /** Bone Altar `altar` raised Monster `monster` at `pos`. */
   | { type: "BoneAltarRaised"; altar: MonsterId; monster: MonsterId; pos: Vec }
@@ -1251,7 +1262,10 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   if (!kept) {
     for (const spawn of area.spawns) placePack(world, area, spawn);
     placeBoneAltars(world, area);
-    for (const unique of area.uniques) {
+    for (const unique of [
+      ...area.uniques,
+      ...(area.actBoss ? [area.actBoss] : []),
+    ]) {
       placeMonster(world, area, unique.monster, unique.pos, unique.name);
     }
   }
@@ -1534,6 +1548,10 @@ function placeMonster(
     // So a pack doesn't set off strolling in step.
     pause: wanderPause(world, type),
     curse: null,
+    waves:
+      type === "grave_wockington"
+        ? { cooldown: msToSteps(graveWockingtonTuning.firstWaveMs), raised: [] }
+        : null,
   };
   world.monsters.push(monster);
   return monster;
@@ -1609,6 +1627,74 @@ function stepBoneAltars(world: World, events: SimEvent[]) {
       pos: { ...spot },
     });
   }
+}
+
+/** The Quests that ask for killing the Act Boss of Act `act`. */
+function actQuestsOf(act: number): QuestId[] {
+  return (Object.keys(questTuning) as QuestId[]).filter((id) => {
+    const { trigger } = questTuning[id];
+    return trigger.type === "actBossKilled" && trigger.act === act;
+  });
+}
+
+/**
+ * Lets each Monster that raises waves (Grave Wockington) count down while it
+ * is after the Hero and, when it is time, raise Skeletons around itself, up
+ * to its limit of living ones.
+ */
+function stepWaves(world: World, events: SimEvent[]) {
+  const area = world.areas[world.areaName];
+  for (const boss of [...world.monsters]) {
+    const { waves } = boss;
+    if (!waves) continue;
+    waves.raised = waves.raised.filter((id) => monsterById(world, id));
+    const awake = boss.state !== "idle" && boss.state !== "wander";
+    if (!awake || boss.state === "return") continue;
+    if (waves.cooldown > 0) waves.cooldown -= 1;
+    if (waves.cooldown > 0) continue;
+    const room = graveWockingtonTuning.raisedLimit - waves.raised.length;
+    const count = Math.min(graveWockingtonTuning.waveSize, room);
+    if (count <= 0) continue;
+    const raised: MonsterId[] = [];
+    for (const spot of aroundBoss(world, area, boss, count)) {
+      const monster = placeMonster(
+        world,
+        area,
+        graveWockingtonTuning.raises,
+        spot,
+      );
+      // Raised already after the Hero.
+      monster.state = "chase";
+      raised.push(monster.id);
+    }
+    waves.raised.push(...raised);
+    waves.cooldown = msToSteps(graveWockingtonTuning.waveEveryMs);
+    events.push({ type: "WaveRaised", boss: boss.id, monsters: raised });
+  }
+}
+
+/**
+ * Up to `count` walkable spots round `boss` at the tuned distance, evenly
+ * spaced from a different starting way each time.
+ */
+function aroundBoss(
+  world: World,
+  area: Area,
+  boss: Monster,
+  count: number,
+): Vec[] {
+  const turns = 8;
+  const first = randomInt(world.rng, [0, turns - 1]);
+  const spots: Vec[] = [];
+  for (let i = 0; i < turns && spots.length < count; i++) {
+    const angle = (2 * Math.PI * (first + i)) / turns;
+    const at = {
+      x: boss.pos.x + graveWockingtonTuning.raiseDistance * Math.cos(angle),
+      y: boss.pos.y + graveWockingtonTuning.raiseDistance * Math.sin(angle),
+    };
+    if (isWalkable(area, at)) spots.push(at);
+  }
+  return spots;
 }
 
 /**
@@ -1715,6 +1801,7 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
     strike(world, target, monsterAttack(monster), events);
   }
   stepBoneAltars(world, events);
+  stepWaves(world, events);
   if (isRegenerating(world)) {
     hero.life = Math.min(maxLife(world), hero.life + REGEN_PER_STEP);
   }
@@ -2678,6 +2765,19 @@ function hurt(world: World, monster: Monster, events: SimEvent[]) {
     if (monster.unique !== null) {
       const { name } = world.areas[world.areaName];
       noteTask(world, { type: "uniqueKilled", area: name }, events);
+    }
+    const { actBoss, act } = world.areas[world.areaName];
+    if (
+      actBoss &&
+      act !== null &&
+      monster.unique === actBoss.name &&
+      monster.type === actBoss.monster
+    ) {
+      const completes = actQuestsOf(act).some(
+        (id) => world.hero.progress.quests[id].state !== "done",
+      );
+      noteTask(world, { type: "actBossKilled", act }, events);
+      if (completes) events.push({ type: "ActCompleted", act });
     }
     return;
   }

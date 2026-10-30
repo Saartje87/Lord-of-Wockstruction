@@ -9,7 +9,7 @@ import {
 } from "three";
 import { describe, expect, it } from "vitest";
 import { arenaWith } from "../input/testArena";
-import { floorOf } from "./floor";
+import { floorOf, GRASS_FLOOR } from "./floor";
 
 function piece(width = 4) {
   const group = new Group();
@@ -146,6 +146,35 @@ describe("the 3D World's floor", () => {
     if (!path || !dirt) throw new Error("a Halloween piece wasn't laid");
     expect(scaleOfMesh(path) * 1.9).toBeCloseTo(1);
     expect(scaleOfMesh(dirt) * 4).toBeCloseTo(1);
+  });
+
+  it("lays the grass, whose 2-unit piece is fitted to one tile like the others", () => {
+    const world = arenaWith([]);
+    const base = world.areas[world.areaName];
+    const area = {
+      ...base,
+      floorPieces: base.floor.map((hasFloor) =>
+        hasFloor ? "city/park_base" : null,
+      ),
+    };
+    const pieces = { ...dungeon(), "city/park_base": piece(2) };
+
+    const floor = floorOf(area, pieces);
+
+    const meshes = floor.children as InstancedMesh[];
+    expect(meshes.length).toBeGreaterThan(0);
+    const matrix = new Matrix4();
+    for (const mesh of meshes) {
+      expect(mesh.geometry).toBe(
+        (pieces["city/park_base"].children[0] as Mesh).geometry,
+      );
+      mesh.getMatrixAt(0, matrix);
+      expect(new Vector3().setFromMatrixScale(matrix).x * 2).toBeCloseTo(1);
+    }
+  });
+
+  it("loads the grass with the other floor pieces", () => {
+    expect(GRASS_FLOOR).toEqual(["city/park_base"]);
   });
 
   it("skips a named piece that isn't loaded rather than failing", () => {

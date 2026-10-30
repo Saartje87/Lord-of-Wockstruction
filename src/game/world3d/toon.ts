@@ -30,6 +30,8 @@ export const LOOKS = {
   stone: { saturation: 0.18, tint: 0x7e8cba },
   /** Town's dirt and paths: dusk light on earth, with its colour left. */
   dusk: { saturation: 0.6, tint: 0xbcc0e4 },
+  /** Grass, green trees and bushes: green kept, only dimmed to the dusk. */
+  green: { saturation: 0.9, tint: 0xf0f6ec },
   /** Props: a little of their own colour left, still cold. */
   prop: { saturation: 0.4, tint: 0x9aa4c8 },
   /** Characters keep their colours, which carry who they are. */
@@ -43,6 +45,7 @@ export const LOOKS = {
 /** The look of a KayKit piece (`dungeon/wall`, `halloween/crypt`, ...). */
 export function lookOf(piece: string): Look {
   const name = piece.slice(piece.indexOf("/") + 1);
+  if (piece.startsWith("city/")) return LOOKS.green;
   if (/torch|candle|lantern|pumpkin/.test(name)) return LOOKS.warm;
   if (piece.startsWith("halloween/") && /^(floor|path)/.test(name)) {
     return LOOKS.dusk;

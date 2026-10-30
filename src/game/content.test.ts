@@ -792,6 +792,75 @@ describe("Water in the shipped Areas", () => {
   });
 });
 
+describe("the Cozy Plains' grass", () => {
+  const plains = () => shippedWorld().areas["cozy-plains"];
+  const isCity = (piece: string) => /^city\/(tree|bush)/.test(piece);
+
+  it("is mostly grass, with dirt paths among it", () => {
+    const { floorPieces, floor, water } = plains();
+    const land = floorPieces.filter((_, i) => floor[i] && !water[i]);
+
+    const grass = land.filter((piece) => piece === "city/park_base").length;
+    const dirt = land.filter((piece) =>
+      /^halloween\//.test(piece ?? ""),
+    ).length;
+    expect(grass / land.length).toBeGreaterThan(0.7);
+    expect(dirt).toBeGreaterThan(40);
+    expect(grass + dirt).toBe(land.length);
+  });
+
+  it("stands green trees and bushes, and no dead trees or graves", () => {
+    const pieces = plains().props.map((prop) => prop.piece);
+
+    expect(
+      pieces.filter((piece) => /^city\/tree/.test(piece)).length,
+    ).toBeGreaterThan(30);
+    expect(
+      pieces.filter((piece) => /^city\/bush/.test(piece)).length,
+    ).toBeGreaterThan(10);
+    expect(pieces.some((piece) => /tree_dead|grave/.test(piece))).toBe(false);
+  });
+
+  it("blocks the way exactly where a tree or a bush stands", () => {
+    const area = plains();
+    const standing = area.props.filter((prop) => isCity(prop.piece));
+
+    expect(standing.length).toBeGreaterThan(0);
+    for (const prop of standing) {
+      expect(prop.blocks).toBe(true);
+      expect(area.walkable[prop.y * area.width + prop.x]).toBe(false);
+    }
+    const taken = new Set(
+      [...area.props, ...area.walls].map((p) => p.y * area.width + p.x),
+    );
+    // Cells of grass with nothing on them are open.
+    area.floorPieces.forEach((piece, i) => {
+      if (piece === "city/park_base" && !taken.has(i)) {
+        expect(area.walkable[i]).toBe(true);
+      }
+    });
+  });
+
+  it("keeps its Exits, Entries and spawns off the trees and bushes", () => {
+    const area = plains();
+    const trees = new Set(
+      area.props
+        .filter((prop) => isCity(prop.piece))
+        .map((prop) => `${prop.x},${prop.y}`),
+    );
+    const points = [
+      ...Object.values(area.entries),
+      ...area.spawns.map((spawn) => spawn.pos),
+      ...area.exits.map(centreOf),
+    ];
+    for (const point of points) {
+      expect(trees.has(`${Math.floor(point.x)},${Math.floor(point.y)}`)).toBe(
+        false,
+      );
+    }
+  });
+});
+
 describe("the KayKit tileset", () => {
   type Tile = {
     id: number;

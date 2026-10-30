@@ -3,6 +3,7 @@ import type { Vec } from "../sim/vec";
 import type { World } from "../sim/world";
 import { MINION_LOOKS } from "./minionLook";
 import { MONSTER_LOOKS } from "./monsterLook";
+import { NPC_LOOKS } from "./npcLook";
 import type { Pickable3d } from "./picking";
 
 function between(from: Vec, to: Vec, alpha: number): Vec {
@@ -32,4 +33,16 @@ export function pickablesOf(
       height: MINION_LOOKS[minion.type].height,
     })),
   ];
+}
+
+/**
+ * The NPCs of the active Area of `world`, by their index in the Area's
+ * `npcs`, each with the height of its model, for picking.
+ */
+export function npcPickablesOf(world: World): Pickable3d<number>[] {
+  return world.areas[world.areaName].npcs.map((npc, id) => ({
+    id,
+    pos: npc.pos,
+    height: NPC_LOOKS[npc.name].height,
+  }));
 }

@@ -109,6 +109,7 @@ import {
   type Order,
   step,
   waypointUnderHero,
+  withinNpcReach,
 } from "./sim/world";
 import { type Viewport, viewportOf } from "./viewport";
 import { screenToTile, worldCameraOn } from "./world3d/camera";
@@ -514,6 +515,7 @@ export default function GameCanvas() {
             world,
             viewport,
             menus.pendingPoints,
+            menus.dialogueNpc,
           ),
         });
         for (const button of polled.presses) {
@@ -596,6 +598,7 @@ export default function GameCanvas() {
         const { orders: newOrders, click } = poll(input, now, {
           toTile,
           monsterAt: renderer.monsterAt,
+          npcAt: renderer.npcAt,
           groundLabelAt: renderer.groundLabelAt,
           groundItemAt: renderer.groundItemAt,
           panelAt: (at) => forTheWorld(renderer.panelAt(at)),
@@ -689,9 +692,11 @@ export default function GameCanvas() {
           // shuts finds nothing to do, and is harmless.
           const inventoryOpen = menus.inventoryOpen;
           reactMenus(menus, events);
-          // The Waypoint list stays open only while the Hero stands on it.
+          // The Waypoint list stays open only while the Hero stands on it, and
+          // the Dialogue panel while they are near the NPC.
           followHero(menus, {
             standingOnWaypoint: waypointUnderHero(world) !== null,
+            withinReachOf: (npc) => withinNpcReach(world, npc),
           });
           orders = [];
           returnOnShut(orders, inventoryOpen, menus);

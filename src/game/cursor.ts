@@ -1,5 +1,6 @@
 import type { InputWay } from "./input/activeInput";
 import type { BeltStripHit } from "./render/beltStrip";
+import type { DialogueHit } from "./render/dialoguePanel";
 import type { PanelHit } from "./render/heroPanel";
 import {
   type DropHit,
@@ -51,6 +52,7 @@ export type CursorHit =
   | PanelHit
   | SkillTreeHit
   | WaypointListHit
+  | DialogueHit
   | SkillBarHit
   | BeltStripHit
   | PanelButtonHit

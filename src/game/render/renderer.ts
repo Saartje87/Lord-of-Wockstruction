@@ -67,7 +67,7 @@ import { tileToScreen, type WorldCamera } from "../world3d/camera";
 import { CRUMBLE_SECONDS } from "../world3d/crumble";
 import { groundSpotsOf } from "../world3d/groundSpots";
 import { MONSTER_LOOKS } from "../world3d/monsterLook";
-import { pickablesOf } from "../world3d/pickables";
+import { npcPickablesOf, pickablesOf } from "../world3d/pickables";
 import { characterUnder3d, type Pickable3d } from "../world3d/picking";
 import type { DepartedMinion, Effects } from "../world3d/view";
 import {
@@ -87,6 +87,7 @@ import {
   floatAt,
   floatText,
 } from "./damageNumbers";
+import { DIALOGUE, dialogueLayout, dialogueSheet } from "./dialoguePanel";
 import {
   EXPERIENCE_BAR,
   experienceBar,
@@ -531,6 +532,8 @@ export function createRenderer(
   /** Where each character stood as last drawn, for picking. */
   let standing: Pickable3d<CharacterId>[] = [];
   let highlighted: CharacterId | null = null;
+  /** Where the NPCs stood as last drawn, for picking. */
+  let standingNpcs: Pickable3d<number>[] = [];
   // Over the 3D World, under the HUD, bottom to top: Ground Item labels,
   // damage numbers, then Life bars and Curse marks, which are scaled by the
   // World zoom.
@@ -592,6 +595,8 @@ export function createRenderer(
   app.stage.addChild(skillTreePanel.layer);
   const waypointList = waypointListView(activeInput, areaDisplayNames);
   app.stage.addChild(waypointList.layer);
+  const dialoguePanel = dialoguePanelView(activeInput);
+  app.stage.addChild(dialoguePanel.layer);
   // The Focus's ring, over the panel it is in.
   const focusRing = new Graphics();
   app.stage.addChild(focusRing);
@@ -698,6 +703,8 @@ export function createRenderer(
     inventoryOpen: false,
     skillTreeOpen: false,
     waypointsOpen: false,
+    dialogueOpen: false,
+    dialogueNpc: 0,
     pendingPoints: noPendingPoints(),
   };
 
@@ -760,6 +767,13 @@ export function createRenderer(
     const id = characterAt(screen);
     return typeof id === "number" ? id : null;
   };
+
+  /**
+   * The NPC (index in the Area's `npcs`) drawn under a point on the canvas
+   * (CSS px), as last drawn.
+   */
+  const npcAt = (screen: Vec): number | null =>
+    characterUnder3d(cameraOf(), standingNpcs, screen);
 
   /** The Ground Item whose label is under a canvas point (CSS px). */
   const groundLabelUnder = (screen: Vec): ItemId | null =>
@@ -883,6 +897,7 @@ export function createRenderer(
     },
 
     monsterAt,
+    npcAt,
     groundLabelAt: groundLabelUnder,
     groundItemAt,
 
@@ -1080,6 +1095,8 @@ export function createRenderer(
         inventoryOpen: menus.inventoryOpen,
         skillTreeOpen: menus.skillTreeOpen,
         waypointsOpen: menus.waypointsOpen,
+        dialogueOpen: menus.dialogueOpen,
+        dialogueNpc: menus.dialogueNpc,
         pendingPoints: { ...menus.pendingPoints },
       };
       if (world !== drawnWorld) {
@@ -1137,6 +1154,7 @@ export function createRenderer(
       const camera = cameraOf();
       overheads3d.scale.set(camera.zoom);
       standing = pickablesOf(world, alpha);
+      standingNpcs = npcPickablesOf(world);
       /** Where the top of a Monster's Life bar goes, in the space it's drawn in. */
       const barAnchor = (monster: Monster): Vec => {
         const head = tileToScreen(
@@ -1274,6 +1292,12 @@ export function createRenderer(
       const skillTooltipAt = (focus || touching) && !heldSkill ? pointer : null;
       skillTreePanel.draw(viewport, world, menus.skillTreeOpen, skillTooltipAt);
       waypointList.draw(viewport, world, menus.waypointsOpen);
+      dialoguePanel.draw(
+        viewport,
+        world,
+        menus.dialogueOpen,
+        menus.dialogueNpc,
+      );
       heldSkillView.draw(heldSkill, pointer, uiScale);
       const spot = onPanel && "inventory" in onPanel ? onPanel.inventory : null;
       inventoryPanel.draw(viewport, world, menus.inventoryOpen, spot, pointer);
@@ -2698,6 +2722,75 @@ function waypointListView(
         note.text = waypoint.here ? "You are here" : "";
         note.anchor.set(1, 0.5);
         note.position.set(row.x + row.w - padding / 2, y);
+      });
+      // Rows made this draw too.
+      texts.size(scale);
+    },
+  };
+}
+
+/**
+ * The Dialogue panel, in the Hero panel's look: the NPC's name over what
+ * they say, a button for each thing the Hero can answer, and a hint how to
+ * close it.
+ */
+function dialoguePanelView(activeInput: Readonly<ActiveInput>) {
+  const style = HERO_PANEL_STYLE;
+  const layer = new Container();
+  const graphics = new Graphics();
+  layer.addChild(graphics);
+  layer.visible = false;
+  const texts = scaledTexts();
+  const text = (fill: number, size = style.textSize) => {
+    const t = new Text({
+      text: "",
+      style: { fill, fontSize: size, fontFamily: SERIF },
+    });
+    layer.addChild(t);
+    return texts.add(t, size);
+  };
+  const title = text(style.title, style.titleSize);
+  title.anchor.set(0.5, 0);
+  const hint = text(style.hint, style.hintSize);
+  hint.anchor.set(0.5, 1);
+  const body = text(style.name);
+  body.style.wordWrap = true;
+  /** Made as the sheet first lists them. */
+  const labels: Text[] = [];
+
+  return {
+    layer,
+    draw(screen: Viewport, world: World, open: boolean, npc: number) {
+      const sheet = dialogueSheet(world, npc);
+      layer.visible = open && sheet !== null;
+      if (!open || !sheet) return;
+      hint.text = panelCloseHint("dialogue", activeInput.way);
+      const layout = dialogueLayout(screen, sheet.buttons.length);
+      const { panel } = layout;
+      const scale = screen.uiScale;
+      const { padding } = atUiScale(DIALOGUE, scale);
+
+      graphics.clear();
+      graphics
+        .rect(panel.x, panel.y, panel.w, panel.h)
+        .fill({ color: style.fill, alpha: style.alpha })
+        .stroke({ color: style.edge, width: 2 });
+      closeButton(graphics, layout.closeButton, scale);
+      title.text = sheet.name;
+      title.position.set(panel.x + panel.w / 2, panel.y + padding);
+      hint.position.set(panel.x + panel.w / 2, panel.y + panel.h - padding);
+      body.text = sheet.lines.join("\n\n");
+      body.position.set(layout.body.x, layout.body.y);
+      body.style.wordWrapWidth = layout.body.w;
+
+      sheet.buttons.forEach(({ label }, index) => {
+        labels[index] ??= text(style.title);
+        const row = layout.buttons[index];
+        button(graphics, row);
+        const t = labels[index];
+        t.text = label;
+        t.anchor.set(0.5, 0.5);
+        t.position.set(row.x + row.w / 2, row.y + row.h / 2);
       });
       // Rows made this draw too.
       texts.size(scale);

@@ -2015,7 +2015,7 @@ describe("the Waypoint list", () => {
     expect(menus.waypointsOpen).toBe(false);
 
     reactMenus(menus, [reached]);
-    followHero(menus, { standingOnWaypoint: false });
+    followHero(menus, { standingOnWaypoint: false, withinReachOf: () => true });
     expect(menus.waypointsOpen).toBe(false);
   });
 
@@ -2023,7 +2023,7 @@ describe("the Waypoint list", () => {
     const menus = createMenus();
     reactMenus(menus, [reached]);
 
-    followHero(menus, { standingOnWaypoint: true });
+    followHero(menus, { standingOnWaypoint: true, withinReachOf: () => true });
 
     expect(menus.waypointsOpen).toBe(true);
   });
@@ -2055,5 +2055,88 @@ describe("the Waypoint list", () => {
     fitMenus(menus, { compact: false, rotateNotice: "turn" }, 1000);
     reactMenus(menus, [reached]);
     expect(menus.waypointsOpen).toBe(false);
+  });
+});
+
+describe("the Dialogue panel", () => {
+  const talked: SimEvent = { type: "Talked", npc: 2, name: "Smith" };
+
+  it("opens as the Hero talks, with that NPC, shutting the other panels", () => {
+    const menus = createMenus();
+    pressKey(menus, "c", 1000, alive);
+
+    reactMenus(menus, [talked]);
+
+    expect(menus.dialogueOpen).toBe(true);
+    expect(menus.dialogueNpc).toBe(2);
+    expect(menus.heroPanelOpen).toBe(false);
+    expect(currentPanel(menus)).toBe("dialogue");
+  });
+
+  it("replaces the Waypoint list, and is replaced by it", () => {
+    const menus = createMenus();
+    reactMenus(menus, [{ type: "WaypointReached", area: "town" }]);
+
+    reactMenus(menus, [talked]);
+    expect(menus.waypointsOpen).toBe(false);
+    expect(menus.dialogueOpen).toBe(true);
+
+    reactMenus(menus, [{ type: "WaypointReached", area: "town" }]);
+    expect(menus.dialogueOpen).toBe(false);
+    expect(menus.waypointsOpen).toBe(true);
+  });
+
+  it("shuts with Esc before Esc pauses, with its ×, B and as the Hero dies", () => {
+    const menus = createMenus();
+    reactMenus(menus, [talked]);
+    expect(pressKey(menus, "Escape", 1000, alive)).toBe("handled");
+    expect(menus.dialogueOpen).toBe(false);
+    expect(menus.pause.paused).toBe(false);
+
+    reactMenus(menus, [talked]);
+    clickClose(menus, "dialogue");
+    expect(menus.dialogueOpen).toBe(false);
+
+    reactMenus(menus, [talked]);
+    expect(pressPad(menus, "b", 1000, alive)).toBe("handled");
+    expect(menus.dialogueOpen).toBe(false);
+
+    reactMenus(menus, [talked]);
+    reactMenus(menus, [{ type: "HeroDied" }]);
+    expect(menus.dialogueOpen).toBe(false);
+  });
+
+  it("shuts as the Hero takes damage, even all of it warded", () => {
+    const menus = createMenus();
+    reactMenus(menus, [talked]);
+
+    reactMenus(menus, [{ type: "HeroHit", damage: 0, warded: 4 }]);
+
+    expect(menus.dialogueOpen).toBe(false);
+  });
+
+  it("shuts as the Hero walks away from the NPC, and not before", () => {
+    const menus = createMenus();
+    reactMenus(menus, [talked]);
+    const standing = { standingOnWaypoint: false };
+
+    followHero(menus, { ...standing, withinReachOf: (npc) => npc === 2 });
+    expect(menus.dialogueOpen).toBe(true);
+
+    followHero(menus, { ...standing, withinReachOf: () => false });
+    expect(menus.dialogueOpen).toBe(false);
+  });
+
+  it("ignores LB and RB, and does not open under the Rotate Notice", () => {
+    const menus = createMenus();
+    reactMenus(menus, [talked]);
+    pressPad(menus, "rb", 1000, alive);
+    expect(menus.dialogueOpen).toBe(true);
+    expect(menus.heroPanelOpen).toBe(false);
+
+    const noticed = createMenus();
+    fitMenus(noticed, { compact: false, rotateNotice: "turn" }, 1000);
+    reactMenus(noticed, [talked]);
+    expect(noticed.dialogueOpen).toBe(false);
   });
 });

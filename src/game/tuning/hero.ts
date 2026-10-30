@@ -46,6 +46,13 @@ export type HeroTuning = {
   reachGrace: number;
   /** How near a Ground Item must be to pick it up (tiles, centre to centre). */
   pickupReach: number;
+  /** How near an NPC must be to talk to it (tiles, centre to centre). */
+  talkReach: number;
+  /**
+   * How far the Hero may get from the NPC they talk to before the talk is
+   * over (tiles); more than `talkReach`, so a step back doesn't end it.
+   */
+  talkLeave: number;
   /** A `SwingAt` hits every Monster in reach within this of the facing. */
   arcDegrees: number;
   /**
@@ -120,6 +127,8 @@ export const heroTuning: HeroTuning = {
   reach: 1.0,
   reachGrace: 0.3,
   pickupReach: 0.5,
+  talkReach: 1.5,
+  talkLeave: 3,
   arcDegrees: 50,
   // 1–4 with the starting 20 Strength.
   unarmedDamage: [5 / 6, 10 / 3],

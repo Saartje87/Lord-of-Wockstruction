@@ -13,6 +13,7 @@ import type { Vec } from "../sim/vec";
 import { ATTRIBUTES, canRaiseSkill, SKILLS, type World } from "../sim/world";
 import type { Viewport } from "../viewport";
 import { beltStripHitAt, beltStripLayout } from "./beltStrip";
+import { dialogueHitAt, dialogueLayout, dialogueSheet } from "./dialoguePanel";
 import {
   canRaise,
   hasUnspentPoints,
@@ -36,7 +37,8 @@ import {
 } from "./waypointList";
 
 /** The panels as drawn: which are open, and the Hero panel's Pending Attribute Points. */
-export type ShownPanels = OpenPanels & Pick<Menus, "pendingPoints" | "mapOpen">;
+export type ShownPanels = OpenPanels &
+  Pick<Menus, "pendingPoints" | "mapOpen" | "dialogueNpc">;
 
 /**
  * What a point on the screen hits of the panels and the HUD, or null when
@@ -62,6 +64,12 @@ export function cursorHitAt(
   const holding = cursorItemOf(world) !== null;
   const waypoints = shown.waypointsOpen ? waypointListSheet(world, {}) : [];
   return (
+    dialogueHitAt(
+      screen,
+      point,
+      dialogueSheet(world, shown.dialogueNpc),
+      shown.dialogueOpen,
+    ) ??
     waypointListHitAt(screen, point, waypoints, shown.waypointsOpen) ??
     heroPanelHitAt(
       screen,
@@ -139,6 +147,14 @@ function touchTargets(
       panel: over,
     });
 
+  if (shown.dialogueOpen) {
+    const sheet = dialogueSheet(world, shown.dialogueNpc);
+    const dialogue = dialogueLayout(screen, sheet?.buttons.length ?? 0);
+    panels.push(dialogue.panel);
+    close("dialogue", dialogue.closeButton, dialogue.panel);
+    // The buttons are big enough to tap without a hit area of their own.
+    stops.push(...dialogue.buttons);
+  }
   if (shown.waypointsOpen) {
     const sheet = waypointListSheet(world, {});
     const list = waypointListLayout(screen, sheet.length);

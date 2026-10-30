@@ -11,7 +11,7 @@
  "infinite": false,
  "compressionlevel": -1,
  "nextlayerid": 5,
- "nextobjectid": 15,
+ "nextobjectid": 16,
  "properties": [
   {
    "name": "act",
@@ -8561,6 +8561,18 @@
      ],
      "rotation": 0,
      "visible": true
+    },
+    {
+     "id": 15,
+     "name": "waypoint",
+     "type": "waypoint",
+     "x": 624,
+     "y": 1296,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true
     }
    ]
   }

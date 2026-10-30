@@ -229,6 +229,18 @@ const GOLEM = {
 };
 
 /**
+ * The Wockbrute: the Orc Brute (Series 6), on `Rig_Large` like the Golem's
+ * Monstrosity, so it takes the same clips and the Knight's 2-handed chop for
+ * its Slam.
+ */
+const WOCKBRUTE = {
+  file: "OrcBrute",
+  path: "2 - August 2025 - Orc Brute/characters/OrcBrute.glb",
+  rigClips: GOLEM.rigClips,
+  knightClips: GOLEM.knightClips,
+};
+
+/**
  * Town's NPCs: Series 6 characters on `Rig_Medium`, which has the free rig's
  * deform bones under the same names. They come with no clips; the idles come
  * from the pack's `Rig_Medium` files, and the retarget drops any track whose
@@ -417,6 +429,19 @@ if (existsSync(MYSTERY.dir)) {
       })),
     ],
   });
+  await importRiggedCharacter({
+    from: `${MYSTERY.dir}/${WOCKBRUTE.path}`,
+    to: `${out.characters}/${WOCKBRUTE.file}.glb`,
+    clips: [
+      ...Object.entries(WOCKBRUTE.rigClips).flatMap(([file, names]) =>
+        names.map((name) => ({ from: `${MYSTERY.dir}/${file}`, name })),
+      ),
+      ...WOCKBRUTE.knightClips.map((name) => ({
+        from: `${dirOf(adventurers)}/${knightPath}`,
+        name,
+      })),
+    ],
+  });
   for (const path of NPCS.files) {
     await importRiggedCharacter({
       from: `${MYSTERY.dir}/${path}.glb`,
@@ -501,6 +526,7 @@ const imported = [
   `| \`${knightPath}\` | the Hero, and the Golem's attack |`,
   `| ${MYSTERY.name}: \`${GOLEM.path.split("/").pop()}\` | the Golem |`,
   `| ${MYSTERY.name}: \`${BOG_SPITTER.file}.glb\` | the Bog Spitter |`,
+  `| ${MYSTERY.name}: \`${WOCKBRUTE.file}.glb\` | the Wockbrute |`,
   `| ${MYSTERY_4.name}: \`${WOCKWOLF.file}.glb\` | the Wockwolf |`,
   ...NPCS.files.map(
     (path) =>

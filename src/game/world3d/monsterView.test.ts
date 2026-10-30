@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { arenaWith } from "../input/testArena";
 import { msToSteps } from "../sim/units";
 import { monsterTuning } from "../tuning/monsters";
+import { MINION_LOOKS } from "./minionLook";
 import { MONSTER_LOOKS } from "./monsterLook";
 import { type Effects, type PointerState, worldViewOf } from "./view";
 
@@ -129,6 +130,47 @@ describe("the 3D World view of the Monsters", () => {
     monster.state = "wander";
     monster.flinch = 3;
     expect(firstMonster(world).animation.clip).toBe("flinch");
+    for (const clip of [
+      "idle",
+      "walk",
+      "run",
+      "attack",
+      "flinch",
+      "death",
+    ] as const) {
+      expect(look.clips[clip]).toBeTruthy();
+    }
+  });
+
+  it("draws a Wockbrute as the scaled-up Orc Brute, its attack clip scrubbing to contact as the wind-up ends", () => {
+    const { world, monster } = withSkeleton();
+    monster.type = "wockbrute";
+
+    const look = MONSTER_LOOKS.wockbrute;
+    expect(look.model).toBe("OrcBrute");
+    expect(look.scale).toBeGreaterThan(MINION_LOOKS.golem.scale);
+    expect(firstMonster(world).type).toBe("wockbrute");
+    expect(firstMonster(world).animation.clip).toBe("idle");
+    monster.state = "chase";
+    monster.prevPos = { x: 12.1, y: 10 };
+    expect(firstMonster(world).animation.clip).toBe("run");
+    expect(look.clips.run).toBe(look.clips.walk);
+    monster.state = "wander";
+    monster.flinch = 3;
+    expect(firstMonster(world).animation.clip).toBe("flinch");
+    monster.flinch = 0;
+
+    monster.state = "windup";
+    monster.attack = 0;
+    expect(firstMonster(world).animation).toEqual({
+      clip: "attack",
+      progress: 0,
+    });
+    monster.attack = msToSteps(monsterTuning.wockbrute.windUpMs) - 1;
+    const end = firstMonster(world).animation;
+    const reached = "progress" in end ? end.progress : -1;
+    expect(reached).toBeLessThan(look.contact);
+    expect(reached).toBeGreaterThan(look.contact * 0.95);
     for (const clip of [
       "idle",
       "walk",

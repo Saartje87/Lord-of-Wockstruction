@@ -103,6 +103,27 @@ export const MONSTER_LOOKS: Record<MonsterType, MonsterLook> = {
     contact: 0.5,
     weapons: [],
   },
+  // The Orc Brute (KayKit Mystery Monthly Series 6), larger than the Golem's
+  // Monstrosity on the same `Rig_Large`. Its Slam is the Knight's 2-handed
+  // chop retargeted onto it, as the Golem's is.
+  wockbrute: {
+    model: "OrcBrute",
+    scale: 0.38,
+    height: 1.6,
+    clips: {
+      idle: "Idle_A",
+      walk: "Walking_A",
+      // At 1.2 tiles/s a chase is the same lumber.
+      run: "Walking_A",
+      attack: "2H_Melee_Attack_Chop",
+      flinch: "Hit_A",
+      death: "Death_A",
+    },
+    // The slam stops dead at about 0.55 of its clip (hand speed sampled along
+    // the retargeted clip on the Orc Brute: 14 tiles/s at 0.533, 1 at 0.55).
+    contact: 0.55,
+    weapons: [],
+  },
   // A big, pale Skeleton with a blade for a staff, until he has a model of his own.
   grave_wockington: {
     model: "Skeleton",

@@ -38,6 +38,7 @@ packed into one glb each, as are Resource Bits' coin stacks. Nothing is recolour
 | `addons/kaykit_character_pack_adventures/Characters/gltf/Knight.glb` | the Hero, and the Golem's attack |
 | Mystery Monthly Series 6: `Monstrosity.glb` | the Golem |
 | Mystery Monthly Series 6: `PlantWarrior.glb` | the Bog Spitter |
+| Mystery Monthly Series 6: `OrcBrute.glb` | the Wockbrute |
 | Mystery Monthly Series 4: `Werewolf_Wolf.glb` | the Wockwolf |
 | Mystery Monthly Series 6: `Farmer_A.glb` | Town's NPCs |
 | Mystery Monthly Series 6: `Farmer_B.glb` | Town's NPCs |

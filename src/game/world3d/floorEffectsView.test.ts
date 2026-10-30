@@ -46,6 +46,23 @@ describe("the 3D World view of the floor effects", () => {
       expect(wedge.progress).toBeCloseTo(0.5, 1);
     });
 
+    it("shows a winding-up Wockbrute's Slam as the whole circle it hits within", () => {
+      const world = arenaWith([{ x: 12, y: 10 }], { combat: true });
+      const [monster] = world.monsters;
+      monster.type = "wockbrute";
+      monster.state = "windup";
+      monster.attack = msToSteps(monsterTuning.wockbrute.windUpMs) / 2;
+      const { attack } = monsterTuning.wockbrute;
+      if (attack.kind !== "melee" || !attack.slam) throw new Error("a Slam");
+
+      const [circle] = viewOf(world).telegraphs;
+
+      expect(circle.pos).toEqual(monster.pos);
+      expect(circle.reach).toBe(attack.slam.radius);
+      expect(circle.arc).toBeCloseTo(Math.PI);
+      expect(circle.progress).toBeCloseTo(0.5, 1);
+    });
+
     it("follows the Monster between steps", () => {
       const world = arenaWith([{ x: 12, y: 10 }], { combat: true });
       const [monster] = world.monsters;

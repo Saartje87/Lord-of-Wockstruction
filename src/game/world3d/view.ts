@@ -485,8 +485,9 @@ function floorEffectsOf(
         y: monster.prevPos.y + (monster.pos.y - monster.prevPos.y) * alpha,
       },
       facing: monster.facing,
-      reach: attack.reach,
-      arc: (attack.arcDegrees * Math.PI) / 180,
+      // A Slam fills the whole circle it hits within.
+      reach: attack.slam ? attack.slam.radius : attack.reach,
+      arc: attack.slam ? Math.PI : (attack.arcDegrees * Math.PI) / 180,
       progress: windUpProgress(monster),
     });
   }

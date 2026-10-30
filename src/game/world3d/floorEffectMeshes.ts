@@ -27,7 +27,7 @@ const MUCK_MARK = { colour: 0x8fc22e, fillAlpha: 0.12, filledAlpha: 0.4 };
 const LIFT = 0.14;
 
 /** How many segments a telegraph wedge is cut into. */
-const WEDGE_SEGMENTS = 12;
+const WEDGE_SEGMENTS = 24;
 
 /** How thick a ring is, as a share of its radius. */
 const RING_THICKNESS = 0.1;

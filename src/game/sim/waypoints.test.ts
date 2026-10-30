@@ -227,6 +227,46 @@ describe("the list of Waypoints", () => {
   });
 });
 
+describe("the order of the list", () => {
+  /** `content` as the `position`th Area of the Act's Main Path, at `level`. */
+  const onMainPath = (content: object, position: number, level?: number) => ({
+    ...content,
+    properties: [
+      ...(level === undefined
+        ? []
+        : [{ name: "areaLevel", type: "int", value: level }]),
+      { name: "act", type: "int", value: 1 },
+      { name: "mainPath", type: "int", value: position },
+    ],
+  });
+
+  it("is the Main Path's, whatever the Areas' Levels", () => {
+    const world = createWorld({
+      areas: {
+        town: onMainPath(town, 0),
+        // Further along the Main Path, but a lower Area Level.
+        far: onMainPath(cave, 2, 3),
+        cave: onMainPath(cave, 1, 9),
+      },
+      seed: 1,
+    });
+    expect(waypointList(world).map((w) => w.area)).toEqual([
+      "town",
+      "cave",
+      "far",
+    ]);
+  });
+
+  it("rejects a bad Main Path position, naming the Area", () => {
+    expect(() =>
+      createWorld({
+        areas: { town: onMainPath(town, 0), cave: onMainPath(cave, -1, 2) },
+        seed: 1,
+      }),
+    ).toThrow(/cave/);
+  });
+});
+
 describe("travelling to a Waypoint", () => {
   const touchedBoth = {
     ...FRESH_PROGRESS,

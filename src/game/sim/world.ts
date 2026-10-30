@@ -1368,8 +1368,9 @@ export function waypointUnderHero(world: World): string | null {
 }
 
 /**
- * The Waypoints of the active Area's Act in Main Path order (by Area Level,
- * Town first), each with whether the Hero has touched it.
+ * The Waypoints of the active Area's Act in Main Path order (by the maps'
+ * `mainPath` positions, Town first; any without one last, by Area Level),
+ * each with whether the Hero has touched it.
  */
 export function waypointList(
   world: World,
@@ -1377,7 +1378,12 @@ export function waypointList(
   const { act } = world.areas[world.areaName];
   return Object.values(world.areas)
     .filter((area) => area.waypoint && area.act === act)
-    .sort((a, b) => (a.areaLevel ?? 0) - (b.areaLevel ?? 0))
+    .sort(
+      (a, b) =>
+        (a.mainPath ?? Number.POSITIVE_INFINITY) -
+          (b.mainPath ?? Number.POSITIVE_INFINITY) ||
+        (a.areaLevel ?? 0) - (b.areaLevel ?? 0),
+    )
     .map((area) => ({
       area: area.name,
       touched: world.hero.progress.touchedWaypoints.includes(area.name),

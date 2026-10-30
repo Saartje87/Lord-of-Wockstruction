@@ -1072,6 +1072,26 @@ describe("the shipped Act 1", () => {
   });
 });
 
+describe("the shipped Act 1's Main Path", () => {
+  it("lists the Waypoints from Wockville out to the Ossuary", () => {
+    expect(waypointList(shippedWorld()).map((w) => w.area)).toEqual([
+      "town",
+      "soggy-bog",
+      "catacombs",
+      "ossuary",
+    ]);
+  });
+
+  it("names the Spa's Unique Monster as its map does", () => {
+    const spa = Object.values(shippedWorld().areas).find(
+      (area) => area.name === "spa",
+    );
+    expect(spa?.uniques.map((unique) => unique.name)).toEqual([
+      "Sir Soaks-a-Lot",
+    ]);
+  });
+});
+
 describe("Grave Wockington in the shipped Ossuary", () => {
   const inOssuary = (state: "notGiven" | "given" | "ready" | "done") =>
     createWorld({

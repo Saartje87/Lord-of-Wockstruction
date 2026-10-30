@@ -113,8 +113,12 @@ A big, slow Monster type whose Slam hits everything of the Hero's around it, mos
 _Avoid_: Brute, orc, ogre
 
 **Unique Monster**:
-A named Monster, one of its kind, placed by hand in an Area: tougher than its Monster type and dropping better Items. The Act Boss is one, with a Monster type of its own.
+A named Monster, one of its kind, placed by hand in an Area: a bigger, tougher version of its Monster type that gives more Experience and always drops a Rare Item and a Magic or better one, its name shown in a gold colour no Item's name uses. It has no powers its type lacks. The Act Boss is one, with a Monster type of its own.
 _Avoid_: Boss (except the Act Boss), champion, elite, rare
+
+**Bruckle**:
+The Unique Monster, a Wockbrute, who has taken over the Spa, guarded by a pack of Wockwolves; killing him is the task of "Spa Day".
+_Avoid_: Spa boss
 
 **Bone Altar**:
 A Prop with Life that raises a Monster beside it every so often, up to a limit, until the Hero destroys it with attacks or Skills; Monsters leave it be.
@@ -321,7 +325,7 @@ A one-line name an Item type also has, short enough to read inside the Item's bo
 _Avoid_: Abbreviation, label, nickname
 
 **Ground Item**:
-An Item lying in an Area, dropped by a Monster or by the player, until the Hero picks it up or leaves the Area.
+An Item lying in an Area, dropped by a Monster or by the player, until the Hero picks it up or the Session ends.
 _Avoid_: Drop, loot
 
 **Rarity**:
@@ -341,7 +345,7 @@ The Rarity of an Item with three or four Affixes, at most two Prefixes and two S
 _Avoid_: Yellow, epic
 
 **Affix**:
-An extra bonus a Magic or Rare Item rolled when it dropped, always shown, never two of one kind on an Item; how strong it can roll grows with the Monster Level of what dropped it, and its name says how strong it is, as *of the Ox* is weaker than *of the Giant*.
+An extra bonus a Magic or Rare Item rolled when it dropped, always shown, never two of one kind on an Item; how strong it can roll grows with the Monster Level of what dropped it, and its name says how strong it is, as *of the Badger* is weaker than *of the Bear*.
 _Avoid_: Mod, enchantment, property, stat
 
 **Prefix**:
@@ -357,7 +361,7 @@ The money the Hero earns from kills and selling Items and spends at the Vendor; 
 _Avoid_: Coins, money, currency
 
 **Gold Pile**:
-Gold lying in an Area, dropped by a Monster and labelled with its amount, until the Hero picks it up just by walking near it or leaves the Area; the Save never keeps one.
+Gold lying in an Area, dropped by a Monster and labelled with its amount, until the Hero picks it up just by walking near it or the Session ends; it is never the Item in Reach, never shown on the Map Overlay or Mini Map, and the Save never keeps one.
 _Avoid_: Gold drop, coins
 
 **Vendor**:
@@ -369,7 +373,7 @@ What an Item is worth in Gold, set by its type and raised by its Rarity and Affi
 _Avoid_: Price, cost, worth
 
 **Vendor panel**:
-The panel opened by talking to the Vendor, the Hero standing still while it is open, showing the Vendor's goods and the Hero's Inventory together; Equipped Items aren't in it. An Item put down on the Vendor's side is sold at once, and joins their goods to be bought back at its Value until their goods change; a bought Potion goes into the Belt Columns first. It shuts as the Inventory panel does, and when another panel opens.
+The panel opened by picking Trade in the Vendor's Dialogue panel, showing the Vendor's goods and the Hero's Inventory together; Equipped Items aren't in it. A good lifted as the Held Item is bought, its Value taken from Gold, when put down in the Inventory or a Belt Column; one the Hero can't afford can't be lifted. A Held Item of the Hero's, from the Inventory or a Belt Column, put down on the Vendor's side is sold at once and is gone. The World plays on while it is open; it shuts as the Inventory panel does, when the Hero walks away, and when another panel opens, a held good going back to the Vendor at no cost.
 _Avoid_: Shop screen, trade window, store
 
 **Inventory**:

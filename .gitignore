@@ -48,4 +48,4 @@ next-env.d.ts
 
 # paid KayKit Mystery Monthly packs (CC0): only the models the game uses are
 # imported into public/assets, the full downloads stay out of the public repo
-KayKit_Mystery_Monthly_Series_*/
+vendor/kaykit/

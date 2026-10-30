@@ -5,7 +5,6 @@ import {
   LoopRepeat,
   type Mesh,
   type MeshToonMaterial,
-  type Object3D,
 } from "three";
 import type { GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone } from "three/examples/jsm/utils/SkeletonUtils.js";
@@ -13,9 +12,11 @@ import type { Vec } from "../sim/vec";
 import { blendClips, scrubTime, turnTowards } from "./actorPose";
 import type { MonsterLook } from "./monsterLook";
 import {
+  glowMaterials,
   type Inks,
   inksOf,
   LOOKS,
+  materialsOf,
   outline,
   outlinesOf,
   toonShade,
@@ -31,6 +32,8 @@ const PHASE_SECONDS_PER_ID = 0.37;
 const TURN_RATE = 14;
 /** How bright a fully flashed Monster glows. */
 const FLASH_GLOW = 0.9;
+/** The colour a hit Monster flashes. */
+const FLASH_COLOUR = 0xffffff;
 /** The outline's width, in tiles. */
 const OUTLINE = 0.022;
 
@@ -109,18 +112,6 @@ export function monsterActorOf(
   };
 }
 
-/** The toon materials of every mesh under `model`, except outlines'. */
-function materialsOf(model: Object3D): MeshToonMaterial[] {
-  const materials: MeshToonMaterial[] = [];
-  model.traverse((node) => {
-    const mesh = node as Mesh;
-    if (mesh.isMesh && !mesh.userData.isOutline) {
-      materials.push(mesh.material as MeshToonMaterial);
-    }
-  });
-  return materials;
-}
-
 /**
  * Poses the actor as `monster` says, `dt` seconds after the last pose: moves
  * it, turns it towards its facing, flashes it, and blends to the clip,
@@ -134,9 +125,11 @@ export function poseMonster(actor: MonsterActor, monster: Posed, dt: number) {
     actor.turn = turnTowards(actor.turn, monster.facing, dt, TURN_RATE);
   }
   actor.root.rotation.y = actor.turn ?? 0;
-  for (const material of actor.materials) {
-    material.emissive.setScalar((monster.flash ?? 0) * FLASH_GLOW);
-  }
+  glowMaterials(
+    actor.materials,
+    FLASH_COLOUR,
+    (monster.flash ?? 0) * FLASH_GLOW,
+  );
   if (monster.highlighted !== actor.highlighted) {
     actor.highlighted = monster.highlighted;
     const ink = monster.highlighted ? actor.inks.highlight : actor.inks.ink;

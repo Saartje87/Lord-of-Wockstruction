@@ -573,3 +573,19 @@ describe("the KayKit tileset", () => {
     }
   });
 });
+
+describe("Town", () => {
+  it("has no NPC standing on a Prop", () => {
+    const town = shippedWorld().areas.town;
+    const standingOnProp = town.npcs
+      .filter((npc) =>
+        town.props.some(
+          (prop) =>
+            prop.x === Math.floor(npc.pos.x) &&
+            prop.y === Math.floor(npc.pos.y),
+        ),
+      )
+      .map((npc) => npc.name);
+    expect(standingOnProp).toEqual([]);
+  });
+});

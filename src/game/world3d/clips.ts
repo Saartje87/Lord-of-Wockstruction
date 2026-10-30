@@ -1,9 +1,9 @@
 /**
  * How far into KayKit's attack clips the weapon makes contact, as a fraction
- * of the clip (found by eye on the Chop clip in the prototype). A swing is
- * scrubbed so this frame falls on the step its hit lands.
+ * of the clip (the Chop's downswing, from the weapon hand's speed along the
+ * clip). A swing is scrubbed so this frame falls on the step its hit lands.
  */
-export const ATTACK_CONTACT = 0.42;
+export const ATTACK_CONTACT = 0.57;
 
 /** The Hero's animations as the 3D World view names them. */
 export type HeroClip = "idle" | "run" | "swing" | "cast" | "flinch" | "death";

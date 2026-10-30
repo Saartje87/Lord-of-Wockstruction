@@ -23,7 +23,7 @@ const CAPACITY = 96;
 const LIFT = 0.07;
 
 /** How much brighter than its tint a bottle's instance colour is. */
-const BOTTLE_BOOST = 2.6;
+const BOTTLE_BOOST = 1.6;
 
 /** The outline's width, in tiles. */
 const OUTLINE = 0.015;
@@ -65,8 +65,10 @@ export function instancesOf(file: string, scene: Object3D | null): Instances {
   // Loot glints: the gem is unlit, the models lifted a little out of the dark.
   if (file !== GEM) toonShade(model, LOOKS.warm);
   const glow = glowOf(file);
-  // Tinted bottles are darkened by their brown glass, so the tint is pushed.
-  const boost = file.includes("bottle") ? BOTTLE_BOOST : 1;
+  // Bottles are drawn in their tint alone: their brown glass would turn blue
+  // to grey, so the texture is dropped and the tint lifted a little.
+  const isBottle = file.includes("bottle");
+  const boost = isBottle ? BOTTLE_BOOST : 1;
   const group = new Group();
   model.updateMatrixWorld(true);
   const parts: { mesh: InstancedMesh; local: Matrix4 }[] = [];
@@ -74,6 +76,10 @@ export function instancesOf(file: string, scene: Object3D | null): Instances {
     const source = node as Mesh;
     if (!source.isMesh) return;
     const material = source.material as MeshToonMaterial;
+    if (isBottle) {
+      material.map = null;
+      material.needsUpdate = true;
+    }
     if (glow !== null) {
       material.emissive = new Color(glow);
       material.emissiveIntensity = 0.3;

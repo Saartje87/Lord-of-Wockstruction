@@ -24,6 +24,12 @@ const HALF_HEIGHT = 0.72;
 /** The sparks that drift up off the rim. */
 const SPARKS = 14;
 
+/** How many times brighter than tuned the pool of light on the floor is. */
+const POOL_BOOST = 4;
+
+/** How many times wider than tuned the pool of light on the floor is. */
+const POOL_WIDEN = 1.5;
+
 const hex = (colour: number) =>
   `vec3(${[16, 8, 0].map((s) => (((colour >> s) & 255) / 255).toFixed(3)).join(", ")})`;
 
@@ -44,8 +50,8 @@ function swirlMaterial(): ShaderMaterial {
         vec3 colour = mix(${hex(colours.dark)}, ${hex(colours.bright)}, band);
         float core = 1.0 - smoothstep(0.0, 0.45, r);
         colour = mix(colour, ${hex(colours.core)}, core);
-        float alpha = (1.0 - smoothstep(0.78, 1.0, r)) * (0.75 + 0.25 * band);
-        gl_FragColor = vec4(colour * (0.9 + 0.5 * core), alpha);
+        float alpha = (1.0 - smoothstep(0.9, 1.0, r)) * (0.9 + 0.1 * band);
+        gl_FragColor = vec4(colour * (1.3 + 0.8 * core), alpha);
       }`,
     transparent: true,
     depthWrite: false,
@@ -65,7 +71,7 @@ function poolMaterial(): ShaderMaterial {
     fragmentShader: `uniform float uAlpha; varying vec2 vUv;
       void main() {
         float r = length((vUv - 0.5) * 2.0);
-        float alpha = pow(1.0 - smoothstep(0.0, 1.0, r), 1.6) * uAlpha * 1.6;
+        float alpha = pow(1.0 - smoothstep(0.0, 1.0, r), 1.6) * uAlpha * ${POOL_BOOST.toFixed(1)};
         gl_FragColor = vec4(${hex(glow)} * alpha, alpha);
       }`,
     transparent: true,
@@ -98,12 +104,11 @@ function gatewayOf(swirl: ShaderMaterial, pool: ShaderMaterial): Gateway {
   rim.scale.set(HALF_WIDTH, HALF_HEIGHT, 0.7);
   stand.add(disc, rim);
   const floor = new Mesh(
-    new CircleGeometry(townPortalLook.glowRadius, 40),
+    new CircleGeometry(townPortalLook.glowRadius * POOL_WIDEN, 40),
     pool,
   );
   floor.rotation.x = -Math.PI / 2;
-  floor.position.y = 0.05;
-  floor.renderOrder = 2;
+  floor.position.y = 0.14;
   const sparks = new Points(
     new BufferGeometry().setAttribute(
       "position",

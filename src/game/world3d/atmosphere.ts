@@ -54,6 +54,8 @@ export function createAtmosphere(): Atmosphere {
     new PlaneGeometry(2, 2),
     new ShaderMaterial({
       transparent: true,
+      // A quad over the whole frame, in screen space: it is no part of the
+      // scene's depth, so nothing may hide it.
       depthTest: false,
       depthWrite: false,
       vertexShader:

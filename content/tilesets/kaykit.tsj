@@ -4,7 +4,7 @@
  "name": "kaykit",
  "tilewidth": 128,
  "tileheight": 128,
- "tilecount": 37,
+ "tilecount": 38,
  "columns": 0,
  "margin": 0,
  "spacing": 0,
@@ -862,6 +862,29 @@
      "name": "piece",
      "type": "string",
      "value": "dungeon/wall_crossing"
+    }
+   ]
+  },
+  {
+   "id": 37,
+   "image": "kaykit/dungeon_wall_endcap.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "wall"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "dungeon/wall_endcap"
     }
    ]
   }

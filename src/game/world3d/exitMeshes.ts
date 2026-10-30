@@ -17,7 +17,7 @@ const SHAFT_HEIGHT = 3.2;
 const VERTEX =
   "varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }";
 
-function glowMaterial(fragment: string): ShaderMaterial {
+function lightMaterial(fragment: string): ShaderMaterial {
   return new ShaderMaterial({
     uniforms: { uTime: { value: 0 } },
     vertexShader: VERTEX,
@@ -36,18 +36,18 @@ function glowMaterial(fragment: string): ShaderMaterial {
  * in towards its middle like a way to somewhere.
  */
 const floorGlow = () =>
-  glowMaterial(`
+  lightMaterial(`
     vec2 c = (vUv - 0.5) * 2.0;
     float d = max(abs(c.x), abs(c.y));
-    float edge = 1.0 - smoothstep(0.6, 1.0, d);
+    float edge = 1.0 - smoothstep(0.88, 1.0, d);
     float rings = 0.5 + 0.5 * sin(d * 7.0 + uTime * 2.2);
     float breath = 0.85 + 0.15 * sin(uTime * 1.6);
-    float alpha = edge * (0.5 + 0.4 * rings) * breath;
+    float alpha = edge * (0.7 + 0.3 * rings) * breath;
     gl_FragColor = vec4(${LIGHT} * alpha, alpha);`);
 
 /** A shaft of light rising from the Exit, fading out and shimmering upwards. */
 const shaftGlow = () =>
-  glowMaterial(`
+  lightMaterial(`
     float across = smoothstep(0.0, 0.3, vUv.x) * smoothstep(1.0, 0.7, vUv.x);
     float up = pow(1.0 - vUv.y, 1.6);
     float shimmer = 0.75 + 0.25 * sin(vUv.y * 9.0 - uTime * 1.8 + vUv.x * 6.0);
@@ -75,7 +75,6 @@ export function exitMeshesOf(exits: ExitView[]): ExitMeshes {
     pool.rotation.x = -Math.PI / 2;
     // Above Town's raised paths, which reach 0.05.
     pool.position.y = 0.12;
-    pool.renderOrder = 2;
     gateway.add(pool);
     const span = Math.min(width, height) * 0.8;
     for (const turn of [Math.PI / 4, -Math.PI / 4]) {

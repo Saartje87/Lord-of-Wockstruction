@@ -1,3 +1,4 @@
+import type { Material, Mesh } from "three";
 import { describe, expect, it } from "vitest";
 import { areas, tilesets } from "../content";
 import { createWorld } from "../sim/world";
@@ -41,6 +42,27 @@ describe("Exits in the 3D World", () => {
     expect(small.position.z).toBeCloseTo(15);
     expect(large.position.x).toBeCloseTo(7);
     expect(large.position.z).toBeCloseTo(6);
+  });
+});
+
+describe("glows that must not hide", () => {
+  it("lifts an Exit pool above Town's raised paths", () => {
+    const [exit] = exitMeshesOf([
+      { x: 27, y: 14, width: 2, height: 2, to: "catacombs" },
+    ]).group.children;
+    const pool = exit.children[0] as Mesh;
+
+    expect((pool.material as Material).depthTest).toBe(true);
+    expect(pool.position.y).toBeGreaterThan(0.05);
+  });
+
+  it("lifts a Town Portal's pool of light clear of Town's raised paths", () => {
+    const meshes = townPortalMeshesOf();
+    const [gateway] = meshes.group.children;
+    const floor = gateway.children[1] as Mesh;
+
+    expect(floor.position.y).toBeGreaterThan(0.05);
+    expect((floor.material as Material).depthTest).toBe(true);
   });
 });
 

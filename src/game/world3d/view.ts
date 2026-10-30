@@ -1,7 +1,7 @@
 import { corpseBurst, tileRadiusOf } from "../render/corpseBurst";
 import { curseCircle } from "../render/curse";
 import type { CharacterId } from "../render/hover";
-import { levelRing } from "../render/levelUp";
+import { LEVEL_UP, levelRing, levelUpLeft } from "../render/levelUp";
 import type { ShownTownPortal } from "../render/townPortalLook";
 import { type Area, type Placed, TOWN } from "../sim/area";
 import type { ItemId } from "../sim/inventory";
@@ -29,6 +29,7 @@ import type { MinionType } from "../tuning/minions";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import type { ProjectileKind } from "../tuning/projectiles";
 import { ATTACK_CONTACT, type HeroClip } from "./clips";
+import { type Crumble, crumbleOf } from "./crumble";
 import { MINION_LOOKS } from "./minionLook";
 import {
   MONSTER_DEATH_SECONDS,
@@ -53,6 +54,8 @@ export type HeroView = {
   /** Radians in tile space, as the World's `facing`. */
   facing: number;
   animation: HeroAnimation;
+  /** How gold the Hero is washed after a Level-Up, 0..1. */
+  glow: number;
 };
 
 /** What a Monster is doing, as `HeroAnimation` says for the Hero. */
@@ -87,6 +90,8 @@ export type MinionView = {
   animation: MonsterAnimation;
   /** Whether it is outlined as hovered. */
   highlighted: boolean;
+  /** How small it has shrunk and how far it has sunk: whole when alive. */
+  crumble: Crumble;
 };
 
 /** One of Town's NPCs as the 3D World shows it. */
@@ -131,6 +136,23 @@ export type Effects = {
   curses: AgedCircle[];
   /** How long ago (ms) the Hero reached a Level, if the ring may still show. */
   levelUpAgoMs: number | null;
+  /**
+   * The Minions that died or were replaced a moment ago and are crumbling
+   * where they stood. The World forgets a Minion the step it leaves, so the
+   * renderer keeps just these, from the events.
+   */
+  departedMinions: DepartedMinion[];
+};
+
+/** A Minion that left the World `ageMs` ago, as it last stood. */
+export type DepartedMinion = {
+  id: MinionId;
+  type: MinionType;
+  /** In tile units. */
+  pos: Vec;
+  /** Radians in tile space. */
+  facing: number;
+  ageMs: number;
 };
 
 /** A circle of `radius` tiles on the floor at `pos`, `ageMs` into its play. */
@@ -193,7 +215,7 @@ export type WorldView = {
   hero: HeroView;
   /** The living Monsters, then the Corpses. */
   monsters: MonsterView[];
-  /** The Hero's living Minions. */
+  /** The Hero's living Minions, then those crumbling away. */
   minions: MinionView[];
   /** The Area's NPCs: Town's. */
   npcs: NpcView[];
@@ -290,6 +312,7 @@ export function worldViewOf(
     bursts: [],
     curses: [],
     levelUpAgoMs: null,
+    departedMinions: [],
   },
 ): WorldView {
   const { hero } = world;
@@ -304,6 +327,7 @@ export function worldViewOf(
       pos,
       facing: hero.facing,
       animation: heroAnimationOf(world),
+      glow: heroGlowOf(effects),
     },
     monsters: [
       ...world.monsters.map((monster) =>
@@ -322,9 +346,14 @@ export function worldViewOf(
         }),
       ),
     ],
-    minions: world.minions.map((minion) =>
-      minionViewOf(world, minion, alpha, pointer.highlight),
-    ),
+    minions: [
+      ...world.minions.map((minion) =>
+        minionViewOf(world, minion, alpha, pointer.highlight),
+      ),
+      ...effects.departedMinions.map((minion) =>
+        crumblingMinionOf(world, minion),
+      ),
+    ],
     npcs: area.npcs.map((npc, id): NpcView => {
       const apart = Math.hypot(pos.x - npc.pos.x, pos.y - npc.pos.y);
       return {
@@ -425,6 +454,12 @@ function floorEffectsOf(
   };
 }
 
+/** The Hero's gold wash: the Level-Up's strength, fading out like its ring. */
+function heroGlowOf(effects: Effects): number {
+  if (effects.levelUpAgoMs === null) return 0;
+  return LEVEL_UP.strength * Math.max(0, levelUpLeft(effects.levelUpAgoMs));
+}
+
 /** A Corpse's fall: `ms` into it if it just died, else it lies still. */
 function corpseAnimationOf(ms: number | undefined): MonsterAnimation {
   const progress =
@@ -521,6 +556,20 @@ function minionViewOf(
       typeof highlight === "object" &&
       highlight !== null &&
       highlight.minion === minion.id,
+    crumble: crumbleOf(0),
+  };
+}
+
+/** A Minion that left the World, standing idle where it fell as it crumbles. */
+function crumblingMinionOf(world: World, minion: DepartedMinion): MinionView {
+  return {
+    id: minion.id,
+    type: minion.type,
+    pos: minion.pos,
+    facing: minion.facing,
+    animation: { clip: "idle", seconds: (world.tick * STEP_MS) / 1000 },
+    highlighted: false,
+    crumble: crumbleOf(minion.ageMs / 1000),
   };
 }
 

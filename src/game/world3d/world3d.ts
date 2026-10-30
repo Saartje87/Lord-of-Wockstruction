@@ -340,6 +340,9 @@ function poseMinions(world3d: World3d, view: WorldView, dt: number) {
       scene.add(actor.root);
     }
     poseMonster(actor, minion, dt);
+    // Poses put it on the floor; a crumbling Minion sinks into it.
+    actor.root.scale.setScalar(minion.crumble.scale);
+    actor.root.position.y = -minion.crumble.sink;
   }
   for (const [id, actor] of minions) {
     if (seen.has(id)) continue;

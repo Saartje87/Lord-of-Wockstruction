@@ -40,6 +40,24 @@ describe("the 3D World's floor", () => {
     expect(instances).toBe(cells);
   });
 
+  it("also has floor under each Wall, so no gap shows beside it", () => {
+    const world = arenaWith([]);
+    const base = world.areas[world.areaName];
+    const wall = { x: 3, y: 4, piece: "dungeon/wall", blocks: true };
+    const floor = base.floor.map((hasFloor, i) =>
+      i === wall.y * base.width + wall.x ? false : hasFloor,
+    );
+    const area = { ...base, floor, walls: [wall] };
+
+    const group = floorOf(area, dungeon());
+
+    const instances = group.children.reduce(
+      (total, mesh) => total + (mesh as InstancedMesh).count,
+      0,
+    );
+    expect(instances).toBe(base.floor.filter(Boolean).length);
+  });
+
   it("uses the pieces a KayKit Area names", () => {
     const world = arenaWith([]);
     const base = world.areas[world.areaName];

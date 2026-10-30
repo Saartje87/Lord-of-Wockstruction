@@ -1,4 +1,5 @@
 import type { MinionType } from "../tuning/minions";
+import { ATTACK_CONTACT } from "./clips";
 import { type MonsterLook, STANDING } from "./monsterLook";
 
 /** What each Minion type looks like. */
@@ -17,8 +18,8 @@ export const MINION_LOOKS: Record<MinionType, MonsterLook> = {
       death: "Death_A",
       attack: "2H_Melee_Attack_Chop",
     },
-    // The two-handed slam lands later than the one-handed chop's 0.42.
-    contact: 0.5,
+    // The two-handed slam stops dead at about 0.55 of its clip.
+    contact: 0.55,
     weapons: [],
   },
   // A Skeleton without its blade and shield: Raised Skeletons are many, and
@@ -28,7 +29,7 @@ export const MINION_LOOKS: Record<MinionType, MonsterLook> = {
     scale: 0.36,
     height: 0.9,
     clips: { ...STANDING, attack: "1H_Melee_Attack_Chop" },
-    contact: 0.42,
+    contact: ATTACK_CONTACT,
     look: "raised",
     weapons: [],
   },

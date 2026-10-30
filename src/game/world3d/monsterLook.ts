@@ -1,4 +1,5 @@
 import type { MonsterType } from "../tuning/monsters";
+import { ATTACK_CONTACT } from "./clips";
 import type { LOOKS } from "./toon";
 
 /** The Monster animations as the 3D World view names them. */
@@ -47,7 +48,7 @@ export const MONSTER_LOOKS: Record<MonsterType, MonsterLook> = {
     scale: 0.36,
     height: 0.9,
     clips: { ...STANDING, attack: "1H_Melee_Attack_Chop" },
-    contact: 0.42,
+    contact: ATTACK_CONTACT,
     weapons: [
       { slot: "handslot.r", model: "Skeleton_Blade" },
       { slot: "handslot.l", model: "Skeleton_Shield_Small_A" },
@@ -58,7 +59,7 @@ export const MONSTER_LOOKS: Record<MonsterType, MonsterLook> = {
     scale: 0.36,
     height: 0.9,
     clips: { ...STANDING, attack: "2H_Ranged_Shoot" },
-    // Not the melee swing's 0.42: the crossbow is raised and fired by about
+    // Not the melee swing's: the crossbow is raised and fired by about
     // 0.3 of the clip, where the arms stop moving fast (from its keyframes).
     contact: 0.3,
     weapons: [{ slot: "handslot.r", model: "Skeleton_Crossbow" }],
@@ -75,7 +76,7 @@ export const MONSTER_LOOKS: Record<MonsterType, MonsterLook> = {
       run: "Walking_D_Skeletons",
       attack: "1H_Melee_Attack_Chop",
     },
-    contact: 0.42,
+    contact: ATTACK_CONTACT,
     weapons: [],
   },
 };

@@ -17,6 +17,7 @@ const NO_EFFECTS: Effects = {
   bursts: [],
   curses: [],
   levelUpAgoMs: null,
+  departedMinions: [],
 };
 
 const withSkeleton = () => {

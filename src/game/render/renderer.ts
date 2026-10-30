@@ -51,6 +51,7 @@ import {
   type MinionId,
   type Monster,
   type MonsterId,
+  npcsIn,
   type SimEvent,
   townPortalFlash,
   townPortalIn,
@@ -1262,6 +1263,7 @@ export function createRenderer(
           lerp(minion.prevPos, minion.pos, alpha),
         ),
         townPortal: townPortalIn(world),
+        npcs: npcsIn(world),
         displayNames: areaDisplayNames,
       };
       mapOverlay.draw(viewport, mapInputs, menus.mapOpen);

@@ -1,4 +1,5 @@
 import { isMonsterType, type MonsterType } from "../tuning/monsters";
+import { QUEST_IDS, type QuestId } from "../tuning/quests";
 import { tileOf, type Vec } from "./vec";
 
 /**
@@ -78,8 +79,18 @@ export type Exit = {
   height: number;
 };
 
-/** A non-hostile character standing at `pos` (tile units). */
-export type Npc = { name: string; pos: Vec };
+/**
+ * A non-hostile character standing at `pos` (tile units) when `stands`
+ * holds, or always when it is null.
+ */
+export type Npc = { name: string; pos: Vec; stands: NpcCondition | null };
+
+/**
+ * The Quest condition an NPC stands where it is placed under: while the
+ * Quest `quest` is not yet Ready to hand in (`ready` false), or once it is
+ * Ready or Done (`ready` true). It is judged on each arrival in the Area.
+ */
+export type NpcCondition = { quest: QuestId; ready: boolean };
 
 type TmjLayer =
   | { type: "tilelayer"; name: string; data: number[] }
@@ -238,7 +249,9 @@ export function loadArea(
         };
         exits.push(readExit(name, object, pos, size));
       }
-      if (kind === "npc") npcs.push({ name: object.name, pos });
+      if (kind === "npc") {
+        npcs.push({ name: object.name, pos, stands: readStands(name, object) });
+      }
       if (kind === "townPortal") townPortal = pos;
       if (kind === "waypoint") {
         if (waypoint) throw new Error(`Area "${name}" has two Waypoints`);
@@ -284,6 +297,27 @@ export function loadArea(
     townPortal,
     waypoint,
   };
+}
+
+/**
+ * The Quest condition an `npc` object names with its `quest` and
+ * `questReady` properties, or null when it names none.
+ */
+function readStands(area: string, object: TmjObject): NpcCondition | null {
+  const quest = propertyOf(object, "quest");
+  if (quest === undefined) return null;
+  const ready = propertyOf(object, "questReady");
+  if (!(QUEST_IDS as readonly unknown[]).includes(quest)) {
+    throw new Error(
+      `Area "${area}" has NPC "${object.name}" standing under unknown Quest "${quest}"`,
+    );
+  }
+  if (typeof ready !== "boolean") {
+    throw new Error(
+      `Area "${area}" has NPC "${object.name}" with a Quest but no "questReady" property`,
+    );
+  }
+  return { quest: quest as QuestId, ready };
 }
 
 /** A Tiled object's custom property's value, if it has it. */

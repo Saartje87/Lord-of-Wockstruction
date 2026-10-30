@@ -5,6 +5,14 @@ import {
   belongingsOf,
   isValidBelongings,
 } from "./sim/inventory";
+import {
+  freshQuests,
+  partsOf,
+  QUEST_IDS,
+  type QuestLog,
+  type QuestState,
+  questPointsOf,
+} from "./sim/quests";
 import { SKILL_BAR_SLOTS, type SkillBar } from "./sim/skillBar";
 import {
   ATTRIBUTES,
@@ -19,13 +27,15 @@ import {
   type World,
 } from "./sim/world";
 import { heroTuning } from "./tuning/hero";
+import { questTuning } from "./tuning/quests";
 
 /**
  * Raised whenever the stored text changes shape. Text of any other version
  * is no Save, so the Hero starts fresh instead of loading something
- * misread, but for `BELTLESS_VERSION` and `WAYPOINTLESS_VERSION`.
+ * misread, but for `BELTLESS_VERSION`, `WAYPOINTLESS_VERSION` and
+ * `QUESTLESS_VERSION`.
  */
-export const SAVE_VERSION = 8;
+export const SAVE_VERSION = 9;
 
 /**
  * The version before Waypoints: its text, otherwise the same, loads with
@@ -34,10 +44,24 @@ export const SAVE_VERSION = 8;
 const WAYPOINTLESS_VERSION = 7;
 
 /**
+ * The version before Quests: its text, otherwise the same, loads with every
+ * Quest Not given.
+ */
+const QUESTLESS_VERSION = 8;
+
+/**
  * The version before the Belt: its text, otherwise the same, loads with an
  * empty Belt.
  */
 const BELTLESS_VERSION = 6;
+
+/** The states a Quest goes through, in order. */
+const QUEST_STATES: readonly QuestState[] = [
+  "notGiven",
+  "given",
+  "ready",
+  "done",
+];
 
 /** What the Save keeps of the Hero: their progress and their Belongings. */
 export type HeroSave = { progress: Progress; belongings: Belongings };
@@ -73,6 +97,10 @@ const SAVE_CHANGING_EVENTS: readonly SimEvent["type"][] = [
   "ItemUnequipped",
   "BeltChanged",
   "WaypointTouched",
+  "QuestGiven",
+  "QuestCounted",
+  "QuestReady",
+  "QuestDone",
 ];
 
 /** Whether a step's events changed what the Save keeps: progress or Belongings. */
@@ -165,6 +193,14 @@ export function parseSave(text: string | null): HeroSave | null {
   ) {
     if (fields.touchedWaypoints !== undefined) return null;
     fields.touchedWaypoints = [...FRESH_PROGRESS.touchedWaypoints];
+  }
+  if (
+    fields.version === BELTLESS_VERSION ||
+    fields.version === WAYPOINTLESS_VERSION ||
+    fields.version === QUESTLESS_VERSION
+  ) {
+    if (fields.quests !== undefined) return null;
+    fields.quests = freshQuests();
   } else if (fields.version !== SAVE_VERSION) {
     return null;
   }
@@ -177,6 +213,8 @@ export function parseSave(text: string | null): HeroSave | null {
   if (!skillBar) return null;
   const touchedWaypoints = parseTouchedWaypoints(fields.touchedWaypoints);
   if (!touchedWaypoints) return null;
+  const quests = parseQuests(fields.quests);
+  if (!quests) return null;
   const progress = {
     ...Object.fromEntries(
       PROGRESS_FIELDS.map((field) => [field, fields[field]]),
@@ -184,6 +222,7 @@ export function parseSave(text: string | null): HeroSave | null {
     skillLevels,
     skillBar,
     touchedWaypoints,
+    quests,
   } as Progress;
   if (!fitsTable(progress.level, progress.experience)) return null;
   if (!fitsPoints(progress)) return null;
@@ -287,6 +326,30 @@ function parseTouchedWaypoints(stored: unknown): string[] | null {
 }
 
 /**
+ * The stored Quests, or null when they aren't an object holding, for Quests
+ * and nothing else, a state and a count of parts done that the Quest has. A
+ * Quest missing from them is Not given.
+ */
+function parseQuests(stored: unknown): QuestLog | null {
+  const log = objectWithin(stored, QUEST_IDS);
+  if (!log) return null;
+  const quests = freshQuests();
+  for (const id of QUEST_IDS) {
+    const quest = log[id];
+    if (quest === undefined) continue;
+    const entry = objectWithin(quest, ["state", "count"]);
+    if (!entry) return null;
+    const { state, count } = entry;
+    if (!QUEST_STATES.includes(state as QuestState)) return null;
+    const parts = partsOf(questTuning[id].trigger);
+    if (!Number.isInteger(count) || (count as number) < 0) return null;
+    if ((count as number) > parts) return null;
+    quests[id] = { state: state as QuestState, count: count as number };
+  }
+  return quests;
+}
+
+/**
  * A stored value as an object, or null when it isn't a plain object with
  * no keys but `keys`.
  */
@@ -301,7 +364,12 @@ function objectWithin(
 }
 
 /** The fields of the stored progress that aren't whole numbers. */
-const OBJECT_FIELDS = ["skillLevels", "skillBar", "touchedWaypoints"] as const;
+const OBJECT_FIELDS = [
+  "skillLevels",
+  "skillBar",
+  "touchedWaypoints",
+  "quests",
+] as const;
 
 type ObjectField = (typeof OBJECT_FIELDS)[number];
 
@@ -339,7 +407,8 @@ function fitsPoints(progress: Progress): boolean {
     raisedBy.every((points) => points >= 0) &&
     progress.attributePoints >= 0 &&
     raised + progress.attributePoints ===
-      heroTuning.attributePointsPerLevel * (progress.level - 1)
+      heroTuning.attributePointsPerLevel * (progress.level - 1) +
+        questPointsOf(progress.quests).attributePoints
   );
 }
 
@@ -356,6 +425,7 @@ function fitsSkillPoints(progress: Progress): boolean {
   return (
     progress.skillPoints >= 0 &&
     spent + progress.skillPoints ===
-      heroTuning.skillPointsPerLevel * (progress.level - 1)
+      heroTuning.skillPointsPerLevel * (progress.level - 1) +
+        questPointsOf(progress.quests).skillPoints
   );
 }

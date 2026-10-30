@@ -39,6 +39,7 @@ describe("a World created from a saved progress", () => {
       skillLevels: { ...FRESH_PROGRESS.skillLevels, golem: 3 },
       skillBar: emptySkillBar(),
       touchedWaypoints: ["town"],
+      quests: structuredClone(FRESH_PROGRESS.quests),
     };
     const w = createWorld({
       areas: { town },
@@ -75,6 +76,7 @@ describe("a World created without a saved progress", () => {
       skillLevels: { ...FRESH_PROGRESS.skillLevels, golem: 0 },
       skillBar: emptySkillBar(),
       touchedWaypoints: [...FRESH_PROGRESS.touchedWaypoints],
+      quests: structuredClone(FRESH_PROGRESS.quests),
     });
     expect(w.hero.life).toBe(100);
   });

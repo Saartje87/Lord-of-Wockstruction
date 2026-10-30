@@ -5,6 +5,7 @@ import { type SkillBarSlot, skillInSlot } from "../sim/skillBar";
 import { distance, type Vec } from "../sim/vec";
 import {
   type MonsterId,
+  npcsIn,
   type Order,
   usesCorpse,
   type World,
@@ -389,10 +390,9 @@ const attack = (monster: MonsterId): Order => ({ type: "Attack", monster });
 
 /** A talk with the nearest NPC within `npcReach` of the Hero, if any. */
 function talkNear(world: World): Order | null {
-  const { npcs } = world.areas[world.areaName];
   let nearest: { npc: number; away: number } | null = null;
-  for (let npc = 0; npc < npcs.length; npc += 1) {
-    const away = distance(world.hero.pos, npcs[npc].pos);
+  for (const { id: npc, pos } of npcsIn(world)) {
+    const away = distance(world.hero.pos, pos);
     if (away > inputTuning.npcReach) continue;
     if (nearest && away >= nearest.away) continue;
     nearest = { npc, away };

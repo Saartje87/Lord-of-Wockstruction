@@ -79,6 +79,8 @@ export type MapInputs = {
   minions: Vec[];
   /** The Town Portal's end in `area`, if it has one. */
   townPortal: Vec | null;
+  /** The NPCs standing in `area` now. */
+  npcs: readonly { name: string; pos: Vec }[];
   /** Area display names by Area name, to name the Exits. */
   displayNames: Readonly<Record<string, string>>;
 };
@@ -131,7 +133,7 @@ export function mapMarks(inputs: MapInputs): MapMarks {
       inputs.townPortal && isExplored(inputs.townPortal)
         ? { ...inputs.townPortal }
         : null,
-    npcs: area.npcs
+    npcs: inputs.npcs
       .filter((npc) => isExplored(npc.pos))
       .map((npc) => ({ at: { ...npc.pos }, name: npc.name })),
     waypoint:

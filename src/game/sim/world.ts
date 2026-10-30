@@ -19,6 +19,7 @@ import {
   skillTuning,
   type WardEffect,
 } from "../tuning/skills";
+import { questTuning } from "../tuning/quests";
 import { townPortalTuning } from "../tuning/townPortal";
 import { townPortalLook } from "../tuning/townPortalLook";
 import { waypointTuning } from "../tuning/waypoints";
@@ -28,6 +29,7 @@ import {
   exitAt,
   isWalkable,
   loadArea,
+  type Npc,
   type Spawn,
   TOWN,
 } from "./area";
@@ -78,6 +80,17 @@ import {
   wanderPause,
 } from "./monsters";
 import { findPath } from "./path";
+import {
+  advanceQuest,
+  copyQuests,
+  freshQuests,
+  hasQuestToDealIn,
+  type QuestId,
+  type QuestLog,
+  type QuestProgress,
+  type QuestTask,
+  questsOf,
+} from "./quests";
 import {
   drinkFromBelt,
   drinkItem,
@@ -406,6 +419,12 @@ export type World = {
    * never kept by the Save. The active Area is not in it.
    */
   keptAreas: Record<string, KeptArea>;
+  /**
+   * The NPCs standing in the active Area, by their index in the Area's
+   * `npcs`: judged against the Quests on each arrival, and a talk can send
+   * one home at once. Never kept by the Save.
+   */
+  standing: number[];
   /** The Hero's Town Portal, if open; never kept by the Save. */
   townPortal: TownPortal | null;
   /** The id the next Monster gets. */
@@ -473,6 +492,18 @@ export type Order =
    * once within reach. Ignored for an NPC the Area doesn't have.
    */
   | { type: "Talk"; npc: number }
+  /**
+   * Take on the Quest `quest` from its giver, at once and whatever the Hero
+   * is doing. Ignored unless it is Not given and its giver stands within
+   * reach in the active Area.
+   */
+  | { type: "AcceptQuest"; quest: QuestId }
+  /**
+   * Hand in the Quest `quest` to its giver, making it Done and paying its
+   * reward, at once and whatever the Hero is doing. Ignored unless it is
+   * Ready to hand in and its giver stands within reach in the active Area.
+   */
+  | { type: "HandInQuest"; quest: QuestId }
   /** Go back to Town after dying. */
   | { type: "Continue" }
   /**
@@ -552,6 +583,14 @@ export type SimEvent =
   | { type: "HeroHit"; damage: number; warded: number }
   /** The Hero got within reach of NPC `npc`, called `name`, and talks to them. */
   | { type: "Talked"; npc: number; name: string }
+  /** The Hero took on Quest `quest`. */
+  | { type: "QuestGiven"; quest: QuestId }
+  /** Quest `quest` now has `count` of its parts done, not all yet. */
+  | { type: "QuestCounted"; quest: QuestId; count: number }
+  /** Quest `quest`'s task is done, and it can be handed in. */
+  | { type: "QuestReady"; quest: QuestId }
+  /** The Hero handed in Quest `quest`, which paid its reward. */
+  | { type: "QuestDone"; quest: QuestId }
   | { type: "MonsterDied"; id: MonsterId }
   /** A dying Monster or the Hero dropped `item`, which now lies at `pos`. */
   | { type: "ItemDropped"; item: Item; pos: Vec }
@@ -667,6 +706,8 @@ export type Progress = {
   skillBar: SkillBar;
   /** The Areas whose Waypoints the Hero has touched, in the order they did. */
   touchedWaypoints: string[];
+  /** How far each Quest has got. */
+  quests: QuestLog;
 };
 
 /** A fresh Level 1 Hero's progress: no Skill learned, an empty Skill Bar. */
@@ -685,6 +726,7 @@ export const FRESH_PROGRESS: Progress = {
   >,
   skillBar: emptySkillBar(),
   touchedWaypoints: [TOWN],
+  quests: freshQuests(),
 };
 
 /** A copy of `progress` sharing nothing with it. */
@@ -694,6 +736,7 @@ function copyProgress(progress: Progress): Progress {
     skillLevels: { ...progress.skillLevels },
     skillBar: { ...progress.skillBar },
     touchedWaypoints: [...progress.touchedWaypoints],
+    quests: copyQuests(progress.quests),
   };
 }
 
@@ -772,12 +815,14 @@ export function createWorld(options: {
     explored: new Array(town.width * town.height).fill(true),
     minions: [],
     keptAreas: {},
+    standing: [],
     townPortal: null,
     nextMonsterId: 1,
     nextMinionId: 1,
     nextItemId: 1,
   };
   giveBelongings(world, belongings);
+  world.standing = standingIn(world, town);
   world.hero.life = maxLife(world);
   world.hero.mana = maxMana(world);
   for (const spawn of town.spawns) placePack(world, town, spawn);
@@ -1149,6 +1194,7 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   world.explored =
     kept?.explored ??
     new Array(area.width * area.height).fill(area.name === TOWN);
+  world.standing = standingIn(world, area);
   revealAround(world);
   for (const minion of world.minions) placeBesideHero(world, minion);
   world.heldOrders = [];
@@ -1704,6 +1750,10 @@ function give(world: World, order: Order, events: SimEvent[]) {
     }
     return;
   }
+  if (order.type === "AcceptQuest" || order.type === "HandInQuest") {
+    answerQuest(world, order.quest, order.type === "HandInQuest", events);
+    return;
+  }
   if (order.type === "SpendAttributePoints") {
     spendAttributePoints(world, order.points, events);
     return;
@@ -1778,7 +1828,7 @@ function give(world: World, order: Order, events: SimEvent[]) {
     }
     case "Talk": {
       const npc = area.npcs[order.npc];
-      if (!npc) return;
+      if (!npc || !world.standing.includes(order.npc)) return;
       hero.attacking = null;
       hero.pickingUp = null;
       hero.talkingTo = order.npc;
@@ -2122,6 +2172,94 @@ export function withinNpcReach(world: World, npc: number): boolean {
   return !!there && distance(world.hero.pos, there.pos) <= heroTuning.talkLeave;
 }
 
+/**
+ * The indices in `area`'s `npcs` of the NPCs that stand there now, as the
+ * Quests stand: those placed under no condition, or whose condition holds.
+ */
+function standingIn(world: World, area: Area): number[] {
+  return area.npcs.flatMap((npc, id) => (stillStands(world, npc) ? [id] : []));
+}
+
+/** Whether `npc`'s condition holds as the Quests stand now. */
+function stillStands(world: World, npc: Npc): boolean {
+  if (!npc.stands) return true;
+  const { state } = world.hero.progress.quests[npc.stands.quest];
+  return (state === "ready" || state === "done") === npc.stands.ready;
+}
+
+/**
+ * The NPCs standing in the active Area, each with its index in the Area's
+ * `npcs`, which stays the same whoever else stands there.
+ */
+export function npcsIn(world: World): { id: number; name: string; pos: Vec }[] {
+  const { npcs } = world.areas[world.areaName];
+  return world.standing.flatMap((id) =>
+    npcs[id] ? [{ id, name: npcs[id].name, pos: npcs[id].pos }] : [],
+  );
+}
+
+/** How far the Quest `quest` has got. */
+export function questOf(world: World, quest: QuestId): QuestProgress {
+  return { ...world.hero.progress.quests[quest] };
+}
+
+/** Whether NPC `npc` of the active Area has a Quest to give or take back. */
+export function hasQuestToDeal(world: World, npc: number): boolean {
+  const there = world.areas[world.areaName].npcs[npc];
+  return (
+    !!there &&
+    world.standing.includes(npc) &&
+    hasQuestToDealIn(world.hero.progress.quests, there.name)
+  );
+}
+
+/**
+ * Notes that the Hero did `task`, moving on every Quest that asks for it
+ * and reporting it. Tasks count whenever they happen, given or not.
+ */
+function noteTask(world: World, task: QuestTask, events: SimEvent[]) {
+  const { quests } = world.hero.progress;
+  for (const quest of Object.keys(quests) as QuestId[]) {
+    const result = advanceQuest(quests, quest, task);
+    if (result === "counted") {
+      events.push({ type: "QuestCounted", quest, count: quests[quest].count });
+    }
+    if (result === "ready") events.push({ type: "QuestReady", quest });
+  }
+}
+
+/**
+ * Gives or hands in `quest` to its giver, when the Hero is within reach of
+ * them: giving a Quest Not given, or, with `handIn`, making a Ready one Done
+ * and paying its reward once, as a Level-up pays its points.
+ */
+function answerQuest(
+  world: World,
+  quest: QuestId,
+  handIn: boolean,
+  events: SimEvent[],
+) {
+  const { progress } = world.hero;
+  const { giver, reward } = questTuning[quest];
+  const state = progress.quests[quest].state;
+  if (state !== (handIn ? "ready" : "notGiven")) return;
+  const there = npcsIn(world).find(
+    (npc) => npc.name === giver && withinNpcReach(world, npc.id),
+  );
+  if (!there || !questsOf(giver).includes(quest)) return;
+  if (!handIn) {
+    progress.quests[quest].state = "given";
+    events.push({ type: "QuestGiven", quest });
+    return;
+  }
+  progress.quests[quest].state = "done";
+  if (reward.type === "attributePoints") {
+    progress.attributePoints += reward.amount;
+  }
+  if (reward.type === "skillPoints") progress.skillPoints += reward.amount;
+  events.push({ type: "QuestDone", quest });
+}
+
 /** Talks to the NPC the Hero walks to once they are in reach. */
 function reachNpc(world: World, events: SimEvent[]) {
   const { hero } = world;
@@ -2138,8 +2276,17 @@ function reachNpc(world: World, events: SimEvent[]) {
     return;
   }
   events.push({ type: "Talked", npc: hero.talkingTo, name: npc.name });
+  const talkedTo = hero.talkingTo;
   hero.talkingTo = null;
   hero.path = [];
+  noteTask(world, { type: "talked", npc: npc.name }, events);
+  // An NPC whose condition no longer holds goes home now, though the
+  // Dialogue panel keeps their words; the Area judges them again on the next
+  // arrival.
+  if (!world.standing.includes(talkedTo)) return;
+  world.standing = world.standing.filter(
+    (id) => id !== talkedTo || stillStands(world, npc),
+  );
 }
 
 /**

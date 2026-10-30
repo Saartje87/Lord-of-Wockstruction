@@ -1,6 +1,6 @@
 import type { CharacterId } from "../render/hover";
 import type { Vec } from "../sim/vec";
-import type { World } from "../sim/world";
+import { npcsIn, type World } from "../sim/world";
 import { MINION_LOOKS } from "./minionLook";
 import { MONSTER_LOOKS } from "./monsterLook";
 import { NPC_LOOKS } from "./npcLook";
@@ -40,9 +40,9 @@ export function pickablesOf(
  * `npcs`, each with the height of its model, for picking.
  */
 export function npcPickablesOf(world: World): Pickable3d<number>[] {
-  return world.areas[world.areaName].npcs.map((npc, id) => ({
+  return npcsIn(world).map(({ id, name, pos }) => ({
     id,
-    pos: npc.pos,
-    height: NPC_LOOKS[npc.name].height,
+    pos,
+    height: NPC_LOOKS[name].height,
   }));
 }

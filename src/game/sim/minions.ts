@@ -5,7 +5,7 @@ import {
 } from "../tuning/minions";
 import { monsterTuning } from "../tuning/monsters";
 import type { ProjectileKind } from "../tuning/projectiles";
-import type { Skill } from "../tuning/skills";
+import type { CastSkill } from "../tuning/skills";
 import { isWalkable } from "./area";
 import { attackSpot, freeSpot, monsterBodies, wallRadius } from "./bodies";
 import { altarRadiusOf, type BoneAltar, targetsOf } from "./boneAltars";
@@ -34,7 +34,7 @@ export type Minion = {
   id: MinionId;
   type: MinionType;
   /** The Skill that brought it. */
-  skill: Skill;
+  skill: CastSkill;
   /** The Skill Level of the Skill that brought it. */
   skillLevel: number;
   /**
@@ -184,7 +184,7 @@ export function minionRecoveryProgress(minion: Minion): number {
 export function newMinion(
   id: MinionId,
   type: MinionType,
-  skill: Skill,
+  skill: CastSkill,
   skillLevel: number,
   pos: Vec,
   facing: number,

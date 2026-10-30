@@ -6,7 +6,7 @@ import { emptySkillBar } from "../sim/skillBar";
 import { ATTRIBUTES, createWorld, FRESH_PROGRESS, SKILLS } from "../sim/world";
 import { heroTuning } from "../tuning/hero";
 import { ITEM_TYPES, inventoryTuning, itemOf } from "../tuning/items";
-import type { Skill } from "../tuning/skills";
+import { isPassive, type Skill } from "../tuning/skills";
 import { type Viewport, viewportOf } from "../viewport";
 import { heroPanelHitAt, heroPanelLayout } from "./heroPanel";
 import {
@@ -170,7 +170,12 @@ describe("the panels at the UI Scale", () => {
       // The rows left of the +.
       const rows = layout.skills[skill];
       const name = { ...rows, w: layout.raise[skill].x - rows.x };
-      expect(at(name)).toEqual({ button: { type: "pickUpSkill", skill } });
+      // A Passive Skill can't be lifted.
+      expect(at(name)).toEqual(
+        isPassive(skill)
+          ? { button: null }
+          : { button: { type: "pickUpSkill", skill } },
+      );
     }
     expect(at(layout.closeButton)).toEqual({
       button: { type: "close", panel: "skillTree" },

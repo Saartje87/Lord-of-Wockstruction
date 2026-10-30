@@ -13,9 +13,12 @@ import { minionTuning } from "../tuning/minions";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import { questTuning } from "../tuning/quests";
 import {
+  type CastSkill,
   type CurseEffect,
+  castTuning,
   corpseTuning,
   type ExplodeEffect,
+  isPassive,
   type ProjectileEffect,
   type RaiseEffect,
   type Skill,
@@ -136,7 +139,7 @@ import {
   type SkillBarSlot,
 } from "./skillBar";
 import { giveSmithBonus, SMITH } from "./smith";
-import { synergyMultiplier } from "./synergies";
+import { passiveMultiplier, skillPower } from "./synergies";
 import { msToSteps, perStep } from "./units";
 import { validateAreas } from "./validate";
 import { distance, type Vec } from "./vec";
@@ -175,11 +178,10 @@ export const FLINCH_STEPS = Object.fromEntries(
 ) as Record<MonsterType, number>;
 /** How many steps a cast of each Skill roots the Hero for. */
 export const CAST_STEPS = Object.fromEntries(
-  Object.entries(skillTuning).map(([skill, tuning]) => [
-    skill,
-    msToSteps(tuning.castMs),
-  ]),
-) as Record<Skill, number>;
+  (Object.keys(skillTuning) as Skill[])
+    .filter((skill): skill is CastSkill => !isPassive(skill))
+    .map((skill) => [skill, msToSteps(castTuning(skill).castMs)]),
+) as Record<CastSkill, number>;
 
 /** How many steps opening a Town Portal roots the Hero for. */
 export const OPENING_STEPS = msToSteps(townPortalTuning.openingMs);
@@ -255,7 +257,7 @@ export type BoneWard = { left: number; full: number };
 
 /** A Skill being cast: its effect happened as it started. */
 export type Cast = {
-  skill: Skill;
+  skill: CastSkill;
   /** Steps since the cast started, not counting hitstop. */
   elapsed: number;
 };
@@ -344,7 +346,7 @@ export type Monster = {
 };
 
 /** A Curse on a Monster: the Skill that put it there, and steps left. */
-export type MonsterCurse = { skill: Skill; left: number };
+export type MonsterCurse = { skill: CastSkill; left: number };
 
 /** Who a Monster goes after: the Hero, or one of their Minions. */
 export type MonsterTarget = "hero" | MinionId;
@@ -700,14 +702,14 @@ export type SimEvent =
   /** A `PutSkillOnBar` order rearranged the Skill Bar. */
   | { type: "SkillBarChanged" }
   /** The Hero started casting `skill` at `target`, its Mana spent. */
-  | { type: "SkillCast"; skill: Skill; target: Vec }
+  | { type: "SkillCast"; skill: CastSkill; target: Vec }
   /**
    * The Corpse `corpse` at `pos` burst, hurting every Monster within
    * `radius` (tiles).
    */
   | { type: "CorpseExploded"; corpse: MonsterId; pos: Vec; radius: number }
   /** `skill` Cursed every Monster within `radius` (tiles) of `pos`. */
-  | { type: "CurseCast"; skill: Skill; pos: Vec; radius: number }
+  | { type: "CurseCast"; skill: CastSkill; pos: Vec; radius: number }
   /** A cast did nothing, spending no Mana. */
   | { type: "CastFailed"; reason: CastFailure }
   /** Minion `minion` appeared at `pos`. */
@@ -952,14 +954,14 @@ export function canRaiseSkill(world: World, skill: Skill): boolean {
 }
 
 /** Whether `skill` uses a Corpse up, so a cast needs one near its point. */
-export function usesCorpse(skill: Skill): boolean {
-  const { type } = skillTuning[skill].effect;
+export function usesCorpse(skill: CastSkill): boolean {
+  const { type } = castTuning(skill).effect;
   return type === "raise" || type === "explode";
 }
 
 /** The Mana a cast of `skill` costs at Skill Level `skillLevel` (1 and up). */
-export function skillManaCost(skill: Skill, skillLevel: number): number {
-  const { manaCost, manaCostPerSkillLevel } = skillTuning[skill];
+export function skillManaCost(skill: CastSkill, skillLevel: number): number {
+  const { manaCost, manaCostPerSkillLevel } = castTuning(skill);
   return manaCost + manaCostPerSkillLevel * (skillLevel - 1);
 }
 
@@ -2025,7 +2027,8 @@ function spendSkillPoint(world: World, skill: Skill, events: SimEvent[]) {
   if (!canRaiseSkill(world, skill)) return;
   const { progress } = world.hero;
   progress.skillPoints -= 1;
-  if (progress.skillLevels[skill] === 0) {
+  // A Passive Skill is never cast, so it never goes on the Skill Bar.
+  if (progress.skillLevels[skill] === 0 && !isPassive(skill)) {
     progress.skillBar = placeLearnedSkill(progress.skillBar, skill);
   }
   progress.skillLevels[skill] += 1;
@@ -2044,7 +2047,7 @@ function putOnBar(
   events: SimEvent[],
 ) {
   const { progress } = world.hero;
-  if (progress.skillLevels[skill] === 0) return;
+  if (progress.skillLevels[skill] === 0 || isPassive(skill)) return;
   if (progress.skillBar[slot] === skill) return;
   progress.skillBar = putSkillOnBar(progress.skillBar, skill, slot);
   events.push({ type: "SkillBarChanged" });
@@ -2204,7 +2207,7 @@ function castFrom(
     events.push({ type: "CastFailed", reason: "town" });
     return;
   }
-  const { effect } = skillTuning[skill];
+  const { effect } = castTuning(skill);
   const corpse = usesCorpse(skill) ? nearestCorpse(world, target) : null;
   if (usesCorpse(skill) && !corpse) {
     events.push({ type: "CastFailed", reason: "corpse" });
@@ -2242,7 +2245,7 @@ function castFrom(
         world,
         effect,
         skillLevel,
-        synergyMultiplier(hero.progress.skillLevels, skill),
+        skillPower(hero.progress.skillLevels, skill),
       );
       break;
     case "ward":
@@ -2250,7 +2253,7 @@ function castFrom(
         hero,
         effect,
         skillLevel,
-        synergyMultiplier(hero.progress.skillLevels, skill),
+        skillPower(hero.progress.skillLevels, skill),
       );
       break;
     case "wall":
@@ -2261,7 +2264,7 @@ function castFrom(
         world,
         effect,
         skillLevel,
-        synergyMultiplier(hero.progress.skillLevels, skill),
+        skillPower(hero.progress.skillLevels, skill),
       );
       break;
   }
@@ -2288,7 +2291,7 @@ function nearestCorpse(world: World, point: Vec): Corpse | null {
  */
 function summon(
   world: World,
-  skill: Skill,
+  skill: CastSkill,
   type: MinionType,
   skillLevel: number,
   target: Vec,
@@ -2309,7 +2312,7 @@ function summon(
  */
 function raise(
   world: World,
-  skill: Skill,
+  skill: CastSkill,
   effect: RaiseEffect,
   skillLevel: number,
   corpse: Corpse,
@@ -2342,7 +2345,7 @@ export function explodeRadius(
  */
 function explode(
   world: World,
-  skill: Skill,
+  skill: CastSkill,
   effect: ExplodeEffect,
   skillLevel: number,
   corpse: Corpse,
@@ -2358,7 +2361,7 @@ function explode(
   });
   const life = monsterMaxLife(corpse);
   const [least, most] = effect.share;
-  const synergy = synergyMultiplier(world.hero.progress.skillLevels, skill);
+  const synergy = skillPower(world.hero.progress.skillLevels, skill);
   const range: [number, number] = [
     Math.ceil(life * least * synergy),
     Math.floor(life * most * synergy),
@@ -2372,9 +2375,18 @@ function explode(
   }
 }
 
-/** How far `effect` reaches from the cast point at `skillLevel` (tiles). */
-export function curseRadius(effect: CurseEffect, skillLevel: number): number {
-  return effect.radius + effect.radiusPerSkillLevel * (skillLevel - 1);
+/**
+ * How far `effect` reaches from the cast point at `skillLevel` (tiles),
+ * times `reach`, what the Skill's Passive Skills make it.
+ */
+export function curseRadius(
+  effect: CurseEffect,
+  skillLevel: number,
+  reach = 1,
+): number {
+  return (
+    (effect.radius + effect.radiusPerSkillLevel * (skillLevel - 1)) * reach
+  );
 }
 
 /** How long `effect` lasts at `skillLevel` (steps). */
@@ -2395,18 +2407,23 @@ export function curseSteps(
  */
 function curse(
   world: World,
-  skill: Skill,
+  skill: CastSkill,
   effect: CurseEffect,
   skillLevel: number,
   target: Vec,
   events: SimEvent[],
 ) {
-  const radius = curseRadius(effect, skillLevel);
+  const { skillLevels } = world.hero.progress;
+  const radius = curseRadius(
+    effect,
+    skillLevel,
+    passiveMultiplier(skillLevels, skill),
+  );
   events.push({ type: "CurseCast", skill, pos: { ...target }, radius });
   const left = curseSteps(
     effect,
     skillLevel,
-    synergyMultiplier(world.hero.progress.skillLevels, skill),
+    skillPower(world.hero.progress.skillLevels, skill),
   );
   for (const monster of world.monsters) {
     if (distance(monster.pos, target) <= radius) {
@@ -2609,7 +2626,7 @@ function stepBoneWalls(world: World, events: SimEvent[]) {
 /** Adds a fresh Minion at full Life at `pos` to the Hero's Minions. */
 function bringMinion(
   world: World,
-  skill: Skill,
+  skill: CastSkill,
   type: MinionType,
   skillLevel: number,
   pos: Vec,
@@ -2622,7 +2639,7 @@ function bringMinion(
     skillLevel,
     pos,
     world.hero.facing,
-    synergyMultiplier(world.hero.progress.skillLevels, skill),
+    skillPower(world.hero.progress.skillLevels, skill),
   );
   world.minions.push(minion);
   events.push({ type: "MinionSummoned", minion: minion.id, pos: { ...pos } });

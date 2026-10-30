@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { BRANCHES, branchSkills, skillTuning } from "../tuning/skills";
+import {
+  BRANCHES,
+  branchSkills,
+  type CastSkill,
+  skillTuning,
+} from "../tuning/skills";
 import {
   emptySkillBar,
   placeLearnedSkill,
@@ -218,7 +223,7 @@ describe("learning a Skill", () => {
 
 describe("placeLearnedSkill", () => {
   // A second Skill, which the tuning doesn't have yet.
-  const other = "boneWall" as Skill;
+  const other = "boneWall" as CastSkill;
 
   it("takes the first empty keyed slot when the right-click slot is taken", () => {
     const bar = { ...emptySkillBar(), right: other, key1: other };
@@ -300,13 +305,13 @@ describe("PutSkillOnBar", () => {
 
 describe("putSkillOnBar", () => {
   // A second Skill, which the tuning doesn't have yet.
-  const other = "boneWall" as Skill;
+  const other = "boneWall" as CastSkill;
 
   it("swaps it with the Skill in the slot when it came from another slot", () => {
     const bar = {
       ...emptySkillBar(),
       right: other,
-      key2: "raiseSkeleton" as Skill,
+      key2: "raiseSkeleton" as CastSkill,
     };
 
     expect(putSkillOnBar(bar, "raiseSkeleton", "right")).toEqual({
@@ -317,7 +322,7 @@ describe("putSkillOnBar", () => {
   });
 
   it("moves it to an empty slot, emptying the one it came from", () => {
-    const bar = { ...emptySkillBar(), key2: "raiseSkeleton" as Skill };
+    const bar = { ...emptySkillBar(), key2: "raiseSkeleton" as CastSkill };
 
     expect(putSkillOnBar(bar, "raiseSkeleton", "key4")).toEqual({
       ...emptySkillBar(),
@@ -338,7 +343,7 @@ describe("putSkillOnBar", () => {
     const bar = {
       ...emptySkillBar(),
       right: other,
-      key3: "raiseSkeleton" as Skill,
+      key3: "raiseSkeleton" as CastSkill,
     };
 
     for (const slot of SKILL_BAR_SLOTS) {
@@ -362,9 +367,16 @@ describe("Branches and Prerequisites", () => {
         "boneSpear",
         "boneWall",
         "splinterVolley",
+        "ossifiedWill",
       ],
-      summoning: ["raiseSkeleton", "golem", "raiseArcher"],
-      curses: ["amplifyDamage", "weaken", "leadenLimbs", "dread"],
+      summoning: ["raiseSkeleton", "golem", "raiseArcher", "graveCommand"],
+      curses: [
+        "amplifyDamage",
+        "weaken",
+        "leadenLimbs",
+        "dread",
+        "lingeringMalice",
+      ],
     });
     for (const branch of BRANCHES) {
       branchSkills[branch].forEach((skill, index) => {

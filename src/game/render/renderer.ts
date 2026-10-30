@@ -3116,6 +3116,13 @@ function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
           : skill.requiredLevel !== null
             ? `Level ${skill.requiredLevel}`
             : null;
+        // A Passive Skill sits in its own frame: it's never cast, so it
+        // isn't looked for on the Skill Bar.
+        if (skill.passive) {
+          graphics
+            .rect(row.x - 3, row.y + 1, row.w + 6, row.h - 2)
+            .stroke({ width: 1, color: style.edge });
+        }
         shown.name.text = skill.name;
         shown.name.style.fill = heldBack ? style.hint : style.title;
         shown.name.position.set(row.x, y);

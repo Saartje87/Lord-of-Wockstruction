@@ -19,6 +19,7 @@ import {
   SKILL_TREE_PANEL,
   skillTreeBranchRow,
   skillTreeColumns,
+  skillTreeFocusSpots,
   skillTreeHitAt,
   skillTreePanelLayout,
   skillTreePanelRect,
@@ -107,13 +108,16 @@ describe("skillTreeSheet", () => {
       "boneSpear",
       "boneWall",
       "splinterVolley",
+      "ossifiedWill",
       "raiseSkeleton",
       "golem",
       "raiseArcher",
+      "graveCommand",
       "amplifyDamage",
       "weaken",
       "leadenLimbs",
       "dread",
+      "lingeringMalice",
     ];
 
     expect(sheet.skillPoints).toBe("0");
@@ -192,6 +196,25 @@ describe("skillTreeSheet", () => {
       synergies: [],
       synergyTotal: "0",
     });
+  });
+
+  it("marks Passive Skills, with no Mana cost, and what they add now", () => {
+    const { percentPerSkillLevel } = skillTuning.graveCommand.passive;
+    const w = world({
+      ...FRESH_PROGRESS,
+      level: 20,
+      skillLevels: { ...FRESH_PROGRESS.skillLevels, graveCommand: 3 },
+    });
+
+    expect(rowOf(w, "graveCommand")).toMatchObject({
+      manaCost: "",
+      passive: {
+        percentPerSkillLevel: String(percentPerSkillLevel),
+        total: String(percentPerSkillLevel * 3),
+      },
+      synergies: [],
+    });
+    expect(rowOf(w, "golem").passive).toBeNull();
   });
 
   it("shows the Mana cost at the next Skill Level, and a + while a point is unspent", () => {
@@ -291,6 +314,41 @@ describe("skillTreeHitAt", () => {
     expect(skillTreeHitAt(screen, nameRow, withGolem(1), true)).toEqual(drag);
     expect(skillTreeHitAt(screen, lastRow, withGolem(2), true)).toEqual(drag);
     expect(skillTreeHitAt(screen, nameRow, withGolem(1), false)).toBeNull();
+  });
+
+  it("can't pick up a learned Passive Skill", () => {
+    const skill = layout.skills.lingeringMalice;
+    const at = { x: skill.x + 4, y: skill.y + 4 };
+    const w = world({
+      ...FRESH_PROGRESS,
+      level: 20,
+      skillLevels: { ...FRESH_PROGRESS.skillLevels, lingeringMalice: 2 },
+    });
+
+    expect(skillTreeHitAt(screen, at, w, true)).toEqual({ button: null });
+  });
+
+  it("gives a learned Passive Skill's Focus spot no second hit to pick it up", () => {
+    const w = world({
+      ...FRESH_PROGRESS,
+      level: 20,
+      skillLevels: {
+        ...FRESH_PROGRESS.skillLevels,
+        golem: 1,
+        lingeringMalice: 2,
+      },
+    });
+    const spots = skillTreeFocusSpots(w, screen);
+    const spotOf = (skill: Skill) =>
+      spots.find(
+        (spot) =>
+          JSON.stringify(spot.rect) === JSON.stringify(layout.skills[skill]),
+      );
+
+    expect(spotOf("golem")?.secondHit).toEqual({
+      button: { type: "pickUpSkill", skill: "golem" },
+    });
+    expect(spotOf("lingeringMalice")?.secondHit).toBeUndefined();
   });
 
   it("can't pick up a Skill not yet learned", () => {

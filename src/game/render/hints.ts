@@ -188,10 +188,20 @@ export function skillTooltip(sheet: SkillSheet, way: InputWay): string[] {
   }
   if (sheet.prerequisite) lines.push(`Needs ${sheet.prerequisite} first`);
   if (sheet.requiredLevel) lines.push(`Needs Level ${sheet.requiredLevel}`);
+  if (sheet.passive) {
+    const { percentPerSkillLevel, boosts, total } = sheet.passive;
+    lines.push(
+      `Passive: +${percentPerSkillLevel}% per Skill Level to ${boosts}`,
+    );
+    lines.push(`Passive adds +${total}% now`);
+  }
   const actions = SKILL_ACTIONS[way];
   if (!actions) return lines;
   const { learn, pickUp } = actions;
   if (sheet.canRaise) lines.push(`${learn} to spend a Skill Point`);
-  if (sheet.skillLevel !== "0") lines.push(`${pickUp} to put on the Skill Bar`);
+  // A Passive Skill can't be put on the Skill Bar.
+  if (sheet.skillLevel !== "0" && !sheet.passive) {
+    lines.push(`${pickUp} to put on the Skill Bar`);
+  }
   return lines;
 }

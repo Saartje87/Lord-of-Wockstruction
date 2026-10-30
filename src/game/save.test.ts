@@ -422,6 +422,14 @@ describe("stored text", () => {
       v10({ skillBar: { ...emptySkillBar(), right: "golem" } }),
     ],
     [
+      "with a Passive Skill on the Skill Bar",
+      v10({
+        skillPoints: 0,
+        skillLevels: { ossifiedWill: 1 },
+        skillBar: { ...emptySkillBar(), key1: "ossifiedWill" },
+      }),
+    ],
+    [
       "with a Skill in two Skill Bar slots",
       v10({
         skillPoints: 0,

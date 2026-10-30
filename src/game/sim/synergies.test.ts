@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { type Skill, skillTuning } from "../tuning/skills";
+import { type CastSkill, type Skill, skillTuning } from "../tuning/skills";
 import { minionDamageRange, minionMaxLife } from "./minions";
 import { emptySkillBar } from "./skillBar";
 import { synergyMultiplier } from "./synergies";
@@ -185,7 +185,7 @@ describe("Corpse Explosion's Synergy with Amplify Damage", () => {
 
 describe("Minion Synergies", () => {
   /** The Minion `skill` brings with its giver at `giverLevel`. */
-  function minionWith(skill: Skill, giver: Skill, giverLevel: number) {
+  function minionWith(skill: CastSkill, giver: Skill, giverLevel: number) {
     const w = inField({ [skill]: 1, [giver]: giverLevel }, skill);
     corpseAt(w, { x: 5, y: 4 });
     castAt(w, { x: 5, y: 4 });

@@ -16,7 +16,12 @@ import {
 } from "../sim/world";
 import { heroTuning } from "../tuning/hero";
 import { inventoryTuning } from "../tuning/items";
-import { BRANCHES, branchSkills, skillTuning } from "../tuning/skills";
+import {
+  BRANCHES,
+  branchSkills,
+  isPassive,
+  skillTuning,
+} from "../tuning/skills";
 import { type Viewport, viewportOf } from "../viewport";
 import { cursorHitAt } from "./cursorHit";
 import {
@@ -376,7 +381,7 @@ describe("the Skill Tree panel's Focus spots", () => {
 
   it("picks a learned Skill up with the second face button", () => {
     const spots = panelFocusSpots("skillTree", worlds[1][1](), WIDE);
-    for (const skill of SKILLS) {
+    for (const skill of SKILLS.filter((one) => !isPassive(one))) {
       expect(spotOf(spots, pickUp(skill)).secondHit).toEqual(pickUp(skill));
     }
   });
@@ -407,11 +412,12 @@ describe("the Skill Tree panel's Focus spots", () => {
   it("goes down from the last Skill to the Skill Bar, and up to the ×", () => {
     const spots = panelFocusSpots("skillTree", worlds[1][1](), WIDE);
     const inOrder = BRANCHES.flatMap((branch) => branchSkills[branch]);
-    const last = pickUp(inOrder[inOrder.length - 1]);
+    // The last Skill is a Passive Skill, whose spot has no hit of its own.
+    const last = spots[inOrder.length - 1];
     const first = pickUp(inOrder[0]);
 
     expect(SKILL_BAR_SLOTS.map(barSlot)).toContainEqual(
-      move(spots, last, "down"),
+      moveFocus(spots, last, "down").hit,
     );
     expect(move(spots, first, "up")).toEqual(treeClose);
     expect(move(spots, barSlot("key1"), "right")).toEqual(barSlot("key2"));

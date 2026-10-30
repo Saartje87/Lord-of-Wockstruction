@@ -6,7 +6,7 @@ import { emptySkillBar, SKILL_BAR_SLOTS } from "../sim/skillBar";
 import { ATTRIBUTES, createWorld, FRESH_PROGRESS, SKILLS } from "../sim/world";
 import { heroTuning } from "../tuning/hero";
 import { inventoryTuning } from "../tuning/items";
-import { BRANCHES, type Skill } from "../tuning/skills";
+import { BRANCHES, isPassive, type Skill } from "../tuning/skills";
 import { type Viewport, viewportOf } from "../viewport";
 import { beltStripLayout } from "./beltStrip";
 import { cursorHitAt } from "./cursorHit";
@@ -261,7 +261,12 @@ describe("the panels in the Compact Layout", () => {
       });
       const rows = layout.skills[skill];
       const name = { ...rows, w: layout.raise[skill].x - rows.x };
-      expect(at(name)).toEqual({ button: { type: "pickUpSkill", skill } });
+      // A Passive Skill can't be lifted.
+      expect(at(name)).toEqual(
+        isPassive(skill)
+          ? { button: null }
+          : { button: { type: "pickUpSkill", skill } },
+      );
     }
     expect(overlaps(layout.closeButton, layout.skills.golem)).toBe(false);
     expect(at(layout.closeButton)).toEqual({

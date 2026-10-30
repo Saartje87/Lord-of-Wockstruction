@@ -1,8 +1,8 @@
 import type { MinionType } from "./minions";
 import type { ProjectileKind } from "./projectiles";
 
-/** Skill tuning, in human units. The sim converts it to steps once. */
-export type SkillTuning = {
+/** What every Skill has: where it sits in the Skill Tree and what it takes. */
+type SkillBase = {
   /** Shown in the Skill Tree. */
   name: string;
   /** The Branch of the Skill Tree it belongs to. */
@@ -15,6 +15,15 @@ export type SkillTuning = {
   prerequisite: Skill | null;
   /** The Hero's Level from which a Skill Point can be spent on it. */
   requiredLevel: number;
+  /** The Synergies it gets: the Skills whose Skill Levels make it stronger. */
+  synergies: Synergy[];
+};
+
+/** Skill tuning, in human units. The sim converts it to steps once. */
+export type SkillTuning = CastSkillTuning | PassiveSkillTuning;
+
+/** A Skill the Hero casts from the Skill Bar. */
+export type CastSkillTuning = SkillBase & {
   /** The Mana a cast costs at Skill Level 1. */
   manaCost: number;
   /** The Mana cost added by each Skill Level past the first. */
@@ -23,8 +32,30 @@ export type SkillTuning = {
   castMs: number;
   /** What a cast does, as it starts. */
   effect: SkillEffect;
-  /** The Synergies it gets: the Skills whose Skill Levels make it stronger. */
-  synergies: Synergy[];
+  passive?: undefined;
+};
+
+/**
+ * A Passive Skill: never cast, costing no Mana, working for as long as it
+ * has a Skill Level. It neither gives nor gets Synergies, so its
+ * `synergies` stay empty.
+ */
+export type PassiveSkillTuning = SkillBase & {
+  passive: PassiveEffect;
+  manaCost?: undefined;
+  castMs?: undefined;
+  effect?: undefined;
+};
+
+/**
+ * What a Passive Skill gives: each Skill Level it has multiplies the main
+ * number of every Skill in `boosts` (and a boosted Curse's radius) by a
+ * further `percentPerSkillLevel` percent of itself, as its own factor apart
+ * from the Skill's Synergies.
+ */
+export type PassiveEffect = {
+  boosts: CastSkill[];
+  percentPerSkillLevel: number;
 };
 
 /**
@@ -33,7 +64,7 @@ export type SkillTuning = {
  * number grows by `percentPerSkillLevel` percent of itself.
  */
 export type Synergy = {
-  skill: Skill;
+  skill: CastSkill;
   percentPerSkillLevel: number;
 };
 
@@ -199,7 +230,33 @@ export type Skill =
   | "boneSpear"
   | "boneWall"
   | "splinterVolley"
-  | "raiseArcher";
+  | "raiseArcher"
+  | "ossifiedWill"
+  | "graveCommand"
+  | "lingeringMalice";
+
+/** The Passive Skills: one at the end of each Branch. */
+export const PASSIVE_SKILLS = [
+  "ossifiedWill",
+  "graveCommand",
+  "lingeringMalice",
+] as const;
+
+/** One of the Passive Skills. */
+export type PassiveSkill = (typeof PASSIVE_SKILLS)[number];
+
+/** One of the Skills the Hero casts. */
+export type CastSkill = Exclude<Skill, PassiveSkill>;
+
+/** Whether `skill` is a Passive Skill. */
+export function isPassive(skill: Skill): skill is PassiveSkill {
+  return (PASSIVE_SKILLS as readonly Skill[]).includes(skill);
+}
+
+/** The tuning of a Skill the Hero casts. */
+export function castTuning(skill: CastSkill): CastSkillTuning {
+  return skillTuning[skill];
+}
 
 /**
  * Every Skill's tuning. Each cast roots the Hero 400 ms, a touch longer than
@@ -211,7 +268,8 @@ export type Skill =
  * of the giver; Diablo 2's run 5 to 20, and these sit at the low end, as
  * every Skill has a giver or two to raise.
  */
-export const skillTuning: Record<Skill, SkillTuning> = {
+export const skillTuning: Record<CastSkill, CastSkillTuning> &
+  Record<PassiveSkill, PassiveSkillTuning> = {
   // Diablo 2's Clay Golem.
   golem: {
     name: "Golem",
@@ -463,6 +521,44 @@ export const skillTuning: Record<Skill, SkillTuning> = {
       { skill: "raiseSkeleton", percentPerSkillLevel: 8 },
       { skill: "splinterVolley", percentPerSkillLevel: 7 },
     ],
+  },
+  // Diablo 2's Skeleton Mastery, in spirit: Bone Branch's damage and soak.
+  // Splinter Volley's Level 10 is the Branch's last, so the Passive sits a
+  // little past it, within SKILLS.length + 1.
+  ossifiedWill: {
+    name: "Ossified Will",
+    branch: "bone",
+    prerequisite: "splinterVolley",
+    requiredLevel: 12,
+    passive: {
+      boosts: ["boneWard", "corpseExplosion", "boneSpear", "splinterVolley"],
+      percentPerSkillLevel: 5,
+    },
+    synergies: [],
+  },
+  // Diablo 2's Skeleton Mastery for all Minions: Life and damage together.
+  graveCommand: {
+    name: "Grave Command",
+    branch: "summoning",
+    prerequisite: "raiseArcher",
+    requiredLevel: 12,
+    passive: {
+      boosts: ["golem", "raiseSkeleton", "raiseArcher"],
+      percentPerSkillLevel: 5,
+    },
+    synergies: [],
+  },
+  // Curses that last longer and reach further.
+  lingeringMalice: {
+    name: "Lingering Malice",
+    branch: "curses",
+    prerequisite: "dread",
+    requiredLevel: 12,
+    passive: {
+      boosts: ["amplifyDamage", "weaken", "leadenLimbs", "dread"],
+      percentPerSkillLevel: 5,
+    },
+    synergies: [],
   },
 };
 

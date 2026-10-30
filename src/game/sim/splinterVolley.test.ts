@@ -219,7 +219,10 @@ describe("Splinter Volley in the Skill Tree", () => {
   it("sits after Bone Wall with Bone Wall as its Prerequisite", () => {
     expect(skillTuning.splinterVolley.branch).toBe("bone");
     expect(skillTuning.splinterVolley.prerequisite).toBe("boneWall");
-    expect(branchSkills.bone.slice(-2)).toEqual(["boneWall", "splinterVolley"]);
+    expect(branchSkills.bone.slice(-3, -1)).toEqual([
+      "boneWall",
+      "splinterVolley",
+    ]);
   });
 });
 

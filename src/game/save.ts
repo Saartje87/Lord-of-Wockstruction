@@ -32,6 +32,7 @@ import {
 } from "./sim/world";
 import { heroTuning } from "./tuning/hero";
 import { questTuning } from "./tuning/quests";
+import { isPassive } from "./tuning/skills";
 
 /**
  * Raised whenever the stored text changes shape. Text of a version before
@@ -352,7 +353,7 @@ function parseSkillLevels(stored: unknown): Record<Skill, number> | null {
 
 /**
  * The stored Skill Bar, or null when it isn't an object holding each slot
- * and nothing else, every slot empty or holding a Skill learned in
+ * and nothing else, every slot empty or holding a learned cast Skill in
  * `skillLevels`, none in two slots.
  */
 function parseSkillBar(
@@ -366,6 +367,8 @@ function parseSkillBar(
     const skill = slots[slot];
     if (skill === null) continue;
     if (!(SKILLS as unknown[]).includes(skill)) return null;
+    // A Passive Skill is never cast, so it has no place on the bar.
+    if (isPassive(skill as Skill)) return null;
     if (skillLevels[skill as Skill] === 0 || held.includes(skill)) return null;
     held.push(skill);
   }

@@ -106,6 +106,7 @@ describe("the hints and labels that name buttons", () => {
     synergyTotal: "0",
     manaCost: "15",
     requiredLevel: null,
+    passive: null,
   } as const;
   it.each([
     [
@@ -167,6 +168,29 @@ describe("the hints and labels that name buttons", () => {
         "Synergy: Bone Ward +8% per Skill Level",
         "Synergy: Amplify Damage +5% per Skill Level",
         "Synergies add +21% now",
+      ],
+    ],
+    [
+      "a learned Passive Skill",
+      {
+        ...golem,
+        name: "Grave Command",
+        skillLevel: "2",
+        canRaise: true,
+        manaCost: "",
+        passive: {
+          percentPerSkillLevel: "5",
+          total: "10",
+          boosts: "Golem, Raise Skeleton",
+        },
+      },
+      "controller",
+      [
+        "Grave Command",
+        "Skill Level 2",
+        "Passive: +5% per Skill Level to Golem, Raise Skeleton",
+        "Passive adds +10% now",
+        "Press A to spend a Skill Point",
       ],
     ],
     [

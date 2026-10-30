@@ -13,6 +13,7 @@ import {
   type Branch,
   branchSkills,
   branchTuning,
+  isPassive,
   skillTuning,
 } from "../tuning/skills";
 import { atUiScale, type Viewport } from "../viewport";
@@ -92,8 +93,19 @@ export type SkillSheet = {
   synergies: readonly { giver: string; percentPerSkillLevel: string }[];
   /** The percent its Synergies add to its main number now. */
   synergyTotal: string;
-  /** What a cast costs at the next Skill Level: what a + buys. */
+  /** What a cast costs at the next Skill Level: what a + buys; empty for a Passive Skill. */
   manaCost: string;
+  /**
+   * What a Passive Skill gives, which has its own frame in the Skill Tree
+   * and can't go on the Skill Bar; null for a Skill that is cast.
+   */
+  passive: {
+    percentPerSkillLevel: string;
+    /** The percent it adds now. */
+    total: string;
+    /** The names of the Skills it boosts, comma separated. */
+    boosts: string;
+  } | null;
   /** The Level the Hero must reach to spend a Skill Point on it, until then. */
   requiredLevel: string | null;
   /** Whether a Skill Point can be spent on it now, so its + shows. */
@@ -121,6 +133,7 @@ export function skillTreeSheet(world: World): SkillTreeSheet {
     skills: BRANCHES.flatMap((branch) => branchSkills[branch]).map((skill) => {
       const skillLevel = progress.skillLevels[skill];
       const { requiredLevel, prerequisite } = skillTuning[skill];
+      const { passive } = skillTuning[skill];
       return {
         skill,
         name: skillTuning[skill].name,
@@ -139,7 +152,18 @@ export function skillTreeSheet(world: World): SkillTreeSheet {
             (synergyMultiplier(progress.skillLevels, skill) - 1) * 100,
           ),
         ),
-        manaCost: String(skillManaCost(skill, skillLevel + 1)),
+        manaCost: isPassive(skill)
+          ? ""
+          : String(skillManaCost(skill, skillLevel + 1)),
+        passive: passive
+          ? {
+              percentPerSkillLevel: String(passive.percentPerSkillLevel),
+              total: String(passive.percentPerSkillLevel * skillLevel),
+              boosts: passive.boosts
+                .map((boosted) => skillTuning[boosted].name)
+                .join(", "),
+            }
+          : null,
         requiredLevel:
           progress.level < requiredLevel ? String(requiredLevel) : null,
         canRaise: canRaiseSkill(world, skill),
@@ -340,7 +364,8 @@ export function skillTreeHitAt(
       return { button: { type: "learn", skill } };
     }
     const learned = world.hero.progress.skillLevels[skill] > 0;
-    if (learned && inside(layout.skills[skill], point)) {
+    // A Passive Skill is never put on the Skill Bar, so there's nothing to lift.
+    if (learned && !isPassive(skill) && inside(layout.skills[skill], point)) {
       return { button: { type: "pickUpSkill", skill } };
     }
   }
@@ -377,7 +402,7 @@ export function skillTreeFocusSpots(
     const hit = skillTreeHitAt(screen, at, world, true) ?? { button: null };
     const learned = world.hero.progress.skillLevels[skill] > 0;
     const spot = { rect: layout.skills[skill], at, hit };
-    if (!learned) return spot;
+    if (!learned || isPassive(skill)) return spot;
     return { ...spot, secondHit: { button: { type: "pickUpSkill", skill } } };
   });
   const { slots } = skillBarLayout(screen);

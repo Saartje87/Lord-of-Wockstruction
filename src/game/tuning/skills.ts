@@ -266,11 +266,24 @@ export function castTuning(skill: CastSkill): CastSkillTuning {
  * starting Energy has 45, six Bone Spears).
  * Synergies are percent of the receiving Skill's main number per Skill Level
  * of the giver; Diablo 2's run 5 to 20, and these sit at the low end, as
- * every Skill has a giver or two to raise.
+ * every Skill has a giver or two to raise. The yardstick is a Skill Point in
+ * the receiver itself: a Bone Spear's own 8 damage is 7% of it at Skill
+ * Level 5, so a 7% Synergy makes a Skill Point in the giver worth about one
+ * in the Spear, not a trap and not a must-have. Curses have no such
+ * yardstick (their own growth, 2 to 3 s a Skill Level, dwarfs a Synergy's)
+ * and sit a little higher, at 10%. A Hero has a Skill Point a Level and a
+ * Quest's, about 11 at the end of Act 1 (Hero Level 11, Ossuary), against
+ * 12 cast Skills to open, so Synergies are what a Hero raises once a
+ * Branch is open, not what they open it for. Passive Skills open at Level
+ * 12, the first Level past Act 1's Monsters, and are tuned for Acts after.
+ * The numbers to check them against: `npm run tuning:report`.
  */
 export const skillTuning: Record<CastSkill, CastSkillTuning> &
   Record<PassiveSkill, PassiveSkillTuning> = {
-  // Diablo 2's Clay Golem.
+  // Diablo 2's Clay Golem. One Minion of 180 Life, three Raised Skeletons'
+  // worth, for 15 Mana (a Level 6 Hero has 45, three Golems), where the
+  // Skeletons cost 6 for two but need Corpses. Bone Ward's 8% Synergy: a
+  // Golem at Skill Level 5 (324 Life) gains 26 Life from each of its points.
   golem: {
     name: "Golem",
     branch: "summoning",
@@ -285,7 +298,10 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
   // Diablo 2's Raise Skeleton, and its Mana: 2 at Skill Level 1, one more at
   // 4, 7, 10 … A Raised Skeleton is a Monster Level 1 Skeleton grown 20% a
   // Skill Level, so given a Skill Point a Level it stays a little behind the
-  // Skeletons of the Crypt and Ossuary (see `minionTuning`).
+  // Skeletons of the Crypt and Ossuary (see `minionTuning`). Its Synergies, 8%
+  // each from Golem and Raise Archer, are its Summoning mates': at Skill Level
+  // 5 (108 Life) each Skill Level in a giver adds 9 Life, about what one of
+  // its own adds (12 Life and damage).
   raiseSkeleton: {
     name: "Raise Skeleton",
     branch: "summoning",
@@ -306,7 +322,8 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
     ],
   },
   // Diablo 2's Amplify Damage: its Mana, 8 seconds and 3 more each Skill
-  // Level. Its +100% damage taken there is softened to +50%, so a Cursed
+  // Level. It gives Weaken and Corpse Explosion a Synergy and gets none, being
+  // the Branch's first. Its +100% damage taken there is softened to +50%, so a Cursed
   // own-Level Skeleton still takes two Bone Spears, rarely one. Its
   // radius at Skill Level 1 takes in a whole pack still standing at its
   // spawn, within a tile of it.
@@ -350,7 +367,9 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
       durationMsPerSkillLevel: 2000,
       damageDealt: 0.6,
     },
-    synergies: [{ skill: "amplifyDamage", percentPerSkillLevel: 8 }],
+    // 10%: Weaken's own 2 s a Skill Level is 12% of a Skill Level 5 Curse, so a
+    // Synergy of 10% from Amplify Damage is about a Skill Point's worth.
+    synergies: [{ skill: "amplifyDamage", percentPerSkillLevel: 10 }],
   },
   // Diablo 2's Decrepify, in spirit: a Cursed Monster walks at 60% of its
   // speed (an Archer's kiting and a Skeleton's closing both drag) and swings
@@ -374,11 +393,14 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
       walkSpeed: 0.6,
       attackSpeed: 0.6,
     },
-    synergies: [{ skill: "weaken", percentPerSkillLevel: 8 }],
+    // 10%, as Weaken's: its own 2 s a Skill Level is 13% of a Skill Level 5 Curse.
+    synergies: [{ skill: "weaken", percentPerSkillLevel: 10 }],
   },
   // Diablo 2's Terror, in spirit: a Cursed Monster runs from the Hero for
   // 5 s, a little shorter than Leaden Limbs so a pack comes back before the
   // Hero can tire of waiting; it grows a second and a half each Skill Level.
+  // Level 10, the Level before Act 1's Ossuary (11): a Hero with the points
+  // for it has chosen Curses over a Bone Skill or two.
   dread: {
     name: "Dread",
     branch: "curses",
@@ -395,7 +417,8 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
       durationMs: 5000,
       durationMsPerSkillLevel: 1500,
     },
-    synergies: [{ skill: "leadenLimbs", percentPerSkillLevel: 8 }],
+    // 10%, as the other Curses: its own 1.5 s is 14% of a Skill Level 5 Curse.
+    synergies: [{ skill: "leadenLimbs", percentPerSkillLevel: 10 }],
   },
   // Diablo 2's Bone Armor, and its Mana, scaled by starting Life (a Diablo 2
   // Necromancer's 45 to the Hero's 100): 45 soaks about five swings of a
@@ -410,6 +433,8 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
     manaCostPerSkillLevel: 1,
     castMs: 400,
     effect: { type: "ward", amount: 45, amountPerSkillLevel: 15 },
+    // 6%, a little under the others: the Ward's own 15 a Skill Level is 14% of
+    // a Skill Level 5 soak, and Golem's 8% already draws on it.
     synergies: [{ skill: "boneWall", percentPerSkillLevel: 6 }],
   },
   // Diablo 2's Corpse Explosion bursts for 60–100% of the dead Monster's
@@ -430,6 +455,8 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
       radiusPerSkillLevel: 0.25,
       share: [0.4, 0.7],
     },
+    // 7%: Corpse Explosion's own Skill Levels grow only its radius (a quarter
+    // tile) and Mana, so its burst grows by Synergy and Passive alone.
     synergies: [{ skill: "amplifyDamage", percentPerSkillLevel: 7 }],
   },
   // Diablo 2's Bone Spear's 16–24 scaled to the game's Life: a Level 6 Hero
@@ -453,30 +480,41 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
       damage: [60, 90],
       damagePerSkillLevel: 8,
     },
+    // 7% each: the Spear's own 8 damage is 7% of a Skill Level 5 Spear, so a
+    // Skill Point in Bone Wall or Splinter Volley is worth one in the Spear.
     synergies: [
       { skill: "boneWall", percentPerSkillLevel: 7 },
       { skill: "splinterVolley", percentPerSkillLevel: 7 },
     ],
   },
   // Three tiles hold a corridor's mouth or cover the Hero from a pack's front.
-  // A Skeleton (swinging about every 2 s for 6-13) breaks a 40 Life piece in
-  // four or five swings, so a Wall buys several seconds, and it crumbles on
-  // its own after 10 s so it can't close an Area off for good.
+  // A Skeleton of the Crypt or Ossuary (swinging about every 2 s for 10-24)
+  // breaks a 60 Life piece in three or four swings, so a Wall buys six or
+  // seven seconds, and it crumbles on its own after 10 s so it can't close an
+  // Area off for good. Level 8: two Levels past Bone Spear's 6. Its Skill
+  // Levels grow nothing of its own, so they cost no more Mana: a Skill Point
+  // in it is for the Bone Spear and Bone Ward Synergies, and costs nothing
+  // else.
   boneWall: {
     name: "Bone Wall",
     branch: "bone",
     prerequisite: "boneSpear",
     requiredLevel: 8,
     manaCost: 14,
-    manaCostPerSkillLevel: 1,
+    manaCostPerSkillLevel: 0,
     castMs: 400,
-    effect: { type: "wall", length: 3, pieceLife: 40, durationMs: 10000 },
+    effect: { type: "wall", length: 3, pieceLife: 60, durationMs: 10000 },
     synergies: [],
   },
   // Diablo 2's Bone Spirit, in spirit, as a scatter: five splinters over 40
   // degrees, each about a fifth of a Bone Spear's punch, so at point-blank a
   // few land on one Monster and far off the fan thins to one or two. Short
   // range: it is the close-quarters Skill, Bone Spear being the reach one.
+  // 20-30 a shard: a Spear is 75 for 7 Mana, a full fan at point-blank is 125
+  // for 12, so it matches the Spear's damage per Mana only up close and falls
+  // behind as shards miss (two hit: four casts for an Ossuary Skeleton's 210
+  // Life). Its 3 a shard each Skill Level is 12% of a Skill Level 5 shard,
+  // growing as fast as the Spear. Level 10, two past Bone Wall's.
   splinterVolley: {
     name: "Splinter Volley",
     branch: "bone",
@@ -492,9 +530,11 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
       spreadDegrees: 40,
       speed: 14,
       range: 8,
-      damage: [14, 22],
-      damagePerSkillLevel: 2,
+      damage: [20, 30],
+      damagePerSkillLevel: 3,
     },
+    // 7% each, as Bone Spear's Synergies; Raise Archer's is the one bridge
+    // from Summoning into Bone.
     synergies: [
       { skill: "boneSpear", percentPerSkillLevel: 7 },
       { skill: "raiseArcher", percentPerSkillLevel: 7 },
@@ -502,7 +542,9 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
   },
   // Raise Skeleton's rules for a Minion that shoots instead of swinging: as
   // many at once, from a Corpse each, and a little more Mana for the reach.
-  // Level 6 keeps it within SKILLS.length + 1 and after Golem's Level 1.
+  // Level 6 keeps it within SKILLS.length + 1 and after Golem's Level 1. An
+  // Archer has 36 Life against a Skeleton's 60 and shoots for 3-6 from range,
+  // so it trades Life for reach, and Mana is 2 more than Raise Skeleton's.
   raiseArcher: {
     name: "Raise Archer",
     branch: "summoning",
@@ -517,6 +559,8 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
       count: 2,
       countEvery: 3,
     },
+    // 8% from Raise Skeleton, as its own from Raise Archer; 7% from Splinter
+    // Volley, as the Volley's from it.
     synergies: [
       { skill: "raiseSkeleton", percentPerSkillLevel: 8 },
       { skill: "splinterVolley", percentPerSkillLevel: 7 },
@@ -524,7 +568,11 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
   },
   // Diablo 2's Skeleton Mastery, in spirit: Bone Branch's damage and soak.
   // Splinter Volley's Level 10 is the Branch's last, so the Passive sits a
-  // little past it, within SKILLS.length + 1.
+  // little past it, within SKILLS.length + 1. 6% a Skill Level on each of
+  // four Skills: a Hero uses two or three of them, so a Skill Point here is
+  // worth 12 to 18% in all against 6 to 7% for one in the Spear alone, but it
+  // costs Level 12 and five Prerequisites first, which an Act 1 Hero's 11
+  // points can't reach alongside a Branch, so it never competes there.
   ossifiedWill: {
     name: "Ossified Will",
     branch: "bone",
@@ -532,11 +580,14 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
     requiredLevel: 12,
     passive: {
       boosts: ["boneWard", "corpseExplosion", "boneSpear", "splinterVolley"],
-      percentPerSkillLevel: 5,
+      percentPerSkillLevel: 6,
     },
     synergies: [],
   },
-  // Diablo 2's Skeleton Mastery for all Minions: Life and damage together.
+  // Diablo 2's Skeleton Mastery for all Minions: Life and damage together,
+  // so 6% a Skill Level is a Minion 6% tougher and 6% stronger, about what a
+  // Skill Level 5 Raise Skeleton's own 11% a Skill Level is, spread over
+  // three Skills as Ossified Will's is over four.
   graveCommand: {
     name: "Grave Command",
     branch: "summoning",
@@ -544,11 +595,15 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
     requiredLevel: 12,
     passive: {
       boosts: ["golem", "raiseSkeleton", "raiseArcher"],
-      percentPerSkillLevel: 5,
+      percentPerSkillLevel: 6,
     },
     synergies: [],
   },
-  // Curses that last longer and reach further.
+  // Curses that last longer and reach further: one percent for both, so 8% a
+  // Skill Level is a Curse 8% longer and 8% wider. Higher than the other
+  // Passives' 6%, as a Curse's duration and radius only matter near their
+  // thresholds (a pack outside the radius is left alone), so some of a Skill
+  // Point's bonus is not felt.
   lingeringMalice: {
     name: "Lingering Malice",
     branch: "curses",
@@ -556,7 +611,7 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
     requiredLevel: 12,
     passive: {
       boosts: ["amplifyDamage", "weaken", "leadenLimbs", "dread"],
-      percentPerSkillLevel: 5,
+      percentPerSkillLevel: 8,
     },
     synergies: [],
   },

@@ -160,6 +160,11 @@ export function writeSave(storage: SaveStorage, save: HeroSave) {
   storage.set(SAVE_KEY, encodeSave(save));
 }
 
+/** Stores Save text as it is, replacing the Save (dev builds: see `loadSave`). */
+export function writeSaveText(storage: SaveStorage, text: string) {
+  storage.set(SAVE_KEY, text);
+}
+
 /** Removes the Save, so the next start is a fresh Hero. */
 export function removeSave(storage: SaveStorage) {
   storage.remove(SAVE_KEY);

@@ -22,30 +22,22 @@ Parallel agents share one Chrome and often one machine.
 
 ## Skip the grind
 
-The Save lives in `localStorage` under `wockstruction.save` as JSON. Write one and reload to start at any Level; `parseSave` in `src/game/save.ts` lists the fields and the checks a Save must pass (points raised plus unspent equal 5 × (Level − 1), plus what Done Quests paid; Skill Levels plus unspent Skill Points equal Level − 1, plus what Done Quests paid; Items on the grid, not overlapping, and in slots of their kind). For example, a Level 3 Hero with 10 unspent points and 2 unspent Skill Points:
+In dev builds, `window.__wockstruction.loadSave(options)` builds a valid Save, writes it under `localStorage`'s `wockstruction.save` and reloads, so the game loads it through Continue. Everything you leave out is a New Hero's. For example, a Level 30 Hero with Vitality raised and some Gold:
 
 ```js
-localStorage.setItem("wockstruction.save", JSON.stringify({
-  version: 10, level: 3, experience: 2000,
-  strength: 20, dexterity: 20, vitality: 20, energy: 20, attributePoints: 10,
-  // Skills are the keys of `skillTuning` in src/game/tuning/skills.ts.
-  skillPoints: 2, skillLevels: { golem: 0 },
-  // Only learned Skills, each in at most one slot.
-  skillBar: { right: null, key1: null, key2: null, key3: null, key4: null },
-  // Areas whose Waypoint is touched (Wockville, `town`, always is); add `soggy-bog` and `catacombs` to travel there.
-  touchedWaypoints: ["town"],
-  // Each Quest's `state` (notGiven, given, ready, done) and `count`; one left out is notGiven. Done Quests' reward points count towards the point checks above (Lost Wanderer: +5 Attribute Points).
-  quests: { "lost-wanderer": { state: "given", count: 0 } },
-  // The Smith's service: locked, unlocked (needs the Done "spa-day" Quest) or used.
-  smithService: "locked",
-  // Item types are the keys of `itemTuning` in src/game/tuning/items.ts.
-  inventory: [{ type: "axe", cell: { column: 0, row: 0 } }],
-  equipment: { weapon: "shortSword" },
-  // Belt Columns, one Potion each without a Belt equipped.
-  belt: [["lifePotion"], ["lifePotion"], ["lifePotion"], ["lifePotion"]],
-}));
-location.reload();
+window.__wockstruction.loadSave({ level: 30, vitality: 120, gold: 500 });
 ```
+
+Options (`SaveOptions` in `src/game/devSave.ts`):
+
+- `level`: the Level, with Experience at its threshold.
+- `gold`.
+- `strength`, `dexterity`, `vitality`, `energy`: the Attribute values wanted (a New Hero starts each at its tuned value), not points raised.
+- `skillLevels`: Skill Levels by Skill, e.g. `{ golem: 3 }`. Any Skill in `skillTuning` (`src/game/tuning/skills.ts`) works, Prerequisites aside.
+- `quests`: each Quest's `state` (`notGiven`, `given`, `ready`, `done`) and `count`, e.g. `{ "lost-wanderer": { state: "done", count: 1 } }`. One left out is Not given.
+- `waypoints`: Areas whose Waypoint is touched, e.g. `["soggy-bog", "catacombs"]`. Wockville's always is.
+
+Unspent Attribute and Skill Points are worked out from the Level, what you asked for and what Done Quests paid. Asking for more than the Level allows throws, naming Attribute Points or Skill Points and by how much. The Skill Bar starts empty and the Smith's service follows the Quests.
 
 A Save at 450 Experience levels up on the next Skeleton kill. For fights, use Level 30 or more with Vitality raised: Monster Level comes from the Combat Area, not the Hero, so a Level 1 to 10 Hero dies to the first Skeleton group while you take screenshots. **New Hero** on the Start Screen (Esc, then Quit to Start Screen), or `localStorage.removeItem("wockstruction.save")`, puts things back. A Save written on a port belongs to that port only.
 

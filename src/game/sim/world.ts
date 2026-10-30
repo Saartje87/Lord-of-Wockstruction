@@ -37,7 +37,12 @@ import {
   TOWN,
 } from "./area";
 import { type BeltColumns, emptyBelt, putInBelt } from "./belt";
-import { altarRadiusOf, type BoneAltar, isBoneAltar } from "./boneAltars";
+import {
+  altarRadiusOf,
+  type BoneAltar,
+  isBoneAltar,
+  targetsOf,
+} from "./boneAltars";
 import {
   type Belongings,
   type Cell,
@@ -261,6 +266,7 @@ export type Swing = {
 export type MonsterId = number;
 
 export type Monster = {
+  kind: "monster";
   /** Unique within the World and never reused. */
   id: MonsterId;
   type: MonsterType;
@@ -1529,6 +1535,7 @@ function placeMonster(
     unique,
   };
   const monster: Monster = {
+    kind: "monster",
     id: world.nextMonsterId++,
     type,
     monsterLevel: typeAtLevel.monsterLevel,
@@ -1574,6 +1581,7 @@ function placeBoneAltars(world: World, area: Area) {
     const pos = { x: Math.floor(spot.x) + 0.5, y: Math.floor(spot.y) + 0.5 };
     area.walkable[tileIndex(area, pos)] = false;
     world.boneAltars.push({
+      kind: "boneAltar",
       id: world.nextMonsterId++,
       pos,
       life: boneAltarTuning.life,
@@ -2268,7 +2276,7 @@ function explode(
     Math.ceil(life * least),
     Math.floor(life * most),
   ];
-  const victims = [...world.monsters, ...world.boneAltars].filter(
+  const victims = targetsOf(world).filter(
     (target) => distance(target.pos, corpse.pos) <= radius,
   );
   // A Skill's damage always hits: no roll against Defense, and no hitstop.
@@ -2632,7 +2640,7 @@ function giveBuffered(world: World, events: SimEvent[]) {
 function land(world: World, swing: Swing, events: SimEvent[]) {
   const { hero } = world;
   swing.landed = true;
-  const victims = [...world.monsters, ...world.boneAltars].filter((target) => {
+  const victims = targetsOf(world).filter((target) => {
     const gap = gapTo(hero.pos, target);
     if (swing.monster !== null) {
       return (

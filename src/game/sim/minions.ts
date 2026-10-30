@@ -5,7 +5,7 @@ import {
 } from "../tuning/minions";
 import type { Skill } from "../tuning/skills";
 import { type Area, isWalkable } from "./area";
-import { altarRadiusOf, type BoneAltar } from "./boneAltars";
+import { altarRadiusOf, type BoneAltar, targetsOf } from "./boneAltars";
 import { faceToward, lands } from "./melee";
 import { isClear } from "./path";
 import { msToSteps, perStep } from "./units";
@@ -286,9 +286,7 @@ function quarryOf(world: World, minion: Minion): Monster | BoneAltar | null {
   const tuning = minionTuning[minion.type];
   const hero = world.hero.pos;
   if (distance(minion.pos, hero) > tuning.teleportDistance) return null;
-  const current = [...world.monsters, ...world.boneAltars].find(
-    (m) => m.id === minion.target,
-  );
+  const current = targetsOf(world).find((m) => m.id === minion.target);
   if (current && distance(current.pos, hero) <= tuning.leash) return current;
   const nearestOf = (targets: readonly (Monster | BoneAltar)[]) => {
     let nearest: Monster | BoneAltar | null = null;
@@ -352,9 +350,7 @@ function windUp(world: World, minion: Minion): Monster | BoneAltar | null {
   minion.state = "recover";
   minion.attackSteps = stepped.rootSteps;
   minion.cooldown = stepped.rootSteps + stepped.recoverySteps;
-  const monster = [...world.monsters, ...world.boneAltars].find(
-    (m) => m.id === minion.target,
-  );
+  const monster = targetsOf(world).find((m) => m.id === minion.target);
   if (!monster) return null;
   const { reach, reachGrace } = minionTuning[minion.type];
   return lands(

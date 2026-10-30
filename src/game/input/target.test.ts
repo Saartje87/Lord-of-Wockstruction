@@ -20,6 +20,7 @@ describe("picking the Target", () => {
   it("picks a Bone Altar ahead when no Monster is, and a Monster before it", () => {
     const world = arenaWith([]);
     world.boneAltars.push({
+      kind: "boneAltar",
       id: 900,
       pos: { x: 12.5, y: 10.5 },
       life: 5,

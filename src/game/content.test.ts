@@ -172,6 +172,8 @@ describe("the shipped Areas", () => {
     expect(areaDisplayNames["cozy-plains"]).toBe("Cozy Plains");
     expect(areaDisplayNames["soggy-bog"]).toBe("Soggy Bog");
     expect(areaDisplayNames.wockyard).toBe("Wockyard");
+    expect(areaDisplayNames.spa).toBe("Spa");
+    expect(areaDisplayNames["old-mill"]).toBe("Old Mill");
     expect(areaDisplayNames.catacombs).toBe("Catacombs");
     expect(areaDisplayNames.crypt).toBe("Crypt");
     for (const name of Object.values(areaDisplayNames)) {
@@ -233,7 +235,7 @@ describe("the shipped Areas", () => {
     for (const area of shipped) expect(area.act).toBe(1);
     expect(
       shipped.filter((area) => area.outdoors).map((area) => area.name),
-    ).toEqual(["cozy-plains", "soggy-bog", "wockyard"]);
+    ).toEqual(["cozy-plains", "soggy-bog", "wockyard", "spa", "old-mill"]);
   });
 
   it("give the Cozy Plains Area Level 1, Skeleton and Zombie groups, and its Exits to Wockville and the Soggy Bog", () => {
@@ -252,6 +254,7 @@ describe("the shipped Areas", () => {
     expect(exitTo(plains, "soggy-bog").entry).toBe("from-cozy-plains");
     expect(plains.exits.map((exit) => exit.area).sort()).toEqual([
       "soggy-bog",
+      "spa",
       "town",
     ]);
   });
@@ -329,8 +332,34 @@ describe("the shipped Areas", () => {
     ]);
   });
 
+  it.each([
+    ["cozy-plains", "spa", 2],
+    ["soggy-bog", "old-mill", 4],
+  ])("link the %s to a Side Area, the %s, of Area Level %i, arriving next to their Exit back", (parent, side, level) => {
+    const world = worldEntering(parent, `from-${side}`);
+    const onward = exitTo(world.areas[parent], side);
+
+    expect(world.areas[side].areaLevel).toBe(level);
+    expect(world.areas[side].act).toBe(1);
+    expect(onward.entry).toBe(`from-${parent}`);
+    expect(world.areas[side].exits.map((exit) => exit.area)).toEqual([parent]);
+    expect(heroDistanceTo(world, onward)).toBeLessThan(4);
+    const arrived = walkThrough(world, onward);
+
+    expect(arrived?.area).toBe(side);
+    expect(world.monsters.length).toBeGreaterThan(0);
+    expect(world.monsters.every(isAtMonsterLevel(level))).toBe(true);
+    const back = exitTo(world.areas[side], parent);
+    expect(heroDistanceTo(world, back)).toBeLessThan(4);
+    walkThrough(world, back);
+    expect(world.areaName).toBe(parent);
+    expect(heroDistanceTo(world, onward)).toBeLessThan(4);
+  });
+
   it("let the Hero walk each outdoor Area from its entry to its Exits", () => {
     for (const [name, entry] of [
+      ["spa", "from-cozy-plains"],
+      ["old-mill", "from-soggy-bog"],
       ["cozy-plains", "from-town"],
       ["soggy-bog", "from-cozy-plains"],
       ["wockyard", "from-soggy-bog"],
@@ -653,6 +682,8 @@ describe("the shipped Areas' pieces", () => {
     "cozy-plains",
     "soggy-bog",
     "wockyard",
+    "spa",
+    "old-mill",
     "catacombs",
     "crypt",
     "ossuary",

@@ -26,12 +26,14 @@ The Save lives in `localStorage` under `wockstruction.save` as JSON. Write one a
 
 ```js
 localStorage.setItem("wockstruction.save", JSON.stringify({
-  version: 7, level: 3, experience: 2000,
+  version: 8, level: 3, experience: 2000,
   strength: 20, dexterity: 20, vitality: 20, energy: 20, attributePoints: 10,
   // Skills are the keys of `skillTuning` in src/game/tuning/skills.ts.
   skillPoints: 2, skillLevels: { golem: 0 },
   // Only learned Skills, each in at most one slot.
   skillBar: { right: null, key1: null, key2: null, key3: null, key4: null },
+  // Areas whose Waypoint is touched (Wockville, `town`, always is); add `soggy-bog` and `catacombs` to travel there.
+  touchedWaypoints: ["town"],
   // Item types are the keys of `itemTuning` in src/game/tuning/items.ts.
   inventory: [{ type: "axe", cell: { column: 0, row: 0 } }],
   equipment: { weapon: "shortSword" },

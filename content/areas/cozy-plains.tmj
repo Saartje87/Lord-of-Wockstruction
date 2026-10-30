@@ -11,7 +11,7 @@
  "infinite": false,
  "compressionlevel": -1,
  "nextlayerid": 5,
- "nextobjectid": 14,
+ "nextobjectid": 16,
  "properties": [
   {
    "name": "act",
@@ -4632,7 +4632,7 @@
     0,
     0,
     0,
-    28,
+    0,
     0,
     0,
     0,
@@ -8537,6 +8537,41 @@
        "value": "skeleton"
       }
      ]
+    },
+    {
+     "id": 14,
+     "name": "",
+     "type": "exit",
+     "x": 2880,
+     "y": 288,
+     "width": 192,
+     "height": 192,
+     "rotation": 0,
+     "visible": true,
+     "properties": [
+      {
+       "name": "area",
+       "type": "string",
+       "value": "spa"
+      },
+      {
+       "name": "entry",
+       "type": "string",
+       "value": "from-cozy-plains"
+      }
+     ]
+    },
+    {
+     "id": 15,
+     "name": "from-spa",
+     "type": "entry",
+     "x": 2976,
+     "y": 624,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true
     }
    ]
   }

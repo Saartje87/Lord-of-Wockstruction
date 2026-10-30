@@ -6,10 +6,17 @@ import {
   PlaneGeometry,
   ShaderMaterial,
 } from "three";
+import type { Vec } from "../sim/vec";
 import type { ExitView } from "./view";
 
 /** The warm gold of light coming in from the way out. */
 const LIGHT = "vec3(1.0, 0.82, 0.45)";
+
+/** The cool violet of a Waypoint's light, apart from the Exits' gold. */
+const WAYPOINT_LIGHT = "vec3(0.7, 0.55, 1.0)";
+
+/** How wide a Waypoint's pool of light is, in tiles. */
+const WAYPOINT_SIZE = 1.4;
 
 /** How tall the shafts of light over an Exit stand, in tiles. */
 const SHAFT_HEIGHT = 3.2;
@@ -35,7 +42,7 @@ function lightMaterial(fragment: string): ShaderMaterial {
  * The glow on the floor of an Exit, breathing, with rings of light drawing
  * in towards its middle like a way to somewhere.
  */
-const floorGlow = () =>
+const floorGlow = (light: string) =>
   lightMaterial(`
     vec2 c = (vUv - 0.5) * 2.0;
     float d = max(abs(c.x), abs(c.y));
@@ -43,18 +50,21 @@ const floorGlow = () =>
     float rings = 0.5 + 0.5 * sin(d * 7.0 + uTime * 2.2);
     float breath = 0.85 + 0.15 * sin(uTime * 1.6);
     float alpha = edge * (0.7 + 0.3 * rings) * breath;
-    gl_FragColor = vec4(${LIGHT} * alpha, alpha);`);
+    gl_FragColor = vec4(${light} * alpha, alpha);`);
 
 /** A shaft of light rising from the Exit, fading out and shimmering upwards. */
-const shaftGlow = () =>
+const shaftGlow = (light: string) =>
   lightMaterial(`
     float across = smoothstep(0.0, 0.3, vUv.x) * smoothstep(1.0, 0.7, vUv.x);
     float up = pow(1.0 - vUv.y, 1.6);
     float shimmer = 0.75 + 0.25 * sin(vUv.y * 9.0 - uTime * 1.8 + vUv.x * 6.0);
     float alpha = across * up * shimmer * 0.9;
-    gl_FragColor = vec4(${LIGHT} * alpha, alpha);`);
+    gl_FragColor = vec4(${light} * alpha, alpha);`);
 
-/** The ways out of an Area, drawn as pools and shafts of warm light. */
+/**
+ * The ways out of an Area, drawn as pools and shafts of warm light, and its
+ * Waypoint, a pool and a shaft of violet.
+ */
 export type ExitMeshes = {
   group: Group;
   /** Lets the light breathe, `seconds` into the game. */
@@ -65,9 +75,17 @@ export type ExitMeshes = {
  * A pool of light over the zone of each Exit, with two crossed shafts rising
  * from its middle, so a way out reads from afar in any Area.
  */
-export function exitMeshesOf(exits: ExitView[]): ExitMeshes {
+export function exitMeshesOf(
+  exits: ExitView[],
+  waypoint: Vec | null = null,
+): ExitMeshes {
   const group = new Group();
-  const materials = [floorGlow(), shaftGlow()];
+  const materials = [
+    floorGlow(LIGHT),
+    shaftGlow(LIGHT),
+    floorGlow(WAYPOINT_LIGHT),
+    shaftGlow(WAYPOINT_LIGHT),
+  ];
   for (const { x, y, width, height } of exits) {
     const gateway = new Group();
     gateway.position.set(x + width / 2, 0, y + height / 2);
@@ -88,6 +106,26 @@ export function exitMeshesOf(exits: ExitView[]): ExitMeshes {
       gateway.add(shaft);
     }
     group.add(gateway);
+  }
+  if (waypoint) {
+    const spot = new Group();
+    spot.position.set(waypoint.x, 0, waypoint.y);
+    const pool = new Mesh(
+      new PlaneGeometry(WAYPOINT_SIZE, WAYPOINT_SIZE),
+      materials[2],
+    );
+    pool.rotation.x = -Math.PI / 2;
+    pool.position.y = 0.12;
+    spot.add(pool);
+    const shaft = new Mesh(
+      new PlaneGeometry(WAYPOINT_SIZE * 0.8, SHAFT_HEIGHT * 0.7),
+      materials[3],
+    );
+    shaft.position.y = (SHAFT_HEIGHT * 0.7) / 2;
+    shaft.rotation.y = Math.PI / 4;
+    shaft.renderOrder = 3;
+    spot.add(shaft);
+    group.add(spot);
   }
   return {
     group,

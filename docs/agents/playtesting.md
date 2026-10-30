@@ -18,6 +18,8 @@ Parallel agents share one Chrome and often one machine.
 
 - **Port**: `31NN`, from your ticket number (T174 → 3174). It also keeps your Save apart, since a Save belongs to its port.
 - **Tab**: open your own with `tabs_create_mcp`, and close only that tab when done.
+- **Branch**: a new worktree may start on another agent's branch. Check `git log` and reset it onto your base branch before working.
+- **`vendor/`**: the KayKit import (`scripts/import-kaykit/main.mts`) reads the gitignored `vendor/kaykit/` from the folder it runs in and skips what isn't there. In a worktree, clone the main checkout's like `node_modules`: `cp -cR <main checkout>/vendor vendor` (about 1 s).
 - **Main checkout**: someone else may have uncommitted work there. Merge and playtest in your own worktree, and stage files by name.
 
 ## Skip the grind

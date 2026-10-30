@@ -43,7 +43,7 @@ import {
 
 /** The panels as drawn: which are open, and the Hero panel's Pending Attribute Points. */
 export type ShownPanels = OpenPanels &
-  Pick<Menus, "pendingPoints" | "mapOpen" | "dialogueNpc">;
+  Pick<Menus, "pendingPoints" | "mapOpen" | "dialogueNpc" | "dialoguePage">;
 
 /**
  * What a point on the screen hits of the panels and the HUD, or null when
@@ -72,7 +72,7 @@ export function cursorHitAt(
     dialogueHitAt(
       screen,
       point,
-      dialogueSheet(world, shown.dialogueNpc),
+      dialogueSheet(world, shown.dialogueNpc, shown.dialoguePage),
       shown.dialogueOpen,
     ) ??
     waypointListHitAt(screen, point, waypoints, shown.waypointsOpen) ??
@@ -154,7 +154,7 @@ function touchTargets(
     });
 
   if (shown.dialogueOpen) {
-    const sheet = dialogueSheet(world, shown.dialogueNpc);
+    const sheet = dialogueSheet(world, shown.dialogueNpc, shown.dialoguePage);
     const dialogue = dialogueLayout(screen, sheet?.buttons.length ?? 0);
     panels.push(dialogue.panel);
     close("dialogue", dialogue.closeButton, dialogue.panel);

@@ -52,6 +52,10 @@ _Avoid_: Teleporter, checkpoint, Town Portal (that's the Hero's own)
 A task an NPC in an Act's Town gives the Hero and takes back once it is done, going from Not given to Given, Ready to hand in and Done. What it asks counts whenever it happens, given or not, so a Quest can go straight from Not given to Ready to hand in; its reward comes once, on Done. The Save keeps how far each Quest has got.
 _Avoid_: Mission, task, objective
 
+**Smith bonus**:
+The one random bonus the Smith gives a Weapon or Armour, from a pool suited to its kind, once "Spa Day" is Done. His service works once; the Hero can leave without using it and come back later. The bonus stays with that Item, shows in its tooltip and counts while it is Equipped. The Save keeps the bonus on its Item and whether the service is unlocked and unspent.
+_Avoid_: Enchant, Affix (a different thing, not built yet)
+
 **Exit**:
 A zone in an Area that, when the Hero walks into it, takes the Hero to an Entry in another Area.
 _Avoid_: Portal (that's the Town Portal), door, transition, warp

@@ -516,6 +516,7 @@ export default function GameCanvas() {
             viewport,
             menus.pendingPoints,
             menus.dialogueNpc,
+            menus.dialoguePage,
           ),
         });
         for (const button of polled.presses) {

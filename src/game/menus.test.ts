@@ -2082,6 +2082,24 @@ describe("the Dialogue panel", () => {
     expect(currentPanel(menus)).toBe("dialogue");
   });
 
+  it("starts at the Smith's talk, and returns to it once he has worked", () => {
+    const menus = createMenus();
+    menus.dialoguePage = 3;
+
+    reactMenus(menus, [talked]);
+    expect(menus.dialoguePage).toBe(0);
+
+    menus.dialoguePage = 2;
+    reactMenus(menus, [
+      {
+        type: "SmithBonusGiven",
+        item: 1,
+        bonus: { bonus: "strength", amount: 4 },
+      },
+    ]);
+    expect(menus.dialoguePage).toBe(0);
+  });
+
   it("replaces the Waypoint list, and is replaced by it", () => {
     const menus = createMenus();
     reactMenus(menus, [{ type: "WaypointReached", area: "town" }]);

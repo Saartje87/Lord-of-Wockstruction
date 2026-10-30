@@ -70,6 +70,14 @@ export function pressButton(
       return heroDead ? [] : [{ type: "AcceptQuest", quest: button.quest }];
     case "handInQuest":
       return heroDead ? [] : [{ type: "HandInQuest", quest: button.quest }];
+    case "smithService":
+      menus.dialoguePage = 1;
+      return [];
+    case "smithMore":
+      menus.dialoguePage += 1;
+      return [];
+    case "smithForge":
+      return heroDead ? [] : [{ type: "SmithBonus", item: button.item }];
     case "goodbye":
       clickClose(menus, "dialogue");
       return [];

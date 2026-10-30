@@ -4,7 +4,7 @@
  "name": "kaykit",
  "tilewidth": 128,
  "tileheight": 128,
- "tilecount": 38,
+ "tilecount": 39,
  "columns": 0,
  "margin": 0,
  "spacing": 0,
@@ -885,6 +885,29 @@
      "name": "piece",
      "type": "string",
      "value": "dungeon/wall_endcap"
+    }
+   ]
+  },
+  {
+   "id": 38,
+   "image": "kaykit/water.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": false
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "water"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "water"
     }
    ]
   }

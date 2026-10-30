@@ -63,7 +63,8 @@ function map(rows: string[]) {
     const y = (Math.floor(i / width) + 0.5) * 32;
     if (cell === "H") objects.push({ name: "start", type: "entry", x, y });
     if (cell === "n") objects.push({ name: "arrive", type: "entry", x, y });
-    if (cell === "w" || cell === "W") objects.push({ name: "", type: "waypoint", x, y });
+    if (cell === "w" || cell === "W")
+      objects.push({ name: "", type: "waypoint", x, y });
     if (cell === "e" || cell === "E") {
       objects.push({
         name: "",
@@ -203,7 +204,8 @@ describe("walking round Water", () => {
     for (let i = 0; i < 60 * 10; i++) {
       step(w, []);
       expect(inWater(w, w.hero.pos)).toBe(false);
-      for (const minion of w.minions) expect(inWater(w, minion.pos)).toBe(false);
+      for (const minion of w.minions)
+        expect(inWater(w, minion.pos)).toBe(false);
     }
     expect(distance(w.minions[0].pos, w.hero.pos)).toBeLessThan(4);
   });
@@ -262,7 +264,8 @@ describe("placing creatures beside Water", () => {
   it("never stands a pack's Skeletons in the pond beside them", () => {
     const w = pond(["H.....", "~P~~~~", "~~~~~~", "~~~~~~"]);
     expect(w.monsters).toHaveLength(5);
-    for (const monster of w.monsters) expect(inWater(w, monster.pos)).toBe(false);
+    for (const monster of w.monsters)
+      expect(inWater(w, monster.pos)).toBe(false);
   });
 });
 

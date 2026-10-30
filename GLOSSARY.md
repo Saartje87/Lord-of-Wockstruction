@@ -96,6 +96,22 @@ _Avoid_: Title card, zone text, toast
 A hostile creature that attacks the Hero and their Minions and can be killed.
 _Avoid_: Enemy, mob, NPC
 
+**Monster type**:
+What kind of Monster one is, such as the Skeleton or the Wockwolf: its name, look, way of fighting and numbers at each Monster Level. The undead types (Skeleton, Skeleton Archer, Zombie) grow more common toward the Wockyard and below it; the living ones (Wockwolf, Bog Spitter, Wockbrute) belong to the outdoor Areas.
+_Avoid_: Monster kind, species, class
+
+**Wockwolf**:
+A fast, fragile Monster type that comes in packs and surrounds the Hero, most common in the Cozy Plains; like every Monster, it never runs from a fight unless Fleeing.
+_Avoid_: Wolf, werewolf
+
+**Bog Spitter**:
+A plant Monster type that lobs muck at where the Hero stands, most common in the Soggy Bog.
+_Avoid_: Plant, spitter, Mucksprout
+
+**Wockbrute**:
+A big, slow Monster type whose Slam hits everything of the Hero's around it, most common in the Old Mill and never in the Cozy Plains.
+_Avoid_: Brute, orc, ogre
+
 **Unique Monster**:
 A named Monster, one of its kind, placed by hand in an Area: tougher than its Monster type and dropping better Items. The Act Boss is one, with a Monster type of its own.
 _Avoid_: Boss (except the Act Boss), champion, elite, rare
@@ -173,12 +189,24 @@ An Attribute Point the player has put on an Attribute in the Hero panel but not 
 _Avoid_: Planned point, draft point
 
 **Skill**:
-Something the Hero casts, spending Mana; it can't be cast in Town. Every Hero can learn the same Skills, from the one Skill Tree. Damage a Skill deals always hits: it is never a Miss.
+Something the Hero learns on the Skill Tree: most are cast, spending Mana, and can't be cast in Town; a Passive Skill never is. Every Hero can learn the same Skills, from the one Skill Tree. Damage a Skill deals always hits: it is never a Miss.
 _Avoid_: Spell, ability, power
 
+**Passive Skill**:
+A Skill that is never cast, costs no Mana and only works by being learned, making the Hero or what their other Skills do stronger for as long as it has a Skill Level. Each Branch ends in one; it never goes on the Skill Bar or becomes a Held Skill, and it neither gives nor gets Synergies.
+_Avoid_: Mastery, aura, trait
+
 **Skill Tree**:
-All the Skills the Hero can learn, and how far each has been learned.
+All the Skills the Hero can learn, in three Branches, and how far each has been learned.
 _Avoid_: Talent tree, spellbook
+
+**Branch**:
+One of the three themed parts of the Skill Tree, Bone, Summoning and Curses, each Skill belonging to exactly one.
+_Avoid_: Tab, school, tree (that's the whole Skill Tree)
+
+**Prerequisite**:
+The Skill above a Skill in its Branch, which must have a Skill Level before a Skill Point can be spent on the one below; a Skill also needs the Hero to have reached its own Level.
+_Avoid_: Requirement, unlock
 
 **Skill Point**:
 What the Hero gains one of on each new Level, kept until the player spends it to raise a Skill's Skill Level by one; a spent point can't be taken back.
@@ -187,6 +215,10 @@ _Avoid_: Talent point
 **Skill Level**:
 How far the Hero has learned a Skill: 0 until the first Skill Point is spent on it, when it can first be cast; each higher Skill Level makes it stronger.
 _Avoid_: Rank (and never the Hero's Level)
+
+**Synergy**:
+A lasting bonus one cast Skill gets from each Skill Level the Hero has in another, of any Branch, however that Skill Level was gained, so raising one makes the other stronger too; the receiving Skill's tooltip lists its Synergies and what they add now.
+_Avoid_: Combo, interaction, bonus skill
 
 **Skill Bar**:
 The row of five slots holding the Skills the player casts, each slot cast by its own button: the right mouse button or a key, a controller button, or an on-screen button; a Skill is cast at the cursor, or at the Target when there is no cursor.
@@ -205,12 +237,24 @@ The Minion summoned by the Golem Skill: the Hero has at most one, which follows 
 _Avoid_: Golum
 
 **Curse**:
-A mark a Skill puts on every Monster in a circle where it is cast, for a while; a Monster has at most one, a new one replacing the old, and one Returning loses it on reaching home. Amplify Damage's makes the Monster take more damage from everything.
+A mark a Skill puts on every Monster in a circle where it is cast, for a while; a Monster has at most one, a new one replacing the old, and one Returning loses it on reaching home. Amplify Damage's makes the Monster take more damage from everything, Weaken's makes it deal less, Leaden Limbs' makes it walk and swing or shoot more slowly, and Dread's sets it Fleeing.
 _Avoid_: Debuff, hex
+
+**Fleeing**:
+A Monster under Dread's Curse running away from the Hero without attacking, even when hit, until the Curse ends and it comes back to the fight.
+_Avoid_: Fear, routing, Returning (that's going home)
 
 **Raised Skeleton**:
 The Minion the Raise Skeleton Skill raises from a Corpse, using it up, whatever Monster the Corpse was. The Hero has a few at once, more at a higher Skill Level, raising one more past that replacing the oldest; otherwise it follows the Golem's rules. Never just "Skeleton": that is the Monster.
 _Avoid_: Skeleton (that's the Monster), skelly, undead
+
+**Raised Archer**:
+The Minion the Raise Archer Skill raises from a Corpse, which shoots Arrows; the Hero has a few of them, counted apart from Raised Skeletons, by the same rules. Never just "Archer": the Skeleton Archer is a Monster.
+_Avoid_: Archer, Skeleton Archer (that's the Monster), skeletal mage
+
+**Bone Wall**:
+The short line of bone the Bone Wall Skill raises where it is cast, standing for a while as Props with Life: no one can walk through it, Hero and Minions included, a Monster's Projectile stops at it and the Hero's flies through, and a Monster that can't reach the Hero breaks it with attacks.
+_Avoid_: Barricade, Bone Prison
 
 **Bone Ward**:
 What the Bone Ward Skill puts on the Hero: an amount of damage it soaks up before their Life, until used up; casting it again fills it back up. A hit it soaks whole is still a hit, not a Miss: the Hero has taken it, so it keeps them In Combat and can flinch them, though their Life is untouched. It stays on through Exits and Town Portals and is gone on the Hero's Death or when the Save is loaded.
@@ -228,9 +272,33 @@ _Avoid_: Armor (that's the Item), AC, evasion
 A swing that plays out in full but deals no damage because it failed its chance to hit.
 _Avoid_: Dodge, whiff
 
+**Damage Type**:
+The kind of a share of damage: Physical, or one of the Elements. One hit can carry several Damage Types, each reduced on its own, and Life loses their sum.
+_Avoid_: Damage school, element (when Physical is meant)
+
+**Physical**:
+The Damage Type of weapon blows, arrows and bone. The Hero has no Resistance to it: Defense, which decides whether they are hit at all, is their guard against it.
+_Avoid_: Normal damage, plain damage
+
+**Element**:
+Fire, Cold or Lightning: the Damage Types that a Resistance reduces.
+_Avoid_: Magic, elemental type
+
+**Resistance**:
+How much of one Element's damage the Hero or a Monster shrugs off once a hit has landed, given as a percentage. It is what makes the Hero hunt for gear as the game gets harder.
+_Avoid_: Resist, res, elemental defense
+
 **Projectile**:
-Something loosed by an attack or a Skill that flies in a straight line through an Area until it meets a wall or runs out of range. A Monster's hits the first Hero or Minion it touches and flies through Monsters; the Skeleton Archer's is the Arrow. The Hero's flies through Minions and hits every Monster on its way, each once; Bone Spear's is one.
+Something loosed by an attack or a Skill that flies in a straight line through an Area until it meets a wall or runs out of range, Muck aside. A Monster's hits the first Hero or Minion it touches and flies through Monsters; the Skeleton Archer's is the Arrow. The Hero's flies through Minions and hits every Monster on its way, each once; Bone Spear's is one.
 _Avoid_: Missile, bullet, shot
+
+**Muck**:
+The Bog Spitter's Projectile: lobbed over Props and Walls alike at where the Hero stood when it was loosed, its landing spot marked on the ground from then on, it hits every Hero and Minion within a small circle there when it lands, and nothing on the way.
+_Avoid_: Glob, spit, bomb
+
+**Slam**:
+The Wockbrute's attack: after a long wind-up that hitting it can't stop, it hits every Hero and Minion within a circle around it, whichever way it faces; never Monsters.
+_Avoid_: Stomp, smash, area attack
 
 **Save**:
 The Hero's kept progress (Level, Experience, Attributes, unspent Attribute Points, Skill Levels, unspent Skill Points, the Skill Bar, Belongings and Gold), written whenever it changes; there is only one, and loading it starts the Hero in Town.

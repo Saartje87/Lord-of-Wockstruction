@@ -99,7 +99,9 @@ import {
   stepProjectiles,
 } from "./projectiles";
 import {
+  actBossQuestOpen,
   advanceQuest,
+  boneAltarsPutAway,
   copyQuests,
   freshQuests,
   hasQuestBusiness,
@@ -1563,26 +1565,11 @@ function raiseSteps(): number {
 }
 
 /**
- * Whether a Done Quest has put away the Bone Altars of the Area called
- * `name` for good.
- */
-function altarsPutAway(world: World, name: string): boolean {
-  return (Object.keys(questTuning) as QuestId[]).some((id) => {
-    const { trigger } = questTuning[id];
-    return (
-      trigger.type === "boneAltars" &&
-      trigger.area === name &&
-      world.hero.progress.quests[id].state === "done"
-    );
-  });
-}
-
-/**
  * Stands the Area's Bone Altars where the map puts them, each blocking its
  * tile, unless a Done Quest has put them away.
  */
 function placeBoneAltars(world: World, area: Area) {
-  if (altarsPutAway(world, area.name)) return;
+  if (boneAltarsPutAway(world.hero.progress.quests, area.name)) return;
   for (const spot of area.boneAltars) {
     const pos = { x: Math.floor(spot.x) + 0.5, y: Math.floor(spot.y) + 0.5 };
     area.walkable[tileIndex(area, pos)] = false;
@@ -1671,14 +1658,6 @@ function raiseWhenDue(
   raiser.raised.push(...made.map((m) => m.monster.id));
   raiser.cooldown = raising.cooldown;
   return made;
-}
-
-/** The Quests that ask for killing the Act Boss of Act `act`. */
-function actQuestsOf(act: number): QuestId[] {
-  return (Object.keys(questTuning) as QuestId[]).filter((id) => {
-    const { trigger } = questTuning[id];
-    return trigger.type === "actBossKilled" && trigger.act === act;
-  });
 }
 
 /**
@@ -2463,7 +2442,7 @@ function standingIn(world: World, area: Area): number[] {
 /** Whether `npc`'s condition holds as the Quests stand now. */
 function stillStands(world: World, npc: Npc): boolean {
   if (!npc.stands) return true;
-  const { state } = world.hero.progress.quests[npc.stands.quest];
+  const { state } = questOf(world, npc.stands.quest);
   return (state === "ready" || state === "done") === npc.stands.ready;
 }
 
@@ -2521,7 +2500,7 @@ function answerQuest(
 ) {
   const { progress } = world.hero;
   const { giver, reward } = questTuning[quest];
-  const state = progress.quests[quest].state;
+  const { state } = questOf(world, quest);
   if (state !== (handIn ? "ready" : "notGiven")) return;
   const there = npcsIn(world).find(
     (npc) => npc.name === giver && withinNpcReach(world, npc.id),
@@ -2800,9 +2779,7 @@ function hurt(world: World, monster: Monster, events: SimEvent[]) {
       monster.unique === actBoss.name &&
       monster.type === actBoss.monster
     ) {
-      const completes = actQuestsOf(act).some(
-        (id) => world.hero.progress.quests[id].state !== "done",
-      );
+      const completes = actBossQuestOpen(world.hero.progress.quests, act);
       noteDeed(world, { type: "actBossKilled", act }, events);
       if (completes) events.push({ type: "ActCompleted", act });
     }

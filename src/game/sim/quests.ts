@@ -109,3 +109,30 @@ export function questPointsOf(states: QuestStates): {
   }
   return { attributePoints, skillPoints };
 }
+
+/**
+ * Whether a Done Quest has put away the Bone Altars of the Area called
+ * `area` for good.
+ */
+export function boneAltarsPutAway(states: QuestStates, area: string): boolean {
+  return QUEST_IDS.some((id) => {
+    const { trigger } = questTuning[id];
+    return (
+      trigger.type === "boneAltars" &&
+      trigger.area === area &&
+      states[id].state === "done"
+    );
+  });
+}
+
+/** Whether a Quest that asks for killing the Act Boss of Act `act` isn't Done. */
+export function actBossQuestOpen(states: QuestStates, act: number): boolean {
+  return QUEST_IDS.some((id) => {
+    const { trigger } = questTuning[id];
+    return (
+      trigger.type === "actBossKilled" &&
+      trigger.act === act &&
+      states[id].state !== "done"
+    );
+  });
+}

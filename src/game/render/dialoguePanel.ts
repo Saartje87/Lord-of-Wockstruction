@@ -3,7 +3,7 @@ import { type QuestId, questsOf } from "../sim/quests";
 import { inside, middleOf, type Rect } from "../sim/rect";
 import { SMITH, smithableItems } from "../sim/smith";
 import type { Vec } from "../sim/vec";
-import type { World } from "../sim/world";
+import { questOf, type World } from "../sim/world";
 import { itemOf } from "../tuning/items";
 import { questTuning } from "../tuning/quests";
 import { atUiScale, type Viewport } from "../viewport";
@@ -95,7 +95,7 @@ export function dialogueSheet(
     };
   }
   const { name, lines } = questTuning[quest];
-  const { state } = world.hero.progress.quests[quest];
+  const { state } = questOf(world, quest);
   const offer =
     state === "notGiven"
       ? { label: `Accept "${name}"`, button: { type: "acceptQuest", quest } }

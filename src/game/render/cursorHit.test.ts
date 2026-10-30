@@ -539,7 +539,7 @@ function withGolem(golem: number, skillPoints: number) {
       level: 3,
       experience: 1_500,
       skillPoints,
-      skillLevels: { ...FRESH_PROGRESS.skillLevels, golem },
+      skillLevels: { ...FRESH_PROGRESS.skillLevels, raiseSkeleton: 1, golem },
     },
   });
 }

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { skillTuning } from "../tuning/skills";
+import { BRANCHES, branchSkills, skillTuning } from "../tuning/skills";
 import {
   emptySkillBar,
   placeLearnedSkill,
@@ -89,7 +89,7 @@ function withSkillPoints(level: number, skillPoints: number): Progress {
     skillPoints,
     skillLevels: {
       ...FRESH_PROGRESS.skillLevels,
-      golem: level - 1 - skillPoints,
+      raiseSkeleton: level - 1 - skillPoints,
     },
   };
 }
@@ -103,16 +103,16 @@ function spend(w: World, skill: Skill, times = 1): SimEvent[] {
   return events;
 }
 
-const golemRequiredLevel = skillTuning.golem.requiredLevel;
+const raiseRequiredLevel = skillTuning.raiseSkeleton.requiredLevel;
 afterEach(() => {
-  skillTuning.golem.requiredLevel = golemRequiredLevel;
+  skillTuning.raiseSkeleton.requiredLevel = raiseRequiredLevel;
 });
 
 describe("a New Hero", () => {
   it("has no Skills learned and no Skill Points", () => {
     expect(progressOf(world())).toMatchObject({
       skillPoints: 0,
-      skillLevels: { golem: 0 },
+      skillLevels: { raiseSkeleton: 0 },
     });
   });
 });
@@ -131,37 +131,37 @@ describe("SpendSkillPoint", () => {
   it("raises the Skill's Skill Level by one for one point and reports it", () => {
     const w = world(withSkillPoints(3, 2));
 
-    expect(spend(w, "golem")).toEqual([
-      { type: "SkillLevelRaised", skill: "golem", skillLevel: 1 },
+    expect(spend(w, "raiseSkeleton")).toEqual([
+      { type: "SkillLevelRaised", skill: "raiseSkeleton", skillLevel: 1 },
     ]);
-    expect(spend(w, "golem")).toEqual([
-      { type: "SkillLevelRaised", skill: "golem", skillLevel: 2 },
+    expect(spend(w, "raiseSkeleton")).toEqual([
+      { type: "SkillLevelRaised", skill: "raiseSkeleton", skillLevel: 2 },
     ]);
     expect(progressOf(w)).toMatchObject({
       skillPoints: 0,
-      skillLevels: { golem: 2 },
+      skillLevels: { raiseSkeleton: 2 },
     });
   });
 
   it("is ignored with no unspent Skill Point", () => {
     const w = world(withSkillPoints(2, 1));
-    spend(w, "golem");
+    spend(w, "raiseSkeleton");
 
-    expect(spend(w, "golem")).toEqual([]);
+    expect(spend(w, "raiseSkeleton")).toEqual([]);
     expect(progressOf(w)).toMatchObject({
       skillPoints: 0,
-      skillLevels: { golem: 1 },
+      skillLevels: { raiseSkeleton: 1 },
     });
   });
 
   it("is ignored below the Skill's required Level", () => {
-    skillTuning.golem.requiredLevel = 3;
+    skillTuning.raiseSkeleton.requiredLevel = 3;
     const w = world(withSkillPoints(2, 1));
 
-    expect(spend(w, "golem")).toEqual([]);
+    expect(spend(w, "raiseSkeleton")).toEqual([]);
     expect(progressOf(w)).toMatchObject({
       skillPoints: 1,
-      skillLevels: { golem: 0 },
+      skillLevels: { raiseSkeleton: 0 },
     });
   });
 
@@ -170,22 +170,22 @@ describe("SpendSkillPoint", () => {
     step(w, [{ type: "SwingAt", target: { x: 2.5, y: 0.5 } }]);
     const swing = w.hero.swing;
 
-    spend(w, "golem");
+    spend(w, "raiseSkeleton");
 
     expect(w.hero.swing).toBe(swing);
-    expect(progressOf(w).skillLevels.golem).toBe(1);
+    expect(progressOf(w).skillLevels.raiseSkeleton).toBe(1);
   });
 
   it("keeps a saved progress apart from the World's", () => {
     const saved = withSkillPoints(2, 1);
     const w = world(saved);
 
-    spend(w, "golem");
+    spend(w, "raiseSkeleton");
     const kept = progressOf(w);
-    spend(world(saved), "golem");
+    spend(world(saved), "raiseSkeleton");
 
-    expect(saved.skillLevels.golem).toBe(0);
-    expect(kept.skillLevels.golem).toBe(1);
+    expect(saved.skillLevels.raiseSkeleton).toBe(0);
+    expect(kept.skillLevels.raiseSkeleton).toBe(1);
     expect(progressOf(w).skillLevels).not.toBe(kept.skillLevels);
     expect(saved.skillBar.right).toBeNull();
     expect(progressOf(w).skillBar).not.toBe(kept.skillBar);
@@ -196,10 +196,10 @@ describe("learning a Skill", () => {
   it("puts it into the right-click slot of an empty Skill Bar", () => {
     const w = world(withSkillPoints(2, 1));
 
-    spend(w, "golem");
+    spend(w, "raiseSkeleton");
 
     expect(progressOf(w).skillBar).toEqual({
-      right: "golem",
+      right: "raiseSkeleton",
       key1: null,
       key2: null,
       key3: null,
@@ -210,7 +210,7 @@ describe("learning a Skill", () => {
   it("leaves the Skill Bar as it is when raising a Skill already learned", () => {
     const w = world(withSkillPoints(3, 1));
 
-    spend(w, "golem");
+    spend(w, "raiseSkeleton");
 
     expect(progressOf(w).skillBar).toEqual(emptySkillBar());
   });
@@ -223,9 +223,9 @@ describe("placeLearnedSkill", () => {
   it("takes the first empty keyed slot when the right-click slot is taken", () => {
     const bar = { ...emptySkillBar(), right: other, key1: other };
 
-    expect(placeLearnedSkill(bar, "golem")).toEqual({
+    expect(placeLearnedSkill(bar, "raiseSkeleton")).toEqual({
       ...bar,
-      key2: "golem",
+      key2: "raiseSkeleton",
     });
   });
 
@@ -238,7 +238,7 @@ describe("placeLearnedSkill", () => {
       key4: other,
     };
 
-    expect(placeLearnedSkill(full, "golem")).toEqual(full);
+    expect(placeLearnedSkill(full, "raiseSkeleton")).toEqual(full);
   });
 });
 
@@ -246,7 +246,7 @@ describe("PutSkillOnBar", () => {
   /** A Level 2 Hero with the Golem learned, so on the right-click slot. */
   function learned(): World {
     const w = world(withSkillPoints(2, 1));
-    spend(w, "golem");
+    spend(w, "raiseSkeleton");
     return w;
   }
 
@@ -254,13 +254,13 @@ describe("PutSkillOnBar", () => {
     const w = learned();
 
     const events = step(w, [
-      { type: "PutSkillOnBar", skill: "golem", slot: "key3" },
+      { type: "PutSkillOnBar", skill: "raiseSkeleton", slot: "key3" },
     ]);
 
     expect(events).toEqual([{ type: "SkillBarChanged" }]);
     expect(progressOf(w).skillBar).toEqual({
       ...emptySkillBar(),
-      key3: "golem",
+      key3: "raiseSkeleton",
     });
   });
 
@@ -268,7 +268,7 @@ describe("PutSkillOnBar", () => {
     const w = world(withSkillPoints(2, 1));
 
     const events = step(w, [
-      { type: "PutSkillOnBar", skill: "golem", slot: "key1" },
+      { type: "PutSkillOnBar", skill: "raiseSkeleton", slot: "key1" },
     ]);
 
     expect(events).toEqual([]);
@@ -279,11 +279,11 @@ describe("PutSkillOnBar", () => {
     const w = learned();
 
     const events = step(w, [
-      { type: "PutSkillOnBar", skill: "golem", slot: "right" },
+      { type: "PutSkillOnBar", skill: "raiseSkeleton", slot: "right" },
     ]);
 
     expect(events).toEqual([]);
-    expect(progressOf(w).skillBar.right).toBe("golem");
+    expect(progressOf(w).skillBar.right).toBe("raiseSkeleton");
   });
 
   it("happens at once, without interrupting a swing", () => {
@@ -291,10 +291,10 @@ describe("PutSkillOnBar", () => {
     step(w, [{ type: "SwingAt", target: { x: 2.5, y: 0.5 } }]);
     const swing = w.hero.swing;
 
-    step(w, [{ type: "PutSkillOnBar", skill: "golem", slot: "key1" }]);
+    step(w, [{ type: "PutSkillOnBar", skill: "raiseSkeleton", slot: "key1" }]);
 
     expect(w.hero.swing).toBe(swing);
-    expect(progressOf(w).skillBar.key1).toBe("golem");
+    expect(progressOf(w).skillBar.key1).toBe("raiseSkeleton");
   });
 });
 
@@ -303,42 +303,104 @@ describe("putSkillOnBar", () => {
   const other = "boneWall" as Skill;
 
   it("swaps it with the Skill in the slot when it came from another slot", () => {
-    const bar = { ...emptySkillBar(), right: other, key2: "golem" as Skill };
-
-    expect(putSkillOnBar(bar, "golem", "right")).toEqual({
+    const bar = {
       ...emptySkillBar(),
-      right: "golem",
+      right: other,
+      key2: "raiseSkeleton" as Skill,
+    };
+
+    expect(putSkillOnBar(bar, "raiseSkeleton", "right")).toEqual({
+      ...emptySkillBar(),
+      right: "raiseSkeleton",
       key2: other,
     });
   });
 
   it("moves it to an empty slot, emptying the one it came from", () => {
-    const bar = { ...emptySkillBar(), key2: "golem" as Skill };
+    const bar = { ...emptySkillBar(), key2: "raiseSkeleton" as Skill };
 
-    expect(putSkillOnBar(bar, "golem", "key4")).toEqual({
+    expect(putSkillOnBar(bar, "raiseSkeleton", "key4")).toEqual({
       ...emptySkillBar(),
-      key4: "golem",
+      key4: "raiseSkeleton",
     });
   });
 
   it("takes the place of the Skill in the slot when it wasn't on the bar", () => {
     const bar = { ...emptySkillBar(), key1: other };
 
-    expect(putSkillOnBar(bar, "golem", "key1")).toEqual({
+    expect(putSkillOnBar(bar, "raiseSkeleton", "key1")).toEqual({
       ...emptySkillBar(),
-      key1: "golem",
+      key1: "raiseSkeleton",
     });
   });
 
   it("never puts a Skill in two slots", () => {
-    const bar = { ...emptySkillBar(), right: other, key3: "golem" as Skill };
+    const bar = {
+      ...emptySkillBar(),
+      right: other,
+      key3: "raiseSkeleton" as Skill,
+    };
 
     for (const slot of SKILL_BAR_SLOTS) {
-      const after = putSkillOnBar(bar, "golem", slot);
-      const golems = SKILL_BAR_SLOTS.filter((name) => after[name] === "golem");
+      const after = putSkillOnBar(bar, "raiseSkeleton", slot);
+      const raised = SKILL_BAR_SLOTS.filter(
+        (name) => after[name] === "raiseSkeleton",
+      );
       const others = SKILL_BAR_SLOTS.filter((name) => after[name] === other);
-      expect(golems).toEqual([slot]);
+      expect(raised).toEqual([slot]);
       expect(others).toHaveLength(1);
     }
+  });
+});
+
+describe("Branches and Prerequisites", () => {
+  it("groups every Skill in one Branch, in Prerequisite order, the first having none", () => {
+    expect(branchSkills).toEqual({
+      bone: ["boneWard", "corpseExplosion", "boneSpear"],
+      summoning: ["raiseSkeleton", "golem"],
+      curses: ["amplifyDamage"],
+    });
+    for (const branch of BRANCHES) {
+      branchSkills[branch].forEach((skill, index) => {
+        const before = branchSkills[branch][index - 1] ?? null;
+        expect(skillTuning[skill].prerequisite).toBe(before);
+      });
+    }
+  });
+
+  /** A Level 6 Hero with Skill Points to spare and `learned` Skill Levels. */
+  function level6(learned: Partial<Record<Skill, number>>): World {
+    return world({
+      ...FRESH_PROGRESS,
+      level: 6,
+      experience: 3_750,
+      skillPoints: 5,
+      skillLevels: { ...FRESH_PROGRESS.skillLevels, ...learned },
+    });
+  }
+
+  it("spends nothing on a Skill whose Prerequisite is at Skill Level 0", () => {
+    const w = level6({});
+
+    expect(spend(w, "golem")).toEqual([]);
+    expect(spend(w, "boneSpear")).toEqual([]);
+    expect(progressOf(w)).toMatchObject({ skillPoints: 5 });
+  });
+
+  it("spends a Skill Point once the Prerequisite has a Skill Level", () => {
+    const w = level6({});
+
+    spend(w, "raiseSkeleton");
+
+    expect(spend(w, "golem")).toEqual([
+      { type: "SkillLevelRaised", skill: "golem", skillLevel: 1 },
+    ]);
+  });
+
+  it("still needs the Hero's Level with the Prerequisite learned", () => {
+    const w = level6({ boneWard: 1, corpseExplosion: 1 });
+    w.hero.progress.level = skillTuning.boneSpear.requiredLevel - 1;
+
+    expect(spend(w, "boneSpear")).toEqual([]);
   });
 });

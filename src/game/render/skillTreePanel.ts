@@ -3,12 +3,17 @@ import { SKILL_BAR_SLOTS } from "../sim/skillBar";
 import type { Vec } from "../sim/vec";
 import {
   canRaiseSkill,
-  SKILLS,
   type Skill,
   skillManaCost,
   type World,
 } from "../sim/world";
-import { skillTuning } from "../tuning/skills";
+import {
+  BRANCHES,
+  type Branch,
+  branchSkills,
+  branchTuning,
+  skillTuning,
+} from "../tuning/skills";
 import { atUiScale, type Viewport } from "../viewport";
 import { type CloseButton, closeButtonRect, closeHitAt } from "./closeButton";
 import { compactPanelRect } from "./compactLayout";
@@ -43,20 +48,45 @@ export const SKILL_TREE_COLUMNS = {
 };
 
 /**
- * The rows of the panel under its title: the unspent Skill Points, the
- * headings over the Skills' columns, then one row for each Skill.
+ * The rows of the panel under its title: the unspent Skill Points, then
+ * the Branches, each a heading row (its name, and over the Skills' columns
+ * theirs) with a row for each of its Skills under it. In the Compact Layout
+ * the Branches stand side by side instead, `gap` apart (CSS px at native
+ * scale, drawn at the UI Scale), with Skill Level and + the only columns.
  */
-export const SKILL_TREE_ROWS = {
-  skillPoints: 0,
-  headings: 1,
-  firstSkill: 2,
-} as const;
+export const SKILL_TREE_ROWS = { skillPoints: 0, firstBranch: 1 } as const;
+
+/** The space between Branch columns in the Compact Layout, and its column. */
+export const SKILL_TREE_COMPACT = { gap: 10, skillLevel: 30 };
+
+/** How many Skills each Branch's rows make room for. */
+export type BranchRooms = Record<Branch, number>;
+
+/** The rooms the Skills in tuning take. */
+export function tunedRooms(): BranchRooms {
+  return Object.fromEntries(
+    BRANCHES.map((branch) => [branch, branchSkills[branch].length]),
+  ) as BranchRooms;
+}
+
+/** The rooms the Skill Tree is built to hold: Bone 6, Summoning 4, Curses 5. */
+export function fullRooms(): BranchRooms {
+  return Object.fromEntries(
+    BRANCHES.map((branch) => [branch, branchTuning[branch].room]),
+  ) as BranchRooms;
+}
 
 /** What the Skill Tree panel shows of a Skill, as text. */
 export type SkillSheet = {
   skill: Skill;
   name: string;
   skillLevel: string;
+  branch: Branch;
+  /**
+   * The name of its Prerequisite while the Hero has no Skill Level in it,
+   * so no Skill Point can go into this Skill yet; else null.
+   */
+  prerequisite: string | null;
   /** What a cast costs at the next Skill Level: what a + buys. */
   manaCost: string;
   /** The Level the Hero must reach to spend a Skill Point on it, until then. */
@@ -66,19 +96,34 @@ export type SkillSheet = {
 };
 
 /** What the Skill Tree panel shows of the Hero, as text. */
-export type SkillTreeSheet = { skillPoints: string; skills: SkillSheet[] };
+export type SkillTreeSheet = {
+  skillPoints: string;
+  /** The Skills grouped by Branch, each Branch in Prerequisite order. */
+  skills: SkillSheet[];
+  /** The Branches' names, in the order the Skills are grouped. */
+  branches: { branch: Branch; name: string }[];
+};
 
 /** What the Skill Tree panel shows, from the Hero's progress. */
 export function skillTreeSheet(world: World): SkillTreeSheet {
   const { progress } = world.hero;
   return {
     skillPoints: String(progress.skillPoints),
-    skills: SKILLS.map((skill) => {
+    branches: BRANCHES.map((branch) => ({
+      branch,
+      name: branchTuning[branch].name,
+    })),
+    skills: BRANCHES.flatMap((branch) => branchSkills[branch]).map((skill) => {
       const skillLevel = progress.skillLevels[skill];
-      const { requiredLevel } = skillTuning[skill];
+      const { requiredLevel, prerequisite } = skillTuning[skill];
       return {
         skill,
         name: skillTuning[skill].name,
+        branch: skillTuning[skill].branch,
+        prerequisite:
+          prerequisite && progress.skillLevels[prerequisite] === 0
+            ? skillTuning[prerequisite].name
+            : null,
         skillLevel: String(skillLevel),
         manaCost: String(skillManaCost(skill, skillLevel + 1)),
         requiredLevel:
@@ -112,16 +157,20 @@ export function skillTreeRow(screen: Viewport, row: number): Rect {
 
 /**
  * Where the panel itself is drawn: at the top right, as tall as its rows
- * for `skills` Skills, or in the Compact Layout filling the screen.
+ * for Branches of `rooms` Skills, or in the Compact Layout filling the
+ * screen.
  */
 export function skillTreePanelRect(
   screen: Viewport,
-  skills: number = SKILLS.length,
+  rooms: BranchRooms = tunedRooms(),
 ): Rect {
   if (screen.compact) return compactPanelRect(screen);
   const { right, top, width, padding, firstRow, rowHeight, hintHeight } =
     atUiScale(SKILL_TREE_PANEL, screen.uiScale);
-  const rows = skillRow(skills);
+  const rows = BRANCHES.reduce<number>(
+    (sum, branch) => sum + 1 + rooms[branch],
+    SKILL_TREE_ROWS.firstBranch,
+  );
   return {
     x: screen.width - right - width,
     y: top,
@@ -130,16 +179,62 @@ export function skillTreePanelRect(
   };
 }
 
+/** Where the heading row of Branch `branch` is drawn (CSS px). */
+export function skillTreeBranchRow(
+  screen: Viewport,
+  branch: Branch,
+  rooms: BranchRooms = tunedRooms(),
+): Rect {
+  const { rowHeight, padding, firstRow } = atUiScale(
+    SKILL_TREE_PANEL,
+    screen.uiScale,
+  );
+  const index = BRANCHES.indexOf(branch);
+  if (screen.compact) {
+    const panel = skillTreePanelRect(screen, rooms);
+    const gap = SKILL_TREE_COMPACT.gap * screen.uiScale;
+    const w = (panel.w - 2 * padding - (BRANCHES.length - 1) * gap) / 3;
+    return {
+      x: panel.x + padding + index * (w + gap),
+      y: panel.y + firstRow + SKILL_TREE_ROWS.firstBranch * rowHeight,
+      w,
+      h: rowHeight,
+    };
+  }
+  const before = BRANCHES.slice(0, index).reduce(
+    (sum, other) => sum + 1 + rooms[other],
+    0,
+  );
+  return skillTreeRow(screen, SKILL_TREE_ROWS.firstBranch + before);
+}
+
+/** Where the `index`th Skill of Branch `branch` has its row (CSS px). */
+export function skillTreeSkillRow(
+  screen: Viewport,
+  branch: Branch,
+  index: number,
+  rooms: BranchRooms = tunedRooms(),
+): Rect {
+  const heading = skillTreeBranchRow(screen, branch, rooms);
+  return { ...heading, y: heading.y + (1 + index) * heading.h };
+}
+
 /**
- * Where a Skill's row `row` puts its columns (CSS px), at the UI Scale: the
- * x its required Level starts at, and the x its Skill Level and its Mana
- * cost end at. The headings over them line up the same way.
+ * Where a Skill's row puts its columns (CSS px), at the UI Scale: the x its
+ * required Level starts at, and the x its Skill Level and its Mana cost end
+ * at. The headings over them line up the same way. In the Compact Layout's
+ * narrow columns only the Skill Level is kept, clear of the +; the others
+ * sit on it, unshown.
  */
 export function skillTreeColumns(
   screen: Viewport,
   row: Rect,
 ): { requiredLevel: number; skillLevel: number; manaCost: number } {
   const right = row.x + row.w;
+  if (screen.compact) {
+    const skillLevel = right - SKILL_TREE_COMPACT.skillLevel * screen.uiScale;
+    return { requiredLevel: skillLevel, skillLevel, manaCost: skillLevel };
+  }
   const at = atUiScale(SKILL_TREE_COLUMNS, screen.uiScale);
   return {
     requiredLevel: right - at.requiredLevel,
@@ -148,27 +243,32 @@ export function skillTreeColumns(
   };
 }
 
-/** The panel row of the `index`th Skill. */
-export function skillRow(index: number): number {
-  return SKILL_TREE_ROWS.firstSkill + index;
-}
-
 /**
  * Where the panel and its × close button are drawn, each Skill's row (where
  * pressing a learned Skill picks it up to drag onto the Skill Bar) and each
  * Skill's + button.
  */
-export function skillTreePanelLayout(screen: Viewport): {
+export function skillTreePanelLayout(
+  screen: Viewport,
+  rooms: BranchRooms = tunedRooms(),
+): {
   panel: Rect;
   closeButton: Rect;
+  branches: Record<Branch, Rect>;
   skills: Record<Skill, Rect>;
   raise: Record<Skill, Rect>;
 } {
   const { rowHeight, plus } = atUiScale(SKILL_TREE_PANEL, screen.uiScale);
-  const panel = skillTreePanelRect(screen);
-  const row = (index: number) => skillTreeRow(screen, skillRow(index));
-  const plusAt = (index: number): Rect => {
-    const at = row(index);
+  const panel = skillTreePanelRect(screen, rooms);
+  const rows = BRANCHES.flatMap((branch) =>
+    branchSkills[branch].map(
+      (skill, index) =>
+        [skill, skillTreeSkillRow(screen, branch, index, rooms)] as const,
+    ),
+  );
+  const skills = Object.fromEntries(rows) as Record<Skill, Rect>;
+  const plusAt = (skill: Skill): Rect => {
+    const at = skills[skill];
     return {
       x: at.x + at.w - plus,
       y: at.y + (rowHeight - plus) / 2,
@@ -179,11 +279,15 @@ export function skillTreePanelLayout(screen: Viewport): {
   return {
     panel,
     closeButton: closeButtonRect(panel, screen.uiScale),
-    skills: Object.fromEntries(
-      SKILLS.map((skill, index) => [skill, row(index)]),
-    ) as Record<Skill, Rect>,
+    branches: Object.fromEntries(
+      BRANCHES.map((branch) => [
+        branch,
+        skillTreeBranchRow(screen, branch, rooms),
+      ]),
+    ) as Record<Branch, Rect>,
+    skills,
     raise: Object.fromEntries(
-      SKILLS.map((skill, index) => [skill, plusAt(index)]),
+      rows.map(([skill]) => [skill, plusAt(skill)]),
     ) as Record<Skill, Rect>,
   };
 }
@@ -217,7 +321,7 @@ export function skillTreeHitAt(
   if (!open || !inside(layout.panel, point)) return null;
   const closeHit = closeHitAt(layout, point, "skillTree");
   if (closeHit) return closeHit;
-  for (const skill of SKILLS) {
+  for (const skill of BRANCHES.flatMap((branch) => branchSkills[branch])) {
     if (canRaiseSkill(world, skill) && inside(layout.raise[skill], point)) {
       return { button: { type: "learn", skill } };
     }
@@ -251,7 +355,10 @@ export function skillTreeFocusSpots(
   screen: Viewport,
 ): SkillTreeFocusSpot[] {
   const layout = skillTreePanelLayout(screen);
-  const spots: SkillTreeFocusSpot[] = SKILLS.map((skill) => {
+  // Top to bottom, Branch by Branch, so the Focus starts at the first.
+  const spots: SkillTreeFocusSpot[] = BRANCHES.flatMap(
+    (branch) => branchSkills[branch],
+  ).map((skill) => {
     const at = middleOf(layout.raise[skill]);
     const hit = skillTreeHitAt(screen, at, world, true) ?? { button: null };
     const learned = world.hero.progress.skillLevels[skill] > 0;

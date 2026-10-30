@@ -16,7 +16,7 @@ import {
 } from "../sim/world";
 import { heroTuning } from "../tuning/hero";
 import { inventoryTuning } from "../tuning/items";
-import { skillTuning } from "../tuning/skills";
+import { BRANCHES, branchSkills, skillTuning } from "../tuning/skills";
 import { type Viewport, viewportOf } from "../viewport";
 import { cursorHitAt } from "./cursorHit";
 import {
@@ -349,6 +349,8 @@ describe("the Skill Tree panel's Focus spots", () => {
           level: everySkillOpen,
           experience: heroTuning.experienceTable[everySkillOpen - 1],
           skillPoints: 1,
+          // Every Prerequisite learned, so a point can go into any Skill.
+          skillLevels: learnedSkills,
         }),
     ],
     ["learned Skills", () => world(undefined, { skillLevels: learnedSkills })],
@@ -404,8 +406,9 @@ describe("the Skill Tree panel's Focus spots", () => {
 
   it("goes down from the last Skill to the Skill Bar, and up to the ×", () => {
     const spots = panelFocusSpots("skillTree", worlds[1][1](), WIDE);
-    const last = pickUp(SKILLS[SKILLS.length - 1]);
-    const first = pickUp(SKILLS[0]);
+    const inOrder = BRANCHES.flatMap((branch) => branchSkills[branch]);
+    const last = pickUp(inOrder[inOrder.length - 1]);
+    const first = pickUp(inOrder[0]);
 
     expect(SKILL_BAR_SLOTS.map(barSlot)).toContainEqual(
       move(spots, last, "down"),

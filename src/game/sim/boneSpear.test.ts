@@ -357,6 +357,7 @@ describe("learning Bone Spear", () => {
           level,
           experience: heroTuning.experienceTable[level - 1],
           skillPoints: 1,
+          skillLevels: { ...FRESH_PROGRESS.skillLevels, corpseExplosion: 1 },
         },
       });
     const early = at(5);

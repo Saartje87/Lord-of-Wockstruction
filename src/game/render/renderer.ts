@@ -62,7 +62,7 @@ import { heroTuning } from "../tuning/hero";
 import { type ItemType, itemOf } from "../tuning/items";
 import type { MinionType } from "../tuning/minions";
 import type { MonsterType } from "../tuning/monsters";
-import { type Skill, skillTuning } from "../tuning/skills";
+import { type Branch, type Skill, skillTuning } from "../tuning/skills";
 import { townPortalLook } from "../tuning/townPortalLook";
 import { atUiScale, type Viewport, viewportOf } from "../viewport";
 import { tileToScreen, type WorldCamera } from "../world3d/camera";
@@ -189,7 +189,7 @@ import { SKILL_BAR, skillBarLayout, skillBarSheet } from "./skillBar";
 import {
   SKILL_TREE_PANEL,
   SKILL_TREE_ROWS,
-  skillRow,
+  skillTreeBranchRow,
   skillTreeColumns,
   skillTreePanelLayout,
   skillTreeRow,
@@ -2937,10 +2937,10 @@ function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
     t.anchor.set(1, 0.5);
     return t;
   };
-  const headings = {
-    skillLevel: heading("Skill Level"),
-    manaCost: heading("Mana"),
-  };
+  /** Each Branch's heading row: its name at the left, its columns' headings. */
+  const branchHeadings: Partial<
+    Record<Branch, { name: Text; skillLevel: Text; manaCost: Text }>
+  > = {};
   /** A Skill row's cell, at its left (`anchorX` 0) or right (1) edge. */
   const cell = (fill: number, anchorX: 0 | 1) => {
     const t = text(fill);
@@ -2992,15 +2992,31 @@ function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
       points.value.position.set(pointsRow.x + pointsRow.w, middle(pointsRow));
       points.value.style.fill = anyRaisable ? style.title : style.value;
 
-      const headingsRow = skillTreeRow(screen, SKILL_TREE_ROWS.headings);
-      const headingAt = skillTreeColumns(screen, headingsRow);
-      headings.skillLevel.position.set(
-        headingAt.skillLevel,
-        middle(headingsRow),
-      );
-      headings.manaCost.position.set(headingAt.manaCost, middle(headingsRow));
-      const ruleY = headingsRow.y - style.ruleGap * scale;
-      graphics.rect(headingsRow.x, ruleY, headingsRow.w, 1).fill(style.edge);
+      for (const { branch, name } of sheet.branches) {
+        if (!branchHeadings[branch]) {
+          const nameText = text(style.hint, style.hintSize);
+          nameText.anchor.set(0, 0.5);
+          branchHeadings[branch] = {
+            name: nameText,
+            skillLevel: heading("Skill Level"),
+            manaCost: heading("Mana"),
+          };
+        }
+        const shown = branchHeadings[branch];
+        const headingsRow = skillTreeBranchRow(screen, branch);
+        const headingAt = skillTreeColumns(screen, headingsRow);
+        shown.name.text = name;
+        shown.name.position.set(headingsRow.x, middle(headingsRow));
+        shown.skillLevel.visible = !screen.compact;
+        shown.manaCost.visible = !screen.compact;
+        shown.skillLevel.position.set(
+          headingAt.skillLevel,
+          middle(headingsRow),
+        );
+        shown.manaCost.position.set(headingAt.manaCost, middle(headingsRow));
+        const ruleY = headingsRow.y + rowHeight - style.ruleGap * scale;
+        graphics.rect(headingsRow.x, ruleY, headingsRow.w, 1).fill(style.edge);
+      }
 
       sheet.skills.forEach((skill, index) => {
         if (!skills[index]) {
@@ -3016,16 +3032,24 @@ function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
           };
         }
         const shown = skills[index];
-        const row = skillTreeRow(screen, skillRow(index));
+        const row = layout.skills[skill.skill];
         const column = skillTreeColumns(screen, row);
         const y = middle(row);
+        // What holds it back: its Prerequisite first, else its Level.
+        const heldBack = skill.prerequisite
+          ? "Locked"
+          : skill.requiredLevel !== null
+            ? `Level ${skill.requiredLevel}`
+            : null;
         shown.name.text = skill.name;
+        shown.name.style.fill = heldBack ? style.hint : style.title;
         shown.name.position.set(row.x, y);
-        shown.requiredLevel.visible = skill.requiredLevel !== null;
-        shown.requiredLevel.text = `Level ${skill.requiredLevel}`;
+        shown.requiredLevel.visible = heldBack !== null && !screen.compact;
+        shown.requiredLevel.text = heldBack ?? "";
         shown.requiredLevel.position.set(column.requiredLevel, y);
         shown.skillLevel.text = skill.skillLevel;
         shown.skillLevel.position.set(column.skillLevel, y);
+        shown.manaCost.visible = !screen.compact;
         shown.manaCost.text = skill.manaCost;
         shown.manaCost.position.set(column.manaCost, y);
         const rect = layout.raise[skill.skill];

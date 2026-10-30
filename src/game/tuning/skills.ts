@@ -5,6 +5,14 @@ import type { ProjectileKind } from "./projectiles";
 export type SkillTuning = {
   /** Shown in the Skill Tree. */
   name: string;
+  /** The Branch of the Skill Tree it belongs to. */
+  branch: Branch;
+  /**
+   * The Skill before it in its Branch, which must have a Skill Level before
+   * a Skill Point can go into this one; null for the first of a Branch.
+   * It gates spending only, never casting.
+   */
+  prerequisite: Skill | null;
   /** The Hero's Level from which a Skill Point can be spent on it. */
   requiredLevel: number;
   /** The Mana a cast costs at Skill Level 1. */
@@ -104,6 +112,22 @@ export const corpseTuning = {
   reach: 2,
 };
 
+/** A themed group of Skills in the Skill Tree. */
+export type Branch = "bone" | "summoning" | "curses";
+
+/** The Branches in the order the Skill Tree shows them. */
+export const BRANCHES: Branch[] = ["bone", "summoning", "curses"];
+
+/**
+ * What the Skill Tree makes room for in each Branch: its name and how many
+ * Skills it is built to hold (Bone 6, Summoning 4, Curses 5).
+ */
+export const branchTuning: Record<Branch, { name: string; room: number }> = {
+  bone: { name: "Bone", room: 6 },
+  summoning: { name: "Summoning", room: 4 },
+  curses: { name: "Curses", room: 5 },
+};
+
 /** One of the Skills, by the name the sim and the Save know it by. */
 export type Skill =
   | "golem"
@@ -124,6 +148,8 @@ export const skillTuning: Record<Skill, SkillTuning> = {
   // Diablo 2's Clay Golem.
   golem: {
     name: "Golem",
+    branch: "summoning",
+    prerequisite: "raiseSkeleton",
     requiredLevel: 1,
     manaCost: 15,
     manaCostPerSkillLevel: 2,
@@ -136,6 +162,8 @@ export const skillTuning: Record<Skill, SkillTuning> = {
   // Skeletons of the Crypt and Ossuary (see `minionTuning`).
   raiseSkeleton: {
     name: "Raise Skeleton",
+    branch: "summoning",
+    prerequisite: null,
     requiredLevel: 1,
     manaCost: 6,
     manaCostPerSkillLevel: 1,
@@ -154,6 +182,8 @@ export const skillTuning: Record<Skill, SkillTuning> = {
   // spawn, within a tile of it.
   amplifyDamage: {
     name: "Amplify Damage",
+    branch: "curses",
+    prerequisite: null,
     requiredLevel: 2,
     manaCost: 4,
     manaCostPerSkillLevel: 0,
@@ -173,6 +203,8 @@ export const skillTuning: Record<Skill, SkillTuning> = {
   // Monster damage, as Diablo 2's 10 does.
   boneWard: {
     name: "Bone Ward",
+    branch: "bone",
+    prerequisite: null,
     requiredLevel: 3,
     manaCost: 11,
     manaCostPerSkillLevel: 1,
@@ -185,6 +217,8 @@ export const skillTuning: Record<Skill, SkillTuning> = {
   // three, at any Level. Mana and radius are Diablo 2's.
   corpseExplosion: {
     name: "Corpse Explosion",
+    branch: "bone",
+    prerequisite: "boneWard",
     requiredLevel: 4,
     manaCost: 15,
     manaCostPerSkillLevel: 1,
@@ -203,6 +237,8 @@ export const skillTuning: Record<Skill, SkillTuning> = {
   // outreaches a Skeleton's 7-tile notice.
   boneSpear: {
     name: "Bone Spear",
+    branch: "bone",
+    prerequisite: "corpseExplosion",
     requiredLevel: 6,
     manaCost: 7,
     manaCostPerSkillLevel: 1,
@@ -217,3 +253,25 @@ export const skillTuning: Record<Skill, SkillTuning> = {
     },
   },
 };
+
+/**
+ * Each Branch's Skills in Prerequisite order, the first having none and
+ * each next one having the one before it.
+ */
+export const branchSkills = Object.fromEntries(
+  BRANCHES.map((branch) => {
+    const inBranch = (Object.keys(skillTuning) as Skill[]).filter(
+      (skill) => skillTuning[skill].branch === branch,
+    );
+    const ordered: Skill[] = [];
+    let next = inBranch.find((skill) => !skillTuning[skill].prerequisite);
+    while (next) {
+      ordered.push(next);
+      const after: Skill | undefined = inBranch.find(
+        (skill) => skillTuning[skill].prerequisite === next,
+      );
+      next = after;
+    }
+    return [branch, ordered];
+  }),
+) as Record<Branch, Skill[]>;

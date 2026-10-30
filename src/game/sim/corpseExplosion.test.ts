@@ -389,6 +389,7 @@ describe("learning Corpse Explosion", () => {
           level,
           experience: heroTuning.experienceTable[level - 1],
           skillPoints: 1,
+          skillLevels: { ...FRESH_PROGRESS.skillLevels, boneWard: 1 },
         },
       });
     const early = at(3);

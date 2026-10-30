@@ -100,6 +100,8 @@ describe("the hints and labels that name buttons", () => {
   const golem = {
     skill: "golem",
     name: "Golem",
+    branch: "summoning",
+    prerequisite: null,
     manaCost: "15",
     requiredLevel: null,
   } as const;
@@ -143,6 +145,35 @@ describe("the hints and labels that name buttons", () => {
       { ...golem, skillLevel: "1", canRaise: true },
       "touch",
       ["Golem", "Skill Level 1"],
+    ],
+    [
+      "held back by its Prerequisite",
+      {
+        ...golem,
+        skillLevel: "0",
+        canRaise: false,
+        prerequisite: "Raise Skeleton",
+      },
+      "touch",
+      ["Golem", "Skill Level 0", "Needs Raise Skeleton first"],
+    ],
+    [
+      "held back by its Level",
+      { ...golem, skillLevel: "0", canRaise: false, requiredLevel: "6" },
+      "touch",
+      ["Golem", "Skill Level 0", "Needs Level 6"],
+    ],
+    [
+      "held back by both",
+      {
+        ...golem,
+        skillLevel: "0",
+        canRaise: false,
+        prerequisite: "Raise Skeleton",
+        requiredLevel: "6",
+      },
+      "controller",
+      ["Golem", "Skill Level 0", "Needs Raise Skeleton first", "Needs Level 6"],
     ],
   ] as const)("give a Skill's tooltip, %s, with %s", (_, sheet, way, lines) => {
     expect(skillTooltip(sheet, way)).toEqual(lines);

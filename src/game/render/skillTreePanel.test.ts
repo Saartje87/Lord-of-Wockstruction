@@ -6,18 +6,24 @@ import {
   step,
   type World,
 } from "../sim/world";
-import { skillTuning } from "../tuning/skills";
+import {
+  BRANCHES,
+  branchSkills,
+  type Skill,
+  skillTuning,
+} from "../tuning/skills";
 import { viewportOf } from "../viewport";
 import { inventoryPanelLayout } from "./inventoryPanel";
 import {
+  fullRooms,
   SKILL_TREE_PANEL,
-  skillRow,
+  skillTreeBranchRow,
   skillTreeColumns,
   skillTreeHitAt,
   skillTreePanelLayout,
   skillTreePanelRect,
-  skillTreeRow,
   skillTreeSheet,
+  skillTreeSkillRow,
 } from "./skillTreePanel";
 
 /**
@@ -65,7 +71,7 @@ function withGolem(golem: number): World {
     experience: 1_500,
     attributePoints: 10,
     skillPoints: 2 - golem,
-    skillLevels: { ...FRESH_PROGRESS.skillLevels, golem },
+    skillLevels: { ...FRESH_PROGRESS.skillLevels, raiseSkeleton: 1, golem },
   });
 }
 
@@ -85,69 +91,85 @@ afterEach(() => {
 /** The rows of a Belt Column with no Belt Equipped. */
 const ONE_ROW = 1;
 
-/** The Skills the Skill Tree must fit: Golem and Necromancy's five. */
-const SIX_SKILLS = 6;
+/** The sheet's row of `skill`. */
+const rowOf = (w: World, skill: Skill) => {
+  const found = skillTreeSheet(w).skills.find((row) => row.skill === skill);
+  if (!found) throw new Error(`No row for ${skill}`);
+  return found;
+};
 
 describe("skillTreeSheet", () => {
   it("shows a New Hero's Skills unlearned, with what Skill Level 1 costs", () => {
-    expect(skillTreeSheet(world())).toEqual({
-      skillPoints: "0",
-      skills: [
-        {
-          skill: "golem",
-          name: "Golem",
-          skillLevel: "0",
-          manaCost: "15",
-          requiredLevel: null,
-          canRaise: false,
-        },
-        {
-          skill: "raiseSkeleton",
-          name: "Raise Skeleton",
-          skillLevel: "0",
-          manaCost: "6",
-          requiredLevel: null,
-          canRaise: false,
-        },
-        {
-          skill: "amplifyDamage",
-          name: "Amplify Damage",
-          skillLevel: "0",
-          manaCost: "4",
-          requiredLevel: "2",
-          canRaise: false,
-        },
-        {
-          skill: "boneWard",
-          name: "Bone Ward",
-          skillLevel: "0",
-          manaCost: "11",
-          requiredLevel: "3",
-          canRaise: false,
-        },
-        {
-          skill: "corpseExplosion",
-          name: "Corpse Explosion",
-          skillLevel: "0",
-          manaCost: "15",
-          requiredLevel: "4",
-          canRaise: false,
-        },
-        {
-          skill: "boneSpear",
-          name: "Bone Spear",
-          skillLevel: "0",
-          manaCost: "7",
-          requiredLevel: "6",
-          canRaise: false,
-        },
-      ],
+    const sheet = skillTreeSheet(world());
+    const order: Skill[] = [
+      "boneWard",
+      "corpseExplosion",
+      "boneSpear",
+      "raiseSkeleton",
+      "golem",
+      "amplifyDamage",
+    ];
+
+    expect(sheet.skillPoints).toBe("0");
+    expect(sheet.skills.map((row) => row.skill)).toEqual(order);
+    expect(sheet.skills.map((row) => row.canRaise)).toEqual(
+      order.map(() => false),
+    );
+    expect(rowOf(world(), "golem")).toMatchObject({
+      name: "Golem",
+      skillLevel: "0",
+      manaCost: "15",
+      requiredLevel: null,
+    });
+    expect(rowOf(world(), "boneSpear")).toMatchObject({
+      name: "Bone Spear",
+      skillLevel: "0",
+      manaCost: "7",
+      requiredLevel: "6",
+    });
+  });
+
+  it("groups the Skills in Bone, Summoning and Curses, each in Prerequisite order", () => {
+    const sheet = skillTreeSheet(world());
+
+    expect(sheet.branches.map((b) => b.name)).toEqual([
+      "Bone",
+      "Summoning",
+      "Curses",
+    ]);
+    expect(sheet.skills.map((row) => [row.branch, row.skill])).toEqual(
+      BRANCHES.flatMap((branch) =>
+        branchSkills[branch].map((skill) => [branch, skill]),
+      ),
+    );
+  });
+
+  it("names the Prerequisite holding a Skill back until it has a Skill Level", () => {
+    const bare = world({
+      ...FRESH_PROGRESS,
+      level: 3,
+      experience: 1_500,
+      skillPoints: 2,
+    });
+
+    expect(rowOf(bare, "golem")).toMatchObject({
+      prerequisite: skillTuning.raiseSkeleton.name,
+      canRaise: false,
+    });
+    expect(rowOf(withGolem(0), "golem")).toMatchObject({
+      prerequisite: null,
+      canRaise: true,
+    });
+    // The first of a Branch has none.
+    expect(rowOf(bare, "boneWard")).toMatchObject({
+      prerequisite: null,
+      canRaise: true,
     });
   });
 
   it("shows the Mana cost at the next Skill Level, and a + while a point is unspent", () => {
     const w = withGolem(0);
-    const golemRow = () => skillTreeSheet(w).skills[0];
+    const golemRow = () => rowOf(w, "golem");
 
     expect(skillTreeSheet(w).skillPoints).toBe("2");
     expect(golemRow()).toMatchObject({
@@ -176,13 +198,13 @@ describe("skillTreeSheet", () => {
   it("shows the required Level, and no +, until the Hero reaches it", () => {
     skillTuning.golem.requiredLevel = 6;
 
-    expect(skillTreeSheet(withGolem(0)).skills[0]).toMatchObject({
+    expect(rowOf(withGolem(0), "golem")).toMatchObject({
       requiredLevel: "6",
       canRaise: false,
     });
 
     skillTuning.golem.requiredLevel = 3;
-    expect(skillTreeSheet(withGolem(0)).skills[0]).toMatchObject({
+    expect(rowOf(withGolem(0), "golem")).toMatchObject({
       requiredLevel: null,
       canRaise: true,
     });
@@ -192,7 +214,7 @@ describe("skillTreeSheet", () => {
     const w = withGolem(0);
     kill(w);
 
-    expect(skillTreeSheet(w).skills[0].canRaise).toBe(false);
+    expect(rowOf(w, "golem").canRaise).toBe(false);
   });
 });
 
@@ -293,17 +315,31 @@ describe("skillTreeHitAt", () => {
     { width: 1024, height: 600 },
     { width: 1280, height: 720 },
     { width: 1920, height: 1080 },
-  ])("fits six Skills' rows over its hint, on the screen, on $width×$height", (size) => {
+  ])("fits 15 Skills in three Branches over its hint, on the screen, on $width×$height", (size) => {
     const viewport = viewportOf(size);
-    const panel = skillTreePanelRect(viewport, SIX_SKILLS);
-    const last = skillTreeRow(viewport, skillRow(SIX_SKILLS - 1));
+    const rooms = fullRooms();
+    const panel = skillTreePanelRect(viewport, rooms);
     const hint =
       (SKILL_TREE_PANEL.hintHeight + SKILL_TREE_PANEL.padding) *
       viewport.uiScale;
 
     expect(viewport.compact).toBe(false);
+    expect(rooms).toEqual({ bone: 6, summoning: 4, curses: 5 });
     expect(panel.y + panel.h).toBeLessThanOrEqual(size.height);
-    expect(last.y + last.h).toBeLessThanOrEqual(panel.y + panel.h - hint);
+    let previous = skillTreePanelLayout(viewport, rooms).closeButton.y;
+    for (const branch of BRANCHES) {
+      const rows = [
+        skillTreeBranchRow(viewport, branch, rooms),
+        ...Array.from({ length: rooms[branch] }, (_, i) =>
+          skillTreeSkillRow(viewport, branch, i, rooms),
+        ),
+      ];
+      for (const row of rows) {
+        expect(row.y).toBeGreaterThanOrEqual(previous - 1e-6);
+        expect(row.y + row.h).toBeLessThanOrEqual(panel.y + panel.h - hint);
+        previous = row.y + row.h;
+      }
+    }
   });
 
   it("catches anywhere else on the open panel, and nothing off it", () => {

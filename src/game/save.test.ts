@@ -267,6 +267,22 @@ describe("stored text", () => {
     });
   });
 
+  // Prerequisites gate only spending: loading never checks them.
+  it("loads a Save with Golem learned and Raise Skeleton at 0 unchanged", () => {
+    const kept = save({
+      ...progress(4, 3_750, {}, 1),
+      skillPoints: 1,
+      skillLevels: {
+        ...FRESH_PROGRESS.skillLevels,
+        golem: 2,
+        raiseSkeleton: 0,
+      },
+      skillBar: { ...emptySkillBar(), right: "golem" },
+    });
+
+    expect(parseSave(encodeSave(kept))).toEqual(kept);
+  });
+
   it("round-trips the Skill Bar", () => {
     const inKeyedSlot = { ...emptySkillBar(), key3: "golem" as const };
     const inRightSlot = { ...emptySkillBar(), right: "golem" as const };

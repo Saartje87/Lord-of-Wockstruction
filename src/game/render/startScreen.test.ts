@@ -206,7 +206,11 @@ describe("the Start Screen under the touch controls", () => {
     );
     const { stickZone } = touchControlsLayout(phone);
 
-    expect(buttons[0].choice).toBe("continue");
+    expect(buttons.map((button) => button.choice)).toEqual([
+      "continue",
+      "newHero",
+      "fullscreen",
+    ]);
     expect(overlaps(buttons[0].rect, stickZone)).toBe(true);
   });
 });

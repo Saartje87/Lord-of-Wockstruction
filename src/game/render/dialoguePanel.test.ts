@@ -183,7 +183,7 @@ function smithWorld(service: "unlocked" | "used" | "locked" = "unlocked") {
   w.hero.progress.smithService = service;
   const carried = (
     id: number,
-    type: "axe" | "chainMail" | "ringOfLife",
+    type: "axe" | "chainMail" | "ring",
     column: number,
   ) =>
     w.hero.inventory.push({
@@ -192,7 +192,7 @@ function smithWorld(service: "unlocked" | "used" | "locked" = "unlocked") {
     });
   carried(101, "axe", 0);
   carried(102, "chainMail", 2);
-  carried(103, "ringOfLife", 4);
+  carried(103, "ring", 4);
   return w;
 }
 

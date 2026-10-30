@@ -61,7 +61,7 @@ function filledBut(free: Cell[]): Belongings["inventory"] {
       const left = free.some(
         (cell) => cell.column === column && cell.row === row,
       );
-      if (!left) rings.push(at("ringOfLife", column, row));
+      if (!left) rings.push(at("ring", column, row));
     }
   }
   return rings;
@@ -85,7 +85,7 @@ describe("the Belt slot", () => {
   });
 
   it("takes nothing but a Belt", () => {
-    const world = holding({ inventory: [at("ringOfLife", 0, 0)] });
+    const world = holding({ inventory: [at("ring", 0, 0)] });
 
     step(world, [{ type: "LiftItem", from: { column: 0, row: 0 } }]);
     step(world, [{ type: "PlaceItem", to: "belt" }]);

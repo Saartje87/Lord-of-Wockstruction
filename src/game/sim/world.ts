@@ -1047,7 +1047,8 @@ export function maxMana(world: World): number {
   return (
     heroTuning.mana +
     heroTuning.manaPerLevel * (level - 1) +
-    heroTuning.manaPerEnergy * attributesOf(world).energy
+    heroTuning.manaPerEnergy * attributesOf(world).energy +
+    bonusOf(world, "mana")
   );
 }
 
@@ -1063,8 +1064,12 @@ function maxima(world: World): PotionMaxima {
  */
 export function heroDefense(world: World): number {
   const armour = world.hero.equipment.armour;
-  const base = (armour && itemOf(armour.type).defense) ?? 0;
-  return base + bonusOf(world, "defense");
+  const own = (armour && itemOf(armour.type).defense) ?? 0;
+  // The Armour's own Defense is scaled before flat Defense is added.
+  const enhanced = Math.round(
+    own * (1 + bonusOf(world, "enhancedDefense") / 100),
+  );
+  return enhanced + bonusOf(world, "defense");
 }
 
 /** Whether the Hero is regaining Life: alive, out of combat and below full. */
@@ -1080,8 +1085,11 @@ export function isRegenerating(world: World): boolean {
 export function damageRange(world: World): [number, number] {
   const weapon = world.hero.equipment.weapon;
   const scale = 1 + attributesOf(world).strength / 100;
-  const [min, max] =
+  const [ownMin, ownMax] =
     (weapon && itemOf(weapon.type).damage) ?? heroTuning.unarmedDamage;
+  // The Weapon's own damage is scaled before flat damage is added.
+  const enhance = 1 + bonusOf(world, "enhancedDamage") / 100;
+  const [min, max] = [ownMin * enhance, ownMax * enhance];
   const flat = bonusOf(world, "weaponDamage");
   return [(min + flat) * scale, (max + flat) * scale];
 }

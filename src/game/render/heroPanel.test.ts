@@ -115,11 +115,22 @@ describe("heroSheet with Items Equipped", () => {
       areas: { town },
       seed: 1,
       belongings: {
-        inventory: [{ type: "ringOfStrength", cell: { column: 0, row: 0 } }],
+        inventory: [
+          {
+            type: "ring",
+            rarity: "magic",
+            affixes: [{ kind: "strength", grade: 1, value: 5 }],
+            cell: { column: 0, row: 0 },
+          },
+        ],
         equipment: {
           weapon: { type: "shortSword" },
           armour: { type: "chainMail" },
-          amulet: { type: "amuletOfVitality" },
+          amulet: {
+            type: "amulet",
+            rarity: "magic",
+            affixes: [{ kind: "vitality", grade: 1, value: 5 }],
+          },
         },
         belt: emptyBelt(),
       },
@@ -180,6 +191,42 @@ describe("heroSheet with a Magic Item Equipped", () => {
     // (50/3 + 3) to (25 + 3), scaled by 25 Strength.
     expect(sheet.derived.find((d) => d.name === "Damage")?.value).toBe("25–35");
     expect(sheet.derived.find((d) => d.name === "Defense")?.value).toBe("48");
+  });
+});
+
+describe("heroSheet with the Mana and enhanced percent Affixes", () => {
+  it("shows the new totals", () => {
+    const w = createWorld({
+      areas: { town },
+      seed: 1,
+      belongings: {
+        inventory: [],
+        equipment: {
+          weapon: {
+            type: "shortSword",
+            rarity: "magic",
+            affixes: [{ kind: "enhancedDamage", grade: 0, value: 20 }],
+          },
+          armour: {
+            type: "chainMail",
+            rarity: "magic",
+            affixes: [{ kind: "enhancedDefense", grade: 0, value: 50 }],
+          },
+          amulet: {
+            type: "amulet",
+            rarity: "magic",
+            affixes: [{ kind: "mana", grade: 0, value: 10 }],
+          },
+        },
+        belt: emptyBelt(),
+      },
+    });
+
+    const derived = heroSheet(w).derived;
+
+    expect(derived.find((d) => d.name === "Defense")?.value).toBe("60");
+    expect(derived.find((d) => d.name === "Damage")?.value).toBe("24–36");
+    expect(derived.find((d) => d.name === "Mana")?.value).toMatch(/ \/ 50$/);
   });
 });
 

@@ -149,13 +149,13 @@ describe("putting a Potion into a Belt Column", () => {
   it("refuses an Item that isn't a Potion", () => {
     const world = carrying(
       [[], [], [], []],
-      [{ type: "ringOfLife", cell: { column: 0, row: 0 } }],
+      [{ type: "ring", cell: { column: 0, row: 0 } }],
     );
     step(world, [{ type: "LiftItem", from: { column: 0, row: 0 } }]);
 
     step(world, [{ type: "PlaceItem", to: belt(0, 0) }]);
 
-    expect(cursorItemOf(world)?.item.type).toBe("ringOfLife");
+    expect(cursorItemOf(world)?.item.type).toBe("ring");
     expect(beltTypesOf(world)[0]).toEqual([]);
   });
 });

@@ -43,6 +43,50 @@ function tampered(change: (text: Record<string, any>) => void) {
   return JSON.stringify(text);
 }
 
+describe("the Save of the Mana and enhanced percent Affixes", () => {
+  const withKinds: Belongings = {
+    inventory: [],
+    equipment: {
+      weapon: {
+        type: "axe",
+        rarity: "magic",
+        affixes: [
+          { kind: "enhancedDamage", grade: 1, value: 30 },
+          { kind: "mana", grade: 0, value: 6 },
+        ],
+      },
+      armour: {
+        type: "chainMail",
+        rarity: "magic",
+        affixes: [{ kind: "enhancedDefense", grade: 2, value: 45 }],
+      },
+    },
+    belt: emptyBelt(),
+  };
+
+  it("round-trips", () => {
+    const text = encodeSave({
+      progress: { ...FRESH_PROGRESS, smithService: "locked" },
+      belongings: withKinds,
+    });
+    expect(parseSave(text)?.belongings.equipment).toEqual(withKinds.equipment);
+  });
+
+  it("refuses a kind on an Item it doesn't suit or a value outside its grade", () => {
+    const wrongItem = textOf(withKinds);
+    wrongItem.equipment.armour.affixes[0].kind = "enhancedDamage";
+    expect(parseSave(JSON.stringify(wrongItem))).toBeNull();
+
+    const tooHigh = textOf(withKinds);
+    tooHigh.equipment.weapon.affixes[0].value = 999;
+    expect(parseSave(JSON.stringify(tooHigh))).toBeNull();
+
+    const noGrade = textOf(withKinds);
+    noGrade.equipment.weapon.affixes[1].grade = 9;
+    expect(parseSave(JSON.stringify(noGrade))).toBeNull();
+  });
+});
+
 describe("the Save of Magic Items", () => {
   it("is version 12", () => {
     expect(SAVE_VERSION).toBe(12);
@@ -107,7 +151,7 @@ describe("the Save of Magic Items", () => {
       "a Normal Item with Affixes",
       (t: any) => (t.inventory[0].rarity = "normal"),
     ],
-    ["an unknown Rarity", (t: any) => (t.inventory[0].rarity = "rare")],
+    ["an unknown Rarity", (t: any) => (t.inventory[0].rarity = "legendary")],
     [
       "a grade that doesn't exist",
       (t: any) => (t.inventory[0].affixes[0].grade = 3),

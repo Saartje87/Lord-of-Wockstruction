@@ -18,6 +18,7 @@ import {
   FRESH_PROGRESS,
   heroDefense,
   maxLife,
+  maxMana,
   step,
   type World,
 } from "./world";
@@ -90,15 +91,19 @@ function droppedAt(monsterLevel: number, seed: number, type?: ItemType) {
 describe("Magic Items", () => {
   it("make up about a quarter of non-Potion drops, the rest Normal", () => {
     let magic = 0;
+    let counted = 0;
     const total = 300;
     for (let seed = 1; seed <= total; seed++) {
       const item = droppedAt(1, seed);
+      // Rings and Amulets never drop Normal, so they say nothing about odds.
+      if (item.type === "ring" || item.type === "amulet") continue;
+      counted++;
       if (item.rarity === "magic") magic++;
-      else expect(item).toMatchObject({ rarity: "normal", affixes: [] });
+      else if (item.rarity === "normal") expect(item.affixes).toEqual([]);
     }
 
-    expect(magic / total).toBeGreaterThan(0.17);
-    expect(magic / total).toBeLessThan(0.35);
+    expect(magic / counted).toBeGreaterThan(0.17);
+    expect(magic / counted).toBeLessThan(0.35);
   });
 
   it("always drop Potions Normal, with no Affixes", () => {
@@ -209,7 +214,7 @@ describe("Equipped Magic Items", () => {
       ...NAKED,
       equipment: {
         ring1: magic(
-          "ringOfLife",
+          "ring",
           { kind: "accuracy", value: 10 },
           { kind: "dexterity", value: 3 },
         ),
@@ -235,6 +240,72 @@ describe("Equipped Magic Items", () => {
     // 20 Strength scales by 1.2.
     expect(bMin).toBeCloseTo(min + 5 * 1.2);
     expect(bMax).toBeCloseTo(max + 5 * 1.2);
+  });
+
+  it("add Mana to the Hero's maximum Mana", () => {
+    const plain = wearing(NAKED);
+    const world = wearing({
+      ...NAKED,
+      equipment: { ring1: magic("ring", { kind: "mana", value: 12 }) },
+    });
+
+    expect(maxMana(world)).toBe(maxMana(plain) + 12);
+    step(world, [{ type: "LiftItem", from: "ring1" }]);
+    expect(maxMana(world)).toBe(maxMana(plain));
+  });
+
+  it("scale the Weapon's own damage before Brutality is added and Strength scales it", () => {
+    const plain = wearing({ ...NAKED, equipment: { weapon: { type: "axe" } } });
+    const world = wearing({
+      ...NAKED,
+      equipment: {
+        weapon: magic(
+          "axe",
+          { kind: "enhancedDamage", value: 50 },
+          { kind: "brutality", value: 5 },
+        ),
+      },
+    });
+
+    const [min, max] = damageRange(plain);
+    const [eMin, eMax] = damageRange(world);
+    // Strength's 1.2 comes off; 50% more own damage, then +5 flat, then x1.2.
+    expect(eMin).toBeCloseTo((min / 1.2) * 1.5 * 1.2 + 5 * 1.2);
+    expect(eMax).toBeCloseTo((max / 1.2) * 1.5 * 1.2 + 5 * 1.2);
+  });
+
+  it("scale the Armour's own Defense before flat Defense is added", () => {
+    const world = wearing({
+      ...NAKED,
+      equipment: {
+        armour: magic(
+          "chainMail",
+          { kind: "enhancedDefense", value: 50 },
+          { kind: "defense", value: 7 },
+        ),
+      },
+    });
+
+    // Chain mail's own 40, 50% more, then +7.
+    expect(heroDefense(world)).toBe(60 + 7);
+    step(world, [{ type: "LiftItem", from: "armour" }]);
+    expect(heroDefense(world)).toBe(0);
+  });
+
+  it("roll the new kinds on the Items they suit", () => {
+    const rolled = new Set<string>();
+    for (let seed = 1; seed <= 400; seed++) {
+      for (const type of ["axe", "chainMail", "ring"] as const) {
+        for (const a of droppedAt(9, seed, type).affixes) {
+          rolled.add(`${type}:${a.kind}`);
+        }
+      }
+    }
+    expect(rolled).toContain("axe:enhancedDamage");
+    expect(rolled).toContain("chainMail:enhancedDefense");
+    expect(rolled).toContain("ring:mana");
+    expect(rolled).not.toContain("chainMail:enhancedDamage");
+    expect(rolled).not.toContain("axe:enhancedDefense");
   });
 
   it("stop counting once taken off", () => {

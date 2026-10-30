@@ -114,7 +114,7 @@ const ofType = <T extends SimEvent["type"]>(events: SimEvent[], type: T) =>
 
 describe("Lifting an Item", () => {
   it("takes it off the grid onto the cursor, from any cell it covers", () => {
-    const world = carrying([at("axe", 2, 1), at("ringOfLife", 0, 0)]);
+    const world = carrying([at("axe", 2, 1), at("ring", 0, 0)]);
     const [axe] = inventoryOf(world);
 
     const events = step(world, [
@@ -125,21 +125,19 @@ describe("Lifting an Item", () => {
       item: axe.item,
       from: { column: 2, row: 1 },
     });
-    expect(inventoryOf(world).map(({ item }) => item.type)).toEqual([
-      "ringOfLife",
-    ]);
+    expect(inventoryOf(world).map(({ item }) => item.type)).toEqual(["ring"]);
     expect(ofType(events, "InventoryChanged")).toHaveLength(1);
   });
 
   it("does nothing on a free cell", () => {
-    const world = carrying([at("ringOfLife", 0, 0)]);
+    const world = carrying([at("ring", 0, 0)]);
 
     const events = step(world, [
       { type: "LiftItem", from: { column: 1, row: 0 } },
     ]);
 
     expect(cursorItemOf(world)).toBeNull();
-    expect(layout(world)).toEqual([at("ringOfLife", 0, 0)]);
+    expect(layout(world)).toEqual([at("ring", 0, 0)]);
     expect(ofType(events, "InventoryChanged")).toEqual([]);
   });
 });
@@ -156,18 +154,18 @@ const place = (world: World, column: number, row: number) =>
 
 /** Ten Rings of Life filling row `row`. */
 const ringRow = (row: number) =>
-  Array.from({ length: 10 }, (_, column) => at("ringOfLife", column, row));
+  Array.from({ length: 10 }, (_, column) => at("ring", column, row));
 
 describe("Placing the cursor Item", () => {
   it("puts it down with its top-left at the cell", () => {
-    const world = carrying([at("axe", 0, 0), at("ringOfLife", 9, 3)]);
+    const world = carrying([at("axe", 0, 0), at("ring", 9, 3)]);
     lift(world, 0, 0);
 
     expect(placement(world, { column: 4, row: 1 })).toBe("fits");
     const events = place(world, 4, 1);
 
     expect(cursorItemOf(world)).toBeNull();
-    expect(layout(world)).toEqual([at("ringOfLife", 9, 3), at("axe", 4, 1)]);
+    expect(layout(world)).toEqual([at("ring", 9, 3), at("axe", 4, 1)]);
     expect(ofType(events, "InventoryChanged")).toHaveLength(1);
   });
 
@@ -182,14 +180,14 @@ describe("Placing the cursor Item", () => {
   });
 
   it("swaps with the one Item in the way, which goes onto the cursor", () => {
-    const world = carrying([at("ringOfLife", 0, 0), at("axe", 4, 0)]);
+    const world = carrying([at("ring", 0, 0), at("axe", 4, 0)]);
     const [, axe] = inventoryOf(world);
     lift(world, 0, 0);
 
     expect(placement(world, { column: 5, row: 2 })).toBe("swap");
     const events = place(world, 5, 2);
 
-    expect(layout(world)).toEqual([at("ringOfLife", 5, 2)]);
+    expect(layout(world)).toEqual([at("ring", 5, 2)]);
     // Never put down, the Axe would go where the Ring came from.
     expect(cursorItemOf(world)).toEqual({
       item: axe.item,
@@ -202,7 +200,7 @@ describe("Placing the cursor Item", () => {
     // The Ring comes from the bottom row, where the Axe would hang off.
     const world = carrying([
       ...ringRow(0).slice(0, 2),
-      at("ringOfStrength", 0, 3),
+      at("ring", 0, 3),
       at("axe", 4, 0),
     ]);
     lift(world, 0, 3);
@@ -225,14 +223,14 @@ describe("Placing the cursor Item", () => {
 
     expect(placement(world, { column: 0, row: 0 })).toBeNull();
     expect(place(world, 0, 0)).toEqual([]);
-    expect(cursorItemOf(world)?.item.type).toBe("ringOfLife");
+    expect(cursorItemOf(world)?.item.type).toBe("ring");
   });
 
   it("refuses a spot over two or more Items", () => {
     const world = carrying([
       at("axe", 0, 0),
-      at("ringOfLife", 4, 0),
-      at("ringOfStrength", 5, 1),
+      at("ring", 4, 0),
+      at("ring", 5, 1),
     ]);
     lift(world, 0, 0);
 
@@ -240,10 +238,7 @@ describe("Placing the cursor Item", () => {
     const events = place(world, 4, 0);
 
     expect(cursorItemOf(world)?.item.type).toBe("axe");
-    expect(layout(world)).toEqual([
-      at("ringOfLife", 4, 0),
-      at("ringOfStrength", 5, 1),
-    ]);
+    expect(layout(world)).toEqual([at("ring", 4, 0), at("ring", 5, 1)]);
     expect(events).toEqual([]);
   });
 
@@ -312,13 +307,13 @@ describe("A held Item going back", () => {
   });
 
   it("goes back to the spot a swap gave it", () => {
-    const world = carrying([at("ringOfLife", 0, 0), at("axe", 4, 0)]);
+    const world = carrying([at("ring", 0, 0), at("axe", 4, 0)]);
     lift(world, 0, 0);
     place(world, 4, 0);
 
     step(world, [{ type: "ReturnCursorItem" }]);
 
-    expect(layout(world)).toEqual([at("ringOfLife", 4, 0), at("axe", 0, 0)]);
+    expect(layout(world)).toEqual([at("ring", 4, 0), at("axe", 0, 0)]);
   });
 
   it("goes back when the Hero dies", () => {
@@ -378,10 +373,7 @@ describe("A held Item going back", () => {
   });
 
   it("keeps its spot free from Items picked up meanwhile", () => {
-    const world = carrying([
-      at("ringOfLife", 0, 0),
-      at("ringOfStrength", 0, 1),
-    ]);
+    const world = carrying([at("ring", 0, 0), at("ring", 0, 1)]);
     const [life] = inventoryOf(world);
     lift(world, 0, 0);
     step(world, [{ type: "DropItem" }]);
@@ -401,7 +393,7 @@ describe("A held Item going back", () => {
 
 describe("The Save of a held Item", () => {
   it("keeps it at the spot it would go back to", () => {
-    const world = carrying([at("ringOfLife", 0, 0), at("axe", 4, 0)]);
+    const world = carrying([at("ring", 0, 0), at("axe", 4, 0)]);
     const before = belongingsOf(world);
     lift(world, 4, 0);
 
@@ -411,7 +403,7 @@ describe("The Save of a held Item", () => {
     expect(belongingsOf(world).inventory).toEqual([
       at("axe", 0, 0),
       // The Ring, swapped out, would go back where the Axe came from.
-      at("ringOfLife", 4, 0),
+      at("ring", 4, 0),
     ]);
   });
 });

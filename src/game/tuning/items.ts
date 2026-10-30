@@ -17,7 +17,10 @@ export type Bonus =
   | "life"
   | "defense"
   | "attackRating"
-  | "weaponDamage";
+  | "weaponDamage"
+  | "mana"
+  | "enhancedDamage"
+  | "enhancedDefense";
 
 /** Every Bonus there is. */
 export const BONUSES: readonly Bonus[] = [
@@ -29,6 +32,9 @@ export const BONUSES: readonly Bonus[] = [
   "defense",
   "attackRating",
   "weaponDamage",
+  "mana",
+  "enhancedDamage",
+  "enhancedDefense",
 ];
 
 /** What a Potion gives back. */
@@ -110,33 +116,19 @@ export const itemTuning = {
     defense: 40,
     bonuses: {},
   },
-  ringOfStrength: {
-    name: "Ring of Strength",
-    shortName: "Str",
+  ring: {
+    name: "Ring",
+    shortName: "Ring",
     kind: "ring",
     size: { columns: 1, rows: 1 },
-    bonuses: { strength: 5 },
+    bonuses: {},
   },
-  ringOfDexterity: {
-    name: "Ring of Dexterity",
-    shortName: "Dex",
-    kind: "ring",
-    size: { columns: 1, rows: 1 },
-    bonuses: { dexterity: 5 },
-  },
-  ringOfLife: {
-    name: "Ring of Life",
-    shortName: "Life",
-    kind: "ring",
-    size: { columns: 1, rows: 1 },
-    bonuses: { life: 10 },
-  },
-  amuletOfVitality: {
-    name: "Amulet of Vitality",
-    shortName: "Vit",
+  amulet: {
+    name: "Amulet",
+    shortName: "Amulet",
     kind: "amulet",
     size: { columns: 1, rows: 1 },
-    bonuses: { vitality: 5 },
+    bonuses: {},
   },
   sash: {
     name: "Sash",
@@ -253,23 +245,53 @@ export const potionDropTuning: { chance: number; items: readonly ItemType[] } =
   };
 
 /** How special an Item is: Normal has no Affixes, Magic has one or two. */
-export type Rarity = "normal" | "magic";
+export type Rarity = "normal" | "magic" | "rare";
 
 /** Every Rarity, plainest first. */
-export const RARITIES: readonly Rarity[] = ["normal", "magic"];
+export const RARITIES: readonly Rarity[] = ["normal", "magic", "rare"];
 
 /**
  * Rarity odds and Affix counts, as weights. A non-Potion drop rolls its
  * Rarity from `rarity`; a Magic Item rolls one or two Affixes by
- * `magicAffixes`.
+ * `magicAffixes`, a Rare Item three or four by `rareAffixes`, and a Rare
+ * Item is named by a word of each list in `rareNames`.
  */
 export const rarityTuning: {
   rarity: Record<Rarity, number>;
   magicAffixes: { one: number; two: number };
+  rareAffixes: { three: number; four: number };
+  rareNames: { first: readonly string[]; second: readonly string[] };
 } = {
-  // About 74% Normal and 26% Magic until Rare joins them.
-  rarity: { normal: 70, magic: 25 },
+  // 70% Normal, 25% Magic and 5% Rare.
+  rarity: { normal: 70, magic: 25, rare: 5 },
   magicAffixes: { one: 60, two: 40 },
+  rareAffixes: { three: 60, four: 40 },
+  rareNames: {
+    first: [
+      "Gloom",
+      "Thorn",
+      "Ash",
+      "Marrow",
+      "Cinder",
+      "Dusk",
+      "Rue",
+      "Hollow",
+      "Wrath",
+      "Briar",
+    ],
+    second: [
+      "Bane",
+      "Fang",
+      "Ward",
+      "Grip",
+      "Song",
+      "Knell",
+      "Bite",
+      "Coil",
+      "Spire",
+      "Brand",
+    ],
+  },
 };
 
 /** Whether an Affix is named before the type (Prefix) or after it (Suffix). */
@@ -416,6 +438,46 @@ export const affixTuning = {
     grades: threeGrades(
       ["of the Wren", "of the Owl", "of the Sage"],
       ATTRIBUTE_RANGES,
+    ),
+  },
+  mana: {
+    side: "suffix",
+    bonus: "mana",
+    rollsOn: NOT_POTION,
+    grades: threeGrades(
+      ["of the Spark", "of the Well", "of the Wellspring"],
+      [
+        [5, 10],
+        [11, 20],
+        [21, 35],
+      ],
+    ),
+  },
+  // The two below are percentages of the Item's own damage or Defense.
+  enhancedDamage: {
+    side: "prefix",
+    bonus: "enhancedDamage",
+    rollsOn: ["weapon"],
+    grades: threeGrades(
+      ["Jagged", "Vicious", "Ruinous"],
+      [
+        [10, 20],
+        [21, 40],
+        [41, 70],
+      ],
+    ),
+  },
+  enhancedDefense: {
+    side: "prefix",
+    bonus: "enhancedDefense",
+    rollsOn: ["armour"],
+    grades: threeGrades(
+      ["Reinforced", "Fortified", "Bastioned"],
+      [
+        [10, 20],
+        [21, 40],
+        [41, 60],
+      ],
     ),
   },
 } satisfies Record<string, AffixTuning>;

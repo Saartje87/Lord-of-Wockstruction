@@ -26,6 +26,7 @@ import {
 } from "./sim/world";
 import { ITEM_TYPES, itemOf } from "./tuning/items";
 import type { MonsterType } from "./tuning/monsters";
+import { pondsOf } from "./world3d/waterMeshes";
 
 // Building the World runs the loader's validation: a `start` Entry, Exits to
 // an Entry that exists and can be reached from `start`, and spawns on tiles
@@ -1344,5 +1345,70 @@ describe("Grave Wockington in the shipped Ossuary", () => {
     expect(
       inOssuary("done").monsters.some((m) => m.unique === "Grave Wockington"),
     ).toBe(true);
+  });
+});
+
+describe("the Spa's hot springs", () => {
+  const spa = () => shippedWorld().areas.spa;
+
+  it("are the Spa's alone: no other shipped Area marks its Water as hot springs", () => {
+    const hot = Object.values(shippedWorld().areas)
+      .filter((area) => area.hotSprings)
+      .map((area) => area.name);
+
+    expect(hot).toEqual(["spa"]);
+  });
+
+  it("are two or three pools in place of the wells", () => {
+    const area = spa();
+    const pools = pondsOf(area);
+
+    expect(pools.length).toBeGreaterThanOrEqual(2);
+    expect(pools.length).toBeLessThanOrEqual(3);
+    for (const pool of pools) {
+      expect(pool.tiles.length).toBeGreaterThanOrEqual(6);
+    }
+    expect(area.props.some((prop) => /well/.test(prop.piece))).toBe(false);
+  });
+
+  it("is mostly grass, with dirt around the bathhouse", () => {
+    const { floorPieces, floor, water, props, width } = spa();
+    const land = floorPieces.filter((_, i) => floor[i] && !water[i]);
+    const grass = land.filter((piece) => piece === "city/park_base").length;
+    expect(grass / land.length).toBeGreaterThan(0.6);
+
+    const houses = props.filter((prop) => /building_/.test(prop.piece));
+    expect(houses.length).toBeGreaterThan(0);
+    for (const house of houses) {
+      expect(floorPieces[house.y * width + house.x]).toMatch(/^halloween\//);
+    }
+  });
+
+  it("stands green trees, and no dead trees or graves", () => {
+    const pieces = spa().props.map((prop) => prop.piece);
+
+    expect(
+      pieces.filter((piece) => /^city\/tree/.test(piece)).length,
+    ).toBeGreaterThan(30);
+    expect(pieces.some((piece) => /tree_dead|grave/.test(piece))).toBe(false);
+  });
+
+  it("keeps its Entries, Exits, spawns and Unique Monster reachable, and dry", () => {
+    const area = spa();
+    const wanted = [
+      ...area.exits.map(centreOf),
+      ...area.spawns.map((spawn) => spawn.pos),
+      ...area.uniques.map((unique) => unique.pos),
+    ];
+    expect(area.uniques).toHaveLength(1);
+    for (const entry of Object.values(area.entries)) {
+      for (const target of wanted) {
+        expect(canReach(area, entry, target)).toBe(true);
+      }
+    }
+    for (const point of [...Object.values(area.entries), ...wanted]) {
+      const cell = Math.floor(point.y) * area.width + Math.floor(point.x);
+      expect(area.water[cell]).toBe(false);
+    }
   });
 });

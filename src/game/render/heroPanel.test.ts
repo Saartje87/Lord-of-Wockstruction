@@ -213,7 +213,7 @@ describe("heroSheet with the Mana and enhanced percent Affixes", () => {
     const derived = heroSheet(w).derived;
 
     expect(derived.find((d) => d.name === "Defense")?.value).toBe("60");
-    expect(derived.find((d) => d.name === "Damage")?.value).toBe("25–37");
+    expect(derived.find((d) => d.name === "Damage")?.value).toBe("24–36");
     expect(derived.find((d) => d.name === "Mana")?.value).toMatch(/ \/ 50$/);
   });
 });

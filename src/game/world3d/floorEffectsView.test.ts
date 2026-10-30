@@ -166,4 +166,22 @@ describe("the 3D World view of the floor effects", () => {
       ).toBeNull();
     });
   });
+
+  describe("the Hero's gold glow", () => {
+    const glowAt = (levelUpAgoMs: number | null) =>
+      worldViewOf(arenaWith([], { combat: true }), 1, NO_POINTER, {
+        ...NO_EFFECTS,
+        levelUpAgoMs,
+      }).hero.glow;
+
+    it("starts at the Level-Up strength and fades out with the ring", () => {
+      expect(glowAt(0)).toBeCloseTo(LEVEL_UP.strength);
+      expect(glowAt(LEVEL_UP.ms / 2)).toBeCloseTo(LEVEL_UP.strength / 2);
+      expect(glowAt(LEVEL_UP.ms)).toBe(0);
+    });
+
+    it("is absent without a Level-Up", () => {
+      expect(glowAt(null)).toBe(0);
+    });
+  });
 });

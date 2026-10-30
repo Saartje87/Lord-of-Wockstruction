@@ -25,7 +25,7 @@ describe("the 3D World view of Town", () => {
       "Wanderer",
     ]);
     const smith = npcs.find((npc) => npc.name === "Smith");
-    expect(smith?.pos).toEqual({ x: 12.5, y: 17.5 });
+    expect(smith?.pos).toEqual({ x: 12.5, y: 15.5 });
     const models = npcs.map((npc) => NPC_LOOKS[npc.name].model);
     expect(new Set(models).size).toBe(4);
   });

@@ -1,9 +1,16 @@
-import { type AnimationAction, AnimationMixer, Group, LoopRepeat } from "three";
+import {
+  type AnimationAction,
+  AnimationMixer,
+  Group,
+  LoopRepeat,
+  type MeshToonMaterial,
+} from "three";
 import type { GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone } from "three/examples/jsm/utils/SkeletonUtils.js";
+import { LEVEL_UP } from "../render/levelUp";
 import { blendClips, scrubTime, turnTowards } from "./actorPose";
 import { HERO_CLIPS } from "./clips";
-import { LOOKS, outline, toonShade } from "./toon";
+import { glowMaterials, LOOKS, materialsOf, outline, toonShade } from "./toon";
 import type { HeroView } from "./view";
 
 /** The Knight is drawn a little larger than a tile's worth of model units. */
@@ -17,6 +24,8 @@ export type HeroActor = {
   root: Group;
   mixer: AnimationMixer;
   actions: Map<string, AnimationAction>;
+  /** Its own materials, so it can glow alone. */
+  materials: MeshToonMaterial[];
   /** Radians the model is turned by now, eased towards the Hero's facing. */
   turn: number | null;
 };
@@ -40,7 +49,7 @@ export function heroActorOf(knight: GLTF): HeroActor {
     action.play();
     actions.set(clip.name, action);
   }
-  return { root, mixer, actions, turn: null };
+  return { root, mixer, actions, materials: materialsOf(model), turn: null };
 }
 
 /**
@@ -52,6 +61,8 @@ export function poseHero(actor: HeroActor, hero: HeroView, dt: number) {
   actor.root.position.set(hero.pos.x, 0, hero.pos.y);
   actor.turn = turnTowards(actor.turn, hero.facing, dt, TURN_RATE);
   actor.root.rotation.y = actor.turn;
+
+  glowMaterials(actor.materials, LEVEL_UP.colour, hero.glow);
 
   const name = HERO_CLIPS[hero.animation.clip];
   blendClips(actor.actions, name, dt, first);

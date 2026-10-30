@@ -66,7 +66,7 @@ export function torchMeshesOf(
   const flameMaterial = new MeshBasicMaterial({ color: 0xffa040 });
   flameMaterial.toneMapped = false;
   const flames = new InstancedMesh(
-    new ConeGeometry(0.05, 0.18, 6),
+    new ConeGeometry(0.035, 0.12, 8),
     flameMaterial,
     torches.length,
   );
@@ -96,7 +96,7 @@ export function torchMeshesOf(
         flame.compose(
           new Vector3(torch.pos.x + out[0], FLAME_HEIGHT, torch.pos.y + out[1]),
           new Quaternion(),
-          new Vector3(1, 0.7 + 0.5 * strength, 1),
+          new Vector3(1, 0.8 + 0.3 * strength, 1),
         );
         flames.setMatrixAt(i, flame);
       });

@@ -1,7 +1,7 @@
 import { corpseBurst, tileRadiusOf } from "../render/corpseBurst";
 import { curseCircle } from "../render/curse";
 import type { CharacterId } from "../render/hover";
-import { levelRing } from "../render/levelUp";
+import { LEVEL_UP, levelRing, levelUpLeft } from "../render/levelUp";
 import type { ShownTownPortal } from "../render/townPortalLook";
 import { type Area, type Placed, TOWN } from "../sim/area";
 import type { ItemId } from "../sim/inventory";
@@ -53,6 +53,8 @@ export type HeroView = {
   /** Radians in tile space, as the World's `facing`. */
   facing: number;
   animation: HeroAnimation;
+  /** How gold the Hero is washed after a Level-Up, 0..1. */
+  glow: number;
 };
 
 /** What a Monster is doing, as `HeroAnimation` says for the Hero. */
@@ -304,6 +306,7 @@ export function worldViewOf(
       pos,
       facing: hero.facing,
       animation: heroAnimationOf(world),
+      glow: heroGlowOf(effects),
     },
     monsters: [
       ...world.monsters.map((monster) =>
@@ -423,6 +426,12 @@ function floorEffectsOf(
     bursts,
     levelRing: ring && { pos: heroPos, ...ring },
   };
+}
+
+/** The Hero's gold wash: the Level-Up's strength, fading out like its ring. */
+function heroGlowOf(effects: Effects): number {
+  if (effects.levelUpAgoMs === null) return 0;
+  return LEVEL_UP.strength * Math.max(0, levelUpLeft(effects.levelUpAgoMs));
 }
 
 /** A Corpse's fall: `ms` into it if it just died, else it lies still. */

@@ -1433,3 +1433,31 @@ describe("Grave Wockington in the shipped Ossuary", () => {
     ).toBe(true);
   });
 });
+
+describe("the Wockyard's sparse grass", () => {
+  const wockyard = () => shippedWorld().areas.wockyard;
+
+  it("is mostly dirt, with sparse patches of grass", () => {
+    const { floorPieces, floor } = wockyard();
+    const land = floorPieces.filter((_, i) => floor[i]);
+
+    const grass = land.filter((piece) => piece === "city/park_base").length;
+    const dirt = land.filter((piece) =>
+      /^halloween\//.test(piece ?? ""),
+    ).length;
+    expect(grass / land.length).toBeGreaterThan(0.05);
+    expect(grass / land.length).toBeLessThan(0.25);
+    expect(grass + dirt).toBe(land.length);
+  });
+
+  it("stands only dead trees: no green trees or bushes", () => {
+    const pieces = wockyard().props.map((prop) => prop.piece);
+
+    expect(pieces.some((piece) => /tree_dead/.test(piece))).toBe(true);
+    expect(pieces.some((piece) => /^city\//.test(piece))).toBe(false);
+  });
+
+  it("has no Water", () => {
+    expect(wockyard().water.some(Boolean)).toBe(false);
+  });
+});

@@ -8,7 +8,7 @@ npm run tuning:report
 
 It prints, from the live tuning in `src/game/tuning/`:
 
-- per Hero Level: the Experience to the next Level, an own-Level Monster's Experience, and the kills that takes
+- per Hero Level: the Experience to the next Level, an own-Level Monster's Experience, and the kills that takes, with the Gold those kills drop: the Area Level played at (the deepest Combat Area placing the Monster at or below the Hero Level), the expected Gold of one kill there (Gold Pile chance times mean amount) and that times the kills. Compare it with Potion Values; the target is a Life Potion near 25 Gold and a run through a Combat Area paying for a Belt's worth of Potions
 - per Combat Area in `content/areas/*.tmj` that places the Monster: its Area Level and the Monster's max Life, damage, Attack Rating, Defense and Experience there
 
 Read numbers from it instead of redoing the growth formulas or grepping `.tmj` files for `areaLevel` by hand. Run it again after changing tuning to see the effect.

@@ -23,9 +23,9 @@ licence (CC0). Crediting him is not required, and we do.
 the 1-handed sword and the round shield. The Monstrosity gets the
 `Rig_Large` animations the game uses and the Knight's 2-handed chop,
 retargeted onto its rig. Town's NPCs get the `Rig_Medium` idles, with no
-animation track for a bone they lack. Halloween Bits, Medieval Hexagon
-and City Builder Bits pieces, which come as glTF with a binary and a texture, are packed into one
-glb each. Nothing is recoloured.
+animation track for a bone they lack. Halloween Bits, Medieval Hexagon and
+City Builder Bits pieces, which come as glTF with a binary and a texture, are
+packed into one glb each. Nothing is recoloured.
 
 ### Imported files
 

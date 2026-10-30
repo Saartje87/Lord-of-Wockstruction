@@ -8,6 +8,9 @@ export function thumbnailOf(source: PieceSource): string {
   return `kaykit/${pieceName(source).replace("/", "_")}.png`;
 }
 
+/** The `kind` of the Water tile: `WATER_KIND` in `src/game/sim/area.ts`. */
+const WATER_KIND = "water";
+
 /**
  * The Water tile, after the last piece: it has no KayKit model, as the 3D
  * World draws each pond as a plane in code, and a hand-made thumbnail.
@@ -18,8 +21,8 @@ const WATER_TILE = {
   imageheight: THUMBNAIL_SIZE,
   properties: [
     { name: "blocks", type: "bool", value: false },
-    { name: "kind", type: "string", value: "water" },
-    { name: "piece", type: "string", value: "water" },
+    { name: "kind", type: "string", value: WATER_KIND },
+    { name: "piece", type: "string", value: WATER_KIND },
   ],
 };
 

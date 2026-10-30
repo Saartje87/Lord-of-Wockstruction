@@ -8,7 +8,7 @@ import {
 import { inside, middleOf, type Rect } from "../sim/rect";
 import { itemValue } from "../sim/value";
 import type { Vec } from "../sim/vec";
-import { goodAt } from "../sim/vendor";
+import { goodAt, sellPrice } from "../sim/vendor";
 import type { Order, World } from "../sim/world";
 import { type ItemType, inventoryTuning, itemOf } from "../tuning/items";
 import { vendorTuning } from "../tuning/vendor";
@@ -197,7 +197,14 @@ export function vendorOrder(
       to: landingCell(layout, point, held.item.type),
     };
   }
-  return isGoodSpot(held.from) ? { type: "DropItem" } : null;
+  if (isGoodSpot(held.from)) return { type: "DropItem" };
+  // One of the Hero's own Items put down on the Vendor's grid is sold.
+  return spot && "good" in spot ? { type: "SellItem" } : null;
+}
+
+/** The lines of a Hero's Item tooltip: the Item's own, then what it sells for. */
+export function sellTooltip(item: Item): string[] {
+  return [...itemTooltip(item), `Sells for: ${sellPrice(item)} Gold`];
 }
 
 /**

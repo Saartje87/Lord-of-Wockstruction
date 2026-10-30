@@ -136,6 +136,10 @@ export function moveGood(
     liftGood(world, order.from, events);
     return true;
   }
+  if (order.type === "SellItem") {
+    sellItem(world, events);
+    return true;
+  }
   if (!hero.cursor || !isGoodSpot(hero.cursor.from)) return false;
   if (order.type === "PlaceItem") {
     buyGood(world, order.to, events);
@@ -147,6 +151,28 @@ export function moveGood(
     return true;
   }
   return false;
+}
+
+/** What the Vendor pays for an Item: a quarter of its Value, rounded down. */
+export function sellPrice(item: Parameters<typeof itemValue>[0]): number {
+  return Math.floor(itemValue(item) / 4);
+}
+
+/**
+ * Sells the Hero's Held Item: it is gone, never among the goods, and its
+ * price is added to Gold. Refused in Death, outside Town, with nothing held
+ * and for a held good.
+ */
+function sellItem(world: World, events: SimEvent[]) {
+  const { hero } = world;
+  const { cursor } = hero;
+  if (!cursor || isGoodSpot(cursor.from)) return;
+  if (world.death || world.areaName !== TOWN) return;
+  const value = sellPrice(cursor.item);
+  hero.progress.gold += value;
+  hero.cursor = null;
+  events.push({ type: "ItemSold", item: { ...cursor.item }, value });
+  events.push({ type: "InventoryChanged" });
 }
 
 /**

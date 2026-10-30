@@ -221,6 +221,7 @@ import {
   goodsGrid,
   goodTooltip,
   inventoryGrid,
+  sellTooltip,
   VENDOR_PANEL,
   type VendorHit,
   vendorPanelLayout,
@@ -3651,7 +3652,7 @@ function vendorPanelView(activeInput: Readonly<ActiveInput>) {
       layer.setChildIndex(tooltipBox, layer.children.length - 1);
       const { lines, affordable } = shown.value
         ? goodTooltip(item, world.hero.progress.gold)
-        : { lines: itemTooltip(item), affordable: true };
+        : { lines: sellTooltip(item), affordable: true };
       lines.forEach((line, i) => {
         if (!tooltipLines[i]) {
           tooltipLines[i] = text(look.tooltipLine, look.tooltipSize);
@@ -3661,7 +3662,7 @@ function vendorPanelView(activeInput: Readonly<ActiveInput>) {
         layer.setChildIndex(row, layer.children.length - 1);
         row.visible = true;
         row.text = line;
-        const isValue = shown.value && i === lines.length - 1;
+        const isValue = i === lines.length - 1;
         row.style.fill =
           i === 0
             ? rarityColour(item.rarity)

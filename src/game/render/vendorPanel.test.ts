@@ -6,7 +6,7 @@ import {
   releaseCursor,
 } from "../cursor";
 import { createMenus } from "../menus";
-import { belongingsOf, cursorItemOf } from "../sim/inventory";
+import { belongingsOf, cursorItemOf, type Item } from "../sim/inventory";
 import { inside, middleOf, overlaps, type Rect } from "../sim/rect";
 import { itemValue } from "../sim/value";
 import { goodsOf } from "../sim/vendor";
@@ -17,6 +17,7 @@ import { cursorHitAt, type ShownPanels } from "./cursorHit";
 import { panelFocusSpots } from "./panelFocus";
 import {
   goodTooltip,
+  sellTooltip,
   vendorFocusSpots,
   vendorHitAt,
   vendorPanelLayout,
@@ -284,5 +285,83 @@ describe("a good's tooltip", () => {
     expect(poor.lines.at(-1)).toBe(`Value: ${value} Gold`);
     expect(poor.affordable).toBe(false);
     expect(goodTooltip(good.item, value).affordable).toBe(true);
+  });
+});
+
+describe("selling through the panel", () => {
+  const screen = SCREENS[0][1];
+  const layout = vendorPanelLayout(screen);
+  const inventoryCell = (column: number, row: number) => ({
+    x: layout.inventory.x + (column + 0.5) * layout.cell,
+    y: layout.inventory.y + (row + 0.5) * layout.cell,
+  });
+  /** Gives the Hero a Short Sword at the Inventory's top-left cell. */
+  function withSword(world: World) {
+    world.hero.inventory.push({
+      item: { id: 900, type: "shortSword", rarity: "normal", affixes: [] },
+      cell: { column: 0, row: 0 },
+    });
+  }
+
+  it("sells an Item lifted from the Inventory with a click anywhere on the Vendor's grid", () => {
+    const world = newWorld(0);
+    withSword(world);
+    click(world, screen, inventoryCell(0, 0));
+    expect(cursorItemOf(world)?.item.type).toBe("shortSword");
+    const goods = goodsOf(world);
+    click(world, screen, {
+      x: layout.goods.x + 0.5 * layout.cell,
+      y: layout.goods.y + 5.5 * layout.cell,
+    });
+    expect(cursorItemOf(world)).toBeNull();
+    expect(world.hero.progress.gold).toBe(
+      Math.floor(itemValue({ type: "shortSword" }) / 4),
+    );
+    expect(belongingsOf(world).inventory).toEqual([]);
+    expect(goodsOf(world)).toEqual(goods);
+  });
+
+  it("sells with a Drag: pressed on the Item, let go on the Vendor's grid", () => {
+    const world = newWorld(0);
+    withSword(world);
+    const at = inventoryCell(0, 0);
+    const press = pressCursor(
+      createCursor(),
+      { at, hit: cursorHitAt(screen, at, world, shown) },
+      { world, screen },
+    );
+    step(world, press.orders);
+    const to = middleOf(layout.goods);
+    const release = releaseCursor(
+      press.cursor,
+      { at: to, hit: cursorHitAt(screen, to, world, shown) },
+      { world, screen },
+    );
+    expect(release.orders).toEqual([{ type: "SellItem" }]);
+    step(world, release.orders);
+    expect(cursorItemOf(world)).toBeNull();
+    expect(world.hero.progress.gold).toBeGreaterThan(0);
+  });
+
+  it("does not sell an Item held over the rest of the panel", () => {
+    const world = newWorld(0);
+    withSword(world);
+    click(world, screen, inventoryCell(0, 0));
+    click(world, screen, { x: layout.panel.x + 2, y: layout.panel.y + 2 });
+    expect(cursorItemOf(world)).not.toBeNull();
+    expect(world.hero.progress.gold).toBe(0);
+  });
+});
+
+describe("a Hero's Item tooltip", () => {
+  it("adds what the Vendor would pay to the Item's own lines", () => {
+    const item: Item = {
+      id: 1,
+      type: "shortSword",
+      rarity: "normal",
+      affixes: [],
+    };
+    const price = Math.floor(itemValue(item) / 4);
+    expect(sellTooltip(item).at(-1)).toBe(`Sells for: ${price} Gold`);
   });
 });

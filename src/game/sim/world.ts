@@ -521,6 +521,12 @@ export type Order =
    */
   | { type: "LiftGood"; from: Cell }
   /**
+   * Sell the cursor Item to the Vendor, put down on their grid: it is gone
+   * and a quarter of its Value, rounded down, is added to Gold. Only in
+   * Town, never in Death, and never a held good.
+   */
+  | { type: "SellItem" }
+  /**
    * Put the cursor Item down with its top-left at cell `to`, into slot
    * `to`, or into the Belt Column of Belt Column cell `to` at its lowest
    * free row: into free cells or an empty slot, or over exactly one Item,
@@ -693,6 +699,8 @@ export type SimEvent =
   | { type: "CantAfford"; item: Item; value: number }
   /** The Hero bought `item` from the Vendor, paying `value` Gold. */
   | { type: "ItemBought"; item: Item; value: number }
+  /** The Hero sold `item` to the Vendor for `value` Gold. */
+  | { type: "ItemSold"; item: Item; value: number }
   /** An Item moved in the Inventory or Equipment, onto the cursor or off it. */
   | { type: "InventoryChanged" }
   /** `item` went into Equipment slot `slot`. */

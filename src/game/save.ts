@@ -131,6 +131,7 @@ const SAVE_CHANGING_EVENTS: readonly SimEvent["type"][] = [
   "ItemPickedUp",
   "GoldPickedUp",
   "ItemBought",
+  "ItemSold",
   "InventoryChanged",
   "ItemEquipped",
   "ItemUnequipped",

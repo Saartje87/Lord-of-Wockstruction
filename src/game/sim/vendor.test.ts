@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { changesSave } from "../save";
 import { ITEM_TYPES, type ItemType, isPotion, itemOf } from "../tuning/items";
 import { valueTuning, vendorTuning } from "../tuning/vendor";
-import { belongingsOf, cursorItemOf } from "./inventory";
+import { belongingsOf, cursorItemOf, type Item } from "./inventory";
 import { itemValue } from "./value";
 import { goodsOf } from "./vendor";
 import {
@@ -353,5 +353,109 @@ describe("buying", () => {
     world.hero.progress.gold = 1000;
     run(world, [{ type: "LiftGood", from: { column: 7, row: 5 } }]);
     expect(cursorItemOf(world)).toBeNull();
+  });
+});
+
+describe("selling", () => {
+  function withHeld(world: World, item: Partial<Item> & { type: ItemType }) {
+    world.hero.inventory.push({
+      item: { id: 900, rarity: "normal", affixes: [], ...item },
+      cell: { column: 0, row: 0 },
+    });
+    run(world, [{ type: "LiftItem", from: { column: 0, row: 0 } }]);
+  }
+
+  it("pays a quarter of the Value, rounded down, and the Item is gone", () => {
+    const world = newWorld();
+    withHeld(world, { type: "shortSword" });
+    const before = goodsOf(world);
+    const events = run(world, [{ type: "SellItem" }]);
+    expect(world.hero.progress.gold).toBe(
+      Math.floor(itemValue({ type: "shortSword" }) / 4),
+    );
+    expect(cursorItemOf(world)).toBeNull();
+    expect(belongingsOf(world).inventory).toEqual([]);
+    expect(goodsOf(world)).toEqual(before);
+    expect(events.filter((e) => e.type === "ItemSold")).toHaveLength(1);
+    expect(changesSave(events)).toBe(true);
+  });
+
+  it("pays more for Magic and for stronger Affixes", () => {
+    const sellFor = (item: Partial<Item> & { type: ItemType }) => {
+      const world = newWorld();
+      withHeld(world, item);
+      run(world, [{ type: "SellItem" }]);
+      return world.hero.progress.gold;
+    };
+    const normal = sellFor({ type: "chainMail" });
+    const weak = sellFor({
+      type: "chainMail",
+      rarity: "magic",
+      affixes: [{ kind: "defense", grade: 0, value: 3 }],
+    });
+    const strong = sellFor({
+      type: "chainMail",
+      rarity: "magic",
+      affixes: [{ kind: "defense", grade: 2, value: 30 }],
+    });
+    expect(weak).toBeGreaterThan(normal);
+    expect(strong).toBeGreaterThan(weak);
+  });
+
+  it("sells a Potion lifted from a Belt Column", () => {
+    const world = newWorld();
+    world.hero.belt[0] = [];
+    world.hero.progress.gold = 1000;
+    run(world, [{ type: "LiftGood", from: cellOf(world, "manaPotion") }]);
+    run(world, [{ type: "PlaceItem", to: { beltColumn: 0, row: 0 } }]);
+    const gold = world.hero.progress.gold;
+    run(world, [{ type: "LiftItem", from: { beltColumn: 0, row: 0 } }]);
+    run(world, [{ type: "SellItem" }]);
+    expect(world.hero.progress.gold).toBe(
+      gold + Math.floor(itemValue({ type: "manaPotion" }) / 4),
+    );
+    expect(belongingsOf(world).belt[0] ?? []).toEqual([]);
+  });
+
+  it("always loses Gold when a bought Item is sold back", () => {
+    for (const type of ITEM_TYPES) {
+      expect(Math.floor(itemValue({ type }) / 4)).toBeLessThan(
+        itemValue({ type }),
+      );
+    }
+    const world = newWorld();
+    world.hero.progress.gold = 1000;
+    run(world, [{ type: "LiftGood", from: cellOf(world, "lifePotion") }]);
+    run(world, [{ type: "PlaceItem", to: { column: 0, row: 0 } }]);
+    run(world, [{ type: "LiftItem", from: { column: 0, row: 0 } }]);
+    run(world, [{ type: "SellItem" }]);
+    expect(world.hero.progress.gold).toBeLessThan(1000);
+  });
+
+  it("is refused during Death, and holding nothing sells nothing", () => {
+    const world = newWorld();
+    withHeld(world, { type: "shortSword" });
+    world.death = { elapsed: 0 };
+    const events = run(world, [{ type: "SellItem" }]);
+    expect(world.hero.progress.gold).toBe(0);
+    expect(cursorItemOf(world)).not.toBeNull();
+    expect(events.some((e) => e.type === "ItemSold")).toBe(false);
+    const empty = newWorld();
+    run(empty, [{ type: "SellItem" }]);
+    expect(empty.hero.progress.gold).toBe(0);
+  });
+
+  it("does not sell a held good, nor outside Town", () => {
+    const world = newWorld();
+    world.hero.progress.gold = 1000;
+    run(world, [{ type: "LiftGood", from: cellOf(world, "lifePotion") }]);
+    run(world, [{ type: "SellItem" }]);
+    expect(world.hero.progress.gold).toBe(1000);
+    expect(cursorItemOf(world)).not.toBeNull();
+    const away = newWorld();
+    withHeld(away, { type: "shortSword" });
+    leave(away);
+    run(away, [{ type: "SellItem" }]);
+    expect(away.hero.progress.gold).toBe(0);
   });
 });

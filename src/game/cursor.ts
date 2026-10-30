@@ -315,7 +315,10 @@ function putDownOnVendor(
     if (!good && sameSpot(spot.inventory, lifted.spot)) return [];
     return [vendorPutDownOrder(screen, at, lifted.type)];
   }
-  if (!good) return [];
+  if (!good) {
+    // One of the Hero's own Items let go over the Vendor's grid is sold.
+    return spot && "good" in spot ? [{ type: "SellItem" }] : [];
+  }
   const here = spot && "good" in spot ? spot.good : null;
   const from = (lifted.spot as { good: Cell }).good;
   if (here && here.column === from.column && here.row === from.row) return [];

@@ -28,6 +28,30 @@ _Avoid_: Level (that's the Hero's), difficulty, depth
 A distinct place the Hero can be in; Town and Combat Areas are both Areas.
 _Avoid_: Level, zone, map, scene
 
+**Act**:
+One chapter of the game: its own Town, a Main Path of Combat Areas leading out from it to the Act Boss, Side Areas off that path, and five Quests along the way. Only killing the Act Boss is needed to complete it; the other Quests are there for their rewards.
+_Avoid_: Chapter, episode, world
+
+**Main Path**:
+The chain of Combat Areas leading from an Act's Town to its Act Boss, its Area Level rising along the way.
+_Avoid_: Critical path, route
+
+**Side Area**:
+A Combat Area in an Act that is not on its Main Path, reached from one of the Main Path's Areas.
+_Avoid_: Side dungeon, optional area, branch
+
+**Act Boss**:
+The one named Monster at the end of an Act's Main Path; killing it while the Act's last Quest isn't Done completes the Act, shown across the screen, and makes that Quest Ready to hand in. It is back, like every Monster, in each new Session.
+_Avoid_: Final boss, end boss
+
+**Waypoint**:
+A fixed spot in an Act's Town and in some of its Combat Areas; once the Hero has touched one, walking onto it opens the list of that Act's Waypoints, and picking a touched one takes them there, leaving the Area as an Exit does. The Save keeps which ones they have touched.
+_Avoid_: Teleporter, checkpoint, Town Portal (that's the Hero's own)
+
+**Quest**:
+A task an NPC in an Act's Town gives the Hero and takes back once it is done, going from Not given to Given, Ready to hand in and Done. What it asks counts whenever it happens, given or not, so a Quest can go straight from Not given to Ready to hand in; its reward comes once, on Done. The Save keeps how far each Quest has got.
+_Avoid_: Mission, task, objective
+
 **Exit**:
 A zone in an Area that, when the Hero walks into it, takes the Hero to an Entry in another Area.
 _Avoid_: Portal (that's the Town Portal), door, transition, warp
@@ -44,12 +68,12 @@ _Avoid_: Decoration, doodad, object
 A two-way gateway the Hero opens a step ahead of them anywhere outside Town, its other end at a fixed place in Town; the Hero goes through by walking into it, as with an Exit, and nothing else does. The Hero has at most one: opening another closes the old, and going back through it from Town closes it. It stays open through the Hero's Death and through Exits, and the Save never keeps one.
 _Avoid_: Portal on its own, TP, waypoint, gate
 
-**Kept Area**:
-The Combat Area a Town Portal stands in, which, unlike any other Area, stands still while the Hero is away and is just as they left it when they come back, by the Town Portal or an Exit: its Monsters, Corpses and Ground Items where they were, and what of it is Explored. It stops being kept when the Town Portal closes.
-_Avoid_: Saved Area, persistent Area
+**Session**:
+One stretch of play, from Continue or New Hero on the Start Screen until Quit to Start Screen or the game is closed. Every Area starts fresh in a new Session, all its Monsters back where they were placed, except what a Done Quest has put away for good, such as its Bone Altars. From then until the Session ends, each Area stands still while the Hero is away and is just as they left it when they come back, by any way in: its Monsters, Corpses and Ground Items where they were, and what of it is Explored. The Hero's Death doesn't end a Session.
+_Avoid_: Game, run, instance
 
 **Explored**:
-The part of an Area the Hero has come near enough to see, the only part the Map Overlay and Mini Map show; all of Town is Explored from the start. It is forgotten when the Hero leaves the Area, unless it is the Kept Area, and the Save never keeps it.
+The part of an Area the Hero has come near enough to see, the only part the Map Overlay and Mini Map show; all of Town is Explored from the start. It is kept for each Area until the Session ends, and the Save never keeps it.
 _Avoid_: Revealed, discovered, fog of war
 
 **Map Overlay**:
@@ -72,6 +96,14 @@ _Avoid_: Title card, zone text, toast
 A hostile creature that attacks the Hero and their Minions and can be killed.
 _Avoid_: Enemy, mob, NPC
 
+**Unique Monster**:
+A named Monster, one of its kind, placed by hand in an Area: tougher than its Monster type and dropping better Items. The Act Boss is one, with a Monster type of its own.
+_Avoid_: Boss (except the Act Boss), champion, elite, rare
+
+**Bone Altar**:
+A Prop with Life that raises a Monster beside it every so often, up to a limit, until the Hero destroys it with attacks or Skills; Monsters leave it be.
+_Avoid_: Totem, spawner, Monster
+
 **Monster Level**:
 How strong a Monster is: the same Monster type is tougher, hits harder and gives more Experience at a higher Monster Level.
 _Avoid_: Level (that's the Hero's), tier, difficulty
@@ -85,8 +117,16 @@ A Monster walking back to where it was placed after giving up on the Hero or the
 _Avoid_: Resetting, evading, retreating
 
 **NPC**:
-A non-hostile character in Town.
+A non-hostile character the Hero can talk to, normally standing in Town.
 _Avoid_: Villager, townsperson
+
+**Dialogue panel**:
+The panel talking to an NPC opens: what they say, and the Quest they have to give or take back, if any. The World plays on underneath, and the Hero taking damage shuts it. The Hero talks to an NPC by clicking them, or, with no Monster as the Target, as a Ground Item is picked up.
+_Avoid_: Chat, conversation window, dialog box
+
+**Quest panel**:
+The panel listing the current Act's Quests, how far each has got and, for each one Given, what to do next.
+_Avoid_: Quest log, journal
 
 **Life**:
 The Hero's or a Monster's health; reaching zero means death.
@@ -265,11 +305,11 @@ The round button on the HUD after the Panel buttons, a little smaller than they 
 _Avoid_: Portal button, recall button
 
 **Close button**:
-The × in the top-right corner of the Hero, Inventory and Skill Tree panels; clicking it shuts that panel just as its key does, so shutting the Inventory panel puts a Held Item back where it was lifted from.
+The × in the top-right corner of every panel; clicking it shuts that panel just as its key does, so shutting the Inventory panel puts a Held Item back where it was lifted from.
 _Avoid_: X button, exit button
 
 **Panel button**:
-One of the three buttons on the HUD right of the Skill Bar, one each for the Hero, Inventory and Skill Tree panels; clicking or tapping it opens or shuts that panel just as its key does, it shows lit while its panel is open, and it does nothing during Death.
+One of the four buttons on the HUD right of the Skill Bar, one each for the Hero, Inventory, Skill Tree and Quest panels; clicking or tapping it opens or shuts that panel just as its key does, it shows lit while its panel is open, and it does nothing during Death.
 _Avoid_: Menu button, mini-panel, HUD button
 
 **UI Scale**:
@@ -292,6 +332,10 @@ _Avoid_: Mobile layout, small mode
 The Monster that auto-aim has picked for the Hero when there is no cursor, with a controller or touch: the nearest one within reach, and while the stick walks the Hero, the nearest one within reach ahead of where it walks. Attacks go to it and Skills are cast at it; it is shown as a hovered Monster is.
 _Avoid_: Lock-on, focus (that's in panels), aim
 
+**Item in Reach**:
+The nearest Ground Item close enough to the Hero for a controller's A or the attack button to pick up, when there is no Target; a Target always comes first. There is none while a panel is open, during Death, or with mouse and keyboard as the Active Input. It is shown as a hovered Item is, and stays the Item in Reach even when it won't fit, the pickup then leaving it lying as a click on it would.
+_Avoid_: Target (that's a Monster), targeted Item, pickup target
+
 **Focus**:
 The one cell, slot or button picked in an open panel when there is no cursor, with a controller; it is what lifting, putting down and pressing act on, and its Item shows its tooltip.
 _Avoid_: Selection, highlight, Target (that's a Monster)
@@ -305,8 +349,8 @@ What a touch screen plays the World with, standing in for a controller: the Virt
 _Avoid_: On-screen controls, virtual gamepad, overlay
 
 **Attack button**:
-The round touch button over the Mana orb that does what a controller's A does: attack the Target, else pick up a Ground Item near the Hero.
-_Avoid_: Fire button, A button
+The round touch button over the Mana orb that does what a controller's A does: attack the Target, else pick up the Item in Reach. It reads "Pick up" while there is an Item in Reach and "Attack" otherwise.
+_Avoid_: Fire button, A button, pickup button
 
 **Skill button**:
 A button that casts one Skill Bar slot's Skill: X, Y, B, RB or RT on a controller, or on a touch screen one of the five round buttons over the attack button.

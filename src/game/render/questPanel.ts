@@ -52,7 +52,7 @@ export type QuestSheet = {
 /**
  * What the Quest panel shows: the Quests of the active Area's Act, in their
  * order, each with its state and, once Given, what to do next with how many
- * of its parts are done, if it has several.
+ * of its parts are left, if it has several.
  */
 export function questPanelSheet(world: World): QuestSheet[] {
   const { act } = world.areas[world.areaName];
@@ -70,7 +70,7 @@ export function questPanelSheet(world: World): QuestSheet[] {
         nextStep:
           state === "given"
             ? parts > 1
-              ? `${nextStep} (${count}/${parts})`
+              ? `${nextStep} (${parts - count} left)`
               : nextStep
             : null,
       };

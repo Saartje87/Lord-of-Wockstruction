@@ -51,8 +51,14 @@ describe("the 3D World view of Ground Items", () => {
   it("shows each Ground Item where it lies", () => {
     const world = arenaWith([], { combat: true });
     world.groundItems.push(
-      { item: { id: 7, type: "axe" }, pos: { x: 11, y: 12 } },
-      { item: { id: 8, type: "lifePotion" }, pos: { x: 9.5, y: 8.5 } },
+      {
+        item: { id: 7, type: "axe", rarity: "normal", affixes: [] },
+        pos: { x: 11, y: 12 },
+      },
+      {
+        item: { id: 8, type: "lifePotion", rarity: "normal", affixes: [] },
+        pos: { x: 9.5, y: 8.5 },
+      },
     );
 
     const { groundItems } = worldViewOf(world, 1, NO_POINTER);

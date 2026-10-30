@@ -12,7 +12,12 @@ export type ItemKind =
   | "potion";
 
 /** What an Equipped Item can add to the Hero: an Attribute, or one of these. */
-export type Bonus = Attribute | "life" | "defense" | "attackRating";
+export type Bonus =
+  | Attribute
+  | "life"
+  | "defense"
+  | "attackRating"
+  | "weaponDamage";
 
 /** Every Bonus there is. */
 export const BONUSES: readonly Bonus[] = [
@@ -23,6 +28,7 @@ export const BONUSES: readonly Bonus[] = [
   "life",
   "defense",
   "attackRating",
+  "weaponDamage",
 ];
 
 /** What a Potion gives back. */
@@ -245,3 +251,182 @@ export const potionDropTuning: { chance: number; items: readonly ItemType[] } =
     chance: 0.4,
     items: ITEM_TYPES.filter(isPotion),
   };
+
+/** How special an Item is: Normal has no Affixes, Magic has one or two. */
+export type Rarity = "normal" | "magic";
+
+/** Every Rarity, plainest first. */
+export const RARITIES: readonly Rarity[] = ["normal", "magic"];
+
+/**
+ * Rarity odds and Affix counts, as weights. A non-Potion drop rolls its
+ * Rarity from `rarity`; a Magic Item rolls one or two Affixes by
+ * `magicAffixes`.
+ */
+export const rarityTuning: {
+  rarity: Record<Rarity, number>;
+  magicAffixes: { one: number; two: number };
+} = {
+  // About 74% Normal and 26% Magic until Rare joins them.
+  rarity: { normal: 70, magic: 25 },
+  magicAffixes: { one: 60, two: 40 },
+};
+
+/** Whether an Affix is named before the type (Prefix) or after it (Suffix). */
+export type AffixSide = "prefix" | "suffix";
+
+/** One grade of an Affix kind. */
+export type AffixGrade = {
+  /** Shown in the Item's name: "Sturdy", "of the Badger". */
+  name: string;
+  /** The value an Affix of this grade rolls, `[min, max]` inclusive. */
+  range: [number, number];
+  /** The lowest Monster Level whose drops can roll this grade. */
+  fromMonsterLevel: number;
+  /** Its odds among the grades the Monster Level reaches. */
+  weight: number;
+};
+
+/** One Affix kind's tuning. */
+export type AffixTuning = {
+  side: AffixSide;
+  bonus: Bonus;
+  /** The Item kinds it can roll on. */
+  rollsOn: readonly ItemKind[];
+  /** Weakest first. */
+  grades: readonly AffixGrade[];
+};
+
+const NOT_POTION: readonly ItemKind[] = [
+  "weapon",
+  "armour",
+  "ring",
+  "amulet",
+  "belt",
+];
+
+type Range = [number, number];
+
+/** Three grades, weakest first, gated from Monster Level 1, 5 and 9. */
+function threeGrades(
+  names: [string, string, string],
+  ranges: [Range, Range, Range],
+): AffixGrade[] {
+  const gates = [1, 5, 9];
+  const weights = [60, 30, 10];
+  return names.map((name, i) => ({
+    name,
+    range: ranges[i],
+    fromMonsterLevel: gates[i],
+    weight: weights[i],
+  }));
+}
+
+const ATTRIBUTE_RANGES: [Range, Range, Range] = [
+  [1, 3],
+  [4, 6],
+  [7, 10],
+];
+
+/** Every Affix kind there is, by the key it's known as in code and the Save. */
+export const affixTuning = {
+  defense: {
+    side: "prefix",
+    bonus: "defense",
+    rollsOn: ["armour", "belt"],
+    grades: threeGrades(
+      ["Sturdy", "Stout", "Ironclad"],
+      [
+        [5, 10],
+        [11, 20],
+        [21, 32],
+      ],
+    ),
+  },
+  accuracy: {
+    side: "prefix",
+    bonus: "attackRating",
+    rollsOn: ["weapon", "ring", "amulet"],
+    grades: threeGrades(
+      ["Keen", "Sharp", "Unerring"],
+      [
+        [10, 20],
+        [21, 40],
+        [41, 70],
+      ],
+    ),
+  },
+  life: {
+    side: "prefix",
+    bonus: "life",
+    rollsOn: NOT_POTION,
+    grades: threeGrades(
+      ["Hearty", "Robust", "Wockhearted"],
+      [
+        [5, 10],
+        [11, 20],
+        [21, 35],
+      ],
+    ),
+  },
+  brutality: {
+    side: "prefix",
+    bonus: "weaponDamage",
+    rollsOn: ["weapon"],
+    grades: threeGrades(
+      ["Brutal", "Savage", "Wrecking"],
+      [
+        [1, 3],
+        [4, 7],
+        [8, 12],
+      ],
+    ),
+  },
+  strength: {
+    side: "suffix",
+    bonus: "strength",
+    rollsOn: NOT_POTION,
+    grades: threeGrades(
+      ["of the Badger", "of the Bear", "of the Mammoth"],
+      ATTRIBUTE_RANGES,
+    ),
+  },
+  dexterity: {
+    side: "suffix",
+    bonus: "dexterity",
+    rollsOn: NOT_POTION,
+    grades: threeGrades(
+      ["of the Hare", "of the Fox", "of the Falcon"],
+      ATTRIBUTE_RANGES,
+    ),
+  },
+  vitality: {
+    side: "suffix",
+    bonus: "vitality",
+    rollsOn: NOT_POTION,
+    grades: threeGrades(
+      ["of the Reed", "of the Oak", "of the Mountain"],
+      ATTRIBUTE_RANGES,
+    ),
+  },
+  energy: {
+    side: "suffix",
+    bonus: "energy",
+    rollsOn: NOT_POTION,
+    grades: threeGrades(
+      ["of the Wren", "of the Owl", "of the Sage"],
+      ATTRIBUTE_RANGES,
+    ),
+  },
+} satisfies Record<string, AffixTuning>;
+
+/** One of the Affix kinds, by its key in `affixTuning`. */
+export type AffixKind = keyof typeof affixTuning;
+
+/** Every Affix kind, in the order `affixTuning` lists them. */
+export const AFFIX_KINDS = Object.keys(affixTuning) as AffixKind[];
+
+/** The tuning of an Affix kind, widened so its fields read plainly. */
+export function affixOf(kind: AffixKind): AffixTuning {
+  return affixTuning[kind];
+}

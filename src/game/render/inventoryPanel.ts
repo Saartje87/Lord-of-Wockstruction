@@ -1,3 +1,4 @@
+import { affixBonus, itemTitle, type RolledAffix } from "../sim/affixes";
 import { beltOf, beltRows, isBeltCell } from "../sim/belt";
 import {
   type Cell,
@@ -440,6 +441,7 @@ const BONUS_NAMES: Record<Bonus, string> = {
   life: "Life",
   defense: "Defense",
   attackRating: "Attack Rating",
+  weaponDamage: "Damage",
 };
 
 /** Each resource a Potion gives back, as a tooltip names it. */
@@ -462,12 +464,18 @@ function potionLine(effect: PotionEffectTuning): string {
 /**
  * The lines of an Item's tooltip, all of them the Item's own fixed values,
  * as in Diablo 2: its name, then a Weapon's damage before the Hero's
- * Strength, an Armour's Defense, its bonuses, what a Potion gives back and
- * a Belt's rows.
+ * Strength, an Armour's Defense, its type's bonuses, one line for each
+ * Affix, the Smith bonus, what a Potion gives back and a Belt's rows. A
+ * Magic Item's name carries its Affixes' grade names.
  */
-export function itemTooltip(type: ItemType, smithBonus?: SmithBonus): string[] {
-  const item = itemOf(type);
-  const lines = [item.name];
+export function itemTooltip(shown: {
+  type: ItemType;
+  affixes?: readonly RolledAffix[];
+  smithBonus?: SmithBonus;
+}): string[] {
+  const { smithBonus } = shown;
+  const item = itemOf(shown.type);
+  const lines = [itemTitle(shown)];
   if (item.damage) {
     // Each hit rounds its own damage, so the range shows rounded too.
     const [min, max] = item.damage;
@@ -476,6 +484,10 @@ export function itemTooltip(type: ItemType, smithBonus?: SmithBonus): string[] {
   if (item.defense !== undefined) lines.push(`Defense: ${item.defense}`);
   for (const [bonus, amount] of Object.entries(item.bonuses)) {
     lines.push(`+${amount} to ${BONUS_NAMES[bonus as Bonus]}`);
+  }
+  for (const affix of shown.affixes ?? []) {
+    const { bonus, amount } = affixBonus(affix);
+    lines.push(`+${amount} to ${BONUS_NAMES[bonus]}`);
   }
   if (smithBonus) {
     lines.push(

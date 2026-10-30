@@ -47,7 +47,7 @@ function world(belt: ItemType) {
     seed: 1,
     belongings: {
       inventory: [{ type: "axe", cell: { column: 0, row: 0 } }],
-      equipment: { belt },
+      equipment: { belt: { type: belt } },
       belt: emptyBelt(),
     },
   });

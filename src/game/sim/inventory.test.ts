@@ -93,7 +93,10 @@ describe("Belongings given to a new World", () => {
       { type: "axe", cell: { column: 0, row: 0 } },
       { type: "ringOfLife", cell: { column: 9, row: 3 } },
     ],
-    equipment: { weapon: "shortSword", armour: "leatherArmour" },
+    equipment: {
+      weapon: { type: "shortSword" },
+      armour: { type: "leatherArmour" },
+    },
     belt: [["lifePotion"], [], ["lifePotion"], []],
   };
 
@@ -140,7 +143,7 @@ describe("damage", () => {
       progress: strongerBy(10),
       belongings: {
         inventory: [],
-        equipment: { weapon: "axe" },
+        equipment: { weapon: { type: "axe" } },
         belt: emptyBelt(),
       },
     });

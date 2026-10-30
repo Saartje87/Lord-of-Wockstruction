@@ -185,7 +185,11 @@ function smithWorld(service: "unlocked" | "used" | "locked" = "unlocked") {
     id: number,
     type: "axe" | "chainMail" | "ringOfLife",
     column: number,
-  ) => w.hero.inventory.push({ item: { id, type }, cell: { column, row: 0 } });
+  ) =>
+    w.hero.inventory.push({
+      item: { id, type, rarity: "normal", affixes: [] },
+      cell: { column, row: 0 },
+    });
   carried(101, "axe", 0);
   carried(102, "chainMail", 2);
   carried(103, "ringOfLife", 4);
@@ -246,8 +250,14 @@ describe("the Smith's service on the Dialogue panel", () => {
   it("pages through more than two Items", () => {
     const w = smithWorld();
     w.hero.inventory.push(
-      { item: { id: 104, type: "axe" }, cell: { column: 0, row: 1 } },
-      { item: { id: 105, type: "axe" }, cell: { column: 2, row: 1 } },
+      {
+        item: { id: 104, type: "axe", rarity: "normal", affixes: [] },
+        cell: { column: 0, row: 1 },
+      },
+      {
+        item: { id: 105, type: "axe", rarity: "normal", affixes: [] },
+        cell: { column: 2, row: 1 },
+      },
     );
 
     const first = dialogueSheet(w, SMITH, 1)?.buttons;

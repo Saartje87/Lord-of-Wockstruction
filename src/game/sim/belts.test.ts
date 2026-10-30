@@ -41,7 +41,7 @@ function holding({
     seed: 1,
     belongings: {
       inventory,
-      equipment: { weapon: "shortSword", ...equipment },
+      equipment: { weapon: { type: "shortSword" }, ...equipment },
       belt,
     },
   });
@@ -104,7 +104,9 @@ describe("the rows of the Belt Columns", () => {
     ["heavyBelt", 3],
     ["platedBelt", 4],
   ] as const)("are those of the Equipped Belt: %s gives %i", (belt, rows) => {
-    expect(beltRows(holding({ equipment: { belt } }))).toBe(rows);
+    expect(beltRows(holding({ equipment: { belt: { type: belt } } }))).toBe(
+      rows,
+    );
   });
 });
 
@@ -117,7 +119,7 @@ const carried = (world: World) =>
 describe("taking the Belt off", () => {
   it("moves the Potions in rows that no longer exist into the Inventory", () => {
     const world = holding({
-      equipment: { belt: "sash" },
+      equipment: { belt: { type: "sash" } },
       belt: [["lifePotion", "manaPotion"], ["lifePotion"], [], ["manaPotion"]],
     });
 
@@ -138,7 +140,7 @@ describe("taking the Belt off", () => {
 
   it("is refused with No room, nothing moving, when those Potions don't all fit", () => {
     const world = holding({
-      equipment: { belt: "sash" },
+      equipment: { belt: { type: "sash" } },
       // Room for the Sash but not for a Potion besides.
       inventory: filledBut([
         { column: 0, row: 0 },
@@ -169,7 +171,7 @@ const idAt = (world: World, column: number, row: number) =>
 describe("swapping to a Belt with fewer rows", () => {
   it("moves the Potions in rows that no longer exist into the Inventory", () => {
     const world = holding({
-      equipment: { belt: "platedBelt" },
+      equipment: { belt: { type: "platedBelt" } },
       inventory: [at("sash", 0, 0)],
       belt: [
         ["lifePotion", "lifePotion", "manaPotion", "manaPotion"],
@@ -201,7 +203,7 @@ describe("swapping to a Belt with fewer rows", () => {
 
   it("is refused with No room, nothing moving, when those Potions don't all fit", () => {
     const world = holding({
-      equipment: { belt: "heavyBelt" },
+      equipment: { belt: { type: "heavyBelt" } },
       // The Heavy Belt goes back where the Sash was, leaving no room.
       inventory: [
         ...filledBut([
@@ -226,7 +228,7 @@ describe("swapping to a Belt with fewer rows", () => {
 
   it("moves nothing when the new Belt has more rows", () => {
     const world = holding({
-      equipment: { belt: "sash" },
+      equipment: { belt: { type: "sash" } },
       inventory: [at("platedBelt", 0, 0)],
       belt: [["lifePotion", "lifePotion"], [], [], []],
     });
@@ -244,7 +246,7 @@ describe("swapping to a Belt with fewer rows", () => {
 describe("lifting the Belt out of its slot", () => {
   it("takes it off, moving the Potions in rows that no longer exist into the Inventory", () => {
     const world = holding({
-      equipment: { belt: "sash" },
+      equipment: { belt: { type: "sash" } },
       belt: [["lifePotion", "manaPotion"], [], [], []],
     });
 
@@ -259,7 +261,7 @@ describe("lifting the Belt out of its slot", () => {
 
   it("is refused with No room, nothing moving, when those Potions don't all fit", () => {
     const world = holding({
-      equipment: { belt: "sash" },
+      equipment: { belt: { type: "sash" } },
       inventory: filledBut([]),
       belt: [["lifePotion", "manaPotion"], [], [], []],
     });
@@ -276,7 +278,7 @@ describe("lifting the Belt out of its slot", () => {
 describe("putting a held Belt into the Belt slot", () => {
   it("swaps it in, moving the Potions in rows that no longer exist into the Inventory", () => {
     const world = holding({
-      equipment: { belt: "heavyBelt" },
+      equipment: { belt: { type: "heavyBelt" } },
       inventory: [at("sash", 0, 0)],
       belt: [["lifePotion", "lifePotion", "manaPotion"], [], [], []],
     });
@@ -293,7 +295,7 @@ describe("putting a held Belt into the Belt slot", () => {
 
   it("is refused with No room, nothing moving, when those Potions don't all fit", () => {
     const world = holding({
-      equipment: { belt: "heavyBelt" },
+      equipment: { belt: { type: "heavyBelt" } },
       inventory: [
         ...filledBut([
           { column: 0, row: 0 },
@@ -318,7 +320,7 @@ describe("putting a held Belt into the Belt slot", () => {
 describe("a Potion held from a Belt row that no longer exists", () => {
   it("goes back to the Inventory cell it moved to", () => {
     const world = holding({
-      equipment: { belt: "sash" },
+      equipment: { belt: { type: "sash" } },
       belt: [["lifePotion", "manaPotion"], [], [], []],
     });
     step(world, [{ type: "LiftItem", from: { beltColumn: 0, row: 1 } }]);

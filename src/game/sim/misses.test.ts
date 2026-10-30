@@ -242,7 +242,9 @@ function wearing(equipment: Belongings["equipment"], seed: number): World {
 /** The first seed at least `from` whose first Skeleton attack on Leather Armour Misses. */
 function seedWhereMonsterMisses(from = 1): number {
   for (let seed = from; seed < from + 200; seed++) {
-    const events = untilAttacked(wearing({ armour: "leatherArmour" }, seed));
+    const events = untilAttacked(
+      wearing({ armour: { type: "leatherArmour" } }, seed),
+    );
     if (events.some((event) => event.type === "Missed")) return seed;
   }
   throw new Error(`No seed from ${from} where the Skeleton Misses`);
@@ -261,10 +263,12 @@ describe("Monsters", () => {
   it("Miss a Hero in Leather Armour about 15% of the time, replaying from a seed", () => {
     let missed = 0;
     for (let seed = 1; seed <= 400; seed++) {
-      const events = untilAttacked(wearing({ armour: "leatherArmour" }, seed));
-      expect(untilAttacked(wearing({ armour: "leatherArmour" }, seed))).toEqual(
-        events,
+      const events = untilAttacked(
+        wearing({ armour: { type: "leatherArmour" } }, seed),
       );
+      expect(
+        untilAttacked(wearing({ armour: { type: "leatherArmour" } }, seed)),
+      ).toEqual(events);
       if (events.some((event) => event.type === "Missed")) missed += 1;
     }
 
@@ -276,7 +280,9 @@ describe("Monsters", () => {
     const misses = (armour: "leatherArmour" | "chainMail") => {
       let missed = 0;
       for (let seed = 1; seed <= 200; seed++) {
-        const events = untilAttacked(wearing({ armour }, seed));
+        const events = untilAttacked(
+          wearing({ armour: { type: armour } }, seed),
+        );
         if (events.some((event) => event.type === "Missed")) missed += 1;
       }
       return missed;
@@ -299,7 +305,10 @@ describe("Monsters", () => {
 
 describe("a Monster Miss", () => {
   it("reports a Miss on the Hero in place of the hit", () => {
-    const w = wearing({ armour: "leatherArmour" }, seedWhereMonsterMisses());
+    const w = wearing(
+      { armour: { type: "leatherArmour" } },
+      seedWhereMonsterMisses(),
+    );
 
     expect(untilAttacked(w).filter(isMonsterAttack)).toEqual([
       { type: "Missed", target: "hero" },
@@ -310,7 +319,7 @@ describe("a Monster Miss", () => {
     for (let from = 1, checked = 0; checked < 10; checked++) {
       const seed = seedWhereMonsterMisses(from);
       from = seed + 1;
-      const w = wearing({ armour: "leatherArmour" }, seed);
+      const w = wearing({ armour: { type: "leatherArmour" } }, seed);
       const life = w.hero.life;
       untilAttacked(w);
 
@@ -336,7 +345,7 @@ describe("a Monster Miss", () => {
       seed,
       belongings: {
         inventory: [],
-        equipment: { armour: "leatherArmour" },
+        equipment: { armour: { type: "leatherArmour" } },
         belt: emptyBelt(),
       },
     });

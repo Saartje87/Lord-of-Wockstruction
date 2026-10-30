@@ -67,7 +67,10 @@ function newWorld(
     belongings: {
       ...FRESH_BELONGINGS,
       inventory,
-      equipment: { weapon: "shortSword", armour: "chainMail" },
+      equipment: {
+        weapon: { type: "shortSword" },
+        armour: { type: "chainMail" },
+      },
     },
   });
 }

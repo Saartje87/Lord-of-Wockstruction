@@ -34,7 +34,11 @@ function carrying(
   return createWorld({
     areas: { town },
     seed: 1,
-    belongings: { inventory, equipment: { weapon: "shortSword" }, belt },
+    belongings: {
+      inventory,
+      equipment: { weapon: { type: "shortSword" } },
+      belt,
+    },
   });
 }
 

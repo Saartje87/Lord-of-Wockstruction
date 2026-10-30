@@ -116,9 +116,9 @@ describe("heroSheet with Items Equipped", () => {
       belongings: {
         inventory: [{ type: "ringOfStrength", cell: { column: 0, row: 0 } }],
         equipment: {
-          weapon: "shortSword",
-          armour: "chainMail",
-          amulet: "amuletOfVitality",
+          weapon: { type: "shortSword" },
+          armour: { type: "chainMail" },
+          amulet: { type: "amuletOfVitality" },
         },
         belt: emptyBelt(),
       },

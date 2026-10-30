@@ -57,7 +57,7 @@ const COMPACT = viewportOf({ width: 800, height: 400 });
 /** Belongings with a Belt Equipped, so each Belt Column has four rows. */
 const belted: Belongings = {
   inventory: [],
-  equipment: { belt: "platedBelt" },
+  equipment: { belt: { type: "platedBelt" } },
   belt: emptyBelt(),
 };
 

@@ -331,7 +331,7 @@ describe("an Arrow", () => {
     for (let seed = 1; seed <= 100; seed++) {
       const w = world(["H......A.."], seed, {
         inventory: [],
-        equipment: { armour: "leatherArmour" },
+        equipment: { armour: { type: "leatherArmour" } },
         belt: emptyBelt(),
       });
       const life = w.hero.life;

@@ -26,6 +26,7 @@ import { townPortalTuning } from "../tuning/townPortal";
 import { townPortalLook } from "../tuning/townPortalLook";
 import { uniqueTuning } from "../tuning/uniqueMonsters";
 import { waypointTuning } from "../tuning/waypoints";
+import { affixTotal, rollItem } from "./affixes";
 import {
   type Area,
   cellAt,
@@ -982,6 +983,7 @@ function bonusOf(world: World, bonus: Bonus): number {
     const item = world.hero.equipment[slot];
     if (!item) continue;
     total += itemOf(item.type).bonuses[bonus] ?? 0;
+    total += affixTotal(item.affixes, bonus);
     if (item.smithBonus?.bonus === bonus) total += item.smithBonus.amount;
   }
   return total;
@@ -1056,7 +1058,8 @@ export function damageRange(world: World): [number, number] {
   const scale = 1 + attributesOf(world).strength / 100;
   const [min, max] =
     (weapon && itemOf(weapon.type).damage) ?? heroTuning.unarmedDamage;
-  return [min * scale, max * scale];
+  const flat = bonusOf(world, "weaponDamage");
+  return [(min + flat) * scale, (max + flat) * scale];
 }
 
 /**
@@ -2800,7 +2803,13 @@ function hurt(world: World, monster: Monster, events: SimEvent[]) {
       killExperience(monster, world.hero.progress.level),
       events,
     );
-    rollDrop(world, monster.pos, events, monster.unique !== null);
+    rollDrop(
+      world,
+      monster.pos,
+      events,
+      monster.unique !== null,
+      monster.monsterLevel,
+    );
     if (monster.unique !== null) {
       const { name } = world.areas[world.areaName];
       noteDeed(world, { type: "uniqueKilled", area: name }, events);
@@ -2890,10 +2899,17 @@ function minionStrike(
 /**
  * Rolls a dying Monster's drops, each lying where it died: by
  * `dropTuning.chance` one Item, then by `potionDropTuning.chance` one Potion,
- * each of a type picked with equal odds. A Unique Monster's Items are
+ * each of a type picked with equal odds. `monsterLevel` is the dying
+ * Monster's, which decides the grades its Items' Affixes can roll. A Unique Monster's Items are
  * rolled once for each of `uniqueTuning.itemDropChances` instead.
  */
-function rollDrop(world: World, pos: Vec, events: SimEvent[], unique: boolean) {
+function rollDrop(
+  world: World,
+  pos: Vec,
+  events: SimEvent[],
+  unique: boolean,
+  monsterLevel: number,
+) {
   const itemDrops = unique
     ? uniqueTuning.itemDropChances.map((chance) => ({
         chance,
@@ -2903,9 +2919,17 @@ function rollDrop(world: World, pos: Vec, events: SimEvent[], unique: boolean) {
   for (const { chance, items } of [...itemDrops, potionDropTuning]) {
     if (chance < 1 && random(world.rng) >= chance) continue;
     const type = items[randomInt(world.rng, [0, items.length - 1])];
-    const item = { id: world.nextItemId++, type };
+    const item: Item = {
+      id: world.nextItemId++,
+      type,
+      ...rollItem(world.rng, type, monsterLevel),
+    };
     world.groundItems.push({ item, pos: { ...pos } });
-    events.push({ type: "ItemDropped", item: { ...item }, pos: { ...pos } });
+    events.push({
+      type: "ItemDropped",
+      item: { ...item, affixes: item.affixes.map((a) => ({ ...a })) },
+      pos: { ...pos },
+    });
   }
 }
 

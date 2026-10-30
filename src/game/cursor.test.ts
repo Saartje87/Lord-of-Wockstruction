@@ -549,7 +549,7 @@ const packed: Belongings = {
     { type: "axe", cell: { column: 4, row: 1 } },
     { type: "ringOfStrength", cell: { column: 0, row: 0 } },
   ],
-  equipment: { weapon: "shortSword" },
+  equipment: { weapon: { type: "shortSword" } },
   belt: [["lifePotion"], [], [], []],
 };
 

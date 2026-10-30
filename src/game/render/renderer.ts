@@ -22,6 +22,7 @@ import {
   type StartScreen,
 } from "../menus";
 import type { Pause } from "../pause";
+import { itemTitle } from "../sim/affixes";
 import type { Area } from "../sim/area";
 import { beltOf, beltRows, isBeltCell } from "../sim/belt";
 import {
@@ -59,7 +60,7 @@ import {
   type World,
 } from "../sim/world";
 import { heroTuning } from "../tuning/hero";
-import { type ItemType, itemOf } from "../tuning/items";
+import { type ItemType, itemOf, type Rarity } from "../tuning/items";
 import type { MinionType } from "../tuning/minions";
 import type { MonsterType } from "../tuning/monsters";
 import { type Skill, skillTuning } from "../tuning/skills";
@@ -139,7 +140,7 @@ import {
   itemUnder,
   landingCell,
 } from "./inventoryPanel";
-import { itemColour, itemLabel } from "./itemArt";
+import { itemColour, itemLabel, rarityColour } from "./itemArt";
 import {
   MAP_LOOK,
   MAP_OVERLAY,
@@ -493,8 +494,8 @@ const GROUND_ITEM_GRAB = 24;
 const GROUND_ITEM = {
   label: 0x000000,
   labelAlpha: 0.7,
-  name: 0xe8e0c8,
-  hoveredName: 0xe8d27a,
+  /** The back of a hovered label, which keeps its Rarity colour. */
+  hoveredAlpha: 0.95,
 };
 
 /** The name shown in each empty Equipment slot. */
@@ -830,7 +831,7 @@ export function createRenderer(
       let text = labelTexts.get(item.id);
       if (!text) {
         text = new Text({
-          text: itemOf(item.type).name,
+          text: itemTitle(item),
           style: { fontFamily: SERIF },
         });
         text.anchor.set(0.5, 0.5);
@@ -843,15 +844,17 @@ export function createRenderer(
     });
     // Labels are laid out on the screen, at the UI Scale.
     labels = groundLabels(sized, uiScale);
+    const rarityOf = new Map(lying.map(({ item }) => [item.id, item.rarity]));
     lyingAt = sized.map(({ id, at }) => ({ id, at }));
     for (const { id, rect } of labels) {
-      labelBacks
-        .rect(rect.x, rect.y, rect.w, rect.h)
-        .fill({ color: GROUND_ITEM.label, alpha: GROUND_ITEM.labelAlpha });
+      labelBacks.rect(rect.x, rect.y, rect.w, rect.h).fill({
+        color: GROUND_ITEM.label,
+        alpha:
+          id === hovered ? GROUND_ITEM.hoveredAlpha : GROUND_ITEM.labelAlpha,
+      });
       const text = labelTexts.get(id);
       if (!text) continue;
-      text.style.fill =
-        id === hovered ? GROUND_ITEM.hoveredName : GROUND_ITEM.name;
+      text.style.fill = rarityColour(rarityOf.get(id) ?? "normal");
       text.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
     }
     for (const [id, text] of labelTexts) {
@@ -3222,6 +3225,7 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
     name: Text,
     rect: Rect,
     type: ItemType,
+    rarity: Rarity,
     scale: number,
     alpha = look.itemAlpha,
   ) => {
@@ -3230,6 +3234,7 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
       .stroke({ color: look.itemEdge, width: 1 });
     name.visible = true;
     labelItem(name, type, rect.w, scale);
+    name.style.fill = rarityColour(rarity);
     name.anchor.set(0.5);
     name.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
   };
@@ -3248,9 +3253,9 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
     heldName.visible = false;
     const held = cursorItemOf(world);
     if (!held || !pointer) return;
-    const { type } = held.item;
+    const { type, rarity } = held.item;
     const rect = heldItemRect(layout, pointer, type);
-    drawItem(heldBox, heldName, rect, type, scale, look.heldAlpha);
+    drawItem(heldBox, heldName, rect, type, rarity, scale, look.heldAlpha);
   };
 
   return {
@@ -3301,7 +3306,7 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
         }
       }
 
-      const items: { rect: Rect; type: ItemType }[] = [];
+      const items: { rect: Rect; type: ItemType; rarity: Rarity }[] = [];
       const equipment = equipmentOf(world);
       for (const slot of EQUIPMENT_SLOTS) {
         const rect = slots[slot];
@@ -3309,22 +3314,27 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
         const item = equipment[slot];
         slotLabels[slot].visible = item === null;
         slotLabels[slot].position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
-        if (item) items.push({ rect, type: item.type });
+        if (item) items.push({ rect, type: item.type, rarity: item.rarity });
       }
       for (const { item, cell: at } of inventoryOf(world)) {
-        items.push({ rect: itemRect(layout, at, item.type), type: item.type });
+        items.push({
+          rect: itemRect(layout, at, item.type),
+          type: item.type,
+          rarity: item.rarity,
+        });
       }
       const potions = beltOf(world);
       layout.belt.forEach((cells, column) => {
         cells.forEach((rect, row) => {
           box(rect);
           const potion = potions[column]?.[row];
-          if (potion) items.push({ rect, type: potion.type });
+          if (potion)
+            items.push({ rect, type: potion.type, rarity: potion.rarity });
         });
       });
-      items.forEach(({ rect, type }, i) => {
+      items.forEach(({ rect, type, rarity }, i) => {
         names[i] ??= itemName();
-        drawItem(graphics, names[i], rect, type, scale);
+        drawItem(graphics, names[i], rect, type, rarity, scale);
       });
       for (const name of names.slice(items.length)) name.visible = false;
 
@@ -3384,7 +3394,7 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
                 ?.cell ?? hovered,
               item.type,
             );
-      const lines = itemTooltip(item.type, item.smithBonus);
+      const lines = itemTooltip(item);
       lines.forEach((line, i) => {
         if (!tooltipLines[i]) {
           tooltipLines[i] = text(look.tooltipLine, look.tooltipSize);
@@ -3395,7 +3405,8 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
         layer.setChildIndex(shown, layer.children.length - 1);
         shown.visible = true;
         shown.text = line;
-        shown.style.fill = i === 0 ? look.tooltipName : look.tooltipLine;
+        shown.style.fill =
+          i === 0 ? rarityColour(item.rarity) : look.tooltipLine;
         shown.anchor.set(0.5, 0);
       });
       // Over the Item, or under it where there's no room above.

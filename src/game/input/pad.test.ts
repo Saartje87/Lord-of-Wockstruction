@@ -131,7 +131,10 @@ function facingEast(at: Vec[]): World {
 
 /** Lays a Ground Item with id `id` on the floor at `pos`. */
 function lay(world: World, id: number, pos: Vec) {
-  world.groundItems.push({ item: { id, type: "shortSword" }, pos });
+  world.groundItems.push({
+    item: { id, type: "shortSword", rarity: "normal", affixes: [] },
+    pos,
+  });
 }
 
 describe("the Target", () => {

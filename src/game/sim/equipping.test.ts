@@ -87,7 +87,7 @@ describe("Equipped bonuses", () => {
   });
 
   it("add to the Attributes and what they add up to while Equipped", () => {
-    const world = wearing({ weapon: "shortSword" }, [
+    const world = wearing({ weapon: { type: "shortSword" } }, [
       at("ringOfStrength", 0, 0),
       at("ringOfDexterity", 1, 0),
       at("amuletOfVitality", 2, 0),
@@ -121,7 +121,7 @@ describe("Equipped bonuses", () => {
   });
 
   it("add +Life to max Life", () => {
-    const world = wearing({ ring2: "ringOfLife" });
+    const world = wearing({ ring2: { type: "ringOfLife" } });
 
     expect(maxLife(world)).toBe(110);
     expect(world.hero.life).toBe(110);
@@ -130,8 +130,8 @@ describe("Equipped bonuses", () => {
   it("add +Attack Rating and +Defense", () => {
     itemOf("ringOfDexterity").bonuses = { attackRating: 30, defense: 7 };
     const world = wearing({
-      ring1: "ringOfDexterity",
-      armour: "leatherArmour",
+      ring1: { type: "ringOfDexterity" },
+      armour: { type: "leatherArmour" },
     });
 
     expect(attackRating(world)).toBe(130);
@@ -139,7 +139,7 @@ describe("Equipped bonuses", () => {
   });
 
   it("stop counting once the Item comes off, and Life above the new max drops to it", () => {
-    const world = wearing({ ring1: "ringOfLife" });
+    const world = wearing({ ring1: { type: "ringOfLife" } });
 
     step(world, [{ type: "UnequipItem", slot: "ring1" }]);
 
@@ -148,7 +148,7 @@ describe("Equipped bonuses", () => {
   });
 
   it("don't count for an Item lifted out of its slot", () => {
-    const world = wearing({ amulet: "amuletOfVitality" });
+    const world = wearing({ amulet: { type: "amuletOfVitality" } });
 
     step(world, [{ type: "LiftItem", from: "amulet" }]);
 
@@ -163,13 +163,15 @@ describe("Hero Defense", () => {
   });
 
   it("is the Armour's base Defense", () => {
-    expect(heroDefense(wearing({ armour: "chainMail" }))).toBe(40);
+    expect(heroDefense(wearing({ armour: { type: "chainMail" } }))).toBe(40);
   });
 });
 
 describe("Weapon damage", () => {
   it("comes from the Axe once it's Equipped", () => {
-    const world = wearing({ weapon: "shortSword" }, [at("axe", 0, 0)]);
+    const world = wearing({ weapon: { type: "shortSword" } }, [
+      at("axe", 0, 0),
+    ]);
 
     step(world, [{ type: "EquipItem", item: idOf(world, "axe") }]);
 
@@ -177,7 +179,7 @@ describe("Weapon damage", () => {
   });
 
   it("is a punch's 1–4 once the Weapon comes off", () => {
-    const world = wearing({ weapon: "shortSword" });
+    const world = wearing({ weapon: { type: "shortSword" } });
 
     step(world, [{ type: "UnequipItem", slot: "weapon" }]);
 
@@ -215,7 +217,9 @@ describe("Putting a held Item into a slot", () => {
   });
 
   it("swaps what was there onto the cursor, to go back where the held Item came from", () => {
-    const world = wearing({ weapon: "shortSword" }, [at("axe", 6, 1)]);
+    const world = wearing({ weapon: { type: "shortSword" } }, [
+      at("axe", 6, 1),
+    ]);
     step(world, [{ type: "LiftItem", from: { column: 6, row: 1 } }]);
 
     step(world, [{ type: "PlaceItem", to: "weapon" }]);
@@ -242,7 +246,7 @@ describe("Putting a held Item into a slot", () => {
 
 describe("Lifting an Equipped Item", () => {
   it("takes it out of its slot onto the cursor", () => {
-    const world = wearing({ armour: "chainMail" });
+    const world = wearing({ armour: { type: "chainMail" } });
     const chainMail = equipmentOf(world).armour;
 
     const events = step(world, [{ type: "LiftItem", from: "armour" }]);
@@ -255,10 +259,12 @@ describe("Lifting an Equipped Item", () => {
   });
 
   it("goes back into its slot when returned, and the Save keeps it there", () => {
-    const world = wearing({ armour: "chainMail" });
+    const world = wearing({ armour: { type: "chainMail" } });
     step(world, [{ type: "LiftItem", from: "armour" }]);
 
-    expect(belongingsOf(world).equipment.armour).toBe("chainMail");
+    expect(belongingsOf(world).equipment.armour).toEqual({
+      type: "chainMail",
+    });
     step(world, [{ type: "ReturnCursorItem" }]);
 
     expect(worn(world).armour).toBe("chainMail");
@@ -266,7 +272,9 @@ describe("Lifting an Equipped Item", () => {
   });
 
   it("swaps with a grid Item, which goes back into the slot if it fits there", () => {
-    const world = wearing({ armour: "chainMail" }, [at("leatherArmour", 0, 0)]);
+    const world = wearing({ armour: { type: "chainMail" } }, [
+      at("leatherArmour", 0, 0),
+    ]);
     step(world, [{ type: "LiftItem", from: "armour" }]);
 
     step(world, [{ type: "PlaceItem", to: { column: 0, row: 0 } }]);
@@ -279,7 +287,9 @@ describe("Lifting an Equipped Item", () => {
   });
 
   it("swaps with a grid Item of another kind, which goes to the first free spot", () => {
-    const world = wearing({ armour: "chainMail" }, [at("ringOfLife", 3, 0)]);
+    const world = wearing({ armour: { type: "chainMail" } }, [
+      at("ringOfLife", 3, 0),
+    ]);
     step(world, [{ type: "LiftItem", from: "armour" }]);
 
     step(world, [{ type: "PlaceItem", to: { column: 3, row: 0 } }]);
@@ -301,7 +311,7 @@ describe("Lifting an Equipped Item", () => {
 
 describe("Unequipping an Item (right-click)", () => {
   it("moves it to the first free spot in the Inventory", () => {
-    const world = wearing({ weapon: "axe" }, [at("chainMail", 0, 0)]);
+    const world = wearing({ weapon: { type: "axe" } }, [at("chainMail", 0, 0)]);
     const axe = equipmentOf(world).weapon;
 
     const events = step(world, [{ type: "UnequipItem", slot: "weapon" }]);
@@ -316,7 +326,7 @@ describe("Unequipping an Item (right-click)", () => {
 
   it("is refused with No room when it fits nowhere", () => {
     const armour = [0, 2, 4, 6, 8].map((column) => at("chainMail", column, 0));
-    const world = wearing({ armour: "leatherArmour" }, armour);
+    const world = wearing({ armour: { type: "leatherArmour" } }, armour);
 
     const events = step(world, [{ type: "UnequipItem", slot: "armour" }]);
 
@@ -347,7 +357,7 @@ describe("Equipping a Ring", () => {
   });
 
   it("goes into the right Ring slot when only that one is empty", () => {
-    const world = wearing({ ring1: "ringOfLife" }, [
+    const world = wearing({ ring1: { type: "ringOfLife" } }, [
       at("ringOfStrength", 0, 0),
     ]);
 
@@ -358,9 +368,10 @@ describe("Equipping a Ring", () => {
   });
 
   it("swaps out the left Ring when both slots are full", () => {
-    const world = wearing({ ring1: "ringOfLife", ring2: "ringOfDexterity" }, [
-      at("ringOfStrength", 4, 2),
-    ]);
+    const world = wearing(
+      { ring1: { type: "ringOfLife" }, ring2: { type: "ringOfDexterity" } },
+      [at("ringOfStrength", 4, 2)],
+    );
 
     step(world, [{ type: "EquipItem", item: idOf(world, "ringOfStrength") }]);
 
@@ -382,7 +393,12 @@ describe("Equipping an Inventory Item (right-click)", () => {
     expect(ofType(events, "ItemEquipped")).toEqual([
       {
         type: "ItemEquipped",
-        item: { id: item, type: "leatherArmour" },
+        item: {
+          id: item,
+          type: "leatherArmour",
+          rarity: "normal",
+          affixes: [],
+        },
         slot: "armour",
       },
     ]);
@@ -390,7 +406,9 @@ describe("Equipping an Inventory Item (right-click)", () => {
   });
 
   it("swaps what was there into the space it leaves", () => {
-    const world = wearing({ armour: "chainMail" }, [at("leatherArmour", 3, 1)]);
+    const world = wearing({ armour: { type: "chainMail" } }, [
+      at("leatherArmour", 3, 1),
+    ]);
     const chainMail = equipmentOf(world).armour;
 
     const events = step(world, [
@@ -406,7 +424,7 @@ describe("Equipping an Inventory Item (right-click)", () => {
 
   it("puts what was there in the first free spot when it doesn't fit the space left", () => {
     // The Axe is two columns wide, and the Ring is in the way of the second.
-    const world = wearing({ weapon: "axe" }, [
+    const world = wearing({ weapon: { type: "axe" } }, [
       at("shortSword", 0, 0),
       at("ringOfLife", 1, 1),
     ]);
@@ -423,7 +441,7 @@ describe("Equipping an Inventory Item (right-click)", () => {
       for (let row = 0; row < 4; row++)
         rings.push(at("ringOfLife", column, row));
     }
-    const world = wearing({ weapon: "axe" }, [
+    const world = wearing({ weapon: { type: "axe" } }, [
       at("shortSword", 0, 0),
       ...rings,
     ]);

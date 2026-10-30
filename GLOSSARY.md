@@ -328,12 +328,20 @@ _Avoid_: Tap target, hitbox, touch zone
 Where a touch hit area stops: halfway to any other button, slot or cell beside it, so the two meet on one line and a touch between them goes to the nearer. Nothing loses a touch on itself as drawn, nor an open panel a touch on its body.
 _Avoid_: Snapping, nearest-target
 
+**Loading Screen**:
+What shows from the moment the game is opened until all of the 3D World has loaded: the game's name and a bar filling as it loads; if loading fails, it says so and offers Retry. It gives way to the Start Screen.
+_Avoid_: Preloader, splash, loader
+
+**Start Screen**:
+What shows once loading is done, before play: the Town with its NPCs standing idle, no Hero and no HUD, the camera drifting slowly over it, and the choices Continue (only when there is a Save), New Hero (confirmed first when it would replace the Save) and the Fullscreen button. Continue or New Hero puts the Hero at Town's `start` Entry, as on any arrival. The pause menu's Quit to Start Screen comes back to it at once: the Save keeps everything it keeps, and nothing else carries over.
+_Avoid_: Title screen, main menu, menu (that's the pause menu), Hero select
+
 **Rotate Notice**:
 What shows instead of the game when the screen is held upright or is too small to play on, asking the player to turn it, or, when too small, to enlarge the window or, on a touch screen, saying the screen is too small and offering the Fullscreen button where it's shown; the World is paused while it shows.
 _Avoid_: Orientation warning, portrait screen
 
 **Fullscreen button**:
-The item in the pause menu, and on the Rotate Notice when the screen is too small, that puts the game in or out of fullscreen, holding it sideways while fullscreen; shown only where the browser allows fullscreen, and never in the Installed game.
+The item in the pause menu and on the Start Screen, and on the Rotate Notice when the screen is too small, that puts the game in or out of fullscreen, holding it sideways while fullscreen; shown only where the browser allows fullscreen, and never in the Installed game.
 _Avoid_: Maximise button
 
 **Installed game**:

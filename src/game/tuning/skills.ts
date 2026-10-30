@@ -42,7 +42,8 @@ export type Synergy = {
  * having one of it; raise one from a Corpse (see `RaiseEffect`); burst a
  * Corpse (see `ExplodeEffect`); Curse Monsters (see `CurseEffect`); loose
  * a Projectile (see `ProjectileEffect`); put a Bone Ward on the Hero (see
- * `WardEffect`); or raise a Bone Wall (see `WallEffect`).
+ * `WardEffect`); raise a Bone Wall (see `WallEffect`); or loose a fan of
+ * shards (see `VolleyEffect`).
  */
 export type SkillEffect =
   | { type: "summon"; minion: MinionType }
@@ -51,7 +52,8 @@ export type SkillEffect =
   | CurseEffect
   | ProjectileEffect
   | WardEffect
-  | WallEffect;
+  | WallEffect
+  | VolleyEffect;
 
 /**
  * Raise a Minion from the Corpse nearest the cast point, using the Corpse
@@ -143,6 +145,25 @@ export type WallEffect = {
   durationMs: number;
 };
 
+/**
+ * Loose `shards` of a `projectile` from the Hero in a fan `spreadDegrees`
+ * wide (first to last), centred on the line to the cast point. Each is an
+ * ordinary Hero Projectile: it flies `speed` (tiles per second) until a wall
+ * or `range` (tiles), hitting each Monster it touches once for a roll of
+ * `damage`, each end `damagePerSkillLevel` more each Skill Level past the
+ * first, so several can hit one Monster up close.
+ */
+export type VolleyEffect = {
+  type: "volley";
+  projectile: ProjectileKind;
+  shards: number;
+  spreadDegrees: number;
+  speed: number;
+  range: number;
+  damage: [number, number];
+  damagePerSkillLevel: number;
+};
+
 /** Skills that use a Corpse up. */
 export const corpseTuning = {
   /** How near the cast point a Corpse must lie to be used (tiles). */
@@ -176,7 +197,8 @@ export type Skill =
   | "boneWard"
   | "corpseExplosion"
   | "boneSpear"
-  | "boneWall";
+  | "boneWall"
+  | "splinterVolley";
 
 /**
  * Every Skill's tuning. Each cast roots the Hero 400 ms, a touch longer than
@@ -369,7 +391,10 @@ export const skillTuning: Record<Skill, SkillTuning> = {
       damage: [60, 90],
       damagePerSkillLevel: 8,
     },
-    synergies: [{ skill: "boneWall", percentPerSkillLevel: 7 }],
+    synergies: [
+      { skill: "boneWall", percentPerSkillLevel: 7 },
+      { skill: "splinterVolley", percentPerSkillLevel: 7 },
+    ],
   },
   // Three tiles hold a corridor's mouth or cover the Hero from a pack's front.
   // A Skeleton (swinging about every 2 s for 6-13) breaks a 40 Life piece in
@@ -385,6 +410,30 @@ export const skillTuning: Record<Skill, SkillTuning> = {
     castMs: 400,
     effect: { type: "wall", length: 3, pieceLife: 40, durationMs: 10000 },
     synergies: [],
+  },
+  // Diablo 2's Bone Spirit, in spirit, as a scatter: five splinters over 40
+  // degrees, each about a fifth of a Bone Spear's punch, so at point-blank a
+  // few land on one Monster and far off the fan thins to one or two. Short
+  // range: it is the close-quarters Skill, Bone Spear being the reach one.
+  splinterVolley: {
+    name: "Splinter Volley",
+    branch: "bone",
+    prerequisite: "boneWall",
+    requiredLevel: 10,
+    manaCost: 12,
+    manaCostPerSkillLevel: 1,
+    castMs: 400,
+    effect: {
+      type: "volley",
+      projectile: "splinter",
+      shards: 5,
+      spreadDegrees: 40,
+      speed: 14,
+      range: 8,
+      damage: [14, 22],
+      damagePerSkillLevel: 2,
+    },
+    synergies: [{ skill: "boneSpear", percentPerSkillLevel: 7 }],
   },
 };
 

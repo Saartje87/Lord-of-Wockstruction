@@ -20,6 +20,7 @@ import {
   type RaiseEffect,
   type Skill,
   skillTuning,
+  type VolleyEffect,
   type WallEffect,
   type WardEffect,
 } from "../tuning/skills";
@@ -2252,6 +2253,14 @@ function castFrom(
     case "wall":
       raiseBoneWall(world, effect, target, events);
       break;
+    case "volley":
+      loosePlume(
+        world,
+        effect,
+        skillLevel,
+        synergyMultiplier(hero.progress.skillLevels, skill),
+      );
+      break;
   }
 }
 
@@ -2426,7 +2435,7 @@ function curse(
  * Skill's Synergies (`synergy`).
  */
 export function projectileDamage(
-  effect: ProjectileEffect,
+  effect: ProjectileEffect | VolleyEffect,
   skillLevel: number,
   synergy = 1,
 ): [number, number] {
@@ -2447,12 +2456,41 @@ function looseFromHero(
   skillLevel: number,
   synergy: number,
 ) {
+  looseShard(world, effect, skillLevel, synergy, world.hero.facing);
+}
+
+/**
+ * Looses `effect`'s fan of shards from the Hero, centred on the way they
+ * face, each its own Projectile growing with the Skill's Synergies.
+ */
+function loosePlume(
+  world: World,
+  effect: VolleyEffect,
+  skillLevel: number,
+  synergy: number,
+) {
+  const spread = (effect.spreadDegrees * Math.PI) / 180;
+  for (let i = 0; i < effect.shards; i++) {
+    const along = effect.shards === 1 ? 0.5 : i / (effect.shards - 1);
+    const angle = world.hero.facing + (along - 0.5) * spread;
+    looseShard(world, effect, skillLevel, synergy, angle);
+  }
+}
+
+/** Looses one Hero Projectile of `effect` from the Hero along `angle`. */
+function looseShard(
+  world: World,
+  effect: ProjectileEffect | VolleyEffect,
+  skillLevel: number,
+  synergy: number,
+  angle: number,
+) {
   const { hero } = world;
   world.projectiles.push({
     kind: effect.projectile,
     pos: { ...hero.pos },
     prevPos: { ...hero.pos },
-    direction: { x: Math.cos(hero.facing), y: Math.sin(hero.facing) },
+    direction: { x: Math.cos(angle), y: Math.sin(angle) },
     speed: perStep(effect.speed),
     rangeLeft: effect.range,
     from: "hero",

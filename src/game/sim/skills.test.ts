@@ -356,7 +356,13 @@ describe("putSkillOnBar", () => {
 describe("Branches and Prerequisites", () => {
   it("groups every Skill in one Branch, in Prerequisite order, the first having none", () => {
     expect(branchSkills).toEqual({
-      bone: ["boneWard", "corpseExplosion", "boneSpear", "boneWall"],
+      bone: [
+        "boneWard",
+        "corpseExplosion",
+        "boneSpear",
+        "boneWall",
+        "splinterVolley",
+      ],
       summoning: ["raiseSkeleton", "golem"],
       curses: ["amplifyDamage", "weaken", "leadenLimbs", "dread"],
     });

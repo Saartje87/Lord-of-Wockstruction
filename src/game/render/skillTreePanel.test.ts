@@ -106,6 +106,7 @@ describe("skillTreeSheet", () => {
       "corpseExplosion",
       "boneSpear",
       "boneWall",
+      "splinterVolley",
       "raiseSkeleton",
       "golem",
       "amplifyDamage",

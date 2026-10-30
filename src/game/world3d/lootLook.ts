@@ -105,6 +105,16 @@ export const PROJECTILE_LOOKS: Record<ProjectileKind, ProjectileLook> = {
     glow: 0x8fb4c8,
     trail: 3,
   },
+  // A small bone, as Bone Spear's but a third the size.
+  splinter: {
+    model: "halloween/bone_A",
+    scale: 0.4,
+    lay: [0, -Math.PI / 2, 0],
+    tint: null,
+    height: 0.9,
+    glow: 0x8fb4c8,
+    trail: 1,
+  },
 };
 
 /** The models the loot and Projectiles are drawn with, to load. */

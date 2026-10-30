@@ -83,4 +83,5 @@ glb each. Nothing is recoloured.
 | `addons/kaykit_dungeon_remastered/Assets/gltf/wall_corner.gltf.glb` | Walls |
 | `addons/kaykit_dungeon_remastered/Assets/gltf/wall_Tsplit.gltf.glb` | Walls |
 | `addons/kaykit_dungeon_remastered/Assets/gltf/wall_crossing.gltf.glb` | Walls |
+| `addons/kaykit_dungeon_remastered/Assets/gltf/wall_endcap.gltf.glb` | Walls |
 <!-- end kaykit -->

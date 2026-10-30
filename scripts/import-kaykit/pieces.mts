@@ -77,6 +77,8 @@ export const PIECES: PieceSource[] = [
   wall("dungeon", "wall_corner"),
   wall("dungeon", "wall_Tsplit"),
   wall("dungeon", "wall_crossing"),
+  // The end of a dungeon Wall run.
+  wall("dungeon", "wall_endcap"),
 ];
 
 /** The piece's name: its pack and its model's file name. */

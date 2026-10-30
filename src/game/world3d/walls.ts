@@ -17,14 +17,15 @@ export type WallPlacement = {
 };
 
 /**
- * The pieces that join up a straight Wall: KayKit's dungeon Wall has corner,
- * T and crossing pieces. Other Wall pieces (the Town's fence) have none.
+ * The pieces that join up a straight Wall: KayKit's dungeon Wall has end,
+ * corner, T and crossing pieces. Other Wall pieces (the Town's fence) have none.
  */
 const JOINTS: Record<
   string,
-  { corner: string; tee: string; cross: string } | undefined
+  { end: string; corner: string; tee: string; cross: string } | undefined
 > = {
   "dungeon/wall": {
+    end: "dungeon/wall_endcap",
     corner: "dungeon/wall_corner",
     tee: "dungeon/wall_Tsplit",
     cross: "dungeon/wall_crossing",
@@ -70,6 +71,9 @@ export function wallPlacementsOf(walls: Placed[]): WallPlacement[] {
     } else if (joints && count === 3) {
       // The missing side is north when turned 0, and moves on per turn.
       place(joints.tee, (arms.indexOf(false) + 1) % 4);
+    } else if (joints && count === 1) {
+      // The end piece reaches east when turned 0, towards the run it ends.
+      place(joints.end, (arms.indexOf(true) + 2) % 4);
     } else if (joints && count === 2 && !(west && east) && !(south && north)) {
       // The first of the two arms, in turn order, that is followed by the
       // other is the corner's west arm.

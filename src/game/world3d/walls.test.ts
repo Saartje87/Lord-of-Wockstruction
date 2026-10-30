@@ -48,6 +48,20 @@ describe("a Wall's direction and corners", () => {
     expect(drawnAt([5, 5], [])).toEqual(["wall@0"]);
   });
 
+  it("ends a run with an end piece pointing at its one neighbour", () => {
+    // The end piece reaches east from the cell's centre when turned 0.
+    expect(drawnAt([1, 1], [[2, 1]])).toEqual(["wall_endcap@0"]);
+    expect(drawnAt([1, 1], [[1, 2]])).toEqual(["wall_endcap@3"]);
+    expect(drawnAt([1, 1], [[0, 1]])).toEqual(["wall_endcap@2"]);
+    expect(drawnAt([1, 1], [[1, 0]])).toEqual(["wall_endcap@1"]);
+  });
+
+  it("has no end piece for a Wall piece without joints", () => {
+    expect(drawnAt([1, 1], [[2, 1]], "halloween/fence")).toEqual([
+      "halloween/fence@0",
+    ]);
+  });
+
   it("is a corner where a run along x meets one along y", () => {
     // The corner piece joins west and south (tile -x and +y) turned 0; each
     // quarter turn moves its arms on: west to south to east to north.

@@ -22,6 +22,7 @@ const PIECES: Record<string, Group> = {
   "dungeon/wall_corner": piece(),
   "dungeon/wall_Tsplit": piece(),
   "dungeon/wall_crossing": piece(),
+  "dungeon/wall_endcap": piece(),
 };
 
 const wallAt = (x: number, y: number): Placed => ({
@@ -51,11 +52,15 @@ describe("the 3D World's Walls", () => {
 
     const { group } = wallMeshesOf(walls, PIECES);
 
-    // (2, 0) is a corner, the rest straight.
+    // (2, 0) is a corner, (0, 0) and (2, 1) end the run, (1, 0) is straight.
     const counts = Object.fromEntries(
       instancesOf(group).map((mesh) => [mesh.userData.piece, mesh.count]),
     );
-    expect(counts).toEqual({ "dungeon/wall": 3, "dungeon/wall_corner": 1 });
+    expect(counts).toEqual({
+      "dungeon/wall": 1,
+      "dungeon/wall_corner": 1,
+      "dungeon/wall_endcap": 2,
+    });
   });
 
   it("stands the lowered Walls down to stubs, and back up", () => {

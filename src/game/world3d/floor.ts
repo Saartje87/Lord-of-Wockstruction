@@ -55,17 +55,23 @@ export function hash(x: number, y: number, salt: number): number {
 }
 
 /**
- * The Area's floor: one instanced piece on each floor cell, a few cracked or
- * bare, each turned a quarter at random. One draw per mesh of a piece, not
- * per cell.
+ * The Area's floor: one instanced piece on each floor cell and under each
+ * Wall (a Wall is thinner than its cell, and without a floor beside it a gap
+ * shows), a few cracked or bare, each turned a quarter at random. One draw
+ * per mesh of a piece, not per cell.
  */
 export function floorOf(area: Area, pieces: FloorPieces): Group {
   const cells = new Map<string, Matrix4[]>();
   const fits = new Map<string, number>();
   const up = new Vector3(0, 1, 0);
+  const underWalls = new Set(area.walls.map(({ x, y }) => y * area.width + x));
   for (let y = 0; y < area.height; y++) {
     for (let x = 0; x < area.width; x++) {
-      if (!area.floor[y * area.width + x]) continue;
+      if (
+        !area.floor[y * area.width + x] &&
+        !underWalls.has(y * area.width + x)
+      )
+        continue;
       const named = area.floorPieces[y * area.width + x] ?? "";
       const pick = hash(x, y, 1);
       const name =

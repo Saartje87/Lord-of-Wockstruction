@@ -5,6 +5,7 @@ import { encodeSave, parseSave, saveOf } from "./save";
 import type { Area, Exit, Spawn } from "./sim/area";
 import { type MonsterOfLevel, monsterExperience } from "./sim/monsters";
 import { findPath } from "./sim/path";
+import { validateActs, validateQuests } from "./sim/validate";
 import type { Vec } from "./sim/vec";
 import {
   createWorld,
@@ -775,11 +776,16 @@ describe("Town", () => {
 });
 
 describe("the shipped Waypoints", () => {
-  it("stand in Wockville, the Soggy Bog and the Catacombs, and nowhere else yet", () => {
+  it("stand in Wockville, the Soggy Bog, the Catacombs and the Ossuary, and nowhere else", () => {
     const withWaypoint = Object.values(shippedWorld().areas)
       .filter((area) => area.waypoint)
       .map((area) => area.name);
-    expect(withWaypoint.sort()).toEqual(["catacombs", "soggy-bog", "town"]);
+    expect(withWaypoint.sort()).toEqual([
+      "catacombs",
+      "ossuary",
+      "soggy-bog",
+      "town",
+    ]);
   });
 
   it("list Act 1's in Main Path order, only Wockville's touched at first", () => {
@@ -788,6 +794,7 @@ describe("the shipped Waypoints", () => {
       { area: "town", touched: true },
       { area: "soggy-bog", touched: false },
       { area: "catacombs", touched: false },
+      { area: "ossuary", touched: false },
     ]);
   });
 
@@ -1053,5 +1060,101 @@ describe('the shipped "Spa Day" Quest', () => {
         inSpa(progress).monsters.some((monster) => monster.unique !== null),
       ).toBe(true);
     }
+  });
+});
+
+describe("the shipped Act 1", () => {
+  it("is whole: one Act Boss spawn, a Waypoint in Wockville, every Quest's objects", () => {
+    const { areas: shipped } = shippedWorld();
+
+    expect(() => validateActs(shipped)).not.toThrow();
+    expect(() => validateQuests(shipped)).not.toThrow();
+  });
+});
+
+describe("Grave Wockington in the shipped Ossuary", () => {
+  const inOssuary = (state: "notGiven" | "given" | "ready" | "done") =>
+    createWorld({
+      areas,
+      tilesets,
+      seed: 1,
+      start: { area: "ossuary", entry: "start" },
+      progress: {
+        ...FRESH_PROGRESS,
+        quests: { ...FRESH_PROGRESS.quests, "act-boss": { state, count: 0 } },
+      },
+    });
+
+  /** Kills Grave Wockington, alone with the Hero; the events. */
+  function killBoss(world: World): SimEvent[] {
+    const boss = world.monsters.find((m) => m.type === "grave_wockington");
+    if (!boss) throw new Error("no Grave Wockington");
+    world.monsters = [boss];
+    boss.life = 1;
+    world.hero.pos = { x: boss.pos.x - 1.2, y: boss.pos.y };
+    world.hero.prevPos = { ...world.hero.pos };
+    const events: SimEvent[] = [];
+    for (let i = 0; i < 6000 && world.monsters.includes(boss); i++) {
+      const orders: Order[] =
+        i % 120 === 0 ? [{ type: "Attack", monster: boss.id }] : [];
+      events.push(...step(world, orders));
+      world.hero.life = 1_000_000;
+    }
+    return events;
+  }
+
+  it("is the one Unique Monster waiting at the end of the Main Path, alone in his Act", () => {
+    const world = inOssuary("notGiven");
+    const bosses = world.monsters.filter(
+      (m) => m.unique === "Grave Wockington",
+    );
+
+    expect(bosses).toHaveLength(1);
+    expect(bosses[0].type).toBe("grave_wockington");
+    expect(bosses[0].monsterLevel).toBe(11);
+    expect(
+      Object.values(world.areas)
+        .filter((area) => area.actBoss)
+        .map((area) => area.name),
+    ).toEqual(["ossuary"]);
+  });
+
+  it("completes Act I on his death, Quest given or not, and the Elder takes it back", () => {
+    for (const state of ["notGiven", "given"] as const) {
+      const world = inOssuary(state);
+
+      const events = killBoss(world);
+
+      expect(events).toContainEqual({ type: "ActCompleted", act: 1 });
+      expect(questOf(world, "act-boss").state).toBe("ready");
+
+      const town = createWorld({
+        areas,
+        tilesets,
+        seed: 1,
+        progress: world.hero.progress,
+      });
+      const elder = npcsIn(town).find((npc) => npc.name === "Elder");
+      if (!elder) throw new Error("no Elder");
+      town.hero.pos = { x: elder.pos.x - 1, y: elder.pos.y };
+      town.hero.prevPos = { ...town.hero.pos };
+      step(town, [{ type: "HandInQuest", quest: "act-boss" }]);
+      step(town, [{ type: "HandInQuest", quest: "act-boss" }]);
+
+      expect(questOf(town, "act-boss").state).toBe("done");
+      expect(town.areaName).toBe("town");
+    }
+  });
+
+  it("is back in a new Session, and shows no banner once the Quest is Done", () => {
+    const world = inOssuary("done");
+
+    const events = killBoss(world);
+
+    expect(events.some((e) => e.type === "MonsterDied")).toBe(true);
+    expect(events.some((e) => e.type === "ActCompleted")).toBe(false);
+    expect(
+      inOssuary("done").monsters.some((m) => m.unique === "Grave Wockington"),
+    ).toBe(true);
   });
 });

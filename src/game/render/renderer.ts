@@ -74,6 +74,11 @@ import { npcPickablesOf, pickablesOf } from "../world3d/pickables";
 import { characterUnder3d, type Pickable3d } from "../world3d/picking";
 import type { DepartedMinion, Effects } from "../world3d/view";
 import {
+  actCompletedText,
+  actCompleteLayout,
+  actCompleteOpacityAt,
+} from "./actCompleteBanner";
+import {
   areaBannerLayout,
   arrivedInDisplayName,
   bannerOpacityAt,
@@ -623,6 +628,14 @@ export function createRenderer(
   banner.anchor.set(0.5);
   banner.visible = false;
   app.stage.addChild(banner);
+  // The same, for completing an Act: bigger, and lower.
+  const actBanner = new Text({
+    text: "",
+    style: { fill: BANNER_COLOUR, fontFamily: SERIF },
+  });
+  actBanner.anchor.set(0.5);
+  actBanner.visible = false;
+  app.stage.addChild(actBanner);
   const hurt = new Graphics().rect(0, 0, 1, 1).fill(HURT_COLOUR);
   hurt.visible = false;
   app.stage.addChild(hurt);
@@ -703,6 +716,8 @@ export function createRenderer(
     banner.text = displayName;
     arrivedAtMs = nowMs;
   };
+  /** When the Hero last completed an Act, for the Act Complete banner. */
+  let actCompletedAtMs: number | null = null;
   /** The World last drawn; a New Hero brings another. */
   let drawnWorld: World | null = null;
   /** Which panels were open, and the Pending Attribute Points, when last drawn. */
@@ -1001,6 +1016,11 @@ export function createRenderer(
     react(events: readonly SimEvent[], nowMs: number) {
       const arrivedIn = arrivedInDisplayName(events, areaDisplayNames);
       if (arrivedIn !== null) showBanner(arrivedIn, nowMs);
+      const completed = actCompletedText(events);
+      if (completed !== null) {
+        actBanner.text = completed;
+        actCompletedAtMs = nowMs;
+      }
       for (const number of damageNumbers(events)) {
         // Over the character as last drawn, the tile it stood on.
         const mark =
@@ -1352,6 +1372,18 @@ export function createRenderer(
         sizeText(banner, layout.size, layout.stroke);
         banner.position.set(layout.at.x, layout.at.y);
       } else arrivedAtMs = null;
+
+      const actAlpha =
+        actCompletedAtMs === null
+          ? null
+          : actCompleteOpacityAt(nowMs - actCompletedAtMs);
+      actBanner.visible = actAlpha !== null;
+      if (actAlpha !== null) {
+        const layout = actCompleteLayout(viewport);
+        actBanner.alpha = actAlpha;
+        sizeText(actBanner, layout.size, layout.stroke);
+        actBanner.position.set(layout.at.x, layout.at.y);
+      } else actCompletedAtMs = null;
 
       death.draw(app.screen, world, nowMs);
 

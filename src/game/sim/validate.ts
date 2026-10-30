@@ -1,3 +1,4 @@
+import { QUEST_IDS, questTuning } from "../tuning/quests";
 import { type Area, type Exit, isWalkable, TOWN } from "./area";
 import { canReach } from "./path";
 import { tileOf } from "./vec";
@@ -97,6 +98,85 @@ export function validateAreas(areas: Record<string, Area>) {
           `Area "${area.name}" has an Exit to "${exit.area}" that can't be reached from "start"`,
         );
       }
+    }
+  }
+}
+
+/**
+ * Checks that each Act is whole, throwing with a message naming it: exactly
+ * one Act Boss spawn in its Areas and a Waypoint in its Town. Apart from
+ * `validateAreas` because small test maps make Acts that are not whole;
+ * the content tests run it on the shipped Areas.
+ */
+export function validateActs(areas: Record<string, Area>) {
+  const acts = new Set<number>();
+  for (const area of Object.values(areas)) {
+    if (area.act !== null) acts.add(area.act);
+  }
+  for (const act of acts) {
+    const inAct = Object.values(areas).filter((area) => area.act === act);
+    const bosses = inAct.filter((area) => area.actBoss).length;
+    if (bosses !== 1) {
+      throw new Error(`Act ${act} has ${bosses} Act Boss spawns, not one`);
+    }
+    const town = inAct.find((area) => area.name === TOWN);
+    if (!town?.waypoint) {
+      throw new Error(`Act ${act} has no Waypoint in its Town`);
+    }
+  }
+}
+
+/**
+ * Checks that every Quest's objects exist in the Areas it names, throwing
+ * with a message naming the Quest: its giver in its Act's Town, and its
+ * Bone Altars, Unique Monster, NPC to talk to or Act Boss where its trigger
+ * asks. Run on the shipped Areas by the content tests.
+ */
+export function validateQuests(areas: Record<string, Area>) {
+  for (const id of QUEST_IDS) {
+    const { name, act, giver, trigger } = questTuning[id];
+    const fail = (what: string): never => {
+      throw new Error(`Quest "${name}" ${what}`);
+    };
+    const town = Object.values(areas).find(
+      (area) => area.name === TOWN && area.act === act,
+    );
+    if (!town?.npcs.some((npc) => npc.name === giver)) {
+      fail(`has no giver "${giver}" in the Town of Act ${act}`);
+    }
+    switch (trigger.type) {
+      case "boneAltars": {
+        const altars = areas[trigger.area]?.boneAltars.length ?? 0;
+        if (altars < trigger.count) {
+          fail(
+            `asks for ${trigger.count} Bone Altars in "${trigger.area}", which has ${altars}`,
+          );
+        }
+        break;
+      }
+      case "uniqueKilled":
+        if (!areas[trigger.area]?.uniques.length) {
+          fail(`needs a Unique Monster in "${trigger.area}", which has none`);
+        }
+        break;
+      case "talk":
+        if (
+          !Object.values(areas).some((area) =>
+            area.npcs.some((npc) => npc.name === trigger.npc),
+          )
+        ) {
+          fail(`needs an NPC called "${trigger.npc}", who is nowhere`);
+        }
+        break;
+      case "actBossKilled":
+        if (
+          !Object.values(areas).some(
+            (area) => area.act === trigger.act && area.actBoss,
+          )
+        ) {
+          fail(`needs an Act Boss in Act ${trigger.act}`);
+        }
+        break;
     }
   }
 }

@@ -64,7 +64,15 @@ export type Area = {
    * away.
    */
   boneAltars: Vec[];
+  /**
+   * The Unique Monsters the Area holds, each placed by hand. Every new
+   * Session places them again, whatever Quests are Done.
+   */
+  uniques: UniqueSpawn[];
 };
+
+/** A named Unique Monster of one Monster type, placed at `pos` (tile units). */
+export type UniqueSpawn = { name: string; monster: MonsterType; pos: Vec };
 
 /** A KayKit piece standing on a cell (tile units), blocking the way or not. */
 export type Placed = { x: number; y: number; piece: string; blocks: boolean };
@@ -242,6 +250,7 @@ export function loadArea(
   let townPortal: Vec | null = null;
   let waypoint: Vec | null = null;
   const boneAltars: Vec[] = [];
+  const uniques: UniqueSpawn[] = [];
   for (const layer of tmj.layers) {
     if (layer.type !== "objectgroup") continue;
     for (const object of layer.objects) {
@@ -249,6 +258,7 @@ export function loadArea(
       const kind = object.type ?? object.class;
       if (kind === "entry") entries[object.name] = pos;
       if (kind === "monsterSpawn") spawns.push(readSpawn(name, object, pos));
+      if (kind === "uniqueMonster") uniques.push(readUnique(name, object, pos));
       if (kind === "exit") {
         const size = {
           width: (object.width ?? 0) / unitX,
@@ -305,6 +315,7 @@ export function loadArea(
     townPortal,
     waypoint,
     boneAltars,
+    uniques,
   };
 }
 
@@ -389,6 +400,20 @@ function readSpawn(name: string, object: TmjObject, pos: Vec): Spawn {
     );
   }
   return { monster, count, pos };
+}
+
+/** A `uniqueMonster` object's name and `monster` property. */
+function readUnique(name: string, object: TmjObject, pos: Vec): UniqueSpawn {
+  const monster = propertyOf(object, "monster");
+  if (!isMonsterType(monster)) {
+    throw new Error(
+      `Area "${name}" has a Unique Monster of unknown type "${monster}"`,
+    );
+  }
+  if (!object.name) {
+    throw new Error(`Area "${name}" has a Unique Monster without a name`);
+  }
+  return { name: object.name, monster, pos };
 }
 
 /** The Area's one tileset, with its content, or null when it has none. */

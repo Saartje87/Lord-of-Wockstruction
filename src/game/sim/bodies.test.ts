@@ -655,3 +655,132 @@ describe("Minions and Monsters blocking each other", () => {
     }
   });
 });
+
+describe("creatures spreading around their target", () => {
+  function addSkeleton(w: World, pos: Vec) {
+    const skeleton = newMinion(
+      w.nextMinionId++,
+      "raisedSkeleton",
+      "raiseSkeleton",
+      1,
+      pos,
+      0,
+    );
+    w.minions.push(skeleton);
+    return skeleton;
+  }
+
+  const reachOf = (minion: { type: "raisedSkeleton" | "golem" }) =>
+    minionTuning[minion.type].reach + minionTuning[minion.type].reachGrace;
+
+  it("gets four Raised Skeletons from one side all within reach of one Monster, on different sides of it", () => {
+    const w = world([
+      "..............",
+      "..............",
+      "H.............",
+      "..............",
+      "..............",
+      ".........S....",
+      "..............",
+      "..............",
+    ]);
+    const monster = w.monsters[0];
+    monster.life = 1e6;
+    const skeletons = [0, 1, 2, 3].map((i) =>
+      addSkeleton(w, { x: 3.5, y: 4.0 + i * 0.7 }),
+    );
+
+    for (let i = 0; i < 200; i++) step(w, []);
+
+    for (const s of skeletons) {
+      expect(distance(s.pos, monster.pos)).toBeLessThanOrEqual(reachOf(s));
+    }
+    // On different sides: they fan out round the Monster, over 90 degrees
+    // from the first to the last.
+    const angles = skeletons
+      .map((s) => Math.atan2(s.pos.y - monster.pos.y, s.pos.x - monster.pos.x))
+      .map((angle) =>
+        Math.atan2(Math.sin(angle - Math.PI), Math.cos(angle - Math.PI)),
+      );
+    expect(Math.max(...angles) - Math.min(...angles)).toBeGreaterThan(
+      Math.PI / 2,
+    );
+    for (const [i, a] of skeletons.entries()) {
+      for (const b of skeletons.slice(i + 1)) {
+        expect(distance(a.pos, b.pos)).toBeGreaterThanOrEqual(0.64 - 0.01);
+      }
+    }
+  });
+
+  it("spreads a pack approaching the Hero from one side round the Hero", () => {
+    const w = world([
+      "..............",
+      "..............",
+      "..............",
+      "...H.....S....",
+      "........S.....",
+      "........S.....",
+      "........S.....",
+      "........S.....",
+      "..............",
+    ]);
+    for (let i = 0; i < 200; i++) step(w, []);
+
+    const near = w.monsters.filter((m) => distance(m.pos, w.hero.pos) <= 1.5);
+    expect(near.length).toBeGreaterThanOrEqual(4);
+    expect(near.some((m) => m.pos.x < w.hero.pos.x)).toBe(true);
+  });
+
+  it("keeps a Minion with no free spot around its Monster still instead of jittering", () => {
+    const w = world(["##############", "#H.S.........#", "##############"]);
+    // A Monster in a one-tile corridor has room for one attacker at a time.
+    w.monsters[0].life = 1e6;
+    addSkeleton(w, { x: 5.5, y: 1.5 });
+    const second = addSkeleton(w, { x: 7.5, y: 1.5 });
+    for (let i = 0; i < 100; i++) step(w, []);
+    let travelled = 0;
+    for (let i = 0; i < 40; i++) {
+      const was = { ...second.pos };
+      step(w, []);
+      travelled += distance(was, second.pos);
+    }
+    expect(travelled).toBeLessThan(0.5);
+  });
+
+  it("sends a Minion with no free spot to another Monster within its guard range", () => {
+    const w = world([
+      "##########",
+      "#H.S....##",
+      "######.###",
+      "######S###",
+      "##########",
+    ]);
+    const [corridorMonster, open] = [...w.monsters].sort(
+      (a, b) => a.pos.y - b.pos.y,
+    );
+    corridorMonster.life = 1e6;
+    open.life = 1e6;
+    for (const x of [4.5, 5.5]) addSkeleton(w, { x, y: 1.5 });
+    for (let i = 0; i < 200; i++) step(w, []);
+    const withinReach = (m: { pos: Vec }) =>
+      w.minions.filter((s) => distance(s.pos, m.pos) <= 1.45).length;
+    expect(withinReach(corridorMonster)).toBe(1);
+    expect(withinReach(open)).toBe(1);
+  });
+
+  it("plays out a crowd round one Monster the same way every time", () => {
+    const run = () => {
+      const w = world([
+        "..............",
+        "H.............",
+        "..............",
+        ".........S....",
+        "..............",
+      ]);
+      for (let i = 0; i < 4; i++) addSkeleton(w, { x: 3.5, y: 1.0 + i * 0.7 });
+      for (let i = 0; i < 150; i++) step(w, []);
+      return [...w.minions, ...w.monsters].map(({ pos }) => ({ ...pos }));
+    };
+    expect(run()).toEqual(run());
+  });
+});

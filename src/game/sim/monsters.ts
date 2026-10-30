@@ -7,7 +7,7 @@ import {
   type RangedTuning,
 } from "../tuning/monsters";
 import { uniqueTuning } from "../tuning/uniqueMonsters";
-import { heroSideBodies, wallRadius } from "./bodies";
+import { attackSpot, heroSideBodies, wallRadius } from "./bodies";
 import { faceToward, lands } from "./melee";
 import { canSee, isClear } from "./path";
 import type { AttackNumbers } from "./projectiles";
@@ -390,10 +390,45 @@ function chase(world: World, monster: Monster) {
     if (canWindUp(world, monster)) startWindUp(monster, quarry.pos);
     return;
   }
+  const going = quarryBody(world, quarry.target);
+  const gait = gaitOf(world, monster, going);
+  if (!ranged && going) {
+    // Heads for a free spot round its target within reach; with none free it
+    // waits nearby, a body's width off.
+    const { radius } = monsterTuning[monster.type];
+    const spot = attackSpot(world, monster, radius, quarry.pos, stopAt, [
+      going,
+    ]);
+    if (spot) {
+      goToward(
+        area,
+        monster,
+        gait,
+        spot,
+        STEPPED[monster.type].speed,
+        distance(monster.pos, spot),
+      );
+      return;
+    }
+    const wait = stopAt + 2 * radius;
+    if (gap <= wait) {
+      monster.path = [];
+      return;
+    }
+    goToward(
+      area,
+      monster,
+      gait,
+      quarry.pos,
+      STEPPED[monster.type].speed,
+      gap - wait,
+    );
+    return;
+  }
   goToward(
     area,
     monster,
-    gaitOf(world, monster, quarryBody(world, quarry.target)),
+    gait,
     quarry.pos,
     STEPPED[monster.type].speed,
     inSight ? gap - stopAt : gap,

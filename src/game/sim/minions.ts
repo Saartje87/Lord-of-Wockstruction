@@ -6,7 +6,7 @@ import {
 import { monsterTuning } from "../tuning/monsters";
 import type { Skill } from "../tuning/skills";
 import { isWalkable } from "./area";
-import { freeSpot, monsterBodies, wallRadius } from "./bodies";
+import { attackSpot, freeSpot, monsterBodies, wallRadius } from "./bodies";
 import { altarRadiusOf, type BoneAltar, targetsOf } from "./boneAltars";
 import { faceToward, lands } from "./melee";
 import { isClear } from "./path";
@@ -317,7 +317,56 @@ function chase(world: World, minion: Minion, monster: Monster | BoneAltar) {
     if (minion.cooldown === 0) startWindUp(minion, monster.pos);
     return;
   }
-  walkOrTeleport(world, minion, monster.pos, gap - reach, monster);
+  const radius = minionTuning[minion.type].radius;
+  const spot = attackSpot(world, minion, radius, monster.pos, reach, [monster]);
+  if (spot) {
+    walkOrTeleport(world, minion, spot, distance(minion.pos, spot), monster);
+    return;
+  }
+  // No spot free round it: another Monster within guard range, else wait
+  // nearby, a body's width off the ones in reach.
+  const other = anotherQuarry(world, minion, monster);
+  if (other) {
+    minion.target = other.id;
+    minion.path = [];
+    minion.replan = 0;
+    chase(world, minion, other);
+    return;
+  }
+  const wait = reach + 2 * radius;
+  if (gap <= wait) {
+    minion.path = [];
+    minion.stuck = 0;
+    return;
+  }
+  walkOrTeleport(world, minion, monster.pos, gap - wait, monster);
+}
+
+/**
+ * The nearest to `minion` of the Monsters within its guard radius of the
+ * Hero, bar `except`, that has a free attack spot round it.
+ */
+function anotherQuarry(
+  world: World,
+  minion: Minion,
+  except: Monster | BoneAltar,
+): Monster | null {
+  const { guardRadius, reach, radius } = minionTuning[minion.type];
+  let nearest: Monster | null = null;
+  for (const monster of world.monsters) {
+    if (monster === except) continue;
+    if (distance(monster.pos, world.hero.pos) > guardRadius) continue;
+    if (
+      nearest &&
+      distance(minion.pos, monster.pos) >= distance(minion.pos, nearest.pos)
+    ) {
+      continue;
+    }
+    if (attackSpot(world, minion, radius, monster.pos, reach, [monster])) {
+      nearest = monster;
+    }
+  }
+  return nearest;
 }
 
 /** Starts winding up an attack, facing its Monster at `at`. */

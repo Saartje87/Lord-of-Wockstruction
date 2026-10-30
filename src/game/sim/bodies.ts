@@ -253,3 +253,66 @@ export function freeSpot(
   }
   return fallback ?? from;
 }
+
+/** How many spots round a target are tried for an attack position. */
+const ATTACK_SPOTS = 24;
+
+/**
+ * Where a creature with a Body of `radius` at `self` can stand to attack
+ * `target` from within `reach`: the nearest to it of the spots round the
+ * target that are walkable, fit the Body at the walls, have a clear line to
+ * the target and overlap no other Body. Bodies in `ignore` (the target
+ * itself) are not counted. Null with no spot free.
+ *
+ * The spots start in line with `self` and go evenly round the target, so a
+ * lone attacker walks straight at it; ties go to the earlier spot, keeping
+ * the same World to the same answer.
+ */
+export function attackSpot(
+  world: World,
+  self: { pos: Vec },
+  radius: number,
+  target: Vec,
+  reach: number,
+  ignore: readonly object[] = [],
+): Vec | null {
+  const area = world.areas[world.areaName];
+  const size = wallRadius(radius);
+  const others = [
+    ...(world.death || ignore.includes(world.hero) || self === world.hero
+      ? []
+      : [{ pos: world.hero.pos, radius: heroTuning.radius }]),
+    ...world.minions
+      .filter((minion) => minion !== self && !ignore.includes(minion))
+      .map((minion) => ({
+        pos: minion.pos,
+        radius: minionTuning[minion.type].radius,
+      })),
+    ...world.monsters
+      .filter((monster) => monster !== self && !ignore.includes(monster))
+      .map((monster) => ({
+        pos: monster.pos,
+        radius: monsterTuning[monster.type].radius,
+      })),
+  ];
+  const base = Math.atan2(self.pos.y - target.y, self.pos.x - target.x);
+  let best: Vec | null = null;
+  for (let turn = 0; turn < ATTACK_SPOTS; turn++) {
+    const angle = base + (2 * Math.PI * turn) / ATTACK_SPOTS;
+    const spot = {
+      x: target.x + reach * Math.cos(angle),
+      y: target.y + reach * Math.sin(angle),
+    };
+    if (best && distance(self.pos, spot) >= distance(self.pos, best)) continue;
+    if (
+      others.every(
+        (other) => distance(other.pos, spot) >= other.radius + radius - 1e-6,
+      ) &&
+      fitsAt(area, spot, size) &&
+      isClear(area, target, spot, size)
+    ) {
+      best = spot;
+    }
+  }
+  return best;
+}

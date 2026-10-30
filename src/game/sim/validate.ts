@@ -5,12 +5,13 @@ import { tileOf } from "./vec";
 
 /**
  * Checks that Areas fit together, throwing with a message naming the Area
- * and the problem: each needs a `start` Entry, each Combat Area an Area
- * Level and an Act and Town no Level, no Entry on Water, Exits must lead to an Entry
- * that exists and be reachable from `start`, spawns must be on tiles the
- * Monsters can stand on, and only Town may have a Town Portal spot, which
- * must be reachable from `start` too, as must a Waypoint and each Bone Altar. A Town without one opens no Town
- * Portals: the content tests check the shipped Town has it.
+ * and the problem: each needs a `start` Entry, each Combat Area an Area Level
+ * and an Act and Town no Level, no Entry on Water, Exits must lead to an
+ * Entry that exists and be reachable from `start`, spawns must be on tiles
+ * the Monsters can stand on, and only Town may have a Town Portal spot, which
+ * must be reachable from `start` too, as must a Waypoint and each Bone Altar.
+ * A Town without one opens no Town Portals: the content tests check the
+ * shipped Town has it.
  */
 export function validateAreas(areas: Record<string, Area>) {
   for (const area of Object.values(areas)) {

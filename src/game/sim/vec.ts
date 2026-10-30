@@ -6,6 +6,16 @@ export function tileOf(point: Vec): Vec {
   return { x: Math.floor(point.x), y: Math.floor(point.y) };
 }
 
+/** The four corners of tile (x, y), clockwise from its top-left. */
+export function cornersOf(tile: Vec): [Vec, Vec, Vec, Vec] {
+  return [
+    { x: tile.x, y: tile.y },
+    { x: tile.x + 1, y: tile.y },
+    { x: tile.x + 1, y: tile.y + 1 },
+    { x: tile.x, y: tile.y + 1 },
+  ];
+}
+
 export function distance(a: Vec, b: Vec): number {
   return Math.hypot(b.x - a.x, b.y - a.y);
 }

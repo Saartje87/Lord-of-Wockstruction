@@ -115,6 +115,9 @@ function fightThrough(world: World, exit: Exit, reach = 2) {
   return changed;
 }
 
+/** The longest a leg of the Hero's walk across the shipped Areas may take: the slowest is about 0.1s alone. */
+const LEG_TIMEOUT_MS = 3_000;
+
 /** An Area's one Exit to Area `to`; throws when it has none or several. */
 function exitTo(area: Area, to: string): Exit {
   const exits = area.exits.filter((exit) => exit.area === to);
@@ -630,7 +633,7 @@ describe("the shipped Areas", () => {
     }
   });
 
-  it("let the Hero walk from Wockville across the Cozy Plains, the Soggy Bog and the Wockyard and down through the Catacombs and the Crypt to the Ossuary, and back up to Wockville", () => {
+  describe("let the Hero walk from Wockville across the Cozy Plains, the Soggy Bog and the Wockyard and down through the Catacombs and the Crypt to the Ossuary, and back up to Wockville", () => {
     // Sturdy and strong enough to fight through every pack on the way.
     const progress = { ...FRESH_PROGRESS, strength: 200, vitality: 1000 };
     const world = createWorld({
@@ -654,12 +657,18 @@ describe("the shipped Areas", () => {
       ["cozy-plains", "town"],
     ];
 
-    for (const [from, to] of route) {
-      expect(world.areaName).toBe(from);
-      const arrived = fightThrough(world, exitTo(world.areas[from], to));
-      expect(arrived?.area).toBe(to);
-    }
-    expect(world.areaName).toBe("town");
+    // The legs run in order on one World, so each starts where the last ended.
+    // Each is a test of its own, so a failure names the leg; the slowest
+    // takes about 0.1s, and the timeout leaves room for a loaded machine.
+    it.each(route)(
+      "from %s to %s",
+      (from, to) => {
+        expect(world.areaName).toBe(from);
+        const arrived = fightThrough(world, exitTo(world.areas[from], to));
+        expect(arrived?.area).toBe(to);
+      },
+      LEG_TIMEOUT_MS,
+    );
   });
 });
 
@@ -1530,7 +1539,7 @@ describe("the Wockyard's sparse grass", () => {
 
 describe("the Soggy Bog's ponds and mud", () => {
   const bog = () => shippedWorld().areas["soggy-bog"];
-  const mud = "halloween/floor_dirt";
+  const mud = "dungeon/floor_dirt_large";
 
   it("is mostly mud, with grass patches among it", () => {
     const { floorPieces, floor, water } = bog();

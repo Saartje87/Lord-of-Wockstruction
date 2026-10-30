@@ -176,6 +176,9 @@ type Tmj = {
 /** The one Area that is Town, by name; every other Area is a Combat Area. */
 export const TOWN = "town";
 
+/** The `kind` of the tileset tile that is Water. */
+export const WATER_KIND = "water";
+
 // The top bits of a gid flag flips and rotations, not the tile.
 const GID_MASK = 0x0fffffff;
 
@@ -259,7 +262,7 @@ export function loadArea(
   const pieces = piecesOf(tileset);
   const floor = floorLayer.data.map((gid) => gid !== 0);
   const water = floorLayer.data.map(
-    (gid) => pieces.get(gid & GID_MASK)?.kind === "water",
+    (gid) => pieces.get(gid & GID_MASK)?.kind === WATER_KIND,
   );
   const walkable = floor.map((hasFloor, i) => {
     const override = (overrides?.[i] ?? 0) & GID_MASK;

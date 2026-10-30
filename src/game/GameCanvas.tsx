@@ -538,7 +538,7 @@ export default function GameCanvas() {
         keys = [];
         if (requests.has("quit")) {
           // Quit to Start Screen: the World is made again from the Save, as
-          // after any load, so the Town Portal, Kept Area, Minions and Bone
+          // after any load, so the Town Portal, every kept Area, Minions and Bone
           // Ward are gone. Nothing is simulated until Continue.
           const saved = readSave(storage);
           world = createWorld({

@@ -233,11 +233,11 @@ Something loosed by an attack or a Skill that flies in a straight line through a
 _Avoid_: Missile, bullet, shot
 
 **Save**:
-The Hero's kept progress (Level, Experience, Attributes, unspent Attribute Points, Skill Levels, unspent Skill Points, the Skill Bar and Belongings), written whenever it changes; there is only one, and loading it starts the Hero in Town.
+The Hero's kept progress (Level, Experience, Attributes, unspent Attribute Points, Skill Levels, unspent Skill Points, the Skill Bar, Belongings and Gold), written whenever it changes; there is only one, and loading it starts the Hero in Town.
 _Avoid_: Save file, slot, profile, checkpoint
 
 **Item**:
-A thing the Hero can pick up, carry in the Inventory and, if it fits a slot, Equip; each Item has a fixed size in Inventory cells and fixed bonuses.
+A thing the Hero can pick up, carry in the Inventory and, if it fits a slot, Equip; each Item has a fixed size in Inventory cells, its type's own bonuses, and those of its Affixes.
 _Avoid_: Loot, gear, object
 
 **Short name**:
@@ -247,6 +247,50 @@ _Avoid_: Abbreviation, label, nickname
 **Ground Item**:
 An Item lying in an Area, dropped by a Monster or by the player, until the Hero picks it up or leaves the Area.
 _Avoid_: Drop, loot
+
+**Rarity**:
+How special an Item is: Normal, Magic or Rare, its name shown in that Rarity's colour.
+_Avoid_: Quality, tier, grade, colour
+
+**Normal**:
+The Rarity of an Item with no Affixes, only its type's own bonuses, its name shown in white; every Potion is Normal.
+_Avoid_: White, common, plain
+
+**Magic**:
+The Rarity of an Item with one or two Affixes, at most one a Prefix and one a Suffix, named for them around its type's name; its name is shown in blue.
+_Avoid_: Blue, enchanted
+
+**Rare**:
+The Rarity of an Item with three or four Affixes, at most two Prefixes and two Suffixes, given a random two-word name over its type's name; its name is shown in yellow.
+_Avoid_: Yellow, epic
+
+**Affix**:
+An extra bonus a Magic or Rare Item rolled when it dropped, always shown; how strong it can roll grows with the Monster Level of what dropped it.
+_Avoid_: Mod, enchantment, property, stat
+
+**Prefix**:
+An Affix whose name goes before the Item's, as in *Sturdy* Chain Mail.
+_Avoid_: Prefix mod
+
+**Suffix**:
+An Affix whose name goes after the Item's, as in Chain Mail *of the Bear*.
+_Avoid_: Suffix mod
+
+**Gold**:
+The money the Hero earns from kills and selling Items and spends at the Vendor; it is one amount, carried apart from the Inventory, and the Save keeps it.
+_Avoid_: Coins, money, currency
+
+**Gold Pile**:
+Gold lying in an Area, dropped by a Monster, which the Hero picks up just by walking over it.
+_Avoid_: Gold drop, coins
+
+**Vendor**:
+Trader, the NPC in Town who sells the Hero Items for Gold and buys the Hero's Items for Gold. They always have every Potion, and a few Normal Weapons, Armour and Belts that change each time the Hero comes back to Town; never a Magic or Rare Item.
+_Avoid_: Shop, merchant, store
+
+**Vendor panel**:
+The panel opened by talking to the Vendor, showing the Vendor's goods and the Hero's Inventory together; Equipped Items aren't in it.
+_Avoid_: Shop screen, trade window, store
 
 **Inventory**:
 The Hero's grid of cells holding the Items they carry but have not Equipped; Items take up rectangles of cells and can't overlap.

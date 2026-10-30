@@ -76,7 +76,7 @@ describe("the 3D World view of the Minions", () => {
 
   it("draws the Golem as the Monstrosity, whose slam lands later than a chop", () => {
     expect(MINION_LOOKS.golem.model).toBe("Monstrosity");
-    expect(MINION_LOOKS.golem.contact).toBeGreaterThan(0.42);
+    expect(MINION_LOOKS.golem.contact).toBeGreaterThan(0.5);
   });
 });
 

@@ -79,7 +79,6 @@ function fullestMinionRows(): MinionRow[] {
     Array.from({ length: count }, (_, id) => ({ id, fraction: 1 }));
   const row = (kind: MinionRow["kind"], count: number, cap: number | null) => ({
     kind,
-    count,
     cap,
     bars: bars(count),
   });

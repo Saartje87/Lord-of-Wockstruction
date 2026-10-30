@@ -153,6 +153,7 @@ import {
   nameplateLayout,
   nameplateOf,
 } from "./hover";
+import { hurtFlashLeft } from "./hurtFlash";
 import {
   heldItemRect,
   INVENTORY_PANEL,
@@ -182,7 +183,6 @@ import {
 } from "./miniMap";
 import {
   MINION_FRAME,
-  minionFlashBrightness,
   minionFrameLayout,
   minionFrameRows,
   minionsFlashed,
@@ -251,9 +251,10 @@ const FLASH_MS = 120;
 /** How white a hit Monster turns at the start of its flash (0..1). */
 const FLASH_STRENGTH = 0.8;
 
-/** The screen's red flash when the Hero is hit: its length (ms), fading out. */
-const HURT_MS = 150;
-/** How opaque the red flash starts (0..1). */
+/**
+ * How opaque the screen's red flash starts when the Hero is hit (0..1), fading
+ * out over `HURT_FLASH_MS`.
+ */
 const HURT_STRENGTH = 0.3;
 const HURT_COLOUR = 0xff0000;
 
@@ -1417,6 +1418,12 @@ export function createRenderer(
           "button" in onPanel &&
           onPanel.button?.type === "miniMap",
       );
+      // Only Minions still alive keep a flash.
+      for (const id of minionFlashedAtMs.keys()) {
+        if (!world.minions.some((minion) => minion.id === id)) {
+          minionFlashedAtMs.delete(id);
+        }
+      }
       minionFrame.draw(viewport, world, minionFlashedAtMs, nowMs);
       experience.draw(viewport, world);
       levelUp.draw(viewport, world, nowMs);
@@ -1462,7 +1469,7 @@ export function createRenderer(
           .stroke({ color: colour, width: width * uiScale });
       }
 
-      const hurtLeft = hurtAtMs === null ? 0 : 1 - (nowMs - hurtAtMs) / HURT_MS;
+      const hurtLeft = hurtAtMs === null ? 0 : hurtFlashLeft(nowMs - hurtAtMs);
       hurt.visible = hurtLeft > 0;
       if (hurt.visible) {
         hurt.alpha = HURT_STRENGTH * hurtLeft;
@@ -2641,10 +2648,10 @@ function miniMapView(activeInput: Readonly<ActiveInput>) {
   };
 }
 
-/** The Minion Frame's look: an icon box and the icons' colours. */
 /** The colour a Minion's bar flashes when it is hit. */
 const MINION_FLASH_COLOUR = 0xffffff;
 
+/** The Minion Frame's look: an icon box and the icons' colours. */
 const MINION_FRAME_STYLE = {
   box: 0x1a1510,
   boxAlpha: 0.8,
@@ -2728,8 +2735,7 @@ function minionFrameView() {
           .fill({ color: look.box, alpha: look.boxAlpha })
           .stroke({ width: 1, color: look.edge });
         MINION_ICONS[row.kind](graphics, row.icon);
-        const { cap, count } = rows[index];
-        if (row.count && cap !== null) {
+        if (row.count !== null) {
           let label = counts[index];
           if (!label) {
             label = new Text({
@@ -2741,28 +2747,29 @@ function minionFrameView() {
             layer.addChild(label);
           }
           label.visible = true;
-          label.text = `${count}/${cap}`;
+          label.text = row.count.text;
           sizeText(label, MINION_FRAME.countSize * screen.uiScale, 2);
-          label.position.set(row.count.x, row.count.y + row.count.h / 2);
+          const { rect } = row.count;
+          label.position.set(rect.x, rect.y + rect.h / 2);
         }
-        row.bars.forEach((rect, bar) => {
+        for (const { id, fraction, rect } of row.bars) {
           lifeBar(graphics, {
             x: rect.x,
             y: rect.y,
             width: rect.w,
             height: rect.h,
-            fraction: rows[index].bars[bar].fraction,
+            fraction,
             colour: FRIENDLY.life,
           });
-          const hitAtMs = flashedAtMs.get(rows[index].bars[bar].id);
+          const hitAtMs = flashedAtMs.get(id);
           const flash =
-            hitAtMs === undefined ? 0 : minionFlashBrightness(nowMs - hitAtMs);
+            hitAtMs === undefined ? 0 : hurtFlashLeft(nowMs - hitAtMs);
           if (flash > 0) {
             graphics
               .rect(rect.x, rect.y, rect.w, rect.h)
               .fill({ color: MINION_FLASH_COLOUR, alpha: flash });
           }
-        });
+        }
       });
     },
   };

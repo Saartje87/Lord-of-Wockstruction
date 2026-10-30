@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { newMinion } from "../sim/minions";
-import { createWorld, type MinionType, type World } from "../sim/world";
+import { combatArea } from "../sim/testAreas";
+import {
+  createWorld,
+  type MinionType,
+  maxMana,
+  step,
+  type World,
+} from "../sim/world";
 import { viewportOf } from "../viewport";
 import {
-  MINION_FLASH,
   MINION_FRAME,
   MINION_KINDS,
-  minionFlashBrightness,
   minionFrameLayout,
   minionFrameRows,
   minionsFlashed,
@@ -42,15 +47,110 @@ function withMinions(...types: MinionType[]): World {
   return w;
 }
 
+/** An open floor of `width` tiles with `objects` on it. */
+function floorOf(width: number, objects: object[]) {
+  return {
+    ...town,
+    width,
+    layers: [
+      {
+        type: "tilelayer",
+        name: "floor",
+        width,
+        height: 1,
+        data: Array(width).fill(1),
+      },
+      { type: "objectgroup", name: "objects", objects },
+    ],
+  };
+}
+
+/**
+ * A World whose Hero stands in a Combat Area with Raise Skeleton on key 1,
+ * arrived from a Town whose second tile leads there.
+ */
+function raiser(): World {
+  const entry = { name: "start", type: "entry", point: true, x: 16, y: 16 };
+  const exit = {
+    name: "",
+    type: "exit",
+    x: 32,
+    y: 0,
+    width: 32,
+    height: 32,
+    properties: [
+      { name: "area", type: "string", value: "field" },
+      { name: "entry", type: "string", value: "start" },
+    ],
+  };
+  const w = createWorld({
+    areas: {
+      town: floorOf(3, [entry, exit]),
+      field: combatArea(floorOf(8, [entry]), 1),
+    },
+    seed: 1,
+  });
+  w.hero.progress.skillLevels.raiseSkeleton = 1;
+  w.hero.progress.skillBar.key1 = "raiseSkeleton";
+  step(w, [{ type: "MoveTo", target: { x: 1.5, y: 0.5 } }]);
+  for (let i = 0; w.areaName !== "field" || w.areaChange; i++) {
+    if (i > 600) throw new Error("Never arrived");
+    step(w, []);
+  }
+  return w;
+}
+
+/**
+ * Raises a Raised Skeleton from a fresh Corpse beside the Hero, through the
+ * sim, and returns the new Minion's id.
+ */
+function raiseSkeleton(w: World): number {
+  const pos = { x: w.hero.pos.x + 1, y: w.hero.pos.y };
+  w.corpses.push({
+    id: w.nextMonsterId++,
+    type: "skeleton",
+    monsterLevel: 1,
+    pos,
+  });
+  w.hero.mana = maxMana(w);
+  const id = w.nextMinionId;
+  step(w, [{ type: "Cast", slot: "key1", target: pos }]);
+  for (let i = 0; w.hero.cast && i < 600; i++) step(w, []);
+  if (w.nextMinionId === id) throw new Error("Nothing raised");
+  return id;
+}
+
+describe("raising Minions through the sim", () => {
+  it("puts the bar of a newly raised Skeleton at the end of the row", () => {
+    const w = raiser();
+    const first = raiseSkeleton(w);
+    const second = raiseSkeleton(w);
+
+    const [row] = minionFrameRows(w);
+    expect(row.bars.map((bar) => bar.id)).toEqual([first, second]);
+  });
+
+  it("drops the oldest bar from the front when raising past the cap", () => {
+    const w = raiser();
+    const ids = [raiseSkeleton(w)];
+    const cap = minionFrameRows(w)[0].cap ?? 0;
+    while (ids.length < cap + 1) ids.push(raiseSkeleton(w));
+
+    const [row] = minionFrameRows(w);
+    expect(row.bars).toHaveLength(cap);
+    expect(row.bars.map((bar) => bar.id)).toEqual(ids.slice(1));
+  });
+});
+
 describe("minionFrameRows", () => {
   it("counts Raised Skeletons against the cap at the Raise Skeleton Skill Level", () => {
     const w = withMinions("raisedSkeleton", "raisedSkeleton");
     w.hero.progress.skillLevels.raiseSkeleton = 3;
-    expect(minionFrameRows(w)[0]).toMatchObject({ count: 2, cap: 2 });
+    expect(minionFrameRows(w)[0]).toMatchObject({ cap: 2 });
 
     // A Skill Point into Raise Skeleton that earns a Minion raises the cap.
     w.hero.progress.skillLevels.raiseSkeleton = 4;
-    expect(minionFrameRows(w)[0]).toMatchObject({ count: 2, cap: 3 });
+    expect(minionFrameRows(w)[0]).toMatchObject({ cap: 3 });
   });
 
   it("gives a Raised Archer row its own count and cap", () => {
@@ -71,7 +171,9 @@ describe("minionFrameRows", () => {
     w.hero.progress.skillLevels.raiseSkeleton = 1;
     w.hero.progress.skillLevels.raiseArcher = 4;
 
-    expect(minionFrameRows(w).map(({ count, cap }) => [count, cap])).toEqual([
+    expect(
+      minionFrameRows(w).map(({ bars, cap }) => [bars.length, cap]),
+    ).toEqual([
       [1, 2],
       [1, 3],
     ]);
@@ -88,7 +190,6 @@ describe("minionFrameRows", () => {
     expect(minionFrameRows(w)).toEqual([
       {
         kind: "golem",
-        count: 1,
         cap: null,
         bars: [{ id: w.minions[0].id, fraction: 0.25 }],
       },
@@ -103,7 +204,6 @@ describe("minionFrameRows", () => {
     expect(minionFrameRows(w)).toEqual([
       {
         kind: "raisedSkeleton",
-        count: 2,
         cap: 2,
         bars: [
           { id: oldest.id, fraction: 1 },
@@ -159,7 +259,6 @@ describe("minionFrameRows", () => {
 function rowsOf(...counts: number[]) {
   return counts.map((count, i) => ({
     kind: (["golem", "raisedSkeleton", "raisedArcher"] as const)[i],
-    count,
     cap: i === 0 ? null : 99,
     bars: Array.from({ length: count }, (_, id) => ({ id, fraction: 1 })),
   }));
@@ -183,10 +282,10 @@ describe("minionFrameLayout", () => {
     });
     expect(second.icon.y).toBeGreaterThanOrEqual(first.icon.y + first.icon.h);
     expect(second.bars).toHaveLength(3);
-    expect(second.bars[1].x).toBeGreaterThanOrEqual(
-      second.bars[0].x + second.bars[0].w,
+    expect(second.bars[1].rect.x).toBeGreaterThanOrEqual(
+      second.bars[0].rect.x + second.bars[0].rect.w,
     );
-    expect(second.bars[0].x).toBeGreaterThanOrEqual(
+    expect(second.bars[0].rect.x).toBeGreaterThanOrEqual(
       second.icon.x + second.icon.w,
     );
   });
@@ -197,19 +296,17 @@ describe("minionFrameLayout", () => {
 
     expect(golem.count).toBeNull();
     if (!skeletons.count) throw new Error("No count");
-    expect(skeletons.count.x).toBeGreaterThanOrEqual(
-      skeletons.icon.x + skeletons.icon.w,
-    );
-    expect(skeletons.bars[0].x).toBeGreaterThanOrEqual(
-      skeletons.count.x + skeletons.count.w,
-    );
+    const { rect, text } = skeletons.count;
+    expect(text).toBe("3/99");
+    expect(rect.x).toBeGreaterThanOrEqual(skeletons.icon.x + skeletons.icon.w);
+    expect(skeletons.bars[0].rect.x).toBeGreaterThanOrEqual(rect.x + rect.w);
   });
 
   it("scales with the UI Scale", () => {
     const small = viewportOf({ width: 1280, height: 720 });
     const big = viewportOf({ width: 2560, height: 1440 });
     const bar = (screen: typeof small) =>
-      minionFrameLayout(screen, rowsOf(1, 2)).rows[1].bars[0];
+      minionFrameLayout(screen, rowsOf(1, 2)).rows[1].bars[0].rect;
 
     expect(big.uiScale).toBeGreaterThan(small.uiScale);
     expect(bar(big).w / bar(small).w).toBeCloseTo(big.uiScale / small.uiScale);
@@ -220,11 +317,13 @@ describe("minionFrameLayout", () => {
     const { frame, rows } = minionFrameLayout(screen, rowsOf(1, 34));
     if (!frame) throw new Error("No frame");
 
-    for (const bar of rows[1].bars) {
+    for (const { rect: bar } of rows[1].bars) {
       expect(bar.x + bar.w).toBeLessThanOrEqual(frame.x + frame.w);
       expect(bar.y + bar.h).toBeLessThanOrEqual(frame.y + frame.h);
     }
-    expect(new Set(rows[1].bars.map((bar) => bar.y)).size).toBeGreaterThan(1);
+    expect(new Set(rows[1].bars.map((bar) => bar.rect.y)).size).toBeGreaterThan(
+      1,
+    );
   });
 });
 
@@ -252,14 +351,5 @@ describe("minionsFlashed", () => {
         { type: "MinionHit", minion: 4, damage: 2 },
       ]),
     ).toEqual([4, 6]);
-  });
-});
-
-describe("minionFlashBrightness", () => {
-  it("is brightest when it begins and fades to nothing over its length", () => {
-    expect(minionFlashBrightness(0)).toBe(1);
-    expect(minionFlashBrightness(MINION_FLASH.ms / 2)).toBeCloseTo(0.5);
-    expect(minionFlashBrightness(MINION_FLASH.ms)).toBe(0);
-    expect(minionFlashBrightness(MINION_FLASH.ms * 3)).toBe(0);
   });
 });

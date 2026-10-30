@@ -14,23 +14,22 @@ import { atUiScale, type Viewport } from "../viewport";
  * Every Minion kind's place in the Minion Frame, top row first. A new kind
  * needs a place here and an icon in the renderer, and no more.
  */
-export const MINION_KINDS: Record<MinionType, { place: number }> = {
-  golem: { place: 0 },
-  raisedSkeleton: { place: 1 },
-  raisedArcher: { place: 2 },
+export const MINION_KINDS: Record<MinionType, number> = {
+  golem: 0,
+  raisedSkeleton: 1,
+  raisedArcher: 2,
 };
 
 /** One Minion's Life bar: who it is and how much Life it has left (0..1). */
-export type MinionBar = { id: number; fraction: number };
+export type MinionBar = { id: MinionId; fraction: number };
 
 /**
- * A Minion kind's row of the Minion Frame, its bars oldest first: `count`
- * Minions alive of the `cap` the Hero can have, no cap for a kind that
- * isn't raised, such as the Golem.
+ * A Minion kind's row of the Minion Frame, its bars oldest first: as many
+ * Minions alive as it has bars, of the `cap` the Hero can have, no cap for a
+ * kind that isn't raised, such as the Golem.
  */
 export type MinionRow = {
   kind: MinionType;
-  count: number;
   cap: number | null;
   bars: MinionBar[];
 };
@@ -49,7 +48,6 @@ export function minionFrameRows(world: World): MinionRow[] {
     const { effect } = skillTuning[minion.skill];
     const row = rows.get(minion.type) ?? {
       kind: minion.type,
-      count: 0,
       cap:
         effect.type === "raise"
           ? raiseCount(effect, skillLevels[minion.skill])
@@ -61,11 +59,10 @@ export function minionFrameRows(world: World): MinionRow[] {
       id: minion.id,
       fraction: Math.min(1, Math.max(0, fraction)),
     });
-    row.count = row.bars.length;
     rows.set(minion.type, row);
   }
   return [...rows.values()].sort(
-    (a, b) => MINION_KINDS[a.kind].place - MINION_KINDS[b.kind].place,
+    (a, b) => MINION_KINDS[a.kind] - MINION_KINDS[b.kind],
   );
 }
 
@@ -90,12 +87,18 @@ export const MINION_FRAME = {
 /** The most bars on one line of a row; a longer row wraps onto more lines. */
 export const BARS_PER_LINE = 10;
 
-/** Where one row's icon and bars are drawn. */
+/** Where one Minion's Life bar is drawn, and what it shows. */
+export type MinionBarLayout = { id: MinionId; fraction: number; rect: Rect };
+
+/**
+ * Where one row's icon, count and bars are drawn, with what they show: the
+ * count's `text`, such as `2/3`, and a bar's Minion and Life.
+ */
 export type MinionRowLayout = {
   kind: MinionType;
   icon: Rect;
-  count: Rect | null;
-  bars: Rect[];
+  count: { rect: Rect; text: string } | null;
+  bars: MinionBarLayout[];
 };
 
 /**
@@ -116,27 +119,34 @@ export function minionFrameLayout(
   const stride = size.barHeight + size.barGap;
   let y = size.margin;
   let right = barsLeft;
-  const laidOut = rows.map(({ kind, cap, bars }) => {
+  const laidOut = rows.map(({ kind, cap, bars }): MinionRowLayout => {
     const lines = Math.max(1, Math.ceil(bars.length / BARS_PER_LINE));
     const barsHeight = lines * stride - size.barGap;
     const height = Math.max(size.icon, barsHeight);
     // The bars centred on the icon when they fit beside it.
     const top = y + (height - barsHeight) / 2;
-    const rects = bars.map((_, i) => ({
-      x: barsLeft + (i % BARS_PER_LINE) * (size.barWidth + size.barGap),
-      y: top + Math.floor(i / BARS_PER_LINE) * stride,
-      w: size.barWidth,
-      h: size.barHeight,
+    const laidBars = bars.map(({ id, fraction }, i) => ({
+      id,
+      fraction,
+      rect: {
+        x: barsLeft + (i % BARS_PER_LINE) * (size.barWidth + size.barGap),
+        y: top + Math.floor(i / BARS_PER_LINE) * stride,
+        w: size.barWidth,
+        h: size.barHeight,
+      },
     }));
-    for (const rect of rects) right = Math.max(right, rect.x + rect.w);
+    for (const { rect } of laidBars) right = Math.max(right, rect.x + rect.w);
     const row = {
       kind,
       icon: { x: size.margin, y, w: size.icon, h: size.icon },
       count:
         cap === null
           ? null
-          : { x: countLeft, y, w: size.countWidth, h: height },
-      bars: rects,
+          : {
+              rect: { x: countLeft, y, w: size.countWidth, h: height },
+              text: `${bars.length}/${cap}`,
+            },
+      bars: laidBars,
     };
     y += height + size.rowGap;
     return row;
@@ -150,9 +160,6 @@ export function minionFrameLayout(
   return { frame, rows: laidOut };
 }
 
-/** How long a Minion's bar flashes after a hit (ms), the Hero's hurt flash's length. */
-export const MINION_FLASH = { ms: 150 };
-
 /**
  * The Minions whose bars flash for a step's events: each that lost Life to a
  * hit, once. A Miss, or a hit for no damage, flashes nothing.
@@ -165,9 +172,4 @@ export function minionsFlashed(events: readonly SimEvent[]): MinionId[] {
     }
   }
   return [...flashed];
-}
-
-/** How bright a bar's flash is (1..0) `sinceMs` after the hit. */
-export function minionFlashBrightness(sinceMs: number): number {
-  return Math.min(1, Math.max(0, 1 - sinceMs / MINION_FLASH.ms));
 }

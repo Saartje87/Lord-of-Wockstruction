@@ -1606,27 +1606,71 @@ function tileIndex(area: Area, point: Vec): number {
  * living than its limit, raise a zombie or skeleton beside itself.
  */
 function stepBoneAltars(world: World, events: SimEvent[]) {
-  const area = world.areas[world.areaName];
+  const { raises } = boneAltarTuning;
   for (const altar of world.boneAltars) {
-    altar.raised = altar.raised.filter((id) => monsterById(world, id));
-    if (altar.cooldown > 0) altar.cooldown -= 1;
-    if (altar.cooldown > 0) continue;
-    if (altar.raised.length >= boneAltarTuning.raisedLimit) continue;
-    const spot = besideAltar(world, area, altar);
-    // No room beside it: try again next step.
-    if (!spot) continue;
-    const { raises } = boneAltarTuning;
-    const type = raises[randomInt(world.rng, [0, raises.length - 1])];
-    const monster = placeMonster(world, area, type, spot);
-    altar.raised.push(monster.id);
-    altar.cooldown = raiseSteps();
-    events.push({
-      type: "BoneAltarRaised",
-      altar: altar.id,
-      monster: monster.id,
-      pos: { ...spot },
+    const made = raiseWhenDue(world, altar, true, {
+      from: altar.pos,
+      distance: boneAltarTuning.raiseDistance,
+      limit: boneAltarTuning.raisedLimit,
+      size: 1,
+      type: () => raises[randomInt(world.rng, [0, raises.length - 1])],
+      cooldown: raiseSteps(),
     });
+    for (const { monster, spot } of made) {
+      events.push({
+        type: "BoneAltarRaised",
+        altar: altar.id,
+        monster: monster.id,
+        pos: { ...spot },
+      });
+    }
   }
+}
+
+/** How one Bone Altar or Act Boss raises Monsters. */
+type Raising = {
+  /** What it raises round (the middle of its body). */
+  from: Vec;
+  /** How far from `from` a raised Monster stands (tiles). */
+  distance: number;
+  /** How many raised Monsters can be alive at once. */
+  limit: number;
+  /** How many Monsters one raising makes, room permitting. */
+  size: number;
+  /** The type of the next Monster raised. */
+  type: () => MonsterType;
+  /** Steps until the next raising once this one is made. */
+  cooldown: number;
+};
+
+/**
+ * Prunes `raiser`'s dead, and when `active` counts its cooldown down and,
+ * once due and with room under the limit, raises up to `raising.size`
+ * Monsters round it, restarting the cooldown. With no room to stand them it
+ * tries again next step.
+ */
+function raiseWhenDue(
+  world: World,
+  raiser: { raised: MonsterId[]; cooldown: number },
+  active: boolean,
+  raising: Raising,
+): { monster: Monster; spot: Vec }[] {
+  raiser.raised = raiser.raised.filter((id) => monsterById(world, id));
+  if (!active) return [];
+  if (raiser.cooldown > 0) raiser.cooldown -= 1;
+  if (raiser.cooldown > 0) return [];
+  const count = Math.min(raising.size, raising.limit - raiser.raised.length);
+  if (count <= 0) return [];
+  const area = world.areas[world.areaName];
+  const spots = spotsAround(world, area, raising.from, raising.distance, count);
+  const made = spots.map((spot) => ({
+    monster: placeMonster(world, area, raising.type(), spot),
+    spot,
+  }));
+  if (made.length === 0) return [];
+  raiser.raised.push(...made.map((m) => m.monster.id));
+  raiser.cooldown = raising.cooldown;
+  return made;
 }
 
 /** The Quests that ask for killing the Act Boss of Act `act`. */
@@ -1643,76 +1687,54 @@ function actQuestsOf(act: number): QuestId[] {
  * to its limit of living ones.
  */
 function stepWaves(world: World, events: SimEvent[]) {
-  const area = world.areas[world.areaName];
   for (const boss of [...world.monsters]) {
     const { waves } = boss;
     if (!waves) continue;
-    waves.raised = waves.raised.filter((id) => monsterById(world, id));
-    const awake = boss.state !== "idle" && boss.state !== "wander";
-    if (!awake || boss.state === "return") continue;
-    if (waves.cooldown > 0) waves.cooldown -= 1;
-    if (waves.cooldown > 0) continue;
-    const room = graveWockingtonTuning.raisedLimit - waves.raised.length;
-    const count = Math.min(graveWockingtonTuning.waveSize, room);
-    if (count <= 0) continue;
-    const raised: MonsterId[] = [];
-    for (const spot of aroundBoss(world, area, boss, count)) {
-      const monster = placeMonster(
-        world,
-        area,
-        graveWockingtonTuning.raises,
-        spot,
-      );
-      // Raised already after the Hero.
-      monster.state = "chase";
-      raised.push(monster.id);
-    }
-    waves.raised.push(...raised);
-    waves.cooldown = msToSteps(graveWockingtonTuning.waveEveryMs);
-    events.push({ type: "WaveRaised", boss: boss.id, monsters: raised });
+    const afterHero = !["idle", "wander", "return"].includes(boss.state);
+    const made = raiseWhenDue(world, waves, afterHero, {
+      from: boss.pos,
+      distance: graveWockingtonTuning.raiseDistance,
+      limit: graveWockingtonTuning.raisedLimit,
+      size: graveWockingtonTuning.waveSize,
+      type: () => graveWockingtonTuning.raises,
+      cooldown: msToSteps(graveWockingtonTuning.waveEveryMs),
+    });
+    if (made.length === 0) continue;
+    // Raised already after the Hero.
+    for (const { monster } of made) monster.state = "chase";
+    events.push({
+      type: "WaveRaised",
+      boss: boss.id,
+      monsters: made.map((m) => m.monster.id),
+    });
   }
 }
 
+/** How many ways round a body a raised Monster may be stood. */
+const RAISE_TURNS = 8;
+
 /**
- * Up to `count` walkable spots round `boss` at the tuned distance, evenly
- * spaced from a different starting way each time.
+ * Up to `count` walkable spots round `from` at `distance`, evenly spaced from
+ * a different starting way each time.
  */
-function aroundBoss(
+function spotsAround(
   world: World,
   area: Area,
-  boss: Monster,
+  from: Vec,
+  distance: number,
   count: number,
 ): Vec[] {
-  const turns = 8;
-  const first = randomInt(world.rng, [0, turns - 1]);
+  const first = randomInt(world.rng, [0, RAISE_TURNS - 1]);
   const spots: Vec[] = [];
-  for (let i = 0; i < turns && spots.length < count; i++) {
-    const angle = (2 * Math.PI * (first + i)) / turns;
+  for (let i = 0; i < RAISE_TURNS && spots.length < count; i++) {
+    const angle = (2 * Math.PI * (first + i)) / RAISE_TURNS;
     const at = {
-      x: boss.pos.x + graveWockingtonTuning.raiseDistance * Math.cos(angle),
-      y: boss.pos.y + graveWockingtonTuning.raiseDistance * Math.sin(angle),
+      x: from.x + distance * Math.cos(angle),
+      y: from.y + distance * Math.sin(angle),
     };
     if (isWalkable(area, at)) spots.push(at);
   }
   return spots;
-}
-
-/**
- * Where a Monster raised by `altar` stands: at the tuned distance from it,
- * the first walkable way round starting from a different one each time.
- */
-function besideAltar(world: World, area: Area, altar: BoneAltar): Vec | null {
-  const turns = 8;
-  const first = randomInt(world.rng, [0, turns - 1]);
-  for (let i = 0; i < turns; i++) {
-    const angle = (2 * Math.PI * (first + i)) / turns;
-    const at = {
-      x: altar.pos.x + boneAltarTuning.raiseDistance * Math.cos(angle),
-      y: altar.pos.y + boneAltarTuning.raiseDistance * Math.sin(angle),
-    };
-    if (isWalkable(area, at)) return at;
-  }
-  return null;
 }
 
 /**

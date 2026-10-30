@@ -69,7 +69,7 @@ A two-way gateway the Hero opens a step ahead of them anywhere outside Town, its
 _Avoid_: Portal on its own, TP, waypoint, gate
 
 **Session**:
-One stretch of play, from Continue or New Hero on the Start Screen until Quit to Start Screen or the game is closed. Every Area starts fresh in a new Session, all its Monsters back where they were placed, except what a Done Quest has put away for good, such as its Bone Altars. From then until the Session ends, each Area stands still while the Hero is away and is just as they left it when they come back, by any way in: its Monsters, Corpses and Ground Items where they were, and what of it is Explored. The Hero's Death doesn't end a Session.
+One stretch of play, from Continue or New Hero on the Start Screen until Quit to Start Screen or the game is closed. Every Area starts fresh in a new Session, all its Monsters back where they were placed, except what a Done Quest has put away for good, such as its Bone Altars. From then until the Session ends, each Area stands still while the Hero is away and is just as they left it when they come back, by any way in: its Monsters, Corpses, Ground Items and Gold Piles where they were, and what of it is Explored. The Hero's Death doesn't end a Session.
 _Avoid_: Game, run, instance
 
 **Explored**:
@@ -77,7 +77,7 @@ The part of an Area the Hero has come near enough to see, the only part the Map 
 _Avoid_: Revealed, discovered, fog of war
 
 **Map Overlay**:
-The Explored part of the current Area drawn see-through over the World, centred on the Hero, while play goes on underneath: wall and floor edges, the Hero, their Minions, Exits named for the Area they lead to, the Town Portal and, in Town, NPCs by name; never Monsters, Corpses or Ground Items. It shows the Area's display name, never its Area Level, stays open through Exits and Town Portals, and closes on the Hero's Death.
+The Explored part of the current Area drawn see-through over the World, centred on the Hero, while play goes on underneath: wall and floor edges, the Hero, their Minions, Exits named for the Area they lead to, the Town Portal and, in Town, NPCs by name; never Monsters, Corpses, Ground Items or Gold Piles. It shows the Area's display name, never its Area Level, stays open through Exits and Town Portals, and closes on the Hero's Death.
 _Avoid_: Automap, map, full map
 
 **Mini Map**:
@@ -265,7 +265,7 @@ The Rarity of an Item with three or four Affixes, at most two Prefixes and two S
 _Avoid_: Yellow, epic
 
 **Affix**:
-An extra bonus a Magic or Rare Item rolled when it dropped, always shown; how strong it can roll grows with the Monster Level of what dropped it.
+An extra bonus a Magic or Rare Item rolled when it dropped, always shown, never two of one kind on an Item; how strong it can roll grows with the Monster Level of what dropped it, and its name says how strong it is, as *of the Ox* is weaker than *of the Giant*.
 _Avoid_: Mod, enchantment, property, stat
 
 **Prefix**:
@@ -281,15 +281,19 @@ The money the Hero earns from kills and selling Items and spends at the Vendor; 
 _Avoid_: Coins, money, currency
 
 **Gold Pile**:
-Gold lying in an Area, dropped by a Monster, which the Hero picks up just by walking over it.
+Gold lying in an Area, dropped by a Monster and labelled with its amount, until the Hero picks it up just by walking near it or leaves the Area; the Save never keeps one.
 _Avoid_: Gold drop, coins
 
 **Vendor**:
 Trader, the NPC in Town who sells the Hero Items for Gold and buys the Hero's Items for Gold. They always have every Potion, and a few Normal Weapons, Armour and Belts that change each time the Hero comes back to Town; never a Magic or Rare Item.
 _Avoid_: Shop, merchant, store
 
+**Value**:
+What an Item is worth in Gold, set by its type and raised by its Rarity and Affixes: the Vendor sells it for its Value and buys it for a quarter of that.
+_Avoid_: Price, cost, worth
+
 **Vendor panel**:
-The panel opened by talking to the Vendor, showing the Vendor's goods and the Hero's Inventory together; Equipped Items aren't in it.
+The panel opened by talking to the Vendor, the Hero standing still while it is open, showing the Vendor's goods and the Hero's Inventory together; Equipped Items aren't in it. An Item put down on the Vendor's side is sold at once, and joins their goods to be bought back at its Value until their goods change; a bought Potion goes into the Belt Columns first. It shuts as the Inventory panel does, and when another panel opens.
 _Avoid_: Shop screen, trade window, store
 
 **Inventory**:
@@ -307,6 +311,10 @@ _Avoid_: Gear, loot, possessions
 **Held Item**:
 The one Item the player has lifted onto the cursor to move; it still counts as where it was lifted from until it's put down.
 _Avoid_: Cursor Item, dragged Item
+
+**Drag**:
+Lifting a Held Item or Held Skill and putting it down in one press, the mouse button or a finger held down from where it's lifted to where it's let go, which then acts just as a second click or tap there would: putting down, swapping, dropping into the World, selling or landing in a Skill Bar slot. Either way of moving works everywhere, click and click or Drag, except the Belt strip on a touch screen, which only drinks. A Drag let go over where it was lifted from keeps it held for a mouse, but puts it back for a finger; a finger already holding something puts it down where it lifts.
+_Avoid_: Drag and drop, swipe
 
 **Weapon**:
 The Item kind Equipped in the Weapon slot, setting the Hero's damage.
@@ -405,7 +413,7 @@ The touch button that opens the pause menu as Esc and Menu do: top right below t
 _Avoid_: Menu button (that's the controller's), settings button
 
 **Long press**:
-A touch held still on an Item or Skill for a moment, which shows its tooltip instead of lifting it.
+A touch held still on an Item or Skill for a moment, which shows its tooltip instead of lifting it; lifted without moving, it lifts nothing, but moving it at any time starts a Drag and hides the tooltip.
 _Avoid_: Hold, press and hold, hover
 
 **Touch hit area**:

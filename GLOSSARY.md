@@ -253,7 +253,7 @@ The Minion the Raise Archer Skill raises from a Corpse, which shoots Arrows; the
 _Avoid_: Archer, Skeleton Archer (that's the Monster), skeletal mage
 
 **Bone Wall**:
-The short line of bone the Bone Wall Skill raises where it is cast, standing for a while as Props with Life: no one can walk through it, Hero and Minions included, a Monster's Projectile stops at it and the Hero's flies through, and a Monster that can't reach the Hero breaks it with attacks.
+The short line of bone the Bone Wall Skill raises where it is cast, standing for a while as Props with Life: no one can walk through it, Hero and Minions included, a Monster's Projectile stops at it, Muck aside, and the Hero's flies through, and a Monster that can't reach the Hero breaks it with attacks.
 _Avoid_: Barricade, Bone Prison
 
 **Bone Ward**:

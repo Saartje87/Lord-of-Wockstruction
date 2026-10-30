@@ -9,10 +9,10 @@ import {
 } from "./sim/inventory";
 import {
   freshQuests,
-  partsOf,
   QUEST_IDS,
-  type QuestLog,
   type QuestState,
+  type QuestStates,
+  questPartsOf,
   questPointsOf,
 } from "./sim/quests";
 import { SKILL_BAR_SLOTS, type SkillBar } from "./sim/skillBar";
@@ -318,7 +318,7 @@ function copyBonus(stored: unknown): SmithBonus {
 }
 
 /** What the service is for Quests that unlock it: unlocked once that Quest is Done. */
-function smithServiceFor(quests: QuestLog): SmithService {
+function smithServiceFor(quests: QuestStates): SmithService {
   return smithQuestDone(quests) ? "unlocked" : "locked";
 }
 
@@ -328,7 +328,7 @@ function smithServiceFor(quests: QuestLog): SmithService {
  */
 function parseSmithService(
   stored: unknown,
-  quests: QuestLog,
+  quests: QuestStates,
 ): SmithService | null {
   if (!SMITH_SERVICES.includes(stored as SmithService)) return null;
   const locked = stored === "locked";
@@ -399,7 +399,7 @@ function parseTouchedWaypoints(stored: unknown): string[] | null {
  * and nothing else, a state and a count of parts done that the Quest has. A
  * Quest missing from them is Not given.
  */
-function parseQuests(stored: unknown): QuestLog | null {
+function parseQuests(stored: unknown): QuestStates | null {
   const log = objectWithin(stored, QUEST_IDS);
   if (!log) return null;
   const quests = freshQuests();
@@ -410,7 +410,7 @@ function parseQuests(stored: unknown): QuestLog | null {
     if (!entry) return null;
     const { state, count } = entry;
     if (!QUEST_STATES.includes(state as QuestState)) return null;
-    const parts = partsOf(questTuning[id].trigger);
+    const parts = questPartsOf(questTuning[id].trigger);
     if (!Number.isInteger(count) || (count as number) < 0) return null;
     if ((count as number) > parts) return null;
     quests[id] = { state: state as QuestState, count: count as number };

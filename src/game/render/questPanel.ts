@@ -1,8 +1,8 @@
 import {
-  partsOf,
   QUEST_IDS,
   type QuestId,
   type QuestState,
+  questPartsOf,
 } from "../sim/quests";
 import { inside, middleOf, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
@@ -61,7 +61,7 @@ export function questPanelSheet(world: World): QuestSheet[] {
     (id) => {
       const { name, nextStep, trigger } = questTuning[id];
       const { state, count } = quests[id];
-      const parts = partsOf(trigger);
+      const parts = questPartsOf(trigger);
       return {
         quest: id,
         name,

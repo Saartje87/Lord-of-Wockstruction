@@ -25,6 +25,6 @@ export function isBoneAltar(target: { id: MonsterId }): target is BoneAltar {
 }
 
 /** How big a target is: a Bone Altar's radius, a Monster's none (tiles). */
-export function bodyRadius(target: { id: MonsterId }): number {
+export function altarRadiusOf(target: { id: MonsterId }): number {
   return isBoneAltar(target) ? boneAltarTuning.radius : 0;
 }

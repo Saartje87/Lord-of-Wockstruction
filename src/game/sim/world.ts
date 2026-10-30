@@ -37,7 +37,7 @@ import {
   TOWN,
 } from "./area";
 import { type BeltColumns, emptyBelt, putInBelt } from "./belt";
-import { type BoneAltar, bodyRadius, isBoneAltar } from "./boneAltars";
+import { altarRadiusOf, type BoneAltar, isBoneAltar } from "./boneAltars";
 import {
   type Belongings,
   type Cell,
@@ -102,11 +102,11 @@ import {
   advanceQuest,
   copyQuests,
   freshQuests,
-  hasQuestToDealIn,
+  hasQuestBusiness,
+  type QuestDeed,
   type QuestId,
-  type QuestLog,
   type QuestProgress,
-  type QuestTask,
+  type QuestStates,
   questsOf,
 } from "./quests";
 import { createRng, type Rng, random, randomInt } from "./random";
@@ -621,7 +621,7 @@ export type SimEvent =
   | { type: "QuestGiven"; quest: QuestId }
   /** Quest `quest` now has `count` of its parts done, not all yet. */
   | { type: "QuestCounted"; quest: QuestId; count: number }
-  /** Quest `quest`'s task is done, and it can be handed in. */
+  /** Quest `quest` has all it asks, so it can be handed in. */
   | { type: "QuestReady"; quest: QuestId }
   /** The Hero handed in Quest `quest`, which paid its reward. */
   | { type: "QuestDone"; quest: QuestId }
@@ -753,7 +753,7 @@ export type Progress = {
   /** The Areas whose Waypoints the Hero has touched, in the order they did. */
   touchedWaypoints: string[];
   /** How far each Quest has got. */
-  quests: QuestLog;
+  quests: QuestStates;
   /**
    * The Smith's one-time service: locked until "Spa Day" is Done, then
    * unlocked until the Hero uses it on an Item, and used after.
@@ -2467,18 +2467,18 @@ export function hasQuestToDeal(world: World, npc: number): boolean {
   return (
     !!there &&
     world.standing.includes(npc) &&
-    hasQuestToDealIn(world.hero.progress.quests, there.name)
+    hasQuestBusiness(world.hero.progress.quests, there.name)
   );
 }
 
 /**
- * Notes that the Hero did `task`, moving on every Quest that asks for it
- * and reporting it. Tasks count whenever they happen, given or not.
+ * Notes that the Hero did `deed`, moving on every Quest that asks for it
+ * and reporting it. Deeds count whenever they happen, given or not.
  */
-function noteTask(world: World, task: QuestTask, events: SimEvent[]) {
+function noteDeed(world: World, deed: QuestDeed, events: SimEvent[]) {
   const { quests } = world.hero.progress;
   for (const quest of Object.keys(quests) as QuestId[]) {
-    const result = advanceQuest(quests, quest, task);
+    const result = advanceQuest(quests, quest, deed);
     if (result === "counted") {
       events.push({ type: "QuestCounted", quest, count: quests[quest].count });
     }
@@ -2540,7 +2540,7 @@ function reachNpc(world: World, events: SimEvent[]) {
   const talkedTo = hero.talkingTo;
   hero.talkingTo = null;
   hero.path = [];
-  noteTask(world, { type: "talked", npc: npc.name }, events);
+  noteDeed(world, { type: "talked", npc: npc.name }, events);
   // An NPC whose condition no longer holds goes home now, though the
   // Dialogue panel keeps their words; the Area judges them again on the next
   // arrival.
@@ -2639,7 +2639,12 @@ function land(world: World, swing: Swing, events: SimEvent[]) {
         gap <= heroTuning.reach + heroTuning.reachGrace
       );
     }
-    return lands(hero, target.pos, heroTuning.reach + bodyRadius(target), ARC);
+    return lands(
+      hero,
+      target.pos,
+      heroTuning.reach + altarRadiusOf(target),
+      ARC,
+    );
   });
 
   for (const target of victims) {
@@ -2658,7 +2663,7 @@ function land(world: World, swing: Swing, events: SimEvent[]) {
 
 /** How far `from` is from the edge of `target` (tiles). */
 function gapTo(from: Vec, target: Monster | BoneAltar): number {
-  return Math.max(0, distance(from, target.pos) - bodyRadius(target));
+  return Math.max(0, distance(from, target.pos) - altarRadiusOf(target));
 }
 
 /**
@@ -2715,7 +2720,7 @@ function hurtAltar(
     area: area.name,
     pos: { ...altar.pos },
   });
-  noteTask(world, { type: "boneAltarDestroyed", area: area.name }, events);
+  noteDeed(world, { type: "boneAltarDestroyed", area: area.name }, events);
 }
 
 /**
@@ -2764,7 +2769,7 @@ function hurt(world: World, monster: Monster, events: SimEvent[]) {
     rollDrop(world, monster.pos, events, monster.unique !== null);
     if (monster.unique !== null) {
       const { name } = world.areas[world.areaName];
-      noteTask(world, { type: "uniqueKilled", area: name }, events);
+      noteDeed(world, { type: "uniqueKilled", area: name }, events);
     }
     const { actBoss, act } = world.areas[world.areaName];
     if (
@@ -2776,7 +2781,7 @@ function hurt(world: World, monster: Monster, events: SimEvent[]) {
       const completes = actQuestsOf(act).some(
         (id) => world.hero.progress.quests[id].state !== "done",
       );
-      noteTask(world, { type: "actBossKilled", act }, events);
+      noteDeed(world, { type: "actBossKilled", act }, events);
       if (completes) events.push({ type: "ActCompleted", act });
     }
     return;

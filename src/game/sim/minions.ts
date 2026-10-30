@@ -5,7 +5,7 @@ import {
 } from "../tuning/minions";
 import type { Skill } from "../tuning/skills";
 import { type Area, isWalkable } from "./area";
-import { type BoneAltar, bodyRadius } from "./boneAltars";
+import { altarRadiusOf, type BoneAltar } from "./boneAltars";
 import { faceToward, lands } from "./melee";
 import { isClear } from "./path";
 import { msToSteps, perStep } from "./units";
@@ -320,7 +320,7 @@ function stopChasing(minion: Minion) {
  * teleports next to the Hero when stuck for a while.
  */
 function chase(world: World, minion: Minion, monster: Monster | BoneAltar) {
-  const reach = minionTuning[minion.type].reach + bodyRadius(monster);
+  const reach = minionTuning[minion.type].reach + altarRadiusOf(monster);
   const gap = distance(minion.pos, monster.pos);
   // A chase stops at reach only up to rounding.
   if (gap <= reach + 1e-9) {
@@ -360,7 +360,7 @@ function windUp(world: World, minion: Minion): Monster | BoneAltar | null {
   return lands(
     minion,
     monster.pos,
-    reach + reachGrace + bodyRadius(monster),
+    reach + reachGrace + altarRadiusOf(monster),
     stepped.arc,
   )
     ? monster

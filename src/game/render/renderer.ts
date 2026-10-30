@@ -200,10 +200,10 @@ import { tooltipRect } from "./tooltip";
 import { touchControlsLayout, touchControlsShown } from "./touchControls";
 import { shownTownPortals, townPortalCloseScale } from "./townPortalLook";
 import {
-  canTravel,
   WAYPOINT_LIST,
   waypointListLayout,
   waypointListSheet,
+  waypointPickable,
 } from "./waypointList";
 
 /** How long a hit Monster flashes white (ms), fading out. */
@@ -2811,7 +2811,7 @@ function waypointListView(
         notes[index] ??= text(style.hint, style.hintSize);
         const row = layout.rows[index];
         const y = row.y + row.h / 2;
-        if (canTravel(waypoint)) button(graphics, row);
+        if (waypointPickable(waypoint)) button(graphics, row);
         else graphics.rect(row.x, row.y, row.w, row.h).stroke(style.edge);
         const name = names[index];
         name.text = waypoint.name;

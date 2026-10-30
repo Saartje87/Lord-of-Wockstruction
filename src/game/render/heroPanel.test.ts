@@ -147,6 +147,41 @@ describe("heroSheet with Items Equipped", () => {
   });
 });
 
+describe("heroSheet with a Magic Item Equipped", () => {
+  it("shows the totals with its Affixes included", () => {
+    const w = createWorld({
+      areas: { town },
+      seed: 1,
+      belongings: {
+        inventory: [],
+        equipment: {
+          weapon: {
+            type: "shortSword",
+            rarity: "magic",
+            affixes: [
+              { kind: "brutality", grade: 0, value: 3 },
+              { kind: "strength", grade: 0, value: 5 },
+            ],
+          },
+          armour: {
+            type: "chainMail",
+            rarity: "magic",
+            affixes: [{ kind: "defense", grade: 0, value: 8 }],
+          },
+        },
+        belt: emptyBelt(),
+      },
+    });
+
+    const sheet = heroSheet(w);
+
+    expect(sheet.attributes[0].value).toBe("25");
+    // (50/3 + 3) to (25 + 3), scaled by 25 Strength.
+    expect(sheet.derived.find((d) => d.name === "Damage")?.value).toBe("25–35");
+    expect(sheet.derived.find((d) => d.name === "Defense")?.value).toBe("48");
+  });
+});
+
 describe("heroSheet", () => {
   it("shows a fresh Hero's Level, Experience, Attributes and what they add up to", () => {
     expect(heroSheet(world())).toEqual({

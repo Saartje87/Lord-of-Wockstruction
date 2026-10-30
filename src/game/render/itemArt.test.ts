@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ITEM_TYPES, isPotion } from "../tuning/items";
-import { itemColour, itemLabel } from "./itemArt";
+import { itemColour, itemLabel, rarityColour } from "./itemArt";
 
 describe("an Item's colour", () => {
   it("is its own for each Potion type", () => {
@@ -119,5 +119,13 @@ describe("an Item's label", () => {
     );
 
     for (const label of labels) expect(label.text).not.toMatch(/\n/);
+  });
+});
+
+describe("a Rarity's colour", () => {
+  it("is white for Normal and blue for Magic", () => {
+    expect(rarityColour("normal")).not.toBe(rarityColour("magic"));
+    const blue = rarityColour("magic");
+    expect(blue & 0xff).toBeGreaterThan((blue >> 16) & 0xff);
   });
 });

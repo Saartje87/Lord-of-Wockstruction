@@ -700,3 +700,41 @@ describe("an Item's tooltip", () => {
     ]);
   });
 });
+
+describe("a Magic Item's tooltip", () => {
+  const stout = {
+    type: "chainMail" as const,
+    affixes: [
+      { kind: "defense" as const, grade: 1, value: 15 },
+      { kind: "strength" as const, grade: 1, value: 5 },
+    ],
+  };
+
+  it("is named for its Affixes' grades around its type's name", () => {
+    expect(itemTooltip(stout)[0]).toBe("Stout Chain Mail of the Bear");
+  });
+
+  it("lists one line per Affix after the type's bonuses, then the Smith bonus last", () => {
+    expect(
+      itemTooltip({
+        ...stout,
+        smithBonus: { bonus: "life", amount: 20 },
+      }),
+    ).toEqual([
+      "Stout Chain Mail of the Bear",
+      "Defense: 40",
+      "+15 to Defense",
+      "+5 to Strength",
+      "Smith: +20 to Life",
+    ]);
+  });
+
+  it("names Brutality's flat damage", () => {
+    expect(
+      itemTooltip({
+        type: "axe",
+        affixes: [{ kind: "brutality", grade: 0, value: 2 }],
+      }),
+    ).toEqual(["Brutal Axe", "Damage: 25–40", "+2 to Damage"]);
+  });
+});

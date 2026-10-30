@@ -4,7 +4,7 @@ import { Application } from "pixi.js";
 import { useEffect, useRef } from "react";
 import { pressButton } from "./buttonPress";
 import { advance, createClock } from "./clock";
-import { areaDisplayNames, areas, tilesets } from "./content";
+import { areaDisplayNames, createShippedWorld } from "./content";
 import {
   type CursorPoint,
   clickCursor,
@@ -66,6 +66,7 @@ import {
   failLoad,
   finishLoading,
   fitMenus,
+  followHero,
   isLoading,
   loadingScreen,
   MAP_KEY,
@@ -102,7 +103,13 @@ import {
 import { isFloor, TOWN } from "./sim/area";
 import { cursorItemOf } from "./sim/inventory";
 import { tileOf, type Vec } from "./sim/vec";
-import { createWorld, type MonsterId, type Order, step } from "./sim/world";
+import {
+  type MonsterId,
+  type Order,
+  step,
+  waypointUnderHero,
+  withinNpcReach,
+} from "./sim/world";
 import { type Viewport, viewportOf } from "./viewport";
 import { screenToTile, worldCameraOn } from "./world3d/camera";
 import { createSharedCanvas } from "./world3d/sharedCanvas";
@@ -169,9 +176,7 @@ export default function GameCanvas() {
       const development = process.env.NODE_ENV === "development";
       // The Save's Hero, or a fresh one when there's no Save.
       const save = readSave(storage);
-      let world = createWorld({
-        areas,
-        tilesets,
+      let world = createShippedWorld({
         seed: Date.now(),
         progress: save?.progress,
         belongings: save?.belongings,
@@ -507,6 +512,8 @@ export default function GameCanvas() {
             world,
             viewport,
             menus.pendingPoints,
+            menus.dialogueNpc,
+            menus.dialoguePage,
           ),
         });
         for (const button of polled.presses) {
@@ -538,12 +545,10 @@ export default function GameCanvas() {
         keys = [];
         if (requests.has("quit")) {
           // Quit to Start Screen: the World is made again from the Save, as
-          // after any load, so the Town Portal, Kept Area, Minions and Bone
+          // after any load, so the Town Portal, every kept Area, Minions and Bone
           // Ward are gone. Nothing is simulated until Continue.
           const saved = readSave(storage);
-          world = createWorld({
-            areas,
-            tilesets,
+          world = createShippedWorld({
             seed: Date.now(),
             progress: saved?.progress,
             belongings: saved?.belongings,
@@ -589,6 +594,7 @@ export default function GameCanvas() {
         const { orders: newOrders, click } = poll(input, now, {
           toTile,
           monsterAt: renderer.monsterAt,
+          npcAt: renderer.npcAt,
           groundLabelAt: renderer.groundLabelAt,
           groundItemAt: renderer.groundItemAt,
           panelAt: (at) => forTheWorld(renderer.panelAt(at)),
@@ -682,6 +688,12 @@ export default function GameCanvas() {
           // shuts finds nothing to do, and is harmless.
           const inventoryOpen = menus.inventoryOpen;
           reactMenus(menus, events);
+          // The Waypoint list stays open only while the Hero stands on it, and
+          // the Dialogue panel while they are near the NPC.
+          followHero(menus, {
+            standingOnWaypoint: waypointUnderHero(world) !== null,
+            withinReachOf: (npc) => withinNpcReach(world, npc),
+          });
           orders = [];
           returnOnShut(orders, inventoryOpen, menus);
         }
@@ -788,7 +800,7 @@ export default function GameCanvas() {
         } else if (asked === "continue" || asked === "newHero") {
           if (asked === "newHero") {
             removeSave(storage);
-            world = createWorld({ areas, tilesets, seed: Date.now() });
+            world = createShippedWorld({ seed: Date.now() });
             orders = [];
           }
           frame = requestAnimationFrame(tick);

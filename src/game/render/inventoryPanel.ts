@@ -10,6 +10,7 @@ import {
   inventoryItemAt,
   isCell,
   isSlot,
+  type SmithBonus,
 } from "../sim/inventory";
 import { inside, middleOf, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
@@ -464,7 +465,7 @@ function potionLine(effect: PotionEffectTuning): string {
  * Strength, an Armour's Defense, its bonuses, what a Potion gives back and
  * a Belt's rows.
  */
-export function itemTooltip(type: ItemType): string[] {
+export function itemTooltip(type: ItemType, smithBonus?: SmithBonus): string[] {
   const item = itemOf(type);
   const lines = [item.name];
   if (item.damage) {
@@ -475,6 +476,11 @@ export function itemTooltip(type: ItemType): string[] {
   if (item.defense !== undefined) lines.push(`Defense: ${item.defense}`);
   for (const [bonus, amount] of Object.entries(item.bonuses)) {
     lines.push(`+${amount} to ${BONUS_NAMES[bonus as Bonus]}`);
+  }
+  if (smithBonus) {
+    lines.push(
+      `Smith: +${smithBonus.amount} to ${BONUS_NAMES[smithBonus.bonus]}`,
+    );
   }
   if (item.potion) lines.push(potionLine(item.potion));
   if (item.beltRows !== undefined) lines.push(`Rows: ${item.beltRows}`);

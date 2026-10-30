@@ -133,6 +133,9 @@ const UNSPENT: Progress = {
   skillPoints: 2,
   skillLevels: { ...FRESH_PROGRESS.skillLevels, golem: 0 },
   skillBar: emptySkillBar(),
+  touchedWaypoints: [...FRESH_PROGRESS.touchedWaypoints],
+  smithService: "locked",
+  quests: structuredClone(FRESH_PROGRESS.quests),
 };
 
 /** Spends `times` points on `attribute`, one step each, returning the events. */

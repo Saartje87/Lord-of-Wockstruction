@@ -313,6 +313,91 @@ describe("A", () => {
   });
 });
 
+describe("A near an NPC", () => {
+  /** Stands NPC `name` at `pos` in the Area. */
+  function stand(world: World, name: string, pos: Vec) {
+    const { npcs } = world.areas[world.areaName];
+    world.standing.push(npcs.push({ name, pos, stands: null }) - 1);
+  }
+
+  it("with no Target talks to the nearest NPC within reach", () => {
+    inputTuning.npcReach = 2;
+    const world = facingEast([]);
+    stand(world, "Smith", { x: 11.5, y: 10 });
+    stand(world, "Elder", { x: 10, y: 11 });
+    stand(world, "Trader", { x: 14, y: 10 });
+
+    const { orders } = pollPad(
+      createPadInput(),
+      press("a"),
+      0,
+      tilesOver(world),
+    );
+
+    expect(orders).toEqual([{ type: "Talk", npc: 1 }]);
+  });
+
+  it("talks before it picks up a Ground Item", () => {
+    inputTuning.npcReach = 2;
+    const world = facingEast([]);
+    stand(world, "Smith", { x: 11.5, y: 10 });
+    lay(world, 1, { x: 10, y: 10 });
+
+    const { orders } = pollPad(
+      createPadInput(),
+      press("a"),
+      0,
+      tilesOver(world),
+    );
+
+    expect(orders).toEqual([{ type: "Talk", npc: 0 }]);
+  });
+
+  it("attacks a Target rather than talking", () => {
+    inputTuning.npcReach = 2;
+    const world = facingEast([{ x: 12, y: 10 }]);
+    stand(world, "Smith", { x: 10, y: 11 });
+
+    const { orders } = pollPad(
+      createPadInput(),
+      press("a"),
+      0,
+      tilesOver(world),
+    );
+
+    expect(orders).toEqual([{ type: "Attack", monster: world.monsters[0].id }]);
+  });
+
+  it("still picks up a Ground Item when every NPC is out of reach", () => {
+    inputTuning.npcReach = 2;
+    const world = facingEast([]);
+    stand(world, "Smith", { x: 13, y: 10 });
+    lay(world, 1, { x: 10, y: 10 });
+
+    const { orders } = pollPad(
+      createPadInput(),
+      press("a"),
+      0,
+      tilesOver(world),
+    );
+
+    expect(orders).toEqual([{ type: "PickUp", groundItem: 1 }]);
+  });
+
+  it("talks once per press, not again while held", () => {
+    inputTuning.npcReach = 2;
+    inputTuning.retargetMs = 120;
+    const world = facingEast([]);
+    stand(world, "Smith", { x: 11.5, y: 10 });
+    const input = createPadInput();
+    pollPad(input, press("a"), 1000, tilesOver(world));
+
+    const { orders } = pollPad(input, hold("a"), 1500, tilesOver(world));
+
+    expect(orders).toEqual([]);
+  });
+});
+
 describe("holding A", () => {
   /** Presses A at 1000 ms over `world`, returning the pad's input. */
   function pressedAt1000(world: World): PadInput {

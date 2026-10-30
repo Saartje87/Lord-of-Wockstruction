@@ -1,3 +1,4 @@
+import { QUEST_IDS, questTuning } from "../tuning/quests";
 import { type Area, type Exit, isWalkable, TOWN } from "./area";
 import { canReach } from "./path";
 import { tileOf } from "./vec";
@@ -5,10 +6,10 @@ import { tileOf } from "./vec";
 /**
  * Checks that Areas fit together, throwing with a message naming the Area
  * and the problem: each needs a `start` Entry, each Combat Area an Area
- * Level and Town none, Exits must lead to an Entry
+ * Level and an Act and Town no Level, Exits must lead to an Entry
  * that exists and be reachable from `start`, spawns must be on tiles the
  * Monsters can stand on, and only Town may have a Town Portal spot, which
- * must be reachable from `start` too. A Town without one opens no Town
+ * must be reachable from `start` too, as must a Waypoint and each Bone Altar. A Town without one opens no Town
  * Portals: the content tests check the shipped Town has it.
  */
 export function validateAreas(areas: Record<string, Area>) {
@@ -23,6 +24,10 @@ export function validateAreas(areas: Record<string, Area>) {
       throw new Error(
         `Area "${area.name}" is a Combat Area without an Area Level`,
       );
+    }
+
+    if (area.name !== TOWN && area.act === null) {
+      throw new Error(`Area "${area.name}" is a Combat Area without an Act`);
     }
 
     if (area.townPortal && area.name !== TOWN) {
@@ -42,11 +47,37 @@ export function validateAreas(areas: Record<string, Area>) {
       );
     }
 
+    if (
+      area.waypoint &&
+      !(isWalkable(area, area.waypoint) && canReach(area, start, area.waypoint))
+    ) {
+      throw new Error(
+        `Area "${area.name}" has its Waypoint where it can't be reached from "start"`,
+      );
+    }
+
+    for (const altar of area.boneAltars) {
+      if (!(isWalkable(area, altar) && canReach(area, start, altar))) {
+        const { x, y } = tileOf(altar);
+        throw new Error(
+          `Area "${area.name}" has a Bone Altar on tile (${x}, ${y}) where it can't be reached from "start"`,
+        );
+      }
+    }
+
     for (const spawn of area.spawns) {
       if (isWalkable(area, spawn.pos)) continue;
       const { x, y } = tileOf(spawn.pos);
       throw new Error(
         `Area "${area.name}" has a spawn on blocked tile (${x}, ${y})`,
+      );
+    }
+
+    for (const unique of area.uniques) {
+      if (isWalkable(area, unique.pos)) continue;
+      const { x, y } = tileOf(unique.pos);
+      throw new Error(
+        `Area "${area.name}" has Unique Monster "${unique.name}" on blocked tile (${x}, ${y})`,
       );
     }
 
@@ -67,6 +98,91 @@ export function validateAreas(areas: Record<string, Area>) {
           `Area "${area.name}" has an Exit to "${exit.area}" that can't be reached from "start"`,
         );
       }
+    }
+  }
+}
+
+/**
+ * Checks that each Act is whole, throwing with a message naming it: exactly
+ * one Act Boss spawn in its Areas and a Waypoint in its Town, and every
+ * Waypoint's Area in an Act. Apart from `validateAreas` because small test
+ * maps make Acts that are not whole; `createShippedWorld` runs it on the
+ * shipped Areas.
+ */
+export function validateActs(areas: Record<string, Area>) {
+  const acts = new Set<number>();
+  for (const area of Object.values(areas)) {
+    if (area.act !== null) acts.add(area.act);
+    else if (area.waypoint) {
+      throw new Error(
+        `Area "${area.name}" has a Waypoint but belongs to no Act`,
+      );
+    }
+  }
+  for (const act of acts) {
+    const inAct = Object.values(areas).filter((area) => area.act === act);
+    const bosses = inAct.filter((area) => area.actBoss).length;
+    if (bosses !== 1) {
+      throw new Error(`Act ${act} has ${bosses} Act Boss spawns, not one`);
+    }
+    const town = inAct.find((area) => area.name === TOWN);
+    if (!town?.waypoint) {
+      throw new Error(`Act ${act} has no Waypoint in its Town`);
+    }
+  }
+}
+
+/**
+ * Checks that every Quest's objects exist in the Areas it names, throwing
+ * with a message naming the Quest: its giver in its Act's Town, and its
+ * Bone Altars, Unique Monster, NPC to talk to or Act Boss where its trigger
+ * asks. Run on the shipped Areas by `createShippedWorld`.
+ */
+export function validateQuests(areas: Record<string, Area>) {
+  for (const id of QUEST_IDS) {
+    const { name, act, giver, trigger } = questTuning[id];
+    const fail = (what: string): never => {
+      throw new Error(`Quest "${name}" ${what}`);
+    };
+    const town = Object.values(areas).find(
+      (area) => area.name === TOWN && area.act === act,
+    );
+    if (!town?.npcs.some((npc) => npc.name === giver)) {
+      fail(`has no giver "${giver}" in the Town of Act ${act}`);
+    }
+    switch (trigger.type) {
+      case "boneAltars": {
+        const altars = areas[trigger.area]?.boneAltars.length ?? 0;
+        if (altars < trigger.count) {
+          fail(
+            `asks for ${trigger.count} Bone Altars in "${trigger.area}", which has ${altars}`,
+          );
+        }
+        break;
+      }
+      case "uniqueKilled":
+        if (!areas[trigger.area]?.uniques.length) {
+          fail(`needs a Unique Monster in "${trigger.area}", which has none`);
+        }
+        break;
+      case "talk":
+        if (
+          !Object.values(areas).some((area) =>
+            area.npcs.some((npc) => npc.name === trigger.npc),
+          )
+        ) {
+          fail(`needs an NPC called "${trigger.npc}", who is nowhere`);
+        }
+        break;
+      case "actBossKilled":
+        if (
+          !Object.values(areas).some(
+            (area) => area.act === trigger.act && area.actBoss,
+          )
+        ) {
+          fail(`needs an Act Boss in Act ${trigger.act}`);
+        }
+        break;
     }
   }
 }

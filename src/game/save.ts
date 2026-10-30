@@ -1,10 +1,22 @@
+import { TOWN } from "./sim/area";
 import { emptyBelt, isValidBelt } from "./sim/belt";
 import {
   type Belongings,
   belongingsOf,
+  EQUIPMENT_SLOTS,
   isValidBelongings,
+  type SmithBonus,
 } from "./sim/inventory";
+import {
+  freshQuests,
+  QUEST_IDS,
+  type QuestState,
+  type QuestStates,
+  questPartsOf,
+  questPointsOf,
+} from "./sim/quests";
 import { SKILL_BAR_SLOTS, type SkillBar } from "./sim/skillBar";
+import { smithQuestDone } from "./sim/smith";
 import {
   ATTRIBUTES,
   FRESH_PROGRESS,
@@ -15,22 +27,65 @@ import {
   type SimEvent,
   SKILLS,
   type Skill,
+  type SmithService,
   type World,
 } from "./sim/world";
 import { heroTuning } from "./tuning/hero";
+import { questTuning } from "./tuning/quests";
 
 /**
- * Raised whenever the stored text changes shape. Text of any other version
- * is no Save, so the Hero starts fresh instead of loading something
- * misread, but for `BELTLESS_VERSION`.
+ * Raised whenever the stored text changes shape. Text of a version before
+ * `OLDEST_LOADABLE_VERSION` or after this one is no Save, so the Hero starts
+ * fresh instead of loading something misread; text of the versions between
+ * loads through `ADDED_FIELDS`.
  */
-export const SAVE_VERSION = 7;
+export const SAVE_VERSION = 10;
+
+/** The oldest version whose text still loads (the one before the Belt). */
+const OLDEST_LOADABLE_VERSION = 6;
 
 /**
- * The version before the Belt: its text, otherwise the same, loads with an
- * empty Belt.
+ * The fields the versions since `OLDEST_LOADABLE_VERSION` added, each with
+ * the version that first wrote it and what text from before it loads with.
+ * Older text must not hold the field.
  */
-const BELTLESS_VERSION = 6;
+const ADDED_FIELDS: readonly {
+  since: number;
+  field: string;
+  fresh: () => unknown;
+}[] = [
+  // An empty Belt.
+  { since: 7, field: "belt", fresh: emptyBelt },
+  // Only Wockville's Waypoint touched.
+  {
+    since: 8,
+    field: "touchedWaypoints",
+    fresh: () => [...FRESH_PROGRESS.touchedWaypoints],
+  },
+  // Every Quest Not given.
+  { since: 9, field: "quests", fresh: freshQuests },
+];
+
+/**
+ * The version that added the Smith's service and bonuses: older text loads
+ * with the service unlocked if "Spa Day" is Done, else locked, and no Item
+ * with a Smith bonus.
+ */
+const SMITH_SINCE_VERSION = 10;
+
+/** The states the Smith's service goes through, in order. */
+const SMITH_SERVICES: readonly SmithService[] = ["locked", "unlocked", "used"];
+
+/** The Equipment slots, as a Save names them. */
+const SLOTS: readonly string[] = EQUIPMENT_SLOTS;
+
+/** The states a Quest goes through, in order. */
+const QUEST_STATES: readonly QuestState[] = [
+  "notGiven",
+  "given",
+  "ready",
+  "done",
+];
 
 /** What the Save keeps of the Hero: their progress and their Belongings. */
 export type HeroSave = { progress: Progress; belongings: Belongings };
@@ -65,6 +120,12 @@ const SAVE_CHANGING_EVENTS: readonly SimEvent["type"][] = [
   "ItemEquipped",
   "ItemUnequipped",
   "BeltChanged",
+  "WaypointTouched",
+  "QuestGiven",
+  "QuestCounted",
+  "QuestReady",
+  "QuestDone",
+  "SmithBonusGiven",
 ];
 
 /** Whether a step's events changed what the Save keeps: progress or Belongings. */
@@ -125,6 +186,7 @@ export function encodeSave({ progress, belongings }: HeroSave): string {
     ...progress,
     inventory: belongings.inventory,
     equipment: belongings.equipment,
+    smithBonuses: belongings.smithBonuses,
     belt: belongings.belt,
   });
 }
@@ -147,12 +209,21 @@ export function parseSave(text: string | null): HeroSave | null {
   }
   if (typeof stored !== "object" || stored === null) return null;
   const fields = stored as Record<string, unknown>;
-  if (fields.version === BELTLESS_VERSION) {
-    if (fields.belt !== undefined) return null;
-    fields.belt = emptyBelt();
-  } else if (fields.version !== SAVE_VERSION) {
+  const version = fields.version as number;
+  if (
+    !Number.isInteger(version) ||
+    version < OLDEST_LOADABLE_VERSION ||
+    version > SAVE_VERSION
+  ) {
     return null;
   }
+  for (const { since, field, fresh } of ADDED_FIELDS) {
+    if (version >= since) continue;
+    if (fields[field] !== undefined) return null;
+    fields[field] = fresh();
+  }
+  const smithless = version < SMITH_SINCE_VERSION;
+  if (smithless && fields.smithService !== undefined) return null;
   if (!PROGRESS_FIELDS.every((field) => Number.isInteger(fields[field]))) {
     return null;
   }
@@ -160,12 +231,24 @@ export function parseSave(text: string | null): HeroSave | null {
   if (!skillLevels) return null;
   const skillBar = parseSkillBar(fields.skillBar, skillLevels);
   if (!skillBar) return null;
+  const touchedWaypoints = parseTouchedWaypoints(fields.touchedWaypoints);
+  if (!touchedWaypoints) return null;
+  const quests = parseQuests(fields.quests);
+  if (!quests) return null;
+  const smithService = parseSmithService(
+    smithless ? smithServiceFor(quests) : fields.smithService,
+    quests,
+  );
+  if (!smithService) return null;
   const progress = {
     ...Object.fromEntries(
       PROGRESS_FIELDS.map((field) => [field, fields[field]]),
     ),
     skillLevels,
     skillBar,
+    touchedWaypoints,
+    quests,
+    smithService,
   } as Progress;
   if (!fitsTable(progress.level, progress.experience)) return null;
   if (!fitsPoints(progress)) return null;
@@ -174,6 +257,7 @@ export function parseSave(text: string | null): HeroSave | null {
     fields.inventory,
     fields.equipment,
     fields.belt,
+    fields.smithBonuses,
   );
   return belongings && { progress, belongings };
 }
@@ -188,6 +272,7 @@ function parseBelongings(
   inventory: unknown,
   equipment: unknown,
   belt: unknown,
+  smithBonuses: unknown,
 ): Belongings | null {
   // How many rows the Belt Columns have is checked with the Equipment.
   if (!isValidBelt(belt, Number.POSITIVE_INFINITY)) return null;
@@ -197,16 +282,53 @@ function parseBelongings(
   const placed: Belongings["inventory"] = [];
   for (const entry of inventory) {
     if (typeof entry !== "object" || entry === null) return null;
-    const { type, cell } = entry;
+    const { type, cell, smithBonus } = entry;
     if (typeof cell !== "object" || cell === null) return null;
-    placed.push({ type, cell: { column: cell.column, row: cell.row } });
+    placed.push({
+      type,
+      cell: { column: cell.column, row: cell.row },
+      ...(smithBonus !== undefined && { smithBonus: copyBonus(smithBonus) }),
+    });
   }
+  if (smithBonuses !== undefined && !objectWithin(smithBonuses, SLOTS)) {
+    return null;
+  }
+  const bonuses = Object.entries(smithBonuses ?? {});
   const belongings: Belongings = {
     inventory: placed,
     equipment: { ...equipment },
+    ...(bonuses.length > 0 && {
+      smithBonuses: Object.fromEntries(
+        bonuses.map(([slot, bonus]) => [slot, copyBonus(bonus)]),
+      ),
+    }),
     belt: belt.map((column) => [...column]),
   };
   return isValidBelongings(belongings) ? belongings : null;
+}
+
+/** A stored Smith bonus as a fresh object, its parts checked with the Belongings. */
+function copyBonus(stored: unknown): SmithBonus {
+  const { bonus, amount } = (stored ?? {}) as Record<string, unknown>;
+  return { bonus, amount } as SmithBonus;
+}
+
+/** What the service is for Quests that unlock it: unlocked once that Quest is Done. */
+function smithServiceFor(quests: QuestStates): SmithService {
+  return smithQuestDone(quests) ? "unlocked" : "locked";
+}
+
+/**
+ * The stored Smith service, or null when it isn't a state, or doesn't fit
+ * the Quests: locked until the Quest unlocking it is Done, and then not.
+ */
+function parseSmithService(
+  stored: unknown,
+  quests: QuestStates,
+): SmithService | null {
+  if (!SMITH_SERVICES.includes(stored as SmithService)) return null;
+  const locked = stored === "locked";
+  return locked === smithQuestDone(quests) ? null : (stored as SmithService);
 }
 
 /**
@@ -253,6 +375,46 @@ function parseSkillBar(
 }
 
 /**
+ * The stored touched Waypoints, or null when they aren't a list of Area
+ * names with none twice. Wockville's is always touched.
+ */
+function parseTouchedWaypoints(stored: unknown): string[] | null {
+  if (!Array.isArray(stored)) return null;
+  const areas: unknown[] = stored;
+  const valid = areas.every(
+    (area, i) =>
+      typeof area === "string" && area !== "" && areas.indexOf(area) === i,
+  );
+  if (!valid) return null;
+  const names = stored as string[];
+  return names.includes(TOWN) ? [...names] : [TOWN, ...names];
+}
+
+/**
+ * The stored Quests, or null when they aren't an object holding, for Quests
+ * and nothing else, a state and a count of parts done that the Quest has. A
+ * Quest missing from them is Not given.
+ */
+function parseQuests(stored: unknown): QuestStates | null {
+  const log = objectWithin(stored, QUEST_IDS);
+  if (!log) return null;
+  const quests = freshQuests();
+  for (const id of QUEST_IDS) {
+    const quest = log[id];
+    if (quest === undefined) continue;
+    const entry = objectWithin(quest, ["state", "count"]);
+    if (!entry) return null;
+    const { state, count } = entry;
+    if (!QUEST_STATES.includes(state as QuestState)) return null;
+    const parts = questPartsOf(questTuning[id].trigger);
+    if (!Number.isInteger(count) || (count as number) < 0) return null;
+    if ((count as number) > parts) return null;
+    quests[id] = { state: state as QuestState, count: count as number };
+  }
+  return quests;
+}
+
+/**
  * A stored value as an object, or null when it isn't a plain object with
  * no keys but `keys`.
  */
@@ -267,7 +429,13 @@ function objectWithin(
 }
 
 /** The fields of the stored progress that aren't whole numbers. */
-const OBJECT_FIELDS = ["skillLevels", "skillBar"] as const;
+const OBJECT_FIELDS = [
+  "skillLevels",
+  "skillBar",
+  "touchedWaypoints",
+  "quests",
+  "smithService",
+] as const;
 
 type ObjectField = (typeof OBJECT_FIELDS)[number];
 
@@ -305,7 +473,8 @@ function fitsPoints(progress: Progress): boolean {
     raisedBy.every((points) => points >= 0) &&
     progress.attributePoints >= 0 &&
     raised + progress.attributePoints ===
-      heroTuning.attributePointsPerLevel * (progress.level - 1)
+      heroTuning.attributePointsPerLevel * (progress.level - 1) +
+        questPointsOf(progress.quests).attributePoints
   );
 }
 
@@ -322,6 +491,7 @@ function fitsSkillPoints(progress: Progress): boolean {
   return (
     progress.skillPoints >= 0 &&
     spent + progress.skillPoints ===
-      heroTuning.skillPointsPerLevel * (progress.level - 1)
+      heroTuning.skillPointsPerLevel * (progress.level - 1) +
+        questPointsOf(progress.quests).skillPoints
   );
 }

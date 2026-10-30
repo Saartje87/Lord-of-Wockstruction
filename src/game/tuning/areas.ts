@@ -11,6 +11,12 @@ export type AreaTuning = {
   bannerHoldMs: number;
   /** How long it then takes to fade out (ms). */
   bannerFadeOutMs: number;
+  /** How long the Act Complete banner takes to fade in (ms). */
+  actBannerFadeInMs: number;
+  /** How long it then holds fully opaque (ms). */
+  actBannerHoldMs: number;
+  /** How long it then takes to fade out (ms). */
+  actBannerFadeOutMs: number;
 };
 
 export const areaTuning: AreaTuning = {
@@ -18,4 +24,7 @@ export const areaTuning: AreaTuning = {
   bannerFadeInMs: 500,
   bannerHoldMs: 2000,
   bannerFadeOutMs: 1000,
+  actBannerFadeInMs: 800,
+  actBannerHoldMs: 3500,
+  actBannerFadeOutMs: 1500,
 };

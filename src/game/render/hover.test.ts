@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { arenaWith } from "../input/testArena";
+import { monsterMaxLife } from "../sim/monsters";
 import { combatArea } from "../sim/testAreas";
 import {
   createWorld,
@@ -115,6 +116,17 @@ describe("nameplateOf", () => {
     expect(plate.name).toBe("Skeleton");
     expect(plate.fraction).toBe(0.5);
     expect(plate.friendly).toBe(false);
+  });
+
+  it("names a Unique Monster by its own name, with its greater Life bar", () => {
+    const [zombie] = world("zombie").monsters;
+    const special: Monster = { ...zombie, unique: "Sir Soaks-a-Lot" };
+    const half = { ...special, life: monsterMaxLife(special) / 2 };
+
+    const plate = nameplateOf({ monster: half });
+
+    expect(plate.name).toBe("Sir Soaks-a-Lot");
+    expect(plate.fraction).toBe(0.5);
   });
 
   it("names a Zombie by its type", () => {

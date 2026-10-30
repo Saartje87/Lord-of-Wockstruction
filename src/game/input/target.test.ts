@@ -17,6 +17,23 @@ describe("picking the Target", () => {
     expect(pickTarget(world, east)).toBe(idAt(world, 0));
   });
 
+  it("picks a Bone Altar ahead when no Monster is, and a Monster before it", () => {
+    const world = arenaWith([]);
+    world.boneAltars.push({
+      kind: "boneAltar",
+      id: 900,
+      pos: { x: 12.5, y: 10.5 },
+      life: 5,
+      raised: [],
+      cooldown: 1,
+    });
+    expect(pickTarget(world, east)).toBe(900);
+
+    const withMonster = arenaWith([{ x: 14, y: 10 }]);
+    withMonster.boneAltars.push({ ...world.boneAltars[0] });
+    expect(pickTarget(withMonster, east)).toBe(withMonster.monsters[0].id);
+  });
+
   it("picks the nearest of the Monsters ahead", () => {
     const world = arenaWith([
       { x: 14, y: 10 },

@@ -11,10 +11,20 @@
  "infinite": false,
  "compressionlevel": -1,
  "nextlayerid": 5,
- "nextobjectid": 12,
+ "nextobjectid": 13,
  "properties": [
   {
    "name": "areaLevel",
+   "type": "int",
+   "value": 7
+  },
+  {
+   "name": "mainPath",
+   "type": "int",
+   "value": 4
+  },
+  {
+   "name": "act",
    "type": "int",
    "value": 1
   }
@@ -8268,7 +8278,7 @@
       {
        "name": "area",
        "type": "string",
-       "value": "town"
+       "value": "wockyard"
       },
       {
        "name": "entry",
@@ -8291,7 +8301,7 @@
     },
     {
      "id": 3,
-     "name": "from-town",
+     "name": "from-wockyard",
      "type": "entry",
      "x": 528,
      "y": 528,
@@ -8479,6 +8489,18 @@
        "value": "zombie"
       }
      ]
+    },
+    {
+     "id": 12,
+     "name": "waypoint",
+     "type": "waypoint",
+     "x": 720,
+     "y": 528,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true
     }
    ]
   }

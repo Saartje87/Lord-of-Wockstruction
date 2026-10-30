@@ -42,6 +42,8 @@ function mapMarks(
   return marksOf({
     minions: [],
     townPortal: null,
+    boneAltars: [],
+    npcs: of.area.npcs,
     displayNames: NAMES,
     ...of,
   });
@@ -128,6 +130,7 @@ describe("mapMarks of what stands on the Area", () => {
       { area: "catacombs", entry: "up", x: 2, y: 0, width: 2, height: 1 },
     ],
     npcs: [{ name: "Smith", pos: { x: 0.5, y: 1.5 } }],
+    waypoint: { x: 3.5, y: 1.5 },
   } as Area;
 
   it("marks each Minion where it stands", () => {
@@ -170,6 +173,37 @@ describe("mapMarks of what stands on the Area", () => {
     ).toBeNull();
   });
 
+  it("marks the Waypoint where it stands, only once Explored", () => {
+    const explored = area.floor.map(() => false);
+    expect(mapMarks({ area, explored, heroAt: HERO }).waypoint).toBeNull();
+
+    explored[7] = true; // the Waypoint's tile
+    expect(mapMarks({ area, explored, heroAt: HERO }).waypoint).toEqual({
+      x: 3.5,
+      y: 1.5,
+    });
+  });
+
+  it("marks no Waypoint in an Area without one", () => {
+    const bare = { ...area, waypoint: null } as Area;
+    expect(
+      mapMarks({ area: bare, explored: all(bare), heroAt: HERO }).waypoint,
+    ).toBeNull();
+  });
+
+  it("marks the Bone Altars standing, only once Explored", () => {
+    const boneAltars = [{ x: 3.5, y: 1.5 }];
+    const explored = area.floor.map(() => false);
+    expect(
+      mapMarks({ area, explored, heroAt: HERO, boneAltars }).boneAltars,
+    ).toEqual([]);
+
+    explored[7] = true;
+    expect(
+      mapMarks({ area, explored, heroAt: HERO, boneAltars }).boneAltars,
+    ).toEqual(boneAltars);
+  });
+
   it("names each NPC where they stand", () => {
     const { npcs } = mapMarks({ area, explored: all(area), heroAt: HERO });
 
@@ -208,11 +242,13 @@ describe("mapMarks of what stands on the Area", () => {
     const marks = mapMarks({ area, explored: all(area), heroAt: HERO });
 
     expect(Object.keys(marks).sort()).toEqual([
+      "boneAltars",
       "edges",
       "exits",
       "minions",
       "npcs",
       "townPortal",
+      "waypoint",
     ]);
   });
 });

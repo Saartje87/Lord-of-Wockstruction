@@ -232,7 +232,10 @@ function walkTo(world: World, target: Vec, limit = 600): SimEvent[] {
  * Walks the Hero to `target`, into an Exit or a Town Portal, and on through
  * the Area change. Returns what the Area they left held as they walked out.
  */
-function leave(world: World, target: Vec): Omit<KeptArea, "explored"> {
+function leave(
+  world: World,
+  target: Vec,
+): Omit<KeptArea, "explored" | "boneAltars"> {
   step(world, [{ type: "MoveTo", target }]);
   for (let i = 0; i < 600 && !world.areaChange; i++) step(world, []);
   const { monsters, corpses, groundItems, projectiles } = world;
@@ -585,17 +588,20 @@ describe("the Kept Area", () => {
     expect(w.projectiles).toEqual(left.projectiles);
   });
 
-  it("has a Monster that was chasing the Hero carry on chasing when they come back", () => {
+  it("has a Monster that was chasing the Hero Returning when they come back", () => {
     const w = inLairWithOneHurt();
     open(w);
     const left = leave(w, townPortalEnd(w));
-    const chaser = left.monsters.find(({ state }) => state === "chase");
-    if (!chaser) throw new Error("no Skeleton was chasing the Hero");
+    expect(left.monsters.some(({ state }) => state === "chase")).toBe(false);
 
     walkTo(w, TOWN_SPOT);
-    step(w, []);
 
-    expect(w.monsters.find(({ id }) => id === chaser.id)?.state).toBe("chase");
+    expect(w.monsters.map(({ state }) => state)).toEqual(["return", "return"]);
+    for (let i = 0; i < 1200; i++) {
+      if (w.monsters.every(({ state }) => state !== "return")) break;
+      step(w, []);
+    }
+    expect(w.monsters.map(({ life }) => life)).toEqual([60, 60]);
   });
 
   it("still has its Corpses and Ground Items when the Hero comes back", () => {
@@ -674,29 +680,25 @@ describe("the Kept Area", () => {
     expect(w.monsters.map(({ life }) => life)).toEqual([60, 60]);
   });
 
-  it("is fresh again on the next arrival once the Town Portal has closed", () => {
+  it("is kept once the Town Portal has closed, and by a later Exit", () => {
     const w = inLairWithOneHurt();
     open(w);
     leave(w, townPortalEnd(w));
     walkTo(w, TOWN_SPOT);
     expect(w.townPortal).toBeNull();
+    const left = leave(w, TO_DEN);
 
-    leave(w, TO_DEN);
     walkTo(w, BACK_FROM_DEN);
 
     expect(w.areaName).toBe("cave");
-    expect(w.monsters.map(({ pos, life }) => ({ pos, life }))).toEqual(
-      FRESH_LAIR,
-    );
+    expect(w.monsters).toEqual(left.monsters);
   });
 
-  it("is fresh again on the next arrival once a Town Portal opens in another Area", () => {
+  it("is kept when a Town Portal opens in another Area", () => {
     const w = inLairWithOneHurt();
     open(w);
-    leave(w, TO_DEN);
-    expect(open(w)).toContainEqual(
-      expect.objectContaining({ type: "TownPortalOpened", area: "den" }),
-    );
+    const left = leave(w, TO_DEN);
+    open(w);
     // Walk round the den's Town Portal, a step east of the Hero.
     step(w, [{ type: "MoveTo", target: { x: 1.5, y: 2.5 } }]);
     stepFor(w, 30);
@@ -704,19 +706,41 @@ describe("the Kept Area", () => {
     walkTo(w, BACK_FROM_DEN);
 
     expect(w.areaName).toBe("cave");
-    expect(w.monsters.map(({ pos, life }) => ({ pos, life }))).toEqual(
-      FRESH_LAIR,
-    );
+    expect(w.monsters).toEqual(left.monsters);
   });
 
-  it("is never an Area without the Town Portal, which stays fresh on every arrival", () => {
+  it("is kept without any Town Portal, by Exits alone", () => {
     const w = inLairWithOneHurt();
+    const left = leave(w, TO_DEN);
 
-    leave(w, TO_DEN);
     walkTo(w, BACK_FROM_DEN);
 
     expect(w.areaName).toBe("cave");
-    expect(w.monsters.map(({ pos, life }) => ({ pos, life }))).toEqual(
+    expect(w.monsters).toEqual(left.monsters);
+  });
+
+  it("is kept along with other Areas, all at once", () => {
+    const w = inLairWithOneHurt();
+    const cave = leave(w, TO_DEN);
+    const [skeleton] = w.monsters;
+    const denLeft = leave(w, BACK_FROM_DEN);
+    expect(w.areaName).toBe("cave");
+    expect(w.monsters).toEqual(cave.monsters);
+
+    leave(w, TO_DEN);
+
+    expect(w.areaName).toBe("den");
+    expect(w.monsters.map(({ id }) => id)).toEqual([skeleton.id]);
+    expect(denLeft.monsters).toHaveLength(1);
+  });
+
+  it("starts every Area fresh in a new World", () => {
+    const w = inLairWithOneHurt();
+    leave(w, TO_DEN);
+
+    const fresh = inCave({ town, cave: lair, den });
+
+    expect(fresh.monsters.map(({ pos, life }) => ({ pos, life }))).toEqual(
       FRESH_LAIR,
     );
   });

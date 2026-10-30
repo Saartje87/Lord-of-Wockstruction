@@ -28,9 +28,10 @@ describe("the Panel buttons' layout", () => {
     { width: 1024, height: 640 },
   ])("sits right of the Skill Bar in line with it, clear of the Mana orb at $width px", (size) => {
     const screen = viewportOf(size);
-    const { hero, inventory, skillTree } = panelButtonsLayout(screen).buttons;
+    const { hero, inventory, skillTree, quest } =
+      panelButtonsLayout(screen).buttons;
     const { slots } = skillBarLayout(screen);
-    const buttons = [hero, inventory, skillTree];
+    const buttons = [hero, inventory, skillTree, quest];
 
     for (let i = 1; i < buttons.length; i++) {
       expect(buttons[i].x).toBeGreaterThan(buttons[i - 1].x);
@@ -43,31 +44,46 @@ describe("the Panel buttons' layout", () => {
     }
     expect(hero.x).toBeGreaterThan(slots.right.x + slots.right.w);
     // Clear of the Mana orb's 144 px.
-    expect(skillTree.x + skillTree.w).toBeLessThan(screen.width - 144);
+    expect(quest.x + quest.w).toBeLessThan(screen.width - 144);
   });
 
   it.each([
     { width: 1280, height: 720 },
     { width: 1024, height: 640 },
     { width: 1920, height: 1080 },
-    { width: 1180, height: 820 },
-    { width: 1024, height: 768 },
-    { width: 1366, height: 1024 },
   ])("puts the round Town Portal button after the Panel buttons, centred on their row, clear of the Mana orb at $width×$height", (size) => {
     const screen = viewportOf(size);
     const { buttons, townPortal } = panelButtonsLayout(screen);
-    const { skillTree, inventory } = buttons;
+    const { quest, skillTree } = buttons;
 
     // 36 px across at native scale, a little smaller than a Panel button.
     expect(townPortal.w).toBeCloseTo(36 * screen.uiScale);
     expect(townPortal.h).toBeCloseTo(36 * screen.uiScale);
-    expect(townPortal.y + townPortal.h / 2).toBeCloseTo(
-      skillTree.y + skillTree.h / 2,
-    );
-    expect(townPortal.x - (skillTree.x + skillTree.w)).toBeCloseTo(
-      skillTree.x - (inventory.x + inventory.w),
+    expect(townPortal.y + townPortal.h / 2).toBeCloseTo(quest.y + quest.h / 2);
+    expect(townPortal.x - (quest.x + quest.w)).toBeCloseTo(
+      quest.x - (skillTree.x + skillTree.w),
     );
     // Clear of the Mana orb's 144 px at native scale.
+    expect(townPortal.x + townPortal.w).toBeLessThan(
+      screen.width - 144 * screen.uiScale,
+    );
+  });
+
+  it.each([
+    { width: 1180, height: 820 },
+    { width: 1024, height: 768 },
+    { width: 1366, height: 1024 },
+  ])("puts the round Town Portal button above the last Panel button where the row would reach the Mana orb at $width×$height", (size) => {
+    const screen = viewportOf(size);
+    const { buttons, townPortal } = panelButtonsLayout(screen);
+    const { quest } = buttons;
+
+    expect(townPortal.w).toBeCloseTo(36 * screen.uiScale);
+    expect(townPortal.x + townPortal.w / 2).toBeCloseTo(quest.x + quest.w / 2);
+    expect(townPortal.y + townPortal.h).toBeLessThan(quest.y);
+    for (const panel of PANELS) {
+      expect(overlaps(townPortal, buttons[panel]), panel).toBe(false);
+    }
     expect(townPortal.x + townPortal.w).toBeLessThan(
       screen.width - 144 * screen.uiScale,
     );
@@ -81,14 +97,12 @@ describe("the Panel buttons' layout", () => {
   ])("puts the Town Portal button under the Panel buttons' column in the Compact Layout on $width×$height", (size) => {
     const screen = viewportOf(size);
     const { buttons, townPortal } = panelButtonsLayout(screen);
-    const { skillTree } = buttons;
+    const { quest } = buttons;
 
     expect(screen.compact).toBe(true);
     expect(townPortal.w).toBeCloseTo(36 * screen.uiScale);
-    expect(townPortal.x + townPortal.w / 2).toBeCloseTo(
-      skillTree.x + skillTree.w / 2,
-    );
-    expect(townPortal.y).toBeGreaterThan(skillTree.y + skillTree.h);
+    expect(townPortal.x + townPortal.w / 2).toBeCloseTo(quest.x + quest.w / 2);
+    expect(townPortal.y).toBeGreaterThan(quest.y + quest.h);
     for (const panel of PANELS) {
       expect(overlaps(townPortal, buttons[panel]), panel).toBe(false);
     }
@@ -228,6 +242,7 @@ describe("the Panel buttons' sheet", () => {
       false,
       true,
       false,
+      false,
     ]);
   });
 
@@ -238,6 +253,7 @@ describe("the Panel buttons' sheet", () => {
 
     expect(panelButtonsSheet(menus, alive).map(({ lit }) => lit)).toEqual([
       true,
+      false,
       false,
       false,
     ]);
@@ -252,6 +268,7 @@ describe("the Panel buttons' sheet", () => {
       true,
       false,
       true,
+      false,
     ]);
   });
 
@@ -265,6 +282,7 @@ describe("the Panel buttons' sheet", () => {
       false,
       false,
       false,
+      false,
     ]);
   });
 
@@ -273,7 +291,7 @@ describe("the Panel buttons' sheet", () => {
 
     expect(
       panelButtonsSheet(menus, alive).map(({ tooltip }) => tooltip),
-    ).toEqual(["Hero (C)", "Inventory (I)", "Skill Tree (T)"]);
+    ).toEqual(["Hero (C)", "Inventory (I)", "Skill Tree (T)", "Quests (Q)"]);
   });
 
   it("shows every Panel button dimmed while the Hero lies in Death", () => {
@@ -281,7 +299,7 @@ describe("the Panel buttons' sheet", () => {
 
     expect(
       panelButtonsSheet(menus, { heroDead: true }).map(({ dimmed }) => dimmed),
-    ).toEqual([true, true, true]);
+    ).toEqual([true, true, true, true]);
   });
 });
 

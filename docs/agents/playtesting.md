@@ -22,16 +22,22 @@ Parallel agents share one Chrome and often one machine.
 
 ## Skip the grind
 
-The Save lives in `localStorage` under `wockstruction.save` as JSON. Write one and reload to start at any Level; `parseSave` in `src/game/save.ts` lists the fields and the checks a Save must pass (points raised plus unspent equal 5 × (Level − 1); Skill Levels plus unspent Skill Points equal Level − 1; Items on the grid, not overlapping, and in slots of their kind). For example, a Level 3 Hero with 10 unspent points and 2 unspent Skill Points:
+The Save lives in `localStorage` under `wockstruction.save` as JSON. Write one and reload to start at any Level; `parseSave` in `src/game/save.ts` lists the fields and the checks a Save must pass (points raised plus unspent equal 5 × (Level − 1), plus what Done Quests paid; Skill Levels plus unspent Skill Points equal Level − 1, plus what Done Quests paid; Items on the grid, not overlapping, and in slots of their kind). For example, a Level 3 Hero with 10 unspent points and 2 unspent Skill Points:
 
 ```js
 localStorage.setItem("wockstruction.save", JSON.stringify({
-  version: 7, level: 3, experience: 2000,
+  version: 10, level: 3, experience: 2000,
   strength: 20, dexterity: 20, vitality: 20, energy: 20, attributePoints: 10,
   // Skills are the keys of `skillTuning` in src/game/tuning/skills.ts.
   skillPoints: 2, skillLevels: { golem: 0 },
   // Only learned Skills, each in at most one slot.
   skillBar: { right: null, key1: null, key2: null, key3: null, key4: null },
+  // Areas whose Waypoint is touched (Wockville, `town`, always is); add `soggy-bog` and `catacombs` to travel there.
+  touchedWaypoints: ["town"],
+  // Each Quest's `state` (notGiven, given, ready, done) and `count`; one left out is notGiven. Done Quests' reward points count towards the point checks above (Lost Wanderer: +5 Attribute Points).
+  quests: { "lost-wanderer": { state: "given", count: 0 } },
+  // The Smith's service: locked, unlocked (needs the Done "spa-day" Quest) or used.
+  smithService: "locked",
   // Item types are the keys of `itemTuning` in src/game/tuning/items.ts.
   inventory: [{ type: "axe", cell: { column: 0, row: 0 } }],
   equipment: { weapon: "shortSword" },

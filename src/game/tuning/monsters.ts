@@ -111,7 +111,11 @@ export type MonsterGrowth = {
   experience: number;
 };
 
-export type MonsterType = "skeleton" | "zombie" | "skeleton_archer";
+export type MonsterType =
+  | "skeleton"
+  | "zombie"
+  | "skeleton_archer"
+  | "grave_wockington";
 
 export const monsterTuning: Record<MonsterType, MonsterTuning> = {
   skeleton: {
@@ -252,6 +256,46 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
     flinchInterrupts: true,
     // The Skeleton's rates, so it stays as fragile next to one in every
     // Combat Area: 99 Life and 7–14 an Arrow in the Ossuary.
+    growth: {
+      life: 0.25,
+      damage: 0.2,
+      attackRating: 0.1,
+      defense: 0.15,
+      experience: 3,
+    },
+  },
+  // The Act 1 boss's type: slow and sturdy, with a heavy blow after a long
+  // wind-up. What makes him a threat is the Skeletons he raises in waves
+  // (`graveWockingtonTuning`). Placeholder numbers until his fight is
+  // designed (T446).
+  grave_wockington: {
+    name: "Grave Wockington",
+    life: 120,
+    experience: 300,
+    speed: 1.6,
+    damage: [8, 16],
+    defense: 120,
+    attackRating: 30,
+    radius: 0.45,
+    wanderRadius: 1,
+    wanderSpeed: 0.35,
+    wanderPauseMs: [2000, 5000],
+    aggroRadius: 9,
+    replanMs: 400,
+    needsSight: true,
+    spreadRadius: 1.5,
+    attack: { kind: "melee", reach: 1.5, reachGrace: 0.25, arcDegrees: 70 },
+    windUpMs: 900,
+    rootMs: 400,
+    recoveryMs: 1500,
+    jitterMs: 400,
+    maxAttackers: 0,
+    leash: 20,
+    returnSpeed: 1.2,
+    graceMs: 2000,
+    flinchChance: 0,
+    flinchMs: 200,
+    flinchInterrupts: false,
     growth: {
       life: 0.25,
       damage: 0.2,

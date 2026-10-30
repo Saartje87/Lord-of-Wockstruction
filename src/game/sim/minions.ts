@@ -5,6 +5,7 @@ import {
 } from "../tuning/minions";
 import type { Skill } from "../tuning/skills";
 import { type Area, isWalkable } from "./area";
+import { altarRadiusOf, type BoneAltar, targetsOf } from "./boneAltars";
 import { faceToward, lands } from "./melee";
 import { isClear } from "./path";
 import { msToSteps, perStep } from "./units";
@@ -239,7 +240,7 @@ export function placeBesideHero(world: World, minion: Minion) {
  */
 export function stepMinions(
   world: World,
-  strike: (minion: Minion, monster: Monster) => void,
+  strike: (minion: Minion, target: Monster | BoneAltar) => void,
 ) {
   for (const minion of [...world.minions]) {
     const struck = stepMinion(world, minion);
@@ -248,10 +249,10 @@ export function stepMinions(
 }
 
 /**
- * Moves a Minion one step. Returns the Monster its attack lands on this
- * step, if any.
+ * Moves a Minion one step. Returns the Monster or Bone Altar its attack lands
+ * on this step, if any.
  */
-function stepMinion(world: World, minion: Minion): Monster | null {
+function stepMinion(world: World, minion: Minion): Monster | BoneAltar | null {
   if (minion.cooldown > 0) minion.cooldown -= 1;
   if (minion.state === "windup") return windUp(world, minion);
   if (minion.state === "recover") {
@@ -278,26 +279,29 @@ function stepMinion(world: World, minion: Minion): Monster | null {
 /**
  * The Monster a Minion goes after: the one it is after while that one stays
  * within its Leash to the Hero, else the nearest to it of those within its
- * guard radius of the Hero. None while it is so far from the Hero that it
- * should teleport back to them.
+ * guard radius of the Hero; failing a Monster, a Bone Altar the same way.
+ * None while it is so far from the Hero that it should teleport back to them.
  */
-function quarryOf(world: World, minion: Minion): Monster | null {
+function quarryOf(world: World, minion: Minion): Monster | BoneAltar | null {
   const tuning = minionTuning[minion.type];
   const hero = world.hero.pos;
   if (distance(minion.pos, hero) > tuning.teleportDistance) return null;
-  const current = world.monsters.find((m) => m.id === minion.target);
+  const current = targetsOf(world).find((m) => m.id === minion.target);
   if (current && distance(current.pos, hero) <= tuning.leash) return current;
-  let nearest: Monster | null = null;
-  for (const monster of world.monsters) {
-    if (distance(monster.pos, hero) > tuning.guardRadius) continue;
-    if (
-      !nearest ||
-      distance(minion.pos, monster.pos) < distance(minion.pos, nearest.pos)
-    ) {
-      nearest = monster;
+  const nearestOf = (targets: readonly (Monster | BoneAltar)[]) => {
+    let nearest: Monster | BoneAltar | null = null;
+    for (const target of targets) {
+      if (distance(target.pos, hero) > tuning.guardRadius) continue;
+      if (
+        !nearest ||
+        distance(minion.pos, target.pos) < distance(minion.pos, nearest.pos)
+      ) {
+        nearest = target;
+      }
     }
-  }
-  return nearest;
+    return nearest;
+  };
+  return nearestOf(world.monsters) ?? nearestOf(world.boneAltars);
 }
 
 /** Gives up on its Monster, to follow the Hero. */
@@ -313,8 +317,8 @@ function stopChasing(minion: Minion) {
  * Walks to `monster`, stopping once in reach, and attacks when ready;
  * teleports next to the Hero when stuck for a while.
  */
-function chase(world: World, minion: Minion, monster: Monster) {
-  const { reach } = minionTuning[minion.type];
+function chase(world: World, minion: Minion, monster: Monster | BoneAltar) {
+  const reach = minionTuning[minion.type].reach + altarRadiusOf(monster);
   const gap = distance(minion.pos, monster.pos);
   // A chase stops at reach only up to rounding.
   if (gap <= reach + 1e-9) {
@@ -339,17 +343,22 @@ function startWindUp(minion: Minion, at: Vec) {
  * facing it wound up in. Then it recovers, rooted, and waits a while longer
  * before it can attack again. Returns the Monster it lands on, if any.
  */
-function windUp(world: World, minion: Minion): Monster | null {
+function windUp(world: World, minion: Minion): Monster | BoneAltar | null {
   const stepped = STEPPED[minion.type];
   minion.attackSteps += 1;
   if (minion.attackSteps < stepped.windUpSteps) return null;
   minion.state = "recover";
   minion.attackSteps = stepped.rootSteps;
   minion.cooldown = stepped.rootSteps + stepped.recoverySteps;
-  const monster = world.monsters.find((m) => m.id === minion.target);
+  const monster = targetsOf(world).find((m) => m.id === minion.target);
   if (!monster) return null;
   const { reach, reachGrace } = minionTuning[minion.type];
-  return lands(minion, monster.pos, reach + reachGrace, stepped.arc)
+  return lands(
+    minion,
+    monster.pos,
+    reach + reachGrace + altarRadiusOf(monster),
+    stepped.arc,
+  )
     ? monster
     : null;
 }

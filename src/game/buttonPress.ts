@@ -61,6 +61,26 @@ export function pressButton(
       return [];
     case "learn":
       return [{ type: "SpendSkillPoint", skill: button.skill }];
+    case "travel":
+      // The list shuts as the Hero leaves; shutting it now keeps it from
+      // showing over the fade.
+      clickClose(menus, "waypoints");
+      return heroDead ? [] : [{ type: "TravelToWaypoint", area: button.area }];
+    case "acceptQuest":
+      return heroDead ? [] : [{ type: "AcceptQuest", quest: button.quest }];
+    case "handInQuest":
+      return heroDead ? [] : [{ type: "HandInQuest", quest: button.quest }];
+    case "smithService":
+      menus.dialoguePage = 1;
+      return [];
+    case "smithMore":
+      menus.dialoguePage += 1;
+      return [];
+    case "smithForge":
+      return heroDead ? [] : [{ type: "SmithBonus", item: button.item }];
+    case "goodbye":
+      clickClose(menus, "dialogue");
+      return [];
     case "townPortal":
       return heroDead || inTown(world) ? [] : [{ type: "OpenTownPortal" }];
     default:

@@ -14,6 +14,17 @@ export type ItemKind =
 /** What an Equipped Item can add to the Hero: an Attribute, or one of these. */
 export type Bonus = Attribute | "life" | "defense" | "attackRating";
 
+/** Every Bonus there is. */
+export const BONUSES: readonly Bonus[] = [
+  "strength",
+  "dexterity",
+  "vitality",
+  "energy",
+  "life",
+  "defense",
+  "attackRating",
+];
+
 /** What a Potion gives back. */
 export type PotionResource = "life" | "mana";
 

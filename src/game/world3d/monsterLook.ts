@@ -64,6 +64,16 @@ export const MONSTER_LOOKS: Record<MonsterType, MonsterLook> = {
     contact: 0.3,
     weapons: [{ slot: "handslot.r", model: "Skeleton_Crossbow" }],
   },
+  // A big, pale Skeleton with a blade for a staff, until he has a model of his own.
+  grave_wockington: {
+    model: "Skeleton",
+    scale: 0.6,
+    height: 1.5,
+    clips: { ...STANDING, attack: "1H_Melee_Attack_Chop" },
+    contact: ATTACK_CONTACT,
+    look: "raised",
+    weapons: [{ slot: "handslot.r", model: "Skeleton_Blade" }],
+  },
   zombie: {
     model: "Zombie",
     scale: 0.4,

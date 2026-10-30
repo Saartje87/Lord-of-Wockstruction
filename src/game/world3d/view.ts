@@ -15,19 +15,23 @@ import {
   FLINCH_STEPS,
   HERO_FLINCH_STEPS,
   HIT_STEP,
+  hasQuestToDeal,
   type Minion,
   type MinionId,
   type Monster,
   type MonsterId,
+  npcsIn,
   OPENING_STEPS,
   SWING_STEPS,
   type World,
 } from "../sim/world";
+import { boneAltarTuning } from "../tuning/boneAltars";
 import { inputTuning } from "../tuning/input";
 import type { ItemType } from "../tuning/items";
 import type { MinionType } from "../tuning/minions";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import type { ProjectileKind } from "../tuning/projectiles";
+import type { BoneAltarView } from "./boneAltarMeshes";
 import { ATTACK_CONTACT, type HeroClip } from "./clips";
 import { type Crumble, crumbleOf } from "./crumble";
 import { MINION_LOOKS } from "./minionLook";
@@ -107,6 +111,8 @@ export type NpcView = {
   facing: number;
   animation: MonsterAnimation;
   highlighted: false;
+  /** Whether a Quest mark floats over its head: a Quest to give or take back. */
+  questMark: boolean;
 };
 
 /** An Exit out of the Area: a zone of tiles, leading to the Area `to`. */
@@ -223,6 +229,8 @@ export type WorldView = {
   npcs: NpcView[];
   /** The Town Portal ends in the Area. */
   townPortals: ShownTownPortal[];
+  /** The Bone Altars still standing in the Area. */
+  boneAltars: BoneAltarView[];
   /** The Exits out of the Area. */
   exits: ExitView[];
   projectiles: ProjectileView[];
@@ -241,7 +249,10 @@ export type WorldView = {
   torches: (Torch & { lit: boolean })[];
   /** The Area's standing lanterns, each lit all the time. */
   lamps: Lamp[];
-  /** Whether the Area is a Combat Area, which has embers and a vignette. */
+  /**
+   * Whether the Area is an indoor Combat Area, which has embers, a vignette
+   * and a dark mood; Town and outdoor Areas are lit by day.
+   */
   combat: boolean;
   floorEffects: FloorEffectsView;
 };
@@ -357,7 +368,8 @@ export function worldViewOf(
         crumblingMinionOf(world, minion),
       ),
     ],
-    npcs: area.npcs.map((npc, id): NpcView => {
+    npcs: npcsIn(world).map((npc): NpcView => {
+      const { id } = npc;
       const apart = Math.hypot(pos.x - npc.pos.x, pos.y - npc.pos.y);
       return {
         id,
@@ -369,9 +381,15 @@ export function worldViewOf(
             : TOWARDS_CAMERA,
         animation: { clip: "idle", seconds: (world.tick * STEP_MS) / 1000 },
         highlighted: false,
+        questMark: hasQuestToDeal(world, id),
       };
     }),
     townPortals: effects.portals,
+    boneAltars: world.boneAltars.map((altar) => ({
+      id: altar.id,
+      pos: altar.pos,
+      fraction: altar.life / boneAltarTuning.life,
+    })),
     exits: area.exits.map(({ x, y, width, height, area: to }) => ({
       x,
       y,
@@ -404,7 +422,7 @@ export function worldViewOf(
       lit: !loweredWalls.includes(torch.wall),
     })),
     lamps: lampsIn(area),
-    combat: world.areaName !== TOWN,
+    combat: world.areaName !== TOWN && !area.outdoors,
     floorEffects: floorEffectsOf(world, alpha, effects, pos),
   };
 }

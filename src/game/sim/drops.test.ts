@@ -470,7 +470,7 @@ describe("Picking up a Potion", () => {
 });
 
 describe("Leaving the Area", () => {
-  it("clears its Ground Items, which aren't there on coming back", () => {
+  it("keeps its Ground Items, which are there again on coming back", () => {
     dropTuning.chance = 1;
     potionDropTuning.chance = 0;
     const world = createWorld({
@@ -489,7 +489,7 @@ describe("Leaving the Area", () => {
 
     walkThrough(world, { x: 3.5, y: 0.5 });
     expect(world.areaName).toBe("town");
-    expect(groundItemsOf(world)).toEqual([]);
+    expect(groundItemsOf(world)).toHaveLength(1);
   });
 });
 

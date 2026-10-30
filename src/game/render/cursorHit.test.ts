@@ -701,6 +701,9 @@ function withPoints() {
       skillPoints: 0,
       skillLevels: { ...FRESH_PROGRESS.skillLevels, golem: 1 },
       skillBar: emptySkillBar(),
+      touchedWaypoints: [...FRESH_PROGRESS.touchedWaypoints],
+      smithService: "locked",
+      quests: structuredClone(FRESH_PROGRESS.quests),
     },
   });
 }

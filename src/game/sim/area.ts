@@ -1,4 +1,5 @@
 import { isMonsterType, type MonsterType } from "../tuning/monsters";
+import { QUEST_IDS, type QuestId } from "../tuning/quests";
 import { tileOf, type Vec } from "./vec";
 
 /**
@@ -12,6 +13,22 @@ export type Area = {
    * Null for Town, which has none.
    */
   areaLevel: number | null;
+  /**
+   * The Act the Area belongs to, from 1. Null when the map doesn't say:
+   * every Combat Area must (see `validateAreas`).
+   */
+  act: number | null;
+  /**
+   * Where the Area lies on its Act's Main Path, Town 0, the next 1 and so on.
+   * Null for an Area off the Main Path, or one the map doesn't place. From the
+   * map's `mainPath` property.
+   */
+  mainPath: number | null;
+  /**
+   * Whether the Area lies under the open sky, not in a cave or crypt: the
+   * 3D World lights it by day. From the map's `outdoors` property.
+   */
+  outdoors: boolean;
   width: number;
   height: number;
   /** Row-major, `width * height` long; true where there is floor. */
@@ -42,7 +59,31 @@ export type Area = {
    * without one: Town's map must have it (see `validateAreas`).
    */
   townPortal: Vec | null;
+  /**
+   * Where the Area's Waypoint stands (tile units), or null in an Area
+   * without one.
+   */
+  waypoint: Vec | null;
+  /**
+   * Where the Area's Bone Altars stand (tile units), each in the middle of
+   * its tile. A fresh Session places them, unless a Done Quest has put them
+   * away.
+   */
+  boneAltars: Vec[];
+  /**
+   * The Unique Monsters the Area holds, each placed by hand. Every new
+   * Session places them again, whatever Quests are Done.
+   */
+  uniques: UniqueSpawn[];
+  /**
+   * Where the Act Boss of the Act this Area belongs to waits, or null when it
+   * isn't in this Area. A Unique Monster placed like the others.
+   */
+  actBoss: UniqueSpawn | null;
 };
+
+/** A named Unique Monster of one Monster type, placed at `pos` (tile units). */
+export type UniqueSpawn = { name: string; monster: MonsterType; pos: Vec };
 
 /** A KayKit piece standing on a cell (tile units), blocking the way or not. */
 export type Placed = { x: number; y: number; piece: string; blocks: boolean };
@@ -63,8 +104,18 @@ export type Exit = {
   height: number;
 };
 
-/** A non-hostile character standing at `pos` (tile units). */
-export type Npc = { name: string; pos: Vec };
+/**
+ * A non-hostile character standing at `pos` (tile units) when `stands`
+ * holds, or always when it is null.
+ */
+export type Npc = { name: string; pos: Vec; stands: NpcCondition | null };
+
+/**
+ * The Quest condition an NPC stands where it is placed under: while the
+ * Quest `quest` is not yet Ready to hand in (`ready` false), or once it is
+ * Ready or Done (`ready` true). It is judged on each arrival in the Area.
+ */
+export type NpcCondition = { quest: QuestId; ready: boolean };
 
 type TmjLayer =
   | { type: "tilelayer"; name: string; data: number[] }
@@ -154,7 +205,7 @@ export function cellAt(
 
 /**
  * Reads the `floor`, `walls & props` and `blocking override` tile layers and
- * the `entry`, `exit`, `monsterSpawn`, `npc` and `townPortal` objects of a
+ * the `entry`, `exit`, `monsterSpawn`, `npc`, `townPortal`, `waypoint` and `boneAltar` objects of a
  * Tiled `.tmj` file. An `exit` is a rectangle, or a point for the one tile it
  * is in. Only uncompressed tile data and a single tileset are supported. A
  * tileset in its own file is looked up in `tilesets` by its file name without
@@ -208,6 +259,10 @@ export function loadArea(
   const exits: Exit[] = [];
   const npcs: Npc[] = [];
   let townPortal: Vec | null = null;
+  let waypoint: Vec | null = null;
+  const boneAltars: Vec[] = [];
+  const uniques: UniqueSpawn[] = [];
+  let actBoss: UniqueSpawn | null = null;
   for (const layer of tmj.layers) {
     if (layer.type !== "objectgroup") continue;
     for (const object of layer.objects) {
@@ -215,6 +270,11 @@ export function loadArea(
       const kind = object.type ?? object.class;
       if (kind === "entry") entries[object.name] = pos;
       if (kind === "monsterSpawn") spawns.push(readSpawn(name, object, pos));
+      if (kind === "uniqueMonster") uniques.push(readUnique(name, object, pos));
+      if (kind === "actBoss") {
+        if (actBoss) throw new Error(`Area "${name}" has two Act Boss spawns`);
+        actBoss = readUnique(name, object, pos);
+      }
       if (kind === "exit") {
         const size = {
           width: (object.width ?? 0) / unitX,
@@ -222,8 +282,15 @@ export function loadArea(
         };
         exits.push(readExit(name, object, pos, size));
       }
-      if (kind === "npc") npcs.push({ name: object.name, pos });
+      if (kind === "npc") {
+        npcs.push({ name: object.name, pos, stands: readStands(name, object) });
+      }
       if (kind === "townPortal") townPortal = pos;
+      if (kind === "boneAltar") boneAltars.push(pos);
+      if (kind === "waypoint") {
+        if (waypoint) throw new Error(`Area "${name}" has two Waypoints`);
+        waypoint = pos;
+      }
     }
   }
 
@@ -247,6 +314,10 @@ export function loadArea(
   return {
     name,
     areaLevel: readAreaLevel(name, tmj),
+    act: readAct(name, tmj),
+    mainPath: readMainPath(name, tmj),
+    outdoors:
+      tmj.properties?.find((p) => p.name === "outdoors")?.value === true,
     width: tmj.width,
     height: tmj.height,
     floor,
@@ -259,7 +330,32 @@ export function loadArea(
     exits,
     npcs,
     townPortal,
+    waypoint,
+    boneAltars,
+    uniques,
+    actBoss,
   };
+}
+
+/**
+ * The Quest condition an `npc` object names with its `quest` and
+ * `questReady` properties, or null when it names none.
+ */
+function readStands(area: string, object: TmjObject): NpcCondition | null {
+  const quest = propertyOf(object, "quest");
+  if (quest === undefined) return null;
+  const ready = propertyOf(object, "questReady");
+  if (!(QUEST_IDS as readonly unknown[]).includes(quest)) {
+    throw new Error(
+      `Area "${area}" has NPC "${object.name}" standing under unknown Quest "${quest}"`,
+    );
+  }
+  if (typeof ready !== "boolean") {
+    throw new Error(
+      `Area "${area}" has NPC "${object.name}" with a Quest but no "questReady" property`,
+    );
+  }
+  return { quest: quest as QuestId, ready };
 }
 
 /** A Tiled object's custom property's value, if it has it. */
@@ -278,6 +374,30 @@ function readAreaLevel(name: string, tmj: Tmj): number | null {
     throw new Error(`Area "${name}" has a bad Area Level: ${level}`);
   }
   return level;
+}
+
+/** The map's `act` property: a whole number from 1, or null when it has none. */
+function readAct(name: string, tmj: Tmj): number | null {
+  const act = tmj.properties?.find((p) => p.name === "act")?.value;
+  if (act === undefined) return null;
+  if (typeof act !== "number" || !Number.isInteger(act) || act < 1) {
+    throw new Error(`Area "${name}" has a bad Act: ${act}`);
+  }
+  return act;
+}
+
+/** The map's `mainPath` property: a whole number from 0, or null when it has none. */
+function readMainPath(name: string, tmj: Tmj): number | null {
+  const position = tmj.properties?.find((p) => p.name === "mainPath")?.value;
+  if (position === undefined) return null;
+  if (
+    typeof position !== "number" ||
+    !Number.isInteger(position) ||
+    position < 0
+  ) {
+    throw new Error(`Area "${name}" has a bad Main Path position: ${position}`);
+  }
+  return position;
 }
 
 /** An `exit` object's zone and its `area` and `entry` properties. */
@@ -312,6 +432,20 @@ function readSpawn(name: string, object: TmjObject, pos: Vec): Spawn {
     );
   }
   return { monster, count, pos };
+}
+
+/** A `uniqueMonster` or `actBoss` object's name and `monster` property. */
+function readUnique(name: string, object: TmjObject, pos: Vec): UniqueSpawn {
+  const monster = propertyOf(object, "monster");
+  if (!isMonsterType(monster)) {
+    throw new Error(
+      `Area "${name}" has a Unique Monster of unknown type "${monster}"`,
+    );
+  }
+  if (!object.name) {
+    throw new Error(`Area "${name}" has a Unique Monster without a name`);
+  }
+  return { name: object.name, monster, pos };
 }
 
 /** The Area's one tileset, with its content, or null when it has none. */

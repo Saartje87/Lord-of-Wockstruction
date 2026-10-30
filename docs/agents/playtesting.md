@@ -41,7 +41,7 @@ localStorage.setItem("wockstruction.save", JSON.stringify({
 location.reload();
 ```
 
-A Save at 450 Experience levels up on the next Skeleton kill. For fights, use Level 30 or more with Vitality raised: Monster Level comes from the Combat Area, not the Hero, so a Level 1 to 10 Hero dies to the first Skeleton group while you take screenshots. **New Hero** in the Esc menu, or `localStorage.removeItem("wockstruction.save")`, puts things back. A Save written on a port belongs to that port only.
+A Save at 450 Experience levels up on the next Skeleton kill. For fights, use Level 30 or more with Vitality raised: Monster Level comes from the Combat Area, not the Hero, so a Level 1 to 10 Hero dies to the first Skeleton group while you take screenshots. **New Hero** on the Start Screen (Esc, then Quit to Start Screen), or `localStorage.removeItem("wockstruction.save")`, puts things back. A Save written on a port belongs to that port only.
 
 ### Start in an Area
 

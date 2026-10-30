@@ -91,21 +91,13 @@ const DEATH_HINTS: Record<InputWay, string> = {
   touch: "Tap to return to Town",
 };
 
-/**
- * How to leave the pause menu with `way`, or, while `confirming` a New Hero,
- * the way back that isn't the No button: Esc goes back from the question
- * rather than resuming, as Menu and B do.
- */
-export function resumeHint(confirming: boolean, way: InputWay): string {
+/** How to leave the pause menu with `way`. */
+export function resumeHint(way: InputWay): string {
   if (way === "controller") {
-    return confirming
-      ? `Press ${PAD_BUTTON_NAMES.b} to go back`
-      : `Press ${PAD_BUTTON_NAMES.menu} or ${PAD_BUTTON_NAMES.b} to resume`;
+    return `Press ${PAD_BUTTON_NAMES.menu} or ${PAD_BUTTON_NAMES.b} to resume`;
   }
   if (way === "touch") return "Tap elsewhere to resume";
-  return confirming
-    ? "Click elsewhere to resume"
-    : "Click elsewhere or press Esc to resume";
+  return "Click elsewhere or press Esc to resume";
 }
 
 /** A pause-menu button pressed by a key as well, as New Hero is by N. */
@@ -115,6 +107,7 @@ type KeyedMenuChoice = Exclude<MenuChoice, "fullscreen">;
 const MENU_LABELS: Record<KeyedMenuChoice, string> = {
   continue: "Continue",
   newHero: "New Hero",
+  quit: "Quit to Start Screen",
   confirm: "Yes",
   goBack: "No",
 };
@@ -123,6 +116,7 @@ const MENU_LABELS: Record<KeyedMenuChoice, string> = {
 const MENU_KEYS: Record<KeyedMenuChoice, string> = {
   continue: "C",
   newHero: "N",
+  quit: "Q",
   confirm: "Y",
   goBack: "N",
 };

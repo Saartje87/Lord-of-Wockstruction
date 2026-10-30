@@ -19,6 +19,7 @@ import {
   panelOpen,
   pressKey,
   pressPad,
+  quitToStart,
   reactMenus,
   removePendingPoint,
   reportLoad,
@@ -30,7 +31,7 @@ import {
   toggleMap,
   unplacedPoints,
 } from "./menus";
-import { gameTime, togglePause } from "./pause";
+import { gameTime } from "./pause";
 
 /** Whether the World has the Hero lying dead, as the menus are told. */
 const alive = { heroDead: false };
@@ -266,128 +267,103 @@ describe("the keys", () => {
     expect(menus.heroPanelOpen).toBe(false);
   });
 
-  it("leave any other key, N and Y included, to the game while it runs", () => {
+  it("leave any other key, N, Q and Y included, to the game while it runs", () => {
     const menus = createMenus();
 
     expect(pressKey(menus, "n", 1000, alive)).toBeNull();
+    expect(pressKey(menus, "q", 1000, alive)).toBeNull();
     expect(pressKey(menus, "y", 1000, alive)).toBeNull();
     expect(pressKey(menus, "x", 1000, alive)).toBeNull();
     expect(menus.pause.paused).toBe(false);
-    expect(menus.pause.confirming).toBe(false);
   });
 
-  it("ask to confirm New Hero on N, and start one on Y, resuming", () => {
+  it("quit to the Start Screen on Q with no confirm, resuming", () => {
     const menus = createMenus();
     pressKey(menus, "Escape", 1000, alive);
 
-    expect(pressKey(menus, "N", 2000, alive)).toBe("handled");
-    expect(menus.pause.confirming).toBe(true);
-    expect(pressKey(menus, "y", 3000, alive)).toBe("newHero");
-    expect(menus.pause.confirming).toBe(false);
+    expect(pressKey(menus, "Q", 2000, alive)).toBe("quit");
     expect(menus.pause.paused).toBe(false);
   });
 
-  it("close the Hero and Inventory panels for a New Hero", () => {
+  it("take N and Y in the pause menu for nothing: New Hero is on the Start Screen", () => {
+    const menus = createMenus();
+    pressKey(menus, "Escape", 1000, alive);
+
+    expect(pressKey(menus, "n", 2000, alive)).toBe("handled");
+    expect(pressKey(menus, "y", 3000, alive)).toBe("handled");
+    expect(menus.pause.paused).toBe(true);
+  });
+
+  it("close the Hero, Inventory and Skill Tree panels for a quit", () => {
     const menus = createMenus();
     pressKey(menus, "c", 1000, alive);
     pressKey(menus, "i", 1000, alive);
+    pressKey(menus, "t", 1000, alive);
     pressKey(menus, "Escape", 2000, alive);
-    pressKey(menus, "n", 3000, alive);
 
-    pressKey(menus, "y", 4000, alive);
+    pressKey(menus, "q", 3000, alive);
 
     expect(menus.heroPanelOpen).toBe(false);
     expect(menus.inventoryOpen).toBe(false);
-  });
-
-  it("close the Skill Tree panel for a New Hero", () => {
-    const menus = createMenus();
-    pressKey(menus, "t", 1000, alive);
-    pressKey(menus, "Escape", 2000, alive);
-    pressKey(menus, "n", 3000, alive);
-
-    pressKey(menus, "y", 4000, alive);
-
     expect(menus.skillTreeOpen).toBe(false);
-  });
-
-  it("take no Y for New Hero without the question first", () => {
-    const menus = createMenus();
-    pressKey(menus, "Escape", 1000, alive);
-
-    pressKey(menus, "y", 2000, alive);
-
-    expect(menus.pause.paused).toBe(true);
-    expect(menus.pause.confirming).toBe(false);
-  });
-
-  it.each([
-    "n",
-    "Escape",
-  ])("go back from the question to the menu on %s", (key) => {
-    const menus = createMenus();
-    pressKey(menus, "Escape", 1000, alive);
-    pressKey(menus, "n", 2000, alive);
-
-    expect(pressKey(menus, key, 3000, alive)).toBe("handled");
-    expect(menus.pause.confirming).toBe(false);
-    expect(menus.pause.paused).toBe(true);
-    expect(pressKey(menus, "y", 4000, alive)).not.toBe("newHero");
-  });
-
-  it("forget the question when the menu is closed", () => {
-    const menus = createMenus();
-    pressKey(menus, "Escape", 1000, alive);
-    pressKey(menus, "n", 2000, alive);
-
-    togglePause(menus.pause, 3000);
-    togglePause(menus.pause, 4000);
-
-    expect(menus.pause.confirming).toBe(false);
-    expect(pressKey(menus, "y", 5000, alive)).not.toBe("newHero");
   });
 });
 
 describe("a click while paused", () => {
-  it("asks to confirm New Hero on the New Hero button", () => {
+  it("quits to the Start Screen on the Quit to Start Screen button, resuming", () => {
     const menus = createMenus();
     pressKey(menus, "Escape", 1000, alive);
 
-    expect(clickPaused(menus, "newHero", 2000)).toBeNull();
-    expect(menus.pause.confirming).toBe(true);
-    expect(menus.pause.paused).toBe(true);
-  });
-
-  it("starts a New Hero on Yes, resuming", () => {
-    const menus = createMenus();
-    pressKey(menus, "Escape", 1000, alive);
-    clickPaused(menus, "newHero", 2000);
-
-    expect(clickPaused(menus, "confirm", 3000)).toBe("newHero");
+    expect(clickPaused(menus, "quit", 2000)).toBe("quit");
     expect(menus.pause.paused).toBe(false);
-  });
-
-  it("goes back from the question to the menu on No", () => {
-    const menus = createMenus();
-    pressKey(menus, "Escape", 1000, alive);
-    clickPaused(menus, "newHero", 2000);
-
-    expect(clickPaused(menus, "goBack", 3000)).toBeNull();
-    expect(menus.pause.confirming).toBe(false);
-    expect(menus.pause.paused).toBe(true);
   });
 
   it.each([
-    false,
-    true,
-  ])("resumes anywhere off the buttons, asking or not (%s)", (asking) => {
+    "newHero",
+    "confirm",
+    "goBack",
+  ] as const)("takes the Start Screen's %s button for nothing", (choice) => {
     const menus = createMenus();
     pressKey(menus, "Escape", 1000, alive);
-    if (asking) clickPaused(menus, "newHero", 2000);
+
+    expect(clickPaused(menus, choice, 2000)).toBeNull();
+    expect(menus.pause.paused).toBe(true);
+  });
+
+  it("resumes anywhere off the buttons", () => {
+    const menus = createMenus();
+    pressKey(menus, "Escape", 1000, alive);
 
     expect(clickPaused(menus, null, 3000)).toBeNull();
     expect(menus.pause.paused).toBe(false);
-    expect(menus.pause.confirming).toBe(false);
+  });
+});
+
+describe("quitting to the Start Screen", () => {
+  it("shows the Start Screen, with Continue for a Save", () => {
+    const menus = createMenus();
+    menus.screen = { type: "playing" };
+
+    quitToStart(menus, true);
+
+    expect(menus.screen).toEqual(startScreen(true));
+  });
+
+  it("shows the Start Screen without Continue when there is no Save", () => {
+    const menus = createMenus();
+
+    quitToStart(menus, false);
+
+    expect(menus.screen).toEqual(startScreen(false));
+  });
+
+  it("leaves no controller Focus behind", () => {
+    const menus = createMenus();
+    pressPad(menus, "menu", 1000, alive);
+
+    quitToStart(menus, true);
+
+    expect(menus.menuFocus).toBeNull();
   });
 });
 
@@ -405,7 +381,6 @@ describe("the Fullscreen button", () => {
 
     expect(clickPaused(menus, "fullscreen", 2000)).toBe("fullscreen");
     expect(menus.pause.paused).toBe(true);
-    expect(menus.pause.confirming).toBe(false);
   });
 
   it("asks to leave fullscreen the same way while fullscreen", () => {
@@ -425,7 +400,6 @@ describe("the Fullscreen button", () => {
 
     expect(pressPad(menus, "a", 3000, alive)).toBe("fullscreen");
     expect(menus.pause.paused).toBe(true);
-    expect(menus.pause.confirming).toBe(false);
     expect(menus.menuFocus).toBe("fullscreen");
   });
 
@@ -435,30 +409,26 @@ describe("the Fullscreen button", () => {
 
     pressPad(menus, "right", 2000, alive);
 
-    expect(menus.menuFocus).toBe("newHero");
+    expect(menus.menuFocus).toBe("quit");
   });
 
-  it("leaves New Hero to ask to confirm, and Yes to start one", () => {
+  it("leaves Quit to Start Screen to the click", () => {
     const menus = pausedWithFullscreen();
 
-    expect(clickPaused(menus, "newHero", 2000)).toBeNull();
-    expect(menus.pause.confirming).toBe(true);
-    expect(clickPaused(menus, "confirm", 3000)).toBe("newHero");
+    expect(clickPaused(menus, "quit", 2000)).toBe("quit");
     expect(menus.pause.paused).toBe(false);
   });
 
-  it("leaves New Hero to the controller, left of it", () => {
+  it("leaves Quit to Start Screen to the controller, left of it", () => {
     const menus = createMenus();
     menus.fullscreen = { available: true, on: false };
     pressPad(menus, "menu", 1000, alive);
     pressPad(menus, "right", 2000, alive);
 
     pressPad(menus, "left", 3000, alive);
-    pressPad(menus, "a", 4000, alive);
-    pressPad(menus, "up", 5000, alive);
 
-    expect(menus.pause.confirming).toBe(true);
-    expect(pressPad(menus, "a", 6000, alive)).toBe("newHero");
+    expect(pressPad(menus, "a", 4000, alive)).toBe("quit");
+    expect(menus.pause.paused).toBe(false);
   });
 
   it("does nothing while the Rotate Notice shows", () => {
@@ -777,17 +747,11 @@ describe("the Hero's Death", () => {
     expect(menus.pause.paused).toBe(false);
   });
 
-  it("still starts a New Hero from the pause menu, whose panels open", () => {
+  it("still quits from the pause menu", () => {
     const menus = createMenus();
     pressKey(menus, "Escape", 1000, dead);
-    pressKey(menus, "n", 2000, dead);
 
-    expect(pressKey(menus, "y", 3000, dead)).toBe("newHero");
-    // The New Hero's World starts with them alive.
-    pressKey(menus, "c", 4000, alive);
-    pressKey(menus, "i", 4000, alive);
-    expect(menus.heroPanelOpen).toBe(true);
-    expect(menus.inventoryOpen).toBe(true);
+    expect(pressKey(menus, "q", 2000, dead)).toBe("quit");
   });
 });
 
@@ -919,12 +883,11 @@ describe("Pending Attribute Points", () => {
     expect(menus.pendingPoints.strength).toBe(0);
   });
 
-  it("are cancelled by a New Hero", () => {
+  it("are cancelled by quitting to the Start Screen", () => {
     const menus = pendingOnStrength(2);
     pressKey(menus, "Escape", 2000, alive);
-    pressKey(menus, "n", 3000, alive);
 
-    expect(pressKey(menus, "y", 4000, alive)).toBe("newHero");
+    expect(pressKey(menus, "q", 3000, alive)).toBe("quit");
     expect(menus.pendingPoints.strength).toBe(0);
   });
 
@@ -1128,7 +1091,6 @@ describe("the Rotate Notice", () => {
     expect(pressKey(menus, key, 2000, alive)).toBe("handled");
 
     expect(menus.pause.paused).toBe(true);
-    expect(menus.pause.confirming).toBe(false);
     expect(menus.heroPanelOpen).toBe(false);
     expect(menus.inventoryOpen).toBe(false);
     expect(menus.skillTreeOpen).toBe(false);
@@ -1138,7 +1100,7 @@ describe("the Rotate Notice", () => {
 
   it.each([
     null,
-    "newHero",
+    "quit",
   ] as const)("ignores a click, on the pause menu's %s or not", (choice) => {
     const menus = createMenus();
     pressKey(menus, "Escape", 500, alive);
@@ -1147,7 +1109,6 @@ describe("the Rotate Notice", () => {
     expect(clickPaused(menus, choice, 2000)).toBeNull();
 
     expect(menus.pause.paused).toBe(true);
-    expect(menus.pause.confirming).toBe(false);
   });
 
   describe("on a touch screen too small, where fullscreen is allowed", () => {
@@ -1166,7 +1127,6 @@ describe("the Rotate Notice", () => {
       expect(tapRotateNotice(menus, "fullscreen")).toBe("fullscreen");
 
       expect(menus.pause.paused).toBe(true);
-      expect(menus.pause.confirming).toBe(false);
     });
 
     it("takes a tap anywhere else and does nothing", () => {
@@ -1189,7 +1149,6 @@ describe("the Rotate Notice", () => {
       expect(pressPad(menus, "menu", 2000, alive)).toBe("handled");
 
       expect(menus.pause.paused).toBe(true);
-      expect(menus.pause.confirming).toBe(false);
     });
 
     it("asks for nothing where the browser doesn't allow fullscreen", () => {
@@ -1263,12 +1222,12 @@ describe("the controller", () => {
   }
 
   describe("Menu", () => {
-    it("opens the pause menu with New Hero picked, and shuts it", () => {
+    it("opens the pause menu with Quit to Start Screen picked, and shuts it", () => {
       const menus = createMenus();
 
       expect(pressPad(menus, "menu", 1000, alive)).toBe("handled");
       expect(menus.pause.paused).toBe(true);
-      expect(menus.menuFocus).toBe("newHero");
+      expect(menus.menuFocus).toBe("quit");
       pressPad(menus, "menu", 2000, alive);
       expect(menus.pause.paused).toBe(false);
       expect(gameTime(menus.pause, 2000)).toBe(1000);
@@ -1281,102 +1240,51 @@ describe("the controller", () => {
 
       expect(menus.pause.paused).toBe(true);
     });
-
-    it("goes back from confirming a New Hero, as Esc does", () => {
-      const menus = pausedByPad();
-      pressPad(menus, "a", 2000, alive);
-
-      pressPad(menus, "menu", 3000, alive);
-
-      expect(menus.pause.paused).toBe(true);
-      expect(menus.pause.confirming).toBe(false);
-    });
   });
 
   describe("in the pause menu", () => {
-    it("A on New Hero asks to confirm, with No picked", () => {
+    it("A on Quit to Start Screen quits at once, with no confirm", () => {
       const menus = pausedByPad();
 
-      expect(pressPad(menus, "a", 2000, alive)).toBe("handled");
-
-      expect(menus.pause.confirming).toBe(true);
-      expect(menus.menuFocus).toBe("goBack");
+      expect(pressPad(menus, "a", 2000, alive)).toBe("quit");
+      expect(menus.pause.paused).toBe(false);
     });
 
-    it("A on No goes back, with New Hero picked", () => {
+    it("B resumes", () => {
       const menus = pausedByPad();
-      pressPad(menus, "a", 2000, alive);
 
-      pressPad(menus, "a", 3000, alive);
+      pressPad(menus, "b", 2000, alive);
 
-      expect(menus.pause.confirming).toBe(false);
-      expect(menus.menuFocus).toBe("newHero");
-    });
-
-    it.each([
-      "left",
-      "up",
-    ] as const)("%s moves to Yes, and A starts a New Hero", (direction) => {
-      const menus = pausedByPad();
-      pressPad(menus, "a", 2000, alive);
-
-      pressPad(menus, direction, 3000, alive);
-      expect(menus.menuFocus).toBe("confirm");
-
-      expect(pressPad(menus, "a", 4000, alive)).toBe("newHero");
       expect(menus.pause.paused).toBe(false);
     });
 
     it("stays on the last choice when pushed past it", () => {
       const menus = pausedByPad();
-      pressPad(menus, "a", 2000, alive);
 
       pressPad(menus, "right", 3000, alive);
       pressPad(menus, "down", 3000, alive);
 
-      expect(menus.menuFocus).toBe("goBack");
+      expect(menus.menuFocus).toBe("quit");
     });
 
-    it("moves back the other way", () => {
-      const menus = pausedByPad();
-      pressPad(menus, "a", 2000, alive);
-      pressPad(menus, "left", 3000, alive);
-
-      pressPad(menus, "right", 4000, alive);
-
-      expect(menus.menuFocus).toBe("goBack");
-    });
-
-    it("B goes back from confirming, then resumes", () => {
-      const menus = pausedByPad();
-      pressPad(menus, "a", 2000, alive);
-
-      pressPad(menus, "b", 3000, alive);
-      expect(menus.pause.confirming).toBe(false);
-      expect(menus.pause.paused).toBe(true);
-      pressPad(menus, "b", 4000, alive);
-      expect(menus.pause.paused).toBe(false);
-    });
-
-    it("picks nothing until a choice is picked, when opened by Esc", () => {
+    it("picks nothing until a button is pressed, when opened by Esc", () => {
       const menus = createMenus();
-      pressPad(menus, "menu", 500, alive);
-      pressPad(menus, "menu", 600, alive);
       pressKey(menus, "Escape", 1000, alive);
       expect(menus.menuFocus).toBeNull();
 
       pressPad(menus, "a", 2000, alive);
-      expect(menus.pause.confirming).toBe(false);
-      expect(menus.menuFocus).toBe("newHero");
+
+      expect(menus.menuFocus).toBe("quit");
+      expect(menus.pause.paused).toBe(true);
     });
 
-    it("picks New Hero on the first push, when opened by Esc", () => {
+    it("picks Quit to Start Screen on the first push, when opened by Esc", () => {
       const menus = createMenus();
       pressKey(menus, "Escape", 1000, alive);
 
       pressPad(menus, "right", 2000, alive);
 
-      expect(menus.menuFocus).toBe("newHero");
+      expect(menus.menuFocus).toBe("quit");
     });
 
     it.each([
@@ -1390,7 +1298,6 @@ describe("the controller", () => {
       expect(pressPad(menus, button, 2000, alive)).toBe("handled");
 
       expect(menus.pause.paused).toBe(true);
-      expect(menus.pause.confirming).toBe(false);
       expect(openPanels(menus)).toEqual([]);
     });
   });
@@ -1518,7 +1425,6 @@ describe("the controller", () => {
 
     expect(pressPad(menus, button, 2000, alive)).toBe("handled");
 
-    expect(menus.pause.confirming).toBe(false);
     expect(openPanels(menus)).toEqual(["hero"]);
     fitMenus(menus, { compact: false, rotateNotice: null }, 3000);
     expect(menus.pause.paused).toBe(false);

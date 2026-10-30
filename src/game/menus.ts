@@ -182,13 +182,15 @@ export function noPendingPoints(): PendingPoints {
 export type HeroState = { heroDead: boolean };
 
 /**
- * The pause menu's buttons: New Hero asks to confirm one, and then
- * `confirm` starts it while `goBack` returns to the menu; the Fullscreen
- * button asks to go in or out of fullscreen.
+ * The buttons of the Start Screen and the pause menu. On the Start Screen,
+ * New Hero asks to confirm one, and then `confirm` starts it while `goBack`
+ * returns to the choices. The pause menu has Quit to Start Screen. The
+ * Fullscreen button asks to go in or out of fullscreen.
  */
 export type MenuChoice =
   | "continue"
   | "newHero"
+  | "quit"
   | "confirm"
   | "goBack"
   | "fullscreen";
@@ -199,22 +201,32 @@ export type FullscreenChoice = Extract<MenuChoice, "fullscreen">;
 /**
  * What the menus ask the game loop to carry out: continue with the Save's
  * Hero or start a New Hero (both from the Start Screen, which then gives
- * way to play), take the game in or out of fullscreen, or load again after
- * a failed load.
+ * way to play), take the game in or out of fullscreen, load again after
+ * a failed load, or quit from the pause menu back to the Start Screen.
  */
-export type MenuRequest = "continue" | "newHero" | "fullscreen" | "retry";
+export type MenuRequest =
+  | "continue"
+  | "newHero"
+  | "quit"
+  | "fullscreen"
+  | "retry";
 
 /**
- * The pause menu's buttons in their row from left to right: New Hero, and
- * the Fullscreen button where `fullscreen` says the browser allows it, or
- * Yes and No while `confirming` a New Hero.
+ * The pause menu's buttons in their row from left to right: Quit to Start
+ * Screen, and the Fullscreen button where `fullscreen` says the browser
+ * allows it.
  */
-export function menuChoices(
-  confirming: boolean,
-  fullscreen: Fullscreen,
-): MenuChoice[] {
-  if (confirming) return ["confirm", "goBack"];
-  return fullscreen.available ? ["newHero", "fullscreen"] : ["newHero"];
+export function menuChoices(fullscreen: Fullscreen): MenuChoice[] {
+  return fullscreen.available ? ["quit", "fullscreen"] : ["quit"];
+}
+
+/**
+ * Goes back to the Start Screen after a `"quit"` request, which offers
+ * Continue when the game `hasSave`.
+ */
+export function quitToStart(menus: Menus, hasSave: boolean) {
+  menus.screen = startScreen(hasSave);
+  menus.menuFocus = null;
 }
 
 /**
@@ -278,6 +290,9 @@ function chooseStart(
       return null;
     case "fullscreen":
       return "fullscreen";
+    case "quit":
+      // The pause menu's choice.
+      return null;
   }
 }
 
@@ -290,9 +305,8 @@ export const MAP_KEY = "Tab";
  * the Skill Tree panel while the game runs; while `hero` lies dead, C, I and
  * T are taken but open nothing. Tab opens and closes the Map Overlay, but not
  * while `hero` lies dead. While the Rotate Notice shows, every key is taken
- * and does nothing. In the menu, N asks to confirm a New Hero, and then Y
- * confirms it while N or Esc goes back. Returns `"newHero"` once confirmed,
- * for the caller to start one, `"handled"` for any other key the menus took,
+ * and does nothing. In the menu, Q quits to the Start Screen. Returns `"quit"`
+ * for the caller to go back to it, `"handled"` for any other key the menus took,
  * and null for a key they leave to the game.
  */
 export function pressKey(
@@ -310,18 +324,13 @@ export function pressKey(
   if (menus.screen.type === "start") {
     return pressStartKey(menus, menus.screen, key);
   }
-  if (pause.confirming) {
-    if (letter === "y") return choose(menus, "confirm", nowMs) ?? "handled";
-    if (letter === "n" || key === "Escape") choose(menus, "goBack", nowMs);
-    return "handled";
-  }
   if (key === "Escape") {
     togglePause(pause, nowMs);
     menus.menuFocus = null;
     return "handled";
   }
   if (pause.paused) {
-    if (letter === "n") choose(menus, "newHero", nowMs);
+    if (letter === "q") return choose(menus, "quit", nowMs) ?? "handled";
     return "handled";
   }
   if (key === MAP_KEY) {
@@ -606,8 +615,8 @@ function closePanels(menus: Menus) {
 /**
  * A click at real time `nowMs` while paused, on one of the menu's buttons
  * or, for null, anywhere else, which resumes; nothing while the Rotate
- * Notice shows. Returns `"newHero"` once one is confirmed, for the caller
- * to start it, and `"fullscreen"` on the Fullscreen button, for the caller
+ * Notice shows. Returns `"quit"` on Quit to Start Screen, for the caller
+ * to go back to it, and `"fullscreen"` on the Fullscreen button, for the caller
  * to take the game in or out of fullscreen, the menu staying open.
  */
 export function clickPaused(
@@ -642,10 +651,9 @@ export function tapRotateNotice(
 
 /**
  * A controller button pressed at real time `nowMs`, as `pollPad` hands it
- * over. Menu opens and shuts the pause menu, picking New Hero; in it, the
+ * over. Menu opens and shuts the pause menu, picking Quit to Start Screen; in it, the
  * D-pad (or the stick) moves between its buttons, A presses the one picked,
- * and Menu or B goes back from confirming a New Hero, as Esc does, or
- * resumes. While the game runs, View opens and shuts the Inventory panel,
+ * and Menu or B resumes. While the game runs, View opens and shuts the Inventory panel,
  * LT the Map Overlay (not during Death, with a panel open or not), and
  * with a panel open, LB and RB move to the panel before or after it (in
  * Panel-button order, round from the last to the first), shutting it as
@@ -669,7 +677,7 @@ export function pressPad(
   if (pause.paused) return pressPaused(menus, button, nowMs);
   if (button === "menu") {
     togglePause(pause, nowMs);
-    menus.menuFocus = "newHero";
+    menus.menuFocus = "quit";
     return "handled";
   }
   if (button === "view") {
@@ -702,44 +710,21 @@ function pressPaused(
   nowMs: number,
 ): MenuRequest | "handled" {
   const { pause } = menus;
-  const choices = menuChoices(pause.confirming, menus.fullscreen);
+  const choices = menuChoices(menus.fullscreen);
   const picked = menus.menuFocus;
   const at = picked === null ? -1 : choices.indexOf(picked);
   if (button === "menu" || button === "b") {
-    if (pause.confirming) pickChoice(menus, "goBack", nowMs);
-    else togglePause(pause, nowMs);
+    togglePause(pause, nowMs);
   } else if (at === -1 && (button === "a" || isDirection(button))) {
-    menus.menuFocus = defaultChoice(pause.confirming);
+    menus.menuFocus = "quit";
   } else if (picked !== null && button === "a") {
-    return pickChoice(menus, picked, nowMs) ?? "handled";
+    return choose(menus, picked, nowMs) ?? "handled";
   } else if (button === "left" || button === "up") {
     menus.menuFocus = choices[Math.max(at - 1, 0)];
   } else if (button === "right" || button === "down") {
     menus.menuFocus = choices[Math.min(at + 1, choices.length - 1)];
   }
   return "handled";
-}
-
-/**
- * Presses pause-menu button `choice`, picking the new row's first choice,
- * or keeping the Fullscreen button picked.
- */
-function pickChoice(
-  menus: Menus,
-  choice: MenuChoice,
-  nowMs: number,
-): MenuRequest | null {
-  const started = choose(menus, choice, nowMs);
-  // The Fullscreen button leaves the row as it was, so stays picked.
-  if (choice !== "fullscreen") {
-    menus.menuFocus = defaultChoice(menus.pause.confirming);
-  }
-  return started;
-}
-
-/** The choice a controller starts on: No while confirming, for safety. */
-function defaultChoice(confirming: boolean): MenuChoice {
-  return confirming ? "goBack" : "newHero";
 }
 
 /** Whether `button` is one of the D-pad's directions. */
@@ -769,19 +754,17 @@ function choose(
     case "continue":
       // The pause menu has no Continue: only the Start Screen does.
       return null;
-    case "newHero":
-      pause.confirming = true;
-      return null;
-    case "goBack":
-      pause.confirming = false;
-      return null;
-    case "fullscreen":
-      return "fullscreen";
-    case "confirm":
-      if (!pause.confirming) return null;
-      // Starts afresh with nothing open.
+    case "quit":
+      // Leaves with nothing open and the game unpaused.
       togglePause(pause, nowMs);
       closePanels(menus);
-      return "newHero";
+      return "quit";
+    case "fullscreen":
+      return "fullscreen";
+    case "newHero":
+    case "confirm":
+    case "goBack":
+      // The Start Screen's choices.
+      return null;
   }
 }

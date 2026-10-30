@@ -13,7 +13,7 @@ import { menuChoiceLabel } from "./hints";
  * `gap` apart.
  */
 export const PAUSE_MENU_LAYOUT = {
-  width: 460,
+  width: 500,
   height: 290,
   buttonsTop: 196,
   gap: 20,
@@ -23,19 +23,17 @@ export const PAUSE_MENU_LAYOUT = {
  * A menu button's size (CSS px at native scale): each of the pause menu's,
  * and the Rotate Notice's Fullscreen button.
  */
-export const MENU_BUTTON = { width: 160, height: 32 };
+export const MENU_BUTTON = { width: 210, height: 32 };
 
 /** A pause-menu button: what it picks, its label and where it is. */
 export type MenuButton = { choice: MenuChoice; label: string; rect: Rect };
 
 /**
- * Where the pause menu and its buttons are drawn: New Hero, and the
- * Fullscreen button where `fullscreen` says the browser allows it, or Yes
- * and No while `confirming` a New Hero.
+ * Where the pause menu and its buttons are drawn: Quit to Start Screen, and
+ * the Fullscreen button where `fullscreen` says the browser allows it.
  */
 export function pauseMenuLayout(
   screen: Viewport,
-  confirming: boolean,
   way: InputWay,
   fullscreen: Fullscreen,
 ): { panel: Rect; buttons: MenuButton[] } {
@@ -49,7 +47,7 @@ export function pauseMenuLayout(
     w: width,
     h: height,
   };
-  const row = menuChoices(confirming, fullscreen).map((choice) => ({
+  const row = menuChoices(fullscreen).map((choice) => ({
     choice,
     label: menuChoiceLabel(choice, way, fullscreen.on),
   }));
@@ -94,10 +92,9 @@ export function buttonRow(
 export function menuChoiceAt(
   screen: Viewport,
   point: Vec,
-  confirming: boolean,
   way: InputWay,
   fullscreen: Fullscreen,
 ): MenuChoice | null {
-  const { buttons } = pauseMenuLayout(screen, confirming, way, fullscreen);
+  const { buttons } = pauseMenuLayout(screen, way, fullscreen);
   return buttons.find((button) => inside(button.rect, point))?.choice ?? null;
 }

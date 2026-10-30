@@ -13,72 +13,36 @@ const centre = (rect: Rect) => ({
 });
 
 describe("the pause menu's buttons", () => {
-  it("offer a New Hero, in the middle of the screen", () => {
-    const { buttons } = pauseMenuLayout(screen, false, keys, NO_FULLSCREEN);
+  it("offer Quit to Start Screen and no New Hero, in the middle of the screen", () => {
+    const { buttons } = pauseMenuLayout(screen, keys, NO_FULLSCREEN);
 
-    expect(buttons.map((button) => button.choice)).toEqual(["newHero"]);
+    expect(buttons.map((button) => button.choice)).toEqual(["quit"]);
     expect(centre(buttons[0].rect).x).toBe(640);
   });
 
-  it("offer Yes and No while asking to confirm", () => {
-    const { buttons } = pauseMenuLayout(screen, true, keys, NO_FULLSCREEN);
+  it("are labelled with their keys, or bare for the controller and touch", () => {
+    const labels = (way: "mouseAndKeyboard" | "controller" | "touch") =>
+      pauseMenuLayout(screen, way, NO_FULLSCREEN).buttons.map((b) => b.label);
 
-    expect(buttons.map((button) => button.choice)).toEqual([
-      "confirm",
-      "goBack",
-    ]);
-  });
-
-  it("are labelled with their keys, or for the controller with B on No", () => {
-    const labels = (
-      confirming: boolean,
-      way: "mouseAndKeyboard" | "controller" = keys,
-    ) =>
-      pauseMenuLayout(screen, confirming, way, NO_FULLSCREEN).buttons.map(
-        (b) => b.label,
-      );
-
-    expect(labels(false)).toEqual(["New Hero (N)"]);
-    expect(labels(true)).toEqual(["Yes (Y)", "No (N)"]);
-    expect(labels(true, "controller")).toEqual(["Yes", "No (B)"]);
+    expect(labels(keys)).toEqual(["Quit to Start Screen (Q)"]);
+    expect(labels("controller")).toEqual(["Quit to Start Screen"]);
+    expect(labels("touch")).toEqual(["Quit to Start Screen"]);
   });
 
   it("are found under a click", () => {
-    const choiceAt = (rect: Rect, confirming: boolean) =>
-      menuChoiceAt(screen, centre(rect), confirming, keys, NO_FULLSCREEN);
-    const [newHero] = pauseMenuLayout(
-      screen,
-      false,
-      keys,
-      NO_FULLSCREEN,
-    ).buttons;
-    const [yes, no] = pauseMenuLayout(
-      screen,
-      true,
-      keys,
-      NO_FULLSCREEN,
-    ).buttons;
+    const [quit] = pauseMenuLayout(screen, keys, NO_FULLSCREEN).buttons;
 
-    expect(choiceAt(newHero.rect, false)).toBe("newHero");
-    expect(choiceAt(yes.rect, true)).toBe("confirm");
-    expect(choiceAt(no.rect, true)).toBe("goBack");
+    expect(menuChoiceAt(screen, centre(quit.rect), keys, NO_FULLSCREEN)).toBe(
+      "quit",
+    );
   });
 
-  it("find nothing off them, nor where a hidden one would be", () => {
-    const choiceAt = (rect: Rect, confirming: boolean) =>
-      menuChoiceAt(screen, centre(rect), confirming, keys, NO_FULLSCREEN);
-    const [newHero] = pauseMenuLayout(
-      screen,
-      false,
-      keys,
-      NO_FULLSCREEN,
-    ).buttons;
-    const [yes] = pauseMenuLayout(screen, true, keys, NO_FULLSCREEN).buttons;
+  it("find nothing off them", () => {
     const corner = { x: 0, y: 0, w: 20, h: 20 };
 
-    expect(choiceAt(corner, false)).toBeNull();
-    expect(choiceAt(yes.rect, false)).not.toBe("confirm");
-    expect(choiceAt(newHero.rect, true)).not.toBe("newHero");
+    expect(
+      menuChoiceAt(screen, centre(corner), keys, NO_FULLSCREEN),
+    ).toBeNull();
   });
 });
 
@@ -87,19 +51,19 @@ describe("the pause menu's Fullscreen button", () => {
   const on = { available: true, on: true };
   const unavailable = { available: false, on: false };
 
-  it("sits beside New Hero where the browser allows fullscreen", () => {
-    const { buttons } = pauseMenuLayout(screen, false, keys, available);
+  it("sits beside Quit to Start Screen where the browser allows fullscreen", () => {
+    const { buttons } = pauseMenuLayout(screen, keys, available);
 
     expect(buttons.map((button) => button.choice)).toEqual([
-      "newHero",
+      "quit",
       "fullscreen",
     ]);
   });
 
   it("isn't shown where the browser doesn't allow fullscreen", () => {
-    const { buttons } = pauseMenuLayout(screen, false, keys, unavailable);
+    const { buttons } = pauseMenuLayout(screen, keys, unavailable);
 
-    expect(buttons.map((button) => button.choice)).toEqual(["newHero"]);
+    expect(buttons.map((button) => button.choice)).toEqual(["quit"]);
   });
 
   it.each([
@@ -108,50 +72,32 @@ describe("the pause menu's Fullscreen button", () => {
     "controller",
   ] as const)("reads Fullscreen, or Exit fullscreen while fullscreen (%s)", (way) => {
     const label = (fullscreen: typeof on) =>
-      pauseMenuLayout(screen, false, way, fullscreen).buttons[1].label;
+      pauseMenuLayout(screen, way, fullscreen).buttons[1].label;
 
     expect(label(available)).toBe("Fullscreen");
     expect(label(on)).toBe("Exit fullscreen");
   });
 
-  it("fits on the smallest screen, clear of New Hero", () => {
+  it("fits the row on the smallest screen, clear of Quit to Start Screen", () => {
     const smallest = viewportOf({ width: 640, height: 320 });
-    const [newHero, fullscreen] = pauseMenuLayout(
-      smallest,
-      false,
-      "touch",
-      available,
-    ).buttons;
+    const { panel, buttons } = pauseMenuLayout(smallest, "touch", available);
+    const [quit, fullscreen] = buttons;
 
-    expect(fullscreen.rect.x).toBeGreaterThanOrEqual(0);
-    expect(fullscreen.rect.y).toBeGreaterThanOrEqual(0);
-    expect(fullscreen.rect.x + fullscreen.rect.w).toBeLessThanOrEqual(640);
-    expect(fullscreen.rect.y + fullscreen.rect.h).toBeLessThanOrEqual(320);
-    expect(newHero.rect.x + newHero.rect.w).toBeLessThan(fullscreen.rect.x);
+    for (const { rect } of buttons) {
+      expect(rect.x).toBeGreaterThanOrEqual(panel.x);
+      expect(rect.y).toBeGreaterThanOrEqual(0);
+      expect(rect.x + rect.w).toBeLessThanOrEqual(panel.x + panel.w);
+      expect(rect.x + rect.w).toBeLessThanOrEqual(640);
+      expect(rect.y + rect.h).toBeLessThanOrEqual(320);
+    }
+    expect(quit.rect.x + quit.rect.w).toBeLessThan(fullscreen.rect.x);
   });
 
   it("is found under a click or tap, but not where the browser forbids it", () => {
-    const [, fullscreen] = pauseMenuLayout(
-      screen,
-      false,
-      keys,
-      available,
-    ).buttons;
+    const [, fullscreen] = pauseMenuLayout(screen, keys, available).buttons;
     const at = centre(fullscreen.rect);
 
-    expect(menuChoiceAt(screen, at, false, keys, available)).toBe("fullscreen");
-    expect(menuChoiceAt(screen, at, false, keys, unavailable)).toBeNull();
-    expect(menuChoiceAt(screen, at, true, keys, available)).not.toBe(
-      "fullscreen",
-    );
-  });
-
-  it("is hidden while confirming a New Hero, as New Hero is", () => {
-    const { buttons } = pauseMenuLayout(screen, true, keys, available);
-
-    expect(buttons.map((button) => button.choice)).toEqual([
-      "confirm",
-      "goBack",
-    ]);
+    expect(menuChoiceAt(screen, at, keys, available)).toBe("fullscreen");
+    expect(menuChoiceAt(screen, at, keys, unavailable)).toBeNull();
   });
 });

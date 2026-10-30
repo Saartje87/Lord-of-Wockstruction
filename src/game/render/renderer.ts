@@ -222,9 +222,8 @@ const FOCUS_RING = { colour: 0xfff4c0, width: 3 };
 
 /**
  * The pause menu's look: a dark panel in the middle of a darkened screen,
- * with the art's credit, the New Hero button and a hint to resume. Asking to
- * confirm a New Hero, the question takes the place of the credit, and Yes
- * and No that of the button. Where things go is `PAUSE_MENU_LAYOUT`.
+ * with the art's credit, the Quit to Start Screen button and a hint to
+ * resume. Where things go is `PAUSE_MENU_LAYOUT`.
  */
 const PAUSE_MENU = {
   darkness: 0.6,
@@ -232,7 +231,7 @@ const PAUSE_MENU = {
   title: { colour: 0xe8d27a, size: 40, top: 28 },
   credit: { colour: 0xd8d0b8, size: 15, top: 96, lineHeight: 22 },
   button: { size: 17 },
-  question: { colour: 0xd8d0b8, size: 17, top: 110, lineHeight: 28 },
+  question: { colour: 0xd8d0b8 },
   hint: { colour: 0x9a9080, size: 14, bottom: 26 },
 };
 
@@ -876,18 +875,13 @@ export function createRenderer(
 
     /**
      * The pause-menu button under a click on the canvas (CSS px), or null
-     * off them all; `confirming` while asking to confirm a New Hero, and
-     * the Fullscreen button only where `fullscreen` says it's allowed.
+     * off them all; the Fullscreen button only where `fullscreen` says it's
+     * allowed.
      */
-    menuChoiceAt(
-      screen: Vec,
-      confirming: boolean,
-      fullscreen: Fullscreen,
-    ): MenuChoice | null {
+    menuChoiceAt(screen: Vec, fullscreen: Fullscreen): MenuChoice | null {
       return menuChoiceAt(
         viewportOf(app.screen),
         screen,
-        confirming,
         activeInput.way,
         fullscreen,
       );
@@ -1287,7 +1281,6 @@ export function createRenderer(
       menu.draw(
         viewport,
         menus.pause,
-        world.hero.progress.level,
         // Only a controller picks with the menu's focus.
         activeInput.way === "controller" ? menus.menuFocus : null,
         menus.fullscreen,
@@ -3078,7 +3071,7 @@ function deathScreenView(activeInput: Readonly<ActiveInput>) {
  * `CREDITS.md` for the rest, and offers a New Hero.
  */
 function pauseMenuView(activeInput: Readonly<ActiveInput>) {
-  const { darkness, panel, title, credit, question, hint } = PAUSE_MENU;
+  const { darkness, panel, title, credit, hint } = PAUSE_MENU;
   const { width, height } = PAUSE_MENU_LAYOUT;
   const layer = new Container();
   const dark = new Graphics().rect(0, 0, 1, 1).fill(0x000000);
@@ -3107,17 +3100,6 @@ function pauseMenuView(activeInput: Readonly<ActiveInput>) {
     },
   });
   credits.anchor.set(0.5, 0);
-  const confirm = new Text({
-    text: "",
-    style: {
-      fill: question.colour,
-      fontSize: question.size,
-      fontFamily: SERIF,
-      align: "center",
-      lineHeight: question.lineHeight,
-    },
-  });
-  confirm.anchor.set(0.5, 0);
   const resume = new Text({
     text: "",
     style: { fill: hint.colour, fontSize: hint.size, fontFamily: SERIF },
@@ -3130,11 +3112,10 @@ function pauseMenuView(activeInput: Readonly<ActiveInput>) {
   const placed = [
     { text: heading, y: title.top, size: title.size },
     { text: credits, y: credit.top, size: credit.size, line: credit },
-    { text: confirm, y: question.top, size: question.size, line: question },
     { text: resume, y: height - hint.bottom, size: hint.size },
   ];
   const content = new Container();
-  content.addChild(box, heading, credits, confirm, resume);
+  content.addChild(box, heading, credits, resume);
   layer.addChild(dark, content);
   // On the screen, where `pauseMenuLayout` puts them.
   const buttons = menuButtonsView(layer);
@@ -3143,36 +3124,20 @@ function pauseMenuView(activeInput: Readonly<ActiveInput>) {
   return {
     layer,
     /**
-     * While confirming, asks whether to give up the Level `level` Hero for a
-     * New Hero. The button `focus` names is ringed, for a controller. The
-     * Fullscreen button shows, and reads, as `fullscreen` says.
+     * The button `focus` names is ringed, for a controller. The Fullscreen
+     * button shows, and reads, as `fullscreen` says.
      */
     draw(
       screen: Viewport,
       pause: Pause,
-      level: number,
       focus: MenuChoice | null,
       fullscreen: Fullscreen,
     ) {
       layer.visible = pause.paused;
       if (!pause.paused) return;
-      const { confirming } = pause;
-      credits.visible = !confirming;
-      confirm.visible = confirming;
-      if (confirming) {
-        confirm.text = [
-          "Start a New Hero?",
-          `Your Level ${level} Hero will be lost for good.`,
-        ].join("\n");
-      }
-      resume.text = resumeHint(confirming, activeInput.way);
+      resume.text = resumeHint(activeInput.way);
       dark.scale.set(screen.width, screen.height);
-      const layout = pauseMenuLayout(
-        screen,
-        confirming,
-        activeInput.way,
-        fullscreen,
-      );
+      const layout = pauseMenuLayout(screen, activeInput.way, fullscreen);
       const scale = screen.uiScale;
       content.position.set(layout.panel.x, layout.panel.y);
       box.scale.set(scale);

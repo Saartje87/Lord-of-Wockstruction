@@ -73,6 +73,7 @@ import {
   type Menus,
   pressKey,
   pressPad,
+  quitToStart,
   reactMenus,
   reportLoad,
   startLoad,
@@ -298,8 +299,7 @@ export default function GameCanvas() {
         }
         return (
           pause.paused &&
-          renderer.menuChoiceAt(at, pause.confirming, menus.fullscreen) ===
-            "fullscreen"
+          renderer.menuChoiceAt(at, menus.fullscreen) === "fullscreen"
         );
       };
       /**
@@ -507,11 +507,7 @@ export default function GameCanvas() {
           if (used !== null && used !== "handled") requests.add(used);
         }
         if (clickedAt && wasPaused && pause.paused) {
-          const choice = renderer.menuChoiceAt(
-            clickedAt,
-            pause.confirming,
-            menus.fullscreen,
-          );
+          const choice = renderer.menuChoiceAt(clickedAt, menus.fullscreen);
           const asked = clickPaused(menus, choice, realNow);
           if (asked !== null) requests.add(asked);
         }
@@ -532,16 +528,24 @@ export default function GameCanvas() {
         }
         clickedAt = null;
         keys = [];
-        if (requests.has("newHero")) {
-          // Confirmed in the menu: the Save goes, and a fresh Level 1 Hero
-          // starts in Town.
-          removeSave(storage);
+        if (requests.has("quit")) {
+          // Quit to Start Screen: the World is made again from the Save, as
+          // after any load, so the Town Portal, Kept Area, Minions and Bone
+          // Ward are gone. Nothing is simulated until Continue.
+          const saved = readSave(storage);
           world = createWorld({
             areas,
             tilesets,
             seed: Date.now(),
+            progress: saved?.progress,
+            belongings: saved?.belongings,
           });
           orders = [];
+          drawnTarget = null;
+          quitToStart(menus, saved !== null);
+          last = gameTime(pause, realNow);
+          frame = requestAnimationFrame(tick);
+          return;
         }
         // Stands still while paused, so the clock owes no steps for it and
         // the World and every effect hold still.

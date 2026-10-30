@@ -5,7 +5,7 @@ How to see the game running, for acceptance criteria that only show on screen (H
 ## Run a dev server
 
 - **One already running?** `next dev` refuses a second server from the same folder and prints the running one's URL (usually http://localhost:3000). Use that one; it serves whatever is checked out in that folder.
-- **In a worktree:** a worktree has no `node_modules`, and Turbopack won't follow a symlink to one outside the project. Clone the main checkout's instead (APFS, about 3 s), then pick a free port:
+- **In a worktree:** a worktree has no `node_modules`, and Turbopack won't follow a symlink to one outside the project. Clone the main checkout's instead (APFS, about 3 s; remove an empty `node_modules` dir a fresh worktree may have first, or `cp` copies into it), then pick a free port:
 
   ```sh
   cp -cR <main checkout>/node_modules node_modules
@@ -45,7 +45,7 @@ A Save at 450 Experience levels up on the next Skeleton kill. For fights, use Le
 
 ### Start in an Area
 
-In dev builds, `?area=<Area>&entry=<Entry>` starts at that Entry instead of in Town, with the Area's Monsters fresh: http://localhost:3000/?area=catacombs&entry=from-town. Areas are the `.tmj` files in `content/areas/`, and Entries their `entry` objects (`start`, `from-town`, …). An unknown Area or Entry starts in Town. Production builds ignore the query. It applies on every load, so drop it to go back to Town.
+In dev builds, `?area=<Area>&entry=<Entry>` starts at that Entry instead of in Town, with the Area's Monsters fresh: http://localhost:3000/?area=catacombs&entry=start. Areas are the `.tmj` files in `content/areas/`, and Entries their `entry` objects (the Catacombs' are `start`, `from-wockyard` and `from-crypt`). An unknown Area or Entry starts in Town. Production builds ignore the query. It applies on every load, so drop it to go back to Town.
 
 ### The 3D World
 
@@ -87,6 +87,8 @@ Production builds don't have `window.__wockstruction`.
 
 Chrome stands in for a phone: touch controls read `PointerEvent`s with `pointerType: "touch"` on the canvas (`src/game/input/touch.ts`), so dispatched events drive them.
 
+The Compact Layout needs a short screen, and `resize_window` doesn't change the viewport: load the game in an 844×390 `<iframe>` of the same URL instead.
+
 ```js
 const canvas = document.querySelector("canvas");
 // Dispatched events here report offsetX as clientX / devicePixelRatio, so
@@ -102,7 +104,7 @@ const touch = (type, id, x, y) => canvas.dispatchEvent(new PointerEvent(type, {
 - **Buttons**: `pointerdown` on the button holds it until `pointerup`.
 - **Run timed sequences in one `javascript_tool`** (await a timeout between events), then screenshot. A tool round trip lasts seconds, and Monsters keep hitting meanwhile.
 - **A `setPointerCapture` error in the dev overlay** comes from dispatched touches outside the controls, which have no real pointer. It is no game bug.
-- **From Town to Monsters**: start there with `?area=catacombs&entry=from-town` (see Start in an Area). The nearest Skeletons (3) are about 23 tiles east of the Catacombs' `from-town` Entry.
+- **From Town to Monsters**: start there with `?area=catacombs&entry=start` (see Start in an Area). The nearest Skeletons (3) are about 23 tiles east of the Catacombs' `start` Entry.
 
 ## Deploys
 

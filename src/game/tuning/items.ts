@@ -116,33 +116,19 @@ export const itemTuning = {
     defense: 40,
     bonuses: {},
   },
-  ringOfStrength: {
-    name: "Ring of Strength",
-    shortName: "Str",
+  ring: {
+    name: "Ring",
+    shortName: "Ring",
     kind: "ring",
     size: { columns: 1, rows: 1 },
-    bonuses: { strength: 5 },
+    bonuses: {},
   },
-  ringOfDexterity: {
-    name: "Ring of Dexterity",
-    shortName: "Dex",
-    kind: "ring",
-    size: { columns: 1, rows: 1 },
-    bonuses: { dexterity: 5 },
-  },
-  ringOfLife: {
-    name: "Ring of Life",
-    shortName: "Life",
-    kind: "ring",
-    size: { columns: 1, rows: 1 },
-    bonuses: { life: 10 },
-  },
-  amuletOfVitality: {
-    name: "Amulet of Vitality",
-    shortName: "Vit",
+  amulet: {
+    name: "Amulet",
+    shortName: "Amulet",
     kind: "amulet",
     size: { columns: 1, rows: 1 },
-    bonuses: { vitality: 5 },
+    bonuses: {},
   },
   sash: {
     name: "Sash",

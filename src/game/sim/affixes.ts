@@ -85,7 +85,7 @@ function rollAffix(
 /**
  * Rolls a drop's Rarity and Affixes from the seeded `rng`: a Potion is
  * always Normal and rolls nothing; any other Item rolls Normal, Magic or
- * Rare by `rarityTuning`. A Magic Item gets one or two Affixes, at most one
+ * Rare by `rarityTuning` (a Ring or Amulet never Normal). A Magic Item gets one or two Affixes, at most one
  * Prefix and one Suffix; a Rare Item three or four, at most two of each
  * side, and a two-word name. Never two of a kind, each in a grade
  * `monsterLevel` reaches.
@@ -97,7 +97,10 @@ export function rollItem(
 ): ItemRoll {
   if (isPotion(type)) return { rarity: "normal", affixes: [] };
   const { normal, magic, rare } = rarityTuning.rarity;
-  const rarity = RARITY_ORDER[pickWeighted(rng, [normal, magic, rare])];
+  // A Ring or Amulet re-rolls Normal: it drops Magic or Rare.
+  const never = itemOf(type).kind === "ring" || itemOf(type).kind === "amulet";
+  const rarity =
+    RARITY_ORDER[pickWeighted(rng, [never ? 0 : normal, magic, rare])];
   if (rarity === "normal") return { rarity, affixes: [] };
   let sides: AffixSide[];
   if (rarity === "magic") {

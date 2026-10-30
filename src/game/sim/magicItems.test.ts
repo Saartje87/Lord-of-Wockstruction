@@ -91,15 +91,19 @@ function droppedAt(monsterLevel: number, seed: number, type?: ItemType) {
 describe("Magic Items", () => {
   it("make up about a quarter of non-Potion drops, the rest Normal", () => {
     let magic = 0;
+    let counted = 0;
     const total = 300;
     for (let seed = 1; seed <= total; seed++) {
       const item = droppedAt(1, seed);
+      // Rings and Amulets never drop Normal, so they say nothing about odds.
+      if (item.type === "ring" || item.type === "amulet") continue;
+      counted++;
       if (item.rarity === "magic") magic++;
       else if (item.rarity === "normal") expect(item.affixes).toEqual([]);
     }
 
-    expect(magic / total).toBeGreaterThan(0.17);
-    expect(magic / total).toBeLessThan(0.35);
+    expect(magic / counted).toBeGreaterThan(0.17);
+    expect(magic / counted).toBeLessThan(0.35);
   });
 
   it("always drop Potions Normal, with no Affixes", () => {
@@ -210,7 +214,7 @@ describe("Equipped Magic Items", () => {
       ...NAKED,
       equipment: {
         ring1: magic(
-          "ringOfLife",
+          "ring",
           { kind: "accuracy", value: 10 },
           { kind: "dexterity", value: 3 },
         ),
@@ -242,7 +246,7 @@ describe("Equipped Magic Items", () => {
     const plain = wearing(NAKED);
     const world = wearing({
       ...NAKED,
-      equipment: { ring1: magic("ringOfLife", { kind: "mana", value: 12 }) },
+      equipment: { ring1: magic("ring", { kind: "mana", value: 12 }) },
     });
 
     expect(maxMana(world)).toBe(maxMana(plain) + 12);
@@ -291,7 +295,7 @@ describe("Equipped Magic Items", () => {
   it("roll the new kinds on the Items they suit", () => {
     const rolled = new Set<string>();
     for (let seed = 1; seed <= 400; seed++) {
-      for (const type of ["axe", "chainMail", "ringOfLife"] as const) {
+      for (const type of ["axe", "chainMail", "ring"] as const) {
         for (const a of droppedAt(9, seed, type).affixes) {
           rolled.add(`${type}:${a.kind}`);
         }
@@ -299,7 +303,7 @@ describe("Equipped Magic Items", () => {
     }
     expect(rolled).toContain("axe:enhancedDamage");
     expect(rolled).toContain("chainMail:enhancedDefense");
-    expect(rolled).toContain("ringOfLife:mana");
+    expect(rolled).toContain("ring:mana");
     expect(rolled).not.toContain("chainMail:enhancedDamage");
     expect(rolled).not.toContain("axe:enhancedDefense");
   });

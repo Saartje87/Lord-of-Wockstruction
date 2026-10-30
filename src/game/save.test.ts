@@ -11,6 +11,7 @@ import {
 import type { Belongings } from "./sim/inventory";
 import { emptySkillBar, type SkillBar } from "./sim/skillBar";
 import { FRESH_PROGRESS, type Progress } from "./sim/world";
+import { affixTuning } from "./tuning/items";
 
 /** Storage kept in a Map, standing in for the browser's. */
 function memoryStorage(): SaveStorage & { keys(): string[] } {
@@ -46,14 +47,14 @@ const WELL_EQUIPPED: Belongings = {
   inventory: [
     { type: "shortSword", cell: { column: 0, row: 0 } },
     { type: "chainMail", cell: { column: 8, row: 1 } },
-    { type: "ringOfLife", cell: { column: 1, row: 3 } },
+    { type: "ring", cell: { column: 1, row: 3 } },
   ],
   equipment: {
     weapon: { type: "axe" },
     armour: { type: "leatherArmour" },
-    amulet: { type: "amuletOfVitality" },
-    ring1: { type: "ringOfStrength" },
-    ring2: { type: "ringOfDexterity" },
+    amulet: { type: "amulet" },
+    ring1: { type: "ring" },
+    ring2: { type: "ring" },
     belt: { type: "heavyBelt" },
   },
   belt: [["lifePotion", "manaPotion", "lifePotion"], [], ["lifePotion"], []],
@@ -860,6 +861,37 @@ describe("the Smith's service and bonuses", () => {
 
   it("gives no Save for version 9 text that has the service", () => {
     expect(parseSave(stored(9, fields(progress(2, 500))))).toBeNull();
+  });
+});
+
+describe("an older Save's named Rings and Amulet", () => {
+  it.each([
+    ["ringOfStrength", "ring1", "ring", "strength", 5, 1],
+    ["ringOfDexterity", "ring2", "ring", "dexterity", 5, 1],
+    ["ringOfLife", "ring1", "ring", "life", 10, 0],
+    ["amuletOfVitality", "amulet", "amulet", "vitality", 5, 1],
+  ] as const)("load %s worn as a Magic %s with one %s Affix", (old, slot, type, kind, value, grade) => {
+    const loaded = parseSave(v10({ equipment: { [slot]: old } }));
+    expect(loaded?.belongings.equipment[slot]).toEqual({
+      type,
+      rarity: "magic",
+      affixes: [{ kind, grade, value }],
+    });
+    expect(affixTuning[kind].grades[grade].range[0]).toBeLessThanOrEqual(value);
+  });
+
+  it("load carried ones the same way", () => {
+    const loaded = parseSave(
+      v10({ inventory: [{ type: "ringOfLife", cell: { column: 0, row: 0 } }] }),
+    );
+    expect(loaded?.belongings.inventory).toEqual([
+      {
+        type: "ring",
+        rarity: "magic",
+        affixes: [{ kind: "life", grade: 0, value: 10 }],
+        cell: { column: 0, row: 0 },
+      },
+    ]);
   });
 });
 

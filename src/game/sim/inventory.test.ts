@@ -91,7 +91,7 @@ describe("Belongings given to a new World", () => {
   const belongings: Belongings = {
     inventory: [
       { type: "axe", cell: { column: 0, row: 0 } },
-      { type: "ringOfLife", cell: { column: 9, row: 3 } },
+      { type: "ring", cell: { column: 9, row: 3 } },
     ],
     equipment: {
       weapon: { type: "shortSword" },
@@ -117,7 +117,7 @@ describe("Belongings given to a new World", () => {
     expect(inventoryItemAt(w, { column: 2, row: 0 })).toBeNull();
     expect(inventoryItemAt(w, { column: 0, row: 3 })).toBeNull();
     expect(inventoryItemAt(w, { column: 9, row: 3 })).toMatchObject({
-      item: { type: "ringOfLife" },
+      item: { type: "ring" },
       cell: { column: 9, row: 3 },
     });
   });

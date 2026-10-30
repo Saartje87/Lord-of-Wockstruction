@@ -358,12 +358,12 @@ describe("where a held Item lands", () => {
   });
 
   it("is the cell under the pointer for a 1×1 Item", () => {
-    expect(landingCell(layout, point(3.5, 2.5), "ringOfLife")).toEqual({
+    expect(landingCell(layout, point(3.5, 2.5), "ring")).toEqual({
       column: 3,
       row: 2,
     });
     // On the line between two cells, the right and lower one.
-    expect(landingCell(layout, point(3, 2), "ringOfLife")).toEqual({
+    expect(landingCell(layout, point(3, 2), "ring")).toEqual({
       column: 3,
       row: 2,
     });
@@ -643,12 +643,6 @@ describe("an Item's tooltip", () => {
   it("lists the Smith bonus after the Item's own bonuses", () => {
     expect(
       itemTooltip({
-        type: "ringOfLife",
-        smithBonus: { bonus: "life", amount: 5 },
-      }),
-    ).toEqual(["Ring of Life", "+10 to Life", "Smith: +5 to Life"]);
-    expect(
-      itemTooltip({
         type: "axe",
         smithBonus: { bonus: "attackRating", amount: 30 },
       }),
@@ -662,15 +656,9 @@ describe("an Item's tooltip", () => {
     ]);
   });
 
-  it("lists a Ring's or Amulet's bonuses", () => {
-    expect(itemTooltip({ type: "ringOfStrength" })).toEqual([
-      "Ring of Strength",
-      "+5 to Strength",
-    ]);
-    expect(itemTooltip({ type: "ringOfLife" })).toEqual([
-      "Ring of Life",
-      "+10 to Life",
-    ]);
+  it("names a plain Ring or Amulet with no bonuses of its own", () => {
+    expect(itemTooltip({ type: "ring" })).toEqual(["Ring"]);
+    expect(itemTooltip({ type: "amulet" })).toEqual(["Amulet"]);
   });
 
   it("says what a Potion gives back, and how fast", () => {

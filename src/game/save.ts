@@ -1,3 +1,4 @@
+import type { RolledAffix } from "./sim/affixes";
 import { TOWN } from "./sim/area";
 import { emptyBelt, isValidBelt } from "./sim/belt";
 import {
@@ -354,6 +355,29 @@ function parseBelongings(
 }
 
 /**
+ * The Rings and Amulet older Saves named, each as the plain type and the
+ * one Affix that gives the bonus it had, in the grade whose range holds it.
+ */
+const NAMED_JEWELLERY: Record<
+  string,
+  { type: "ring" | "amulet"; affix: RolledAffix }
+> = {
+  ringOfStrength: {
+    type: "ring",
+    affix: { kind: "strength", grade: 1, value: 5 },
+  },
+  ringOfDexterity: {
+    type: "ring",
+    affix: { kind: "dexterity", grade: 1, value: 5 },
+  },
+  ringOfLife: { type: "ring", affix: { kind: "life", grade: 0, value: 10 } },
+  amuletOfVitality: {
+    type: "amulet",
+    affix: { kind: "vitality", grade: 1, value: 5 },
+  },
+};
+
+/**
  * A stored Item as a fresh one, its parts checked with the Belongings, or
  * null when it isn't an object. Text of this version names the Rarity and
  * the Affixes; older text names neither and its Items are Normal.
@@ -370,14 +394,23 @@ function parseStoredItem(entry: unknown, older: boolean): StoredItem | null {
   } else if (rarity === undefined || !Array.isArray(affixes)) {
     return null;
   }
+  const named =
+    older && typeof type === "string" && Object.hasOwn(NAMED_JEWELLERY, type)
+      ? NAMED_JEWELLERY[type]
+      : undefined;
   const rolled = (affixes ?? []) as unknown[];
   const item = {
-    type,
-    rarity: rarity ?? "normal",
-    affixes: rolled.map((affix) => {
-      const { kind, grade, value } = (affix ?? {}) as Record<string, unknown>;
-      return { kind, grade, value };
-    }),
+    type: named?.type ?? type,
+    rarity: named ? "magic" : (rarity ?? "normal"),
+    affixes: named
+      ? [{ ...named.affix }]
+      : rolled.map((affix) => {
+          const { kind, grade, value } = (affix ?? {}) as Record<
+            string,
+            unknown
+          >;
+          return { kind, grade, value };
+        }),
     ...(rareName !== undefined && { rareName }),
     ...(smithBonus !== undefined && { smithBonus: copyBonus(smithBonus) }),
   } as StoredItem;

@@ -28,6 +28,10 @@ export const QUEST_PANEL = {
   firstRow: 56,
   rowHeight: 66,
   hintHeight: 28,
+  /** How far under a Quest's name its next step starts. */
+  nextOffset: 24,
+  /** How far above a row's bottom its rule is drawn. */
+  ruleInset: 4,
 };
 
 /** What the Quest panel says of each state of a Quest. */

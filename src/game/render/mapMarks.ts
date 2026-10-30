@@ -32,10 +32,22 @@ export const MAP_LOOK = {
     nameSize: 11,
     nameGap: 3,
   },
-  /** The Town Portal's ring, `width` by `height`, round a centre dot. */
-  townPortal: { colour: 0x6ab4ff, width: 14, height: 8, dot: 1.5 },
+  /** The Town Portal's ring, `width` by `height` and `ringWidth` thick, round a centre dot. */
+  townPortal: {
+    colour: 0x6ab4ff,
+    width: 14,
+    height: 8,
+    ringWidth: 1.5,
+    dot: 1.5,
+  },
   /** The Waypoint's ring, `width` by `height`, round a centre diamond. */
-  waypoint: { colour: 0xb48cff, width: 14, height: 8, diamond: 2.5 },
+  waypoint: {
+    colour: 0xb48cff,
+    width: 14,
+    height: 8,
+    ringWidth: 1.5,
+    diamond: 2.5,
+  },
   /** A Bone Altar's red square, `size` across. */
   boneAltar: { colour: 0xe2573d, size: 6 },
   /** An NPC's name, in bold. */

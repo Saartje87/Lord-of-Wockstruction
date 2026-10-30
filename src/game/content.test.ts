@@ -862,6 +862,93 @@ describe("the Cozy Plains' grass", () => {
   });
 });
 
+describe("the Old Mill's grass and millpond", () => {
+  const mill = () => shippedWorld().areas["old-mill"];
+  const MILL_BUILDINGS = /^hexagon\/building_/;
+
+  it("is mostly grass, with dirt around the mill", () => {
+    const area = mill();
+    const land = area.floorPieces.filter(
+      (_, i) => area.floor[i] && !area.water[i],
+    );
+    const grass = land.filter((piece) => piece === "city/park_base").length;
+    expect(grass / land.length).toBeGreaterThan(0.7);
+
+    const dirtAt = (x: number, y: number) =>
+      /^halloween\//.test(area.floorPieces[y * area.width + x] ?? "");
+    for (const prop of area.props.filter((p) => MILL_BUILDINGS.test(p.piece))) {
+      expect(dirtAt(prop.x, prop.y + 1) || dirtAt(prop.x + 1, prop.y)).toBe(
+        true,
+      );
+    }
+  });
+
+  it("stands green trees and bushes, and no dead trees or graves", () => {
+    const pieces = mill().props.map((prop) => prop.piece);
+    expect(pieces.filter((p) => /^city\/tree/.test(p)).length).toBeGreaterThan(
+      30,
+    );
+    expect(pieces.filter((p) => /^city\/bush/.test(p)).length).toBeGreaterThan(
+      5,
+    );
+    expect(pieces.some((p) => /tree_dead|grave/.test(p))).toBe(false);
+  });
+
+  it("has a small millpond beside the mill", () => {
+    const area = mill();
+    const pond: Vec[] = [];
+    area.water.forEach((isWater, i) => {
+      if (isWater)
+        pond.push({ x: i % area.width, y: Math.floor(i / area.width) });
+    });
+    expect(pond.length).toBeGreaterThanOrEqual(6);
+    expect(pond.length).toBeLessThanOrEqual(16);
+
+    const buildings = area.props.filter((p) => MILL_BUILDINGS.test(p.piece));
+    const beside = pond.some((tile) =>
+      buildings.some(
+        (b) => Math.abs(b.x - tile.x) <= 3 && Math.abs(b.y - tile.y) <= 3,
+      ),
+    );
+    expect(beside).toBe(true);
+  });
+
+  it("keeps the millpond clear of its Exits, Entries, spawns and Wanderer", () => {
+    const area = mill();
+    const near = (point: Vec) => {
+      for (let dy = -2; dy <= 2; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          const x = Math.floor(point.x) + dx;
+          const y = Math.floor(point.y) + dy;
+          if (area.water[y * area.width + x]) return true;
+        }
+      }
+      return false;
+    };
+    const points = [
+      ...Object.values(area.entries),
+      ...area.spawns.map((spawn) => spawn.pos),
+      ...area.exits.map(centreOf),
+      ...area.npcs.map((npc) => npc.pos),
+    ];
+    expect(area.npcs.length).toBeGreaterThan(0);
+    for (const point of points) expect(near(point)).toBe(false);
+  });
+
+  it("lets every Entry reach every Exit, spawn and the Wanderer", () => {
+    const area = mill();
+    const wanted = [
+      ...area.exits.map(centreOf),
+      ...area.spawns.map((spawn) => spawn.pos),
+      ...area.npcs.map((npc) => npc.pos),
+    ];
+    for (const entry of Object.values(area.entries)) {
+      for (const target of wanted)
+        expect(canReach(area, entry, target)).toBe(true);
+    }
+  });
+});
+
 describe("the KayKit tileset", () => {
   type Tile = {
     id: number;
@@ -1410,5 +1497,33 @@ describe("the Spa's hot springs", () => {
       const cell = Math.floor(point.y) * area.width + Math.floor(point.x);
       expect(area.water[cell]).toBe(false);
     }
+  });
+});
+
+describe("the Wockyard's sparse grass", () => {
+  const wockyard = () => shippedWorld().areas.wockyard;
+
+  it("is mostly dirt, with sparse patches of grass", () => {
+    const { floorPieces, floor } = wockyard();
+    const land = floorPieces.filter((_, i) => floor[i]);
+
+    const grass = land.filter((piece) => piece === "city/park_base").length;
+    const dirt = land.filter((piece) =>
+      /^halloween\//.test(piece ?? ""),
+    ).length;
+    expect(grass / land.length).toBeGreaterThan(0.05);
+    expect(grass / land.length).toBeLessThan(0.25);
+    expect(grass + dirt).toBe(land.length);
+  });
+
+  it("stands only dead trees: no green trees or bushes", () => {
+    const pieces = wockyard().props.map((prop) => prop.piece);
+
+    expect(pieces.some((piece) => /tree_dead/.test(piece))).toBe(true);
+    expect(pieces.some((piece) => /^city\//.test(piece))).toBe(false);
+  });
+
+  it("has no Water", () => {
+    expect(wockyard().water.some(Boolean)).toBe(false);
   });
 });

@@ -25,11 +25,13 @@ import {
   SWING_STEPS,
   type World,
 } from "../sim/world";
+import { boneAltarTuning } from "../tuning/boneAltars";
 import { inputTuning } from "../tuning/input";
 import type { ItemType } from "../tuning/items";
 import type { MinionType } from "../tuning/minions";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import type { ProjectileKind } from "../tuning/projectiles";
+import type { BoneAltarView } from "./boneAltarMeshes";
 import { ATTACK_CONTACT, type HeroClip } from "./clips";
 import { type Crumble, crumbleOf } from "./crumble";
 import { MINION_LOOKS } from "./minionLook";
@@ -227,6 +229,8 @@ export type WorldView = {
   npcs: NpcView[];
   /** The Town Portal ends in the Area. */
   townPortals: ShownTownPortal[];
+  /** The Bone Altars still standing in the Area. */
+  boneAltars: BoneAltarView[];
   /** The Exits out of the Area. */
   exits: ExitView[];
   projectiles: ProjectileView[];
@@ -381,6 +385,11 @@ export function worldViewOf(
       };
     }),
     townPortals: effects.portals,
+    boneAltars: world.boneAltars.map((altar) => ({
+      id: altar.id,
+      pos: altar.pos,
+      fraction: altar.life / boneAltarTuning.life,
+    })),
     exits: area.exits.map(({ x, y, width, height, area: to }) => ({
       x,
       y,

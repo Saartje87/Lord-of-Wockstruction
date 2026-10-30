@@ -9,8 +9,8 @@ const CONE_EDGE = Math.cos(
 
 /**
  * The Target auto-aim picks with no cursor (ADR 0002): of the living
- * Monsters within `targetRange` of the Hero, the nearest; null when there is
- * none. Given a `direction` (in tiles, the way the stick walks the Hero),
+ * Monsters within `targetRange` of the Hero, the nearest, else the nearest
+ * Bone Altar likewise; null when there is none. Given a `direction` (in tiles, the way the stick walks the Hero),
  * only those inside a cone of `targetConeDegrees` around it count. Given
  * none (the stick at rest), they count whichever way they lie.
  */
@@ -41,14 +41,19 @@ function nearestWhere(
   accept: (at: Vec, away: number) => boolean,
 ): MonsterId | null {
   const { pos } = world.hero;
-  let nearest: { id: MonsterId; distance: number } | null = null;
-  for (const monster of world.monsters) {
-    if (monster.life <= 0) continue;
-    const away = distance(pos, monster.pos);
-    if (away > inputTuning.targetRange) continue;
-    if (nearest && away >= nearest.distance) continue;
-    if (!accept(monster.pos, away)) continue;
-    nearest = { id: monster.id, distance: away };
-  }
-  return nearest?.id ?? null;
+  const nearestOf = (
+    targets: readonly { id: MonsterId; pos: Vec; life: number }[],
+  ) => {
+    let nearest: { id: MonsterId; distance: number } | null = null;
+    for (const monster of targets) {
+      if (monster.life <= 0) continue;
+      const away = distance(pos, monster.pos);
+      if (away > inputTuning.targetRange) continue;
+      if (nearest && away >= nearest.distance) continue;
+      if (!accept(monster.pos, away)) continue;
+      nearest = { id: monster.id, distance: away };
+    }
+    return nearest?.id ?? null;
+  };
+  return nearestOf(world.monsters) ?? nearestOf(world.boneAltars);
 }

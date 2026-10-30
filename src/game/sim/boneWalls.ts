@@ -22,7 +22,7 @@ export const BONE_WALL_REACH = 0.6;
 export const BONE_WALL_HALF = 0.5;
 
 /** How finely the line of a Wall is sampled, so no tile on it is missed. */
-const SAMPLE = 0.25;
+const SAMPLE_SPACING = 0.25;
 
 /**
  * The tiles' middles of a Wall of `length` tiles centred on `target`,
@@ -47,7 +47,11 @@ export function wallSpots(
   }
   const across = { x: -dy, y: dx };
   const spots: Vec[] = [];
-  for (let t = -length / 2 + SAMPLE / 2; t < length / 2; t += SAMPLE) {
+  for (
+    let t = -length / 2 + SAMPLE_SPACING / 2;
+    t < length / 2;
+    t += SAMPLE_SPACING
+  ) {
     const tile = tileOf({
       x: target.x + across.x * t,
       y: target.y + across.y * t,

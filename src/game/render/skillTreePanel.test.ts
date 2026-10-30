@@ -189,7 +189,13 @@ describe("skillTreeSheet", () => {
     });
 
     expect(rowOf(w, "corpseExplosion")).toMatchObject({
-      synergies: [{ giver, percentPerSkillLevel: percent }],
+      synergies: [
+        {
+          giver,
+          percentPerSkillLevel: percent,
+          total: String(synergy.percentPerSkillLevel * 3),
+        },
+      ],
       synergyTotal: String(synergy.percentPerSkillLevel * 3),
     });
     expect(rowOf(w, "boneWall")).toMatchObject({

@@ -449,7 +449,7 @@ function windUp(world: World, minion: Minion): Monster | BoneAltar | null {
   const monster = targetsOf(world).find((m) => m.id === minion.target);
   if (!monster) return null;
   if (stepped.shot) {
-    loose(world, minion, stepped.shot, monster.pos);
+    looseShot(world, minion, stepped.shot, monster.pos);
     return null;
   }
   const { reach, reachGrace } = minionTuning[minion.type];
@@ -464,7 +464,7 @@ function windUp(world: World, minion: Minion): Monster | BoneAltar | null {
 }
 
 /** Looses a shooting Minion's Projectile from where it stands at `at`. */
-function loose(
+function looseShot(
   world: World,
   minion: Minion,
   shot: NonNullable<(typeof STEPPED)[MinionType]["shot"]>,

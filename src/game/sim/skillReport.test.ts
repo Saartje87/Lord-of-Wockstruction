@@ -17,7 +17,7 @@ function area(name: string, areaLevel: number | null, monsters: MonsterType[]) {
 describe("skillReport", () => {
   const areas = [
     area("town", null, []),
-    area("crypt", 9, ["skeleton"]),
+    area("crypt", 9, ["skeleton", "zombie", "skeleton"]),
     area("catacombs", 7, ["zombie"]),
     area("cozy-plains", 1, ["skeleton"]),
   ];
@@ -56,19 +56,21 @@ describe("skillReport", () => {
     expect(duration?.withPassive).toBeGreaterThan(duration?.base ?? Infinity);
   });
 
-  it("counts the casts a damage Skill takes to kill the Skeleton of each Combat Area that places it", () => {
+  it("counts the casts a damage Skill takes to kill each kind of Monster each Combat Area places", () => {
     const [row] = skillReport(areas, [10]).filter(
       (one) => one.skill === "boneSpear",
     );
 
     expect(castTuning("boneSpear").effect.type).toBe("projectile");
-    expect(row.kills.map((kill) => kill.area)).toEqual([
-      "cozy-plains",
-      "crypt",
+    expect(row.kills.map(({ area, monster }) => [area, monster])).toEqual([
+      ["cozy-plains", "skeleton"],
+      ["catacombs", "zombie"],
+      ["crypt", "skeleton"],
+      ["crypt", "zombie"],
     ]);
     // A Skeleton of Area Level 1 has 60 Life; a Skill Level 10 Spear hits harder.
     expect(row.kills[0].casts).toBe(1);
-    expect(row.kills[1].casts).toBeGreaterThanOrEqual(row.kills[0].casts);
+    expect(row.kills[3].casts).toBeGreaterThanOrEqual(row.kills[0].casts);
   });
 
   it("gives no kills for a Skill that deals no damage", () => {

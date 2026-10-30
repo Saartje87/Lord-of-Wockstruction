@@ -156,8 +156,8 @@ describe("the hints and labels that name buttons", () => {
         skillLevel: "1",
         canRaise: false,
         synergies: [
-          { giver: "Bone Ward", percentPerSkillLevel: "8" },
-          { giver: "Amplify Damage", percentPerSkillLevel: "5" },
+          { giver: "Bone Ward", percentPerSkillLevel: "8", total: "16" },
+          { giver: "Amplify Damage", percentPerSkillLevel: "5", total: "5" },
         ],
         synergyTotal: "21",
       },
@@ -165,8 +165,8 @@ describe("the hints and labels that name buttons", () => {
       [
         "Golem",
         "Skill Level 1",
-        "Synergy: Bone Ward +8% per Skill Level",
-        "Synergy: Amplify Damage +5% per Skill Level",
+        "Synergy: Bone Ward +8% per Skill Level, +16% now",
+        "Synergy: Amplify Damage +5% per Skill Level, +5% now",
         "Synergies add +21% now",
       ],
     ],

@@ -4,8 +4,8 @@
  * Experience to the next and the kills of own-Level Monsters it takes, and
  * per Combat Area in `content/areas/` that places it, its Area Level and the
  * Monster there. Then each cast Skill's numbers per Skill Level, with Synergies
- * and Passive Skills, and the casts it takes to kill each Combat Area's
- * Skeleton (`skillReport` in `src/game/sim/skillReport.ts`).
+ * and Passive Skills, and the casts it takes to kill each kind of Monster in
+ * each Combat Area (`skillReport` in `src/game/sim/skillReport.ts`).
  *
  * Run it with `npm run tuning:report`.
  */
@@ -134,16 +134,19 @@ console.log(
     ),
   ),
 );
-const killAreas = rows.find((row) => row.kills.length > 0)?.kills ?? [];
+const killColumns = rows.find((row) => row.kills.length > 0)?.kills ?? [];
 console.log(
-  "\n# Skills: casts, with Synergies, to kill a Skeleton of each Combat Area\n",
+  "\n# Skills: casts, with Synergies, to kill each Monster of each Combat Area\n",
 );
 console.log(
   table(
     [
       "Skill",
       "Skill Lvl",
-      ...killAreas.map((kill) => `${kill.area} (${kill.areaLevel})`),
+      ...killColumns.map(
+        (kill) =>
+          `${kill.area} ${monsterTuning[kill.monster].name} (${kill.areaLevel})`,
+      ),
     ],
     rows
       .filter((row) => row.kills.length > 0)

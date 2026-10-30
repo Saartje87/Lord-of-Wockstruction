@@ -73,18 +73,17 @@ export type MinionProjectile = Flight & {
 };
 
 /**
- * Moves every Projectile one step along its line, in order. A Minion's calls
- * `shoot` on the first Monster or Bone Altar it touches with no wall between.
- * A Monster's
- * calls `land` on the Hero, unless they are in Death, or one of their
- * Minions, the first of them it touches, with no wall between. Each lands
- * before the next moves, so one reaching the Hero on the step another kills
- * them flies on over them. The Hero's calls `strike` on each Monster it
- * touches with no wall between, nearest first, and that it hasn't hit
- * before. A Projectile that lands, meets a blocking tile or has flown its
- * range is removed. A Monster's is also stopped by the first Bone Wall piece
- * it touches, before anything past it, and calls `hitWall` on that piece; the
- * Hero's fly through.
+ * Moves every Projectile one step along its line, in order. A Minion's
+ * Projectile calls `shoot` on the first Monster or Bone Altar it touches with
+ * no wall between. A Monster's calls `land` on the Hero, unless they are in
+ * Death, or on one of their Minions, the first of them it touches, with no
+ * wall between. Each lands before the next moves, so one reaching the Hero on
+ * the step another kills them flies on over them. The Hero's calls `strike`
+ * on each Monster it touches with no wall between, nearest first, and that it
+ * hasn't hit before. A Projectile that lands, meets a blocking tile or has
+ * flown its range is removed. A Monster's is also stopped by the first Bone
+ * Wall piece it touches, before anything past it, and calls `hitWall` on that
+ * piece; the Hero's and Minions' fly through.
  */
 export function stepProjectiles(
   world: World,
@@ -104,7 +103,6 @@ export function stepProjectiles(
     projectile.prevPos = { ...from };
     projectile.pos = to;
     projectile.rangeLeft -= move;
-    let stopper: { piece: BoneWallPiece; at: Vec } | null = null;
     if (projectile.from === "hero") {
       for (const target of targetsTouched(world, projectile, from, to)) {
         projectile.hit.push(target.id);
@@ -117,17 +115,17 @@ export function stepProjectiles(
         return false;
       }
     } else {
-      stopper = firstPiece(world, from, to);
+      const stopper = firstPiece(world, from, to);
       const touched = firstTouched(world, from, stopper?.at ?? to);
       // A wall before what it touches stops it short.
       if (touched && canSee(area, from, touched.at)) {
         land(projectile, touched.target);
         return false;
       }
-    }
-    if (stopper && projectile.from !== "hero" && projectile.from !== "minion") {
-      hitWall(projectile, stopper.piece);
-      return false;
+      if (stopper) {
+        hitWall(projectile, stopper.piece);
+        return false;
+      }
     }
     if (!canSee(area, from, to)) return false;
     return projectile.rangeLeft > 0;

@@ -89,8 +89,15 @@ export type SkillSheet = {
    * so no Skill Point can go into this Skill yet; else null.
    */
   prerequisite: string | null;
-  /** Its Synergies: each giving Skill's name and percent per Skill Level. */
-  synergies: readonly { giver: string; percentPerSkillLevel: string }[];
+  /**
+   * Its Synergies: each giving Skill's name, percent per Skill Level and the
+   * percent that giver adds now.
+   */
+  synergies: readonly {
+    giver: string;
+    percentPerSkillLevel: string;
+    total: string;
+  }[];
   /** The percent its Synergies add to its main number now. */
   synergyTotal: string;
   /** What a cast costs at the next Skill Level: what a + buys; empty for a Passive Skill. */
@@ -146,6 +153,9 @@ export function skillTreeSheet(world: World): SkillTreeSheet {
         synergies: skillTuning[skill].synergies.map((synergy) => ({
           giver: skillTuning[synergy.skill].name,
           percentPerSkillLevel: String(synergy.percentPerSkillLevel),
+          total: String(
+            synergy.percentPerSkillLevel * progress.skillLevels[synergy.skill],
+          ),
         })),
         synergyTotal: String(
           Math.round(

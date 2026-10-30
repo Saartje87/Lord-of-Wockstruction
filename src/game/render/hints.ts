@@ -180,8 +180,10 @@ const SKILL_ACTIONS: Record<
  */
 export function skillTooltip(sheet: SkillSheet, way: InputWay): string[] {
   const lines = [sheet.name, `Skill Level ${sheet.skillLevel}`];
-  for (const { giver, percentPerSkillLevel } of sheet.synergies) {
-    lines.push(`Synergy: ${giver} +${percentPerSkillLevel}% per Skill Level`);
+  for (const { giver, percentPerSkillLevel, total } of sheet.synergies) {
+    lines.push(
+      `Synergy: ${giver} +${percentPerSkillLevel}% per Skill Level, +${total}% now`,
+    );
   }
   if (sheet.synergies.length) {
     lines.push(`Synergies add +${sheet.synergyTotal}% now`);

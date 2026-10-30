@@ -259,6 +259,21 @@ describe("casting Splinter Volley", () => {
   });
 });
 
+describe("Splinter Volley's fan", () => {
+  it("is centred on the cast point whichever way the Hero faced before", () => {
+    const w = inField([]);
+    w.hero.facing = Math.PI;
+
+    volleyAt(w, { x: 2, y: 9 });
+
+    const angles = shards(w).map((p) =>
+      Math.atan2(p.direction.y, p.direction.x),
+    );
+    const mean = angles.reduce((sum, angle) => sum + angle, 0) / angles.length;
+    expect(mean).toBeCloseTo(Math.PI / 2);
+  });
+});
+
 describe("Splinter Volley's shards", () => {
   it("can each hit the same Monster up close, a shard hitting a Monster once", () => {
     const w = inField([{ x: 3, y: 4 }]);

@@ -188,43 +188,36 @@ export function killExperience(
 export function monsterAttack(
   monster: MonsterOfLevel & { curse?: Monster["curse"] },
 ): AttackNumbers {
+  const dealt = cursedWith(monster.curse, "weaken")?.damageDealt ?? 1;
+  const weakened = (damage: number) =>
+    dealt === 1 ? damage : Math.max(1, Math.round(damage * dealt));
   const [least, most] = monsterDamageRange(monster);
-  const dealt = damageDealt(monster.curse);
   return {
     attackRating: monsterAttackRating(monster),
-    damage:
-      dealt === 1
-        ? [least, most]
-        : [
-            Math.max(1, Math.round(least * dealt)),
-            Math.max(1, Math.round(most * dealt)),
-          ],
+    damage: [weakened(least), weakened(most)],
   };
 }
 
-/** How many times its usual damage a Monster with `curse` deals. */
-function damageDealt(curse: Monster["curse"] | undefined): number {
-  if (!curse) return 1;
+/** The tuning of the Curse `kind` a Monster is under, or null if not under it. */
+function cursedWith<Kind extends "weaken" | "leadenLimbs">(
+  curse: Monster["curse"] | undefined,
+  kind: Kind,
+) {
+  if (!curse) return null;
   const { effect } = skillTuning[curse.skill];
-  return effect.type === "curse" && effect.kind === "weaken"
-    ? effect.damageDealt
-    : 1;
+  return effect.type === "curse" && effect.kind === kind
+    ? (effect as Extract<typeof effect, { kind: Kind }>)
+    : null;
 }
 
 /** What share of its speed a Monster with `curse` walks at. */
 function walkPace(curse: Monster["curse"]): number {
-  const effect = curse && skillTuning[curse.skill].effect;
-  return effect?.type === "curse" && effect.kind === "leadenLimbs"
-    ? effect.walkSpeed
-    : 1;
+  return cursedWith(curse, "leadenLimbs")?.walkSpeed ?? 1;
 }
 
 /** What share as often a Monster with `curse` swings or shoots. */
 function attackPace(curse: Monster["curse"]): number {
-  const effect = curse && skillTuning[curse.skill].effect;
-  return effect?.type === "curse" && effect.kind === "leadenLimbs"
-    ? effect.attackSpeed
-    : 1;
+  return cursedWith(curse, "leadenLimbs")?.attackSpeed ?? 1;
 }
 
 /**
@@ -260,7 +253,7 @@ export function stepMonsters(world: World): Strike[] {
         strikes.push({
           monster,
           target: monster.target,
-          wall: wallOf(world, monster),
+          wall: attackedWall(world, monster),
         });
       }
       continue;
@@ -516,7 +509,7 @@ function chase(world: World, monster: Monster) {
 }
 
 /** The Bone Wall piece `monster` is attacking, if it still stands. */
-function wallOf(world: World, monster: Monster): BoneWallPiece | null {
+function attackedWall(world: World, monster: Monster): BoneWallPiece | null {
   if (monster.wall === null) return null;
   return world.boneWalls.find((piece) => piece.id === monster.wall) ?? null;
 }
@@ -632,13 +625,16 @@ function windUp(world: World, monster: Monster): boolean {
     stepped.rootSteps +
     stepped.recoverySteps +
     randomInt(world.rng, [0, stepped.jitterSteps]);
-  monster.cooldown = Math.round(
-    (cooldown + stepped.windUpSteps) / attackPace(monster.curse) -
-      stepped.windUpSteps,
+  monster.cooldown = Math.max(
+    0,
+    Math.round(
+      (cooldown + stepped.windUpSteps) / attackPace(monster.curse) -
+        stepped.windUpSteps,
+    ),
   );
   const { attack } = stepped;
   if (monster.wall !== null) {
-    const wall = wallOf(world, monster);
+    const wall = attackedWall(world, monster);
     return (
       wall !== null &&
       attack.kind === "melee" &&

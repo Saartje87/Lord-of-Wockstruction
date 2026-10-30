@@ -250,19 +250,19 @@ function stepMinion(world: World, minion: Minion): Monster | BoneAltar | null {
     if (minion.attackSteps > 0) return null;
     minion.state = "chase";
   }
-  const quarry = quarryOf(world, minion);
-  if (!quarry) {
+  const target = targetOf(world, minion);
+  if (!target) {
     if (minion.state !== "follow") stopChasing(minion);
     follow(world, minion);
     return null;
   }
-  if (minion.target !== quarry.id) {
+  if (minion.target !== target.id) {
     minion.path = [];
     minion.replan = 0;
   }
   minion.state = "chase";
-  minion.target = quarry.id;
-  chase(world, minion, quarry);
+  minion.target = target.id;
+  chase(world, minion, target);
   return null;
 }
 
@@ -272,7 +272,7 @@ function stepMinion(world: World, minion: Minion): Monster | BoneAltar | null {
  * guard radius of the Hero; failing a Monster, a Bone Altar the same way.
  * None while it is so far from the Hero that it should teleport back to them.
  */
-function quarryOf(world: World, minion: Minion): Monster | BoneAltar | null {
+function targetOf(world: World, minion: Minion): Monster | BoneAltar | null {
   const tuning = minionTuning[minion.type];
   const hero = world.hero.pos;
   if (distance(minion.pos, hero) > tuning.teleportDistance) return null;
@@ -325,7 +325,7 @@ function chase(world: World, minion: Minion, monster: Monster | BoneAltar) {
   }
   // No spot free round it: another Monster within guard range, else wait
   // nearby, a body's width off the ones in reach.
-  const other = anotherQuarry(world, minion, monster);
+  const other = anotherTarget(world, minion, monster);
   if (other) {
     minion.target = other.id;
     minion.path = [];
@@ -346,7 +346,7 @@ function chase(world: World, minion: Minion, monster: Monster | BoneAltar) {
  * The nearest to `minion` of the Monsters within its guard radius of the
  * Hero, bar `except`, that has a free attack spot round it.
  */
-function anotherQuarry(
+function anotherTarget(
   world: World,
   minion: Minion,
   except: Monster | BoneAltar,
@@ -467,15 +467,12 @@ function walkOrTeleport(
   if (minion.stuck >= stepped.stuckSteps) placeBesideHero(world, minion);
 }
 
-/** How far past its reach a Monster still counts as a fight (tiles). */
-const FIGHT_RANGE = 1;
-
 /** Whether a Monster is close enough to the Minion to be fighting it. */
 function isFighting(world: World, minion: Minion): boolean {
-  const { reach, radius } = minionTuning[minion.type];
+  const { reach, radius, fightRange } = minionTuning[minion.type];
   return world.monsters.some(
     (monster) =>
       distance(minion.pos, monster.pos) <=
-      reach + monsterTuning[monster.type].radius + radius + FIGHT_RANGE,
+      reach + monsterTuning[monster.type].radius + radius + fightRange,
   );
 }

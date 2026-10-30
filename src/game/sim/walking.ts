@@ -6,7 +6,7 @@ import {
   isClear,
   type Obstacle,
 } from "./path";
-import type { Vec } from "./vec";
+import { distance, type Vec } from "./vec";
 
 /** A creature the sim walks for itself: a Monster or a Minion. */
 export type Walker = {
@@ -69,11 +69,7 @@ export function holdBack(
 ): boolean {
   const { radius, obstacles } = gait.body as NonNullable<Gait["body"]>;
   const hits = (at: Vec) =>
-    obstacles.some((o) => {
-      const gap = Math.hypot(o.pos.x - at.x, o.pos.y - at.y);
-      const was = Math.hypot(o.pos.x - before.x, o.pos.y - before.y);
-      return gap < o.radius + radius - 1e-6 && gap < was;
-    });
+    obstacles.some((obstacle) => runsInto(obstacle, radius, before, at));
   if (!hits(walker.pos)) return false;
   const { x, y } = walker.pos;
   const slide = [
@@ -93,39 +89,55 @@ export function holdBack(
  * Where a step from `from` to `to` ends for a body of `radius` that can't
  * walk into the `obstacles`: `to` itself, else slid round the edge of any
  * Body it would run into (the nearest point to `to` just outside it), else
- * `from` where that doesn't fit at the walls (of `wallRadius`) either.
+ * `from` where that doesn't fit at the walls either.
  */
 export function slideAround(
   area: Area,
   from: Vec,
   to: Vec,
   radius: number,
-  wallRadius: number,
   obstacles: readonly Obstacle[],
 ): Vec {
   const hits = (at: Vec) =>
-    obstacles.filter((o) => {
-      const gap = Math.hypot(o.pos.x - at.x, o.pos.y - at.y);
-      const was = Math.hypot(o.pos.x - from.x, o.pos.y - from.y);
-      return gap < o.radius + radius - 1e-6 && gap < was;
-    });
+    obstacles.filter((obstacle) => runsInto(obstacle, radius, from, at));
   let at = to;
   for (let pass = 0; pass < 3 && hits(at).length > 0; pass++) {
-    for (const o of hits(at)) {
-      const dx = at.x - o.pos.x;
-      const dy = at.y - o.pos.y;
+    for (const obstacle of hits(at)) {
+      const dx = at.x - obstacle.pos.x;
+      const dy = at.y - obstacle.pos.y;
       const length = Math.hypot(dx, dy);
       if (length === 0) return from;
-      const apart = o.radius + radius;
+      const apart = obstacle.radius + radius;
       at = {
-        x: o.pos.x + (dx / length) * apart,
-        y: o.pos.y + (dy / length) * apart,
+        x: obstacle.pos.x + (dx / length) * apart,
+        y: obstacle.pos.y + (dy / length) * apart,
       };
     }
   }
-  return hits(at).length === 0 && fitsAt(area, at, wallRadius) ? at : from;
+  return hits(at).length === 0 && fitsAt(area, at, radius) ? at : from;
 }
 
+/**
+ * Whether a body of `radius` stepping from `from` to `at` runs into
+ * `obstacle`: it overlaps it there, and is closer than it was.
+ */
+function runsInto(
+  obstacle: Obstacle,
+  radius: number,
+  from: Vec,
+  at: Vec,
+): boolean {
+  const gap = distance(obstacle.pos, at);
+  return (
+    gap < obstacle.radius + radius - 1e-6 && gap < distance(obstacle.pos, from)
+  );
+}
+
+/**
+ * One walk of `walker` towards `to`, up to `budget` and, on a straight line,
+ * `limit`: straight on where the line is clear of walls and of the Bodies of
+ * its `gait`, else along its path, planned afresh when its timer runs out.
+ */
 function walkToward(
   area: Area,
   walker: Walker,

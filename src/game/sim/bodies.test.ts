@@ -599,11 +599,11 @@ describe("Minions and Monsters blocking each other", () => {
 
   it("keeps a Minion stuck behind a Monster in a corridor from teleporting to the Hero while it fights", () => {
     const w = world(["##############", "#H.....SS....#", "##############"]);
-    const quarry = w.monsters[1];
+    const chased = w.monsters[1];
     const line = addSkeleton(w, { x: 6.5, y: 1.5 });
     // It is after the far Monster, which the near one stands in front of.
     line.state = "chase";
-    line.target = quarry.id;
+    line.target = chased.id;
     for (let i = 0; i < 150 && w.minions.includes(line); i++) {
       step(w, []);
       expect(line.pos.x).toBeGreaterThan(4);

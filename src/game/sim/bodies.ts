@@ -9,6 +9,10 @@ import type { World } from "./world";
 /** What a Body belongs to, which picks the rule between two of them. */
 type BodyKind = "hero" | "minion" | "monster";
 
+/**
+ * A creature's Body in the shoving pass: whose it is, how big, and its id
+ * for breaking ties.
+ */
 type Body = {
   kind: BodyKind;
   creature: { pos: Vec };
@@ -35,6 +39,41 @@ export function wallRadius(radius: number): number {
 }
 
 /**
+ * The Bodies of the Hero (unless in Death) and their Minions (`side`
+ * "hero"), of the Monsters ("monster") or of all ("all"), bar those in
+ * `ignore`, which are not there.
+ */
+function bodiesOf(
+  world: World,
+  side: "hero" | "monster" | "all",
+  ignore: readonly (object | null | undefined)[] = [],
+): Obstacle[] {
+  const bodies: Obstacle[] = [];
+  if (side !== "monster" && !world.death && !ignore.includes(world.hero)) {
+    bodies.push({ pos: world.hero.pos, radius: heroTuning.radius });
+  }
+  if (side !== "monster") {
+    for (const minion of world.minions) {
+      if (ignore.includes(minion)) continue;
+      bodies.push({
+        pos: minion.pos,
+        radius: minionTuning[minion.type].radius,
+      });
+    }
+  }
+  if (side !== "hero") {
+    for (const monster of world.monsters) {
+      if (ignore.includes(monster)) continue;
+      bodies.push({
+        pos: monster.pos,
+        radius: monsterTuning[monster.type].radius,
+      });
+    }
+  }
+  return bodies;
+}
+
+/**
  * The Bodies a Monster can't walk through: the Hero's (unless in Death) and
  * their Minions', bar `except` (the one it is going after, which it walks up
  * to).
@@ -43,33 +82,18 @@ export function heroSideBodies(
   world: World,
   except?: object | null,
 ): Obstacle[] {
-  return [
-    ...(world.death || world.hero === except
-      ? []
-      : [{ pos: world.hero.pos, radius: heroTuning.radius }]),
-    ...world.minions
-      .filter((minion) => minion !== except)
-      .map((minion) => ({
-        pos: minion.pos,
-        radius: minionTuning[minion.type].radius,
-      })),
-  ];
+  return bodiesOf(world, "hero", [except]);
 }
 
 /**
- * The Bodies a Minion can't walk through: the Monsters, bar `except` (the
- * one it is going after, which it walks up to).
+ * The Bodies the Hero or a Minion can't walk through: the Monsters', bar
+ * `except` (the one it is going after, which it walks up to).
  */
 export function monsterBodies(
   world: World,
   except?: object | null,
 ): Obstacle[] {
-  return world.monsters
-    .filter((monster) => monster !== except)
-    .map((monster) => ({
-      pos: monster.pos,
-      radius: monsterTuning[monster.type].radius,
-    }));
+  return bodiesOf(world, "monster", [except]);
 }
 
 /**
@@ -244,23 +268,7 @@ export function freeSpot(
   const size = wallRadius(radius);
   const from = summonPoint(area, point, size);
   if (!from) return null;
-  const others = [
-    ...(world.death
-      ? []
-      : [{ pos: world.hero.pos, radius: heroTuning.radius }]),
-    ...world.minions
-      .filter((minion) => !ignore.includes(minion))
-      .map((minion) => ({
-        pos: minion.pos,
-        radius: minionTuning[minion.type].radius,
-      })),
-    ...world.monsters
-      .filter((monster) => !ignore.includes(monster))
-      .map((monster) => ({
-        pos: monster.pos,
-        radius: monsterTuning[monster.type].radius,
-      })),
-  ];
+  const others = bodiesOf(world, "all", ignore);
   const free = (spot: Vec) =>
     fitsAt(area, spot, size) &&
     isClear(area, from, spot, size) &&
@@ -269,12 +277,12 @@ export function freeSpot(
   if (free(from)) return from;
   let fallback: Vec | null = fitsAt(area, from, size) ? from : null;
   for (let ring = 1; ring * SPOT_STEP <= SPOT_REACH; ring++) {
-    const away = ring * SPOT_STEP;
+    const reach = ring * SPOT_STEP;
     for (let turn = 0; turn < SPOT_TURNS; turn++) {
       const angle = (2 * Math.PI * turn) / SPOT_TURNS;
       const spot = {
-        x: from.x + away * Math.cos(angle),
-        y: from.y + away * Math.sin(angle),
+        x: from.x + reach * Math.cos(angle),
+        y: from.y + reach * Math.sin(angle),
       };
       if (free(spot)) return spot;
       if (!fallback && fitsAt(area, spot, size)) fallback = spot;
@@ -307,23 +315,7 @@ export function attackSpot(
 ): Vec | null {
   const area = world.areas[world.areaName];
   const size = wallRadius(radius);
-  const others = [
-    ...(world.death || ignore.includes(world.hero) || self === world.hero
-      ? []
-      : [{ pos: world.hero.pos, radius: heroTuning.radius }]),
-    ...world.minions
-      .filter((minion) => minion !== self && !ignore.includes(minion))
-      .map((minion) => ({
-        pos: minion.pos,
-        radius: minionTuning[minion.type].radius,
-      })),
-    ...world.monsters
-      .filter((monster) => monster !== self && !ignore.includes(monster))
-      .map((monster) => ({
-        pos: monster.pos,
-        radius: monsterTuning[monster.type].radius,
-      })),
-  ];
+  const others = bodiesOf(world, "all", [self, ...ignore]);
   const base = Math.atan2(self.pos.y - target.y, self.pos.x - target.x);
   let best: Vec | null = null;
   for (let turn = 0; turn < ATTACK_SPOTS; turn++) {

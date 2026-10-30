@@ -266,30 +266,30 @@ function isStrolling(monster: Monster): boolean {
 }
 
 /** Who a Monster can go after, and where they stand. */
-type Quarry = { target: MonsterTarget; pos: Vec };
+type TargetAt = { target: MonsterTarget; pos: Vec };
 
 /** The Hero, while alive, and each of their Minions. */
-function quarriesOf(world: World): Quarry[] {
-  const quarries: Quarry[] = [];
-  if (!world.death) quarries.push({ target: "hero", pos: world.hero.pos });
+function targetsAt(world: World): TargetAt[] {
+  const targets: TargetAt[] = [];
+  if (!world.death) targets.push({ target: "hero", pos: world.hero.pos });
   for (const minion of world.minions) {
-    quarries.push({ target: minion.id, pos: minion.pos });
+    targets.push({ target: minion.id, pos: minion.pos });
   }
-  return quarries;
+  return targets;
 }
 
 /**
  * The nearest to the Monster of the Hero and their Minions, the Hero on a
  * tie, or null with none there.
  */
-function nearestQuarry(world: World, monster: Monster): Quarry | null {
-  let nearest: Quarry | null = null;
-  for (const quarry of quarriesOf(world)) {
+function nearestTarget(world: World, monster: Monster): TargetAt | null {
+  let nearest: TargetAt | null = null;
+  for (const chased of targetsAt(world)) {
     if (
       !nearest ||
-      distance(monster.pos, quarry.pos) < distance(monster.pos, nearest.pos)
+      distance(monster.pos, chased.pos) < distance(monster.pos, nearest.pos)
     ) {
-      nearest = quarry;
+      nearest = chased;
     }
   }
   return nearest;
@@ -308,7 +308,7 @@ function targetPos(world: World, target: MonsterTarget): Vec | null {
 function sees(world: World, monster: Monster): boolean {
   const tuning = monsterTuning[monster.type];
   const area = world.areas[world.areaName];
-  return quarriesOf(world).some(
+  return targetsAt(world).some(
     ({ pos }) =>
       distance(monster.pos, pos) <= tuning.aggroRadius &&
       (!tuning.needsSight || canSee(area, monster.pos, pos)),
@@ -374,29 +374,29 @@ function chase(world: World, monster: Monster) {
     sendHome(monster);
     return;
   }
-  const quarry = nearestQuarry(world, monster);
-  if (!quarry) return;
-  monster.target = quarry.target;
+  const chased = nearestTarget(world, monster);
+  if (!chased) return;
+  monster.target = chased.target;
   const area = world.areas[world.areaName];
-  const gap = distance(monster.pos, quarry.pos);
+  const gap = distance(monster.pos, chased.pos);
   // A ranged Monster stops only where it can also see its target, and walks
   // on, behind a wall, until it can.
   const ranged = attack.kind === "ranged";
   const stopAt = ranged ? attack.range : attack.reach;
-  const inSight = !ranged || canSee(area, monster.pos, quarry.pos);
+  const inSight = !ranged || canSee(area, monster.pos, chased.pos);
   // A chase stops at reach only up to rounding.
   if (gap <= stopAt + 1e-9 && inSight) {
     monster.path = [];
-    if (canWindUp(world, monster)) startWindUp(monster, quarry.pos);
+    if (canWindUp(world, monster)) startWindUp(monster, chased.pos);
     return;
   }
-  const going = quarryBody(world, quarry.target);
+  const going = targetBody(world, chased.target);
   const gait = gaitOf(world, monster, going);
   if (!ranged && going) {
     // Heads for a free spot round its target within reach; with none free it
     // waits nearby, a body's width off.
     const { radius } = monsterTuning[monster.type];
-    const spot = attackSpot(world, monster, radius, quarry.pos, stopAt, [
+    const spot = attackSpot(world, monster, radius, chased.pos, stopAt, [
       going,
     ]);
     if (spot) {
@@ -419,7 +419,7 @@ function chase(world: World, monster: Monster) {
       area,
       monster,
       gait,
-      quarry.pos,
+      chased.pos,
       STEPPED[monster.type].speed,
       gap - wait,
     );
@@ -429,7 +429,7 @@ function chase(world: World, monster: Monster) {
     area,
     monster,
     gait,
-    quarry.pos,
+    chased.pos,
     STEPPED[monster.type].speed,
     inSight ? gap - stopAt : gap,
   );
@@ -557,7 +557,7 @@ function gaitOf(
 }
 
 /** The Hero or Minion a target is. */
-function quarryBody(world: World, target: MonsterTarget): object | null {
+function targetBody(world: World, target: MonsterTarget): object | null {
   if (target === "hero") return world.hero;
   return world.minions.find((minion) => minion.id === target) ?? null;
 }

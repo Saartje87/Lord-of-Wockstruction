@@ -1265,8 +1265,8 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
     new Array(area.width * area.height).fill(area.name === TOWN);
   world.standing = standingIn(world, area);
   revealAround(world);
-  world.minions.forEach((minion, i) => {
-    placeBesideHero(world, minion, world.minions.slice(i + 1));
+  world.minions.forEach((minion, index) => {
+    placeBesideHero(world, minion, world.minions.slice(index + 1));
   });
   world.heldOrders = [];
   if (!kept) {
@@ -2433,7 +2433,6 @@ function walkInDirection(world: World, direction: Vec) {
       area,
       hero.pos,
       to,
-      heroTuning.radius,
       heroTuning.radius,
       monsterBodies(world),
     );

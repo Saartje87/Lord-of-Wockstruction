@@ -47,6 +47,11 @@ export type MinionTuning = {
   /** How near a Monster must be to start an attack (tiles). */
   reach: number;
   /**
+   * How far past its reach, and both Bodies, a Monster still counts as a
+   * fight, in which a Minion never teleports for being stuck (tiles).
+   */
+  fightRange: number;
+  /**
    * How much further the Monster may get during the wind-up and still be
    * hit (tiles).
    */
@@ -98,6 +103,7 @@ export const minionTuning: Record<MinionType, MinionTuning> = {
     guardRadius: 6,
     leash: 8,
     reach: 1.2,
+    fightRange: 1,
     reachGrace: 0.25,
     arcDegrees: 60,
     // A slower swing than a Skeleton's 400 ms wind-up, 200 ms root and
@@ -129,6 +135,7 @@ export const minionTuning: Record<MinionType, MinionTuning> = {
     guardRadius: 6,
     leash: 8,
     reach: 1.2,
+    fightRange: 1,
     reachGrace: 0.25,
     arcDegrees: 60,
     windUpMs: 400,

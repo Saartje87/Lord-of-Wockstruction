@@ -10,11 +10,22 @@ describe("the look of a KayKit piece", () => {
     expect(LOOKS.dusk.saturation).toBeGreaterThan(LOOKS.stone.saturation);
   });
 
-  it("keeps the green of grass, trees and bushes", () => {
-    for (const piece of ["city/park_base", "city/tree_A", "city/bush_C"]) {
+  it("keeps the green of trees and bushes", () => {
+    for (const piece of ["city/tree_A", "city/bush_C"]) {
       expect(lookOf(piece)).toBe(LOOKS.green);
     }
     expect(LOOKS.green.saturation).toBeGreaterThan(LOOKS.prop.saturation);
+  });
+
+  it("draws grass fully green and undimmed, brighter than the trees", () => {
+    expect(lookOf("city/park_base")).toBe(LOOKS.grass);
+    expect(LOOKS.grass.tint).toBe(0xffffff);
+    expect(LOOKS.grass.saturation).toBeGreaterThan(LOOKS.green.saturation);
+  });
+
+  it("draws the Bog's mud brown and wet, unlike Town's dirt", () => {
+    expect(lookOf("dungeon/floor_dirt_large")).toBe(LOOKS.mud);
+    expect(LOOKS.mud).not.toEqual(LOOKS.dusk);
   });
 
   it("leaves lanterns and pumpkins their warmth", () => {

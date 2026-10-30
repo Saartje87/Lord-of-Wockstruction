@@ -1539,7 +1539,7 @@ describe("the Wockyard's sparse grass", () => {
 
 describe("the Soggy Bog's ponds and mud", () => {
   const bog = () => shippedWorld().areas["soggy-bog"];
-  const mud = "halloween/floor_dirt";
+  const mud = "dungeon/floor_dirt_large";
 
   it("is mostly mud, with grass patches among it", () => {
     const { floorPieces, floor, water } = bog();

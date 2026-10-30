@@ -41,7 +41,7 @@ A Combat Area in an Act that is not on its Main Path, reached from one of the Ma
 _Avoid_: Side dungeon, optional area, branch
 
 **Act Boss**:
-The one named Monster at the end of an Act's Main Path; killing it while the Act's last Quest isn't Done completes the Act, shown across the screen, and makes that Quest Ready to hand in. It is back, like every Monster, in each new Session. Act 1's has a Fire attack.
+The one named Monster at the end of an Act's Main Path; killing it while the Act's last Quest isn't Done completes the Act, shown across the screen, and makes that Quest Ready to hand in. It is back, like every Monster, in each new Session. Act 1's is Grave Wockington.
 _Avoid_: Final boss, end boss
 
 **Waypoint**:
@@ -92,6 +92,10 @@ _Avoid_: Spawn point (that's for Monsters), arrival
 An Area's display name, shown across the screen for a few seconds whenever the Hero arrives in an Area, Town included; it never shows an Area Level.
 _Avoid_: Title card, zone text, toast
 
+**Boss bar**:
+The Act Boss's name and Life, shown across the top of the screen while it is In Combat with the Hero, with a mark at half its Life; it goes when the Act Boss dies or starts Returning.
+_Avoid_: Boss health bar, boss HP, nameplate (that's on hover)
+
 **Monster**:
 A hostile creature that attacks the Hero and their Minions and can be killed.
 _Avoid_: Enemy, mob, NPC
@@ -119,6 +123,10 @@ _Avoid_: Boss (except the Act Boss), champion, elite, rare
 **Bruckle**:
 The Unique Monster, a Wockbrute, who has taken over the Spa, guarded by a pack of Wockwolves; killing him is the task of "Spa Day".
 _Avoid_: Spa boss
+
+**Grave Wockington**:
+The Act Boss of Act 1, one of the Lord of Wockstruction's lieutenants, waiting alone in the Ossuary's last room. A slow caster that nothing makes flinch, he stands off from the Hero lobbing Gravefire and swings only at what comes right up to him. Every so often he raises a wave of Skeletons around himself whose Corpses the Hero can turn against him; they fall dead when he dies or starts Returning. Once he is down to half his Life he flares up and raises a wave at once, and from then on his waves come faster and bigger, with a Skeleton Archer in each, and he casts more often. Every Curse but Dread's takes hold on him. He drops more than any other Unique Monster.
+_Avoid_: Wockington, the boss, Grave (alone)
 
 **Bone Altar**:
 A Prop with Life that raises a Monster beside it every so often, up to a limit, until the Hero destroys it with attacks or Skills; Monsters leave it be.
@@ -316,6 +324,10 @@ _Avoid_: Glob, spit, bomb
 The Wockbrute's attack: after a long wind-up that hitting it can't stop, it hits every Hero and Minion within a circle around it, whichever way it faces; never Monsters.
 _Avoid_: Stomp, smash, area attack
 
+**Gravefire**:
+Grave Wockington's attack: lobbed like Muck at where the Hero stood, its landing spot marked from then on, it burns there as a circle for a few seconds, hurting every Hero and Minion inside it a little at a time; never Monsters. Its damage is Fire.
+_Avoid_: Fireball, fire patch, burning ground
+
 **Save**:
 The Hero's kept progress (Level, Experience, Attributes, unspent Attribute Points, Skill Levels, unspent Skill Points, the Skill Bar, Belongings and Gold), written whenever it changes; there is only one, and loading it starts the Hero in Town.
 _Avoid_: Save file, slot, profile, checkpoint
@@ -505,7 +517,7 @@ The area around a small button, such as a ×, a Panel button, the pause button o
 _Avoid_: Tap target, hitbox, touch zone
 
 **Halfway rule**:
-Where a touch hit area stops: halfway to any other button, slot or cell beside it, so the two meet on one line and a touch between them goes to the nearer. Nothing loses a touch on itself as drawn, nor an open panel a touch on its body.
+Where a touch hit area stops: halfway to any other button, slot or cell beside it, so the two meet on one line and a touch between them goes to the nearer. Nothing loses a touch on itself as drawn, nor an open panel a touch inside it.
 _Avoid_: Snapping, nearest-target
 
 **Loading Screen**:

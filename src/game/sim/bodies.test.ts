@@ -228,3 +228,115 @@ describe("a crowded fight", () => {
     expect(fight()).toEqual(fight());
   });
 });
+
+describe("the Hero's Minions and their Bodies", () => {
+  const field = [
+    "............",
+    "............",
+    "....H.......",
+    "............",
+    "............",
+  ];
+
+  /** A Raised Skeleton at `pos`, added to the Hero's Minions. */
+  function addSkeleton(w: World, pos: Vec) {
+    const skeleton = newMinion(
+      w.nextMinionId++,
+      "raisedSkeleton",
+      "raiseSkeleton",
+      1,
+      pos,
+      0,
+    );
+    w.minions.push(skeleton);
+    return skeleton;
+  }
+
+  it("shove each other apart and never stay stacked", () => {
+    const w = world(field);
+    const golem = addGolem(w, { x: 5.5, y: 3.5 });
+    const skeletons = [
+      addSkeleton(w, { x: 5.5, y: 3.5 }),
+      addSkeleton(w, { x: 5.55, y: 3.5 }),
+      addSkeleton(w, { x: 5.5, y: 3.55 }),
+    ];
+
+    for (let i = 0; i < 120; i++) step(w, []);
+
+    const minions = [golem, ...skeletons];
+    for (const [i, a] of minions.entries()) {
+      for (const b of minions.slice(i + 1)) {
+        const apart = minionTuning[a.type].radius + minionTuning[b.type].radius;
+        expect(distance(a.pos, b.pos)).toBeGreaterThanOrEqual(apart - 1e-6);
+      }
+    }
+  });
+
+  it("fighting one Monster together end up with no two Bodies overlapping", () => {
+    const w = world(["............", "....H...S...", "............"]);
+    const minions = [
+      addGolem(w, { x: 3.5, y: 1.5 }),
+      addSkeleton(w, { x: 3.5, y: 0.5 }),
+      addSkeleton(w, { x: 3.5, y: 2.5 }),
+      addSkeleton(w, { x: 2.5, y: 1.5 }),
+    ];
+
+    for (let i = 0; i < 300; i++) step(w, []);
+
+    for (const [i, a] of minions.entries()) {
+      for (const b of minions.slice(i + 1)) {
+        const apart = minionTuning[a.type].radius + minionTuning[b.type].radius;
+        expect(distance(a.pos, b.pos)).toBeGreaterThanOrEqual(apart - 1e-6);
+      }
+    }
+  });
+
+  it("are shoved aside by the Hero walking through, who is never moved or slowed", () => {
+    const target = { x: 10.5, y: 2.5 };
+    const empty = world(field);
+    step(empty, [{ type: "MoveTo", target }]);
+    let alone = 0;
+    stepUntil(empty, () => {
+      alone++;
+      return empty.hero.path.length === 0;
+    });
+
+    const w = world(field);
+    const golem = addGolem(w, { x: 6.5, y: 2.5 });
+    const start = { ...golem.pos };
+    step(w, [{ type: "MoveTo", target }]);
+    let taken = 0;
+    let nearest = Number.POSITIVE_INFINITY;
+    stepUntil(w, () => {
+      taken++;
+      nearest = Math.min(nearest, distance(w.hero.pos, golem.pos));
+      return w.hero.path.length === 0;
+    });
+
+    expect(taken).toBe(alone);
+    // Shoved clear every step, not walked through.
+    expect(nearest).toBeGreaterThanOrEqual(
+      heroTuning.radius + minionTuning.golem.radius - 1e-6,
+    );
+    expect(w.hero.pos).toEqual(empty.hero.pos);
+    expect(golem.pos).not.toEqual(start);
+  });
+
+  it("never settle overlapping the Hero, even one standing on them", () => {
+    const w = world(field);
+    const golem = addGolem(w, { ...w.hero.pos });
+    const skeleton = addSkeleton(w, {
+      x: w.hero.pos.x + 0.05,
+      y: w.hero.pos.y,
+    });
+
+    for (let i = 0; i < 120; i++) step(w, []);
+
+    expect(distance(golem.pos, w.hero.pos)).toBeGreaterThanOrEqual(
+      heroTuning.radius + minionTuning.golem.radius - 1e-6,
+    );
+    expect(distance(skeleton.pos, w.hero.pos)).toBeGreaterThanOrEqual(
+      heroTuning.radius + minionTuning.raisedSkeleton.radius - 1e-6,
+    );
+  });
+});

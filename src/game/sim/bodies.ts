@@ -21,8 +21,8 @@ type Body = {
  * the order given, or null where they may overlap.
  */
 const SHARES: Record<BodyKind, Record<BodyKind, [number, number] | null>> = {
-  hero: { hero: null, minion: null, monster: [0, 1] },
-  minion: { hero: null, minion: null, monster: [0.5, 0.5] },
+  hero: { hero: null, minion: [0, 1], monster: [0, 1] },
+  minion: { hero: [1, 0], minion: [0.5, 0.5], monster: [0.5, 0.5] },
   monster: { hero: [1, 0], minion: [0.5, 0.5], monster: [0.5, 0.5] },
 };
 

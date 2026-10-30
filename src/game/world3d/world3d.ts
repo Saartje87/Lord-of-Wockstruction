@@ -12,6 +12,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { Area } from "../sim/area";
 import { type Atmosphere, createAtmosphere, driftEmbers } from "./atmosphere";
 import { placeCamera, type WorldCamera } from "./camera";
+import { crumbleOf, crumblesAfter } from "./crumble";
 import { type ExitMeshes, exitMeshesOf } from "./exitMeshes";
 import {
   FLOOR_MIX,
@@ -88,6 +89,10 @@ export type World3d = {
   monsters: Map<number, MonsterActor>;
   /** The Minions in the scene, by id. */
   minions: Map<number, MonsterActor>;
+  /** The ids of the Minions the last frame showed alive. */
+  minionsShown: Set<number>;
+  /** Seconds each departed Minion has been crumbling, by id. */
+  crumbling: Map<number, number>;
   /** Town's NPCs in the scene, by their place in the Area's NPCs. */
   npcs: Map<number, MonsterActor>;
   /** The Wall and Prop pieces loaded so far, by piece name. */
@@ -156,6 +161,8 @@ export function createWorld3d(shared: SharedCanvas): World3d {
     models: null,
     monsters: new Map(),
     minions: new Map(),
+    minionsShown: new Set(),
+    crumbling: new Map(),
     npcs: new Map(),
     shown: null,
     pieces: {},
@@ -341,11 +348,29 @@ function poseMinions(world3d: World3d, view: WorldView, dt: number) {
     }
     poseMonster(actor, minion, dt);
   }
+  // A Minion that left the World crumbles where it stood, then goes.
+  world3d.crumbling = crumblesAfter(
+    world3d.crumbling,
+    world3d.minionsShown,
+    seen,
+    dt,
+  );
+  world3d.minionsShown = seen;
   for (const [id, actor] of minions) {
-    if (seen.has(id)) continue;
-    scene.remove(actor.root);
-    for (const material of actor.materials) material.dispose();
-    minions.delete(id);
+    if (seen.has(id)) {
+      actor.root.scale.setScalar(1);
+      continue;
+    }
+    const seconds = world3d.crumbling.get(id);
+    if (seconds === undefined) {
+      scene.remove(actor.root);
+      for (const material of actor.materials) material.dispose();
+      minions.delete(id);
+      continue;
+    }
+    const { scale, sink } = crumbleOf(seconds);
+    actor.root.scale.setScalar(scale);
+    actor.root.position.y = -sink;
   }
 }
 

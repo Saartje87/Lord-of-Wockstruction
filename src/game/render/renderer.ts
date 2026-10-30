@@ -1479,16 +1479,27 @@ function curseMark(
   const shape =
     look.shape === "triangle"
       ? [x - half, bottom - size, x + half, bottom - size, x, bottom]
-      : [
-          x,
-          bottom - size,
-          x + half,
-          bottom - half,
-          x,
-          bottom,
-          x - half,
-          bottom - half,
-        ];
+      : look.shape === "square"
+        ? [
+            x - half,
+            bottom - size,
+            x + half,
+            bottom - size,
+            x + half,
+            bottom,
+            x - half,
+            bottom,
+          ]
+        : [
+            x,
+            bottom - size,
+            x + half,
+            bottom - half,
+            x,
+            bottom,
+            x - half,
+            bottom - half,
+          ];
   graphics
     .poly(shape)
     .fill({ color: colour, alpha })

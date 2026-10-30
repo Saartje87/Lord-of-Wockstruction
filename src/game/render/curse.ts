@@ -49,17 +49,18 @@ export function curseMarkAlpha(ms: number): number {
 export type CurseLook = {
   circle: number;
   mark: number;
-  shape: "diamond" | "triangle";
+  shape: "diamond" | "triangle" | "square";
 };
 
 /**
  * Each Curse's own look, so a Cursed Monster tells which Curse it has:
  * Amplify Damage a violet diamond, Weaken an ochre triangle pointing down
- * (its damage going down).
+ * (its damage going down), Leaden Limbs a steel-blue square (weighed down).
  */
 export const CURSE_LOOKS: Partial<Record<Skill, CurseLook>> = {
   amplifyDamage: { circle: 0x8a3fc2, mark: 0xb05ce6, shape: "diamond" },
   weaken: { circle: 0xb8862b, mark: 0xe6b84d, shape: "triangle" },
+  leadenLimbs: { circle: 0x4a6f8a, mark: 0x7fb3d9, shape: "square" },
 };
 
 /** The look of the Curse `skill` casts (Amplify Damage's for any without one). */

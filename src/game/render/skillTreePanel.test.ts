@@ -109,6 +109,7 @@ describe("skillTreeSheet", () => {
       "golem",
       "amplifyDamage",
       "weaken",
+      "leadenLimbs",
     ];
 
     expect(sheet.skillPoints).toBe("0");

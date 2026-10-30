@@ -204,6 +204,22 @@ function damageDealt(curse: Monster["curse"] | undefined): number {
     : 1;
 }
 
+/** What share of its speed a Monster with `curse` walks at. */
+function walkPace(curse: Monster["curse"]): number {
+  const effect = curse && skillTuning[curse.skill].effect;
+  return effect?.type === "curse" && effect.kind === "leadenLimbs"
+    ? effect.walkSpeed
+    : 1;
+}
+
+/** What share as often a Monster with `curse` swings or shoots. */
+function attackPace(curse: Monster["curse"]): number {
+  const effect = curse && skillTuning[curse.skill].effect;
+  return effect?.type === "curse" && effect.kind === "leadenLimbs"
+    ? effect.attackSpeed
+    : 1;
+}
+
 /** A Monster's attack landing on its target this step. */
 export type Strike = { monster: Monster; target: MonsterTarget };
 
@@ -374,7 +390,11 @@ function wander(world: World, monster: Monster) {
   ) {
     const before = monster.pos;
     const gait = gaitOf(world, monster);
-    walkAlong(monster, monster.path, STEPPED[monster.type].wanderSpeed);
+    walkAlong(
+      monster,
+      monster.path,
+      STEPPED[monster.type].wanderSpeed * walkPace(monster.curse),
+    );
     holdBack(area, monster, before, gait);
     if (monster.path.length > 0) return;
   }
@@ -430,7 +450,7 @@ function chase(world: World, monster: Monster) {
         monster,
         gait,
         spot,
-        STEPPED[monster.type].speed,
+        STEPPED[monster.type].speed * walkPace(monster.curse),
         distance(monster.pos, spot),
       );
       return;
@@ -445,7 +465,7 @@ function chase(world: World, monster: Monster) {
       monster,
       gait,
       chased.pos,
-      STEPPED[monster.type].speed,
+      STEPPED[monster.type].speed * walkPace(monster.curse),
       gap - wait,
     );
     return;
@@ -455,7 +475,7 @@ function chase(world: World, monster: Monster) {
     monster,
     gait,
     chased.pos,
-    STEPPED[monster.type].speed,
+    STEPPED[monster.type].speed * walkPace(monster.curse),
     inSight ? gap - stopAt : gap,
   );
 }
@@ -508,10 +528,16 @@ function windUp(world: World, monster: Monster): boolean {
   if (monster.attack < stepped.windUpSteps) return false;
   monster.state = "recover";
   monster.attack = stepped.rootSteps;
-  monster.cooldown =
+  // Leaden Limbs stretches the whole cycle (wind-up included) by waiting
+  // longer here, so the telegraph and animation lengths stay as they are.
+  const cooldown =
     stepped.rootSteps +
     stepped.recoverySteps +
     randomInt(world.rng, [0, stepped.jitterSteps]);
+  monster.cooldown = Math.round(
+    (cooldown + stepped.windUpSteps) / attackPace(monster.curse) -
+      stepped.windUpSteps,
+  );
   const { attack } = stepped;
   const at = targetPos(world, monster.target);
   if (!at) return false;
@@ -555,7 +581,7 @@ function goHome(world: World, monster: Monster) {
     monster,
     gaitOf(world, monster),
     monster.home,
-    stepped.returnSpeed,
+    stepped.returnSpeed * walkPace(monster.curse),
   );
   if (distance(monster.pos, monster.home) > 0) return;
   monster.state = "idle";

@@ -83,7 +83,9 @@ export type ExplodeEffect = {
  * `durationMs`, and `durationMsPerSkillLevel` more each Skill Level past the
  * first. What the Curse does depends on its `kind`: a Monster with Amplify
  * Damage takes `damageTaken` times the damage; one with Weaken deals
- * `damageDealt` times the damage of its swings and Arrows.
+ * `damageDealt` times the damage of its swings and Arrows; one with Leaden
+ * Limbs walks at `walkSpeed` times its speed and attacks `attackSpeed` times
+ * as often (Projectiles already loosed keep their speed).
  */
 export type CurseEffect = {
   type: "curse";
@@ -94,6 +96,7 @@ export type CurseEffect = {
 } & (
   | { kind: "amplifyDamage"; damageTaken: number }
   | { kind: "weaken"; damageDealt: number }
+  | { kind: "leadenLimbs"; walkSpeed: number; attackSpeed: number }
 );
 
 /**
@@ -150,6 +153,7 @@ export type Skill =
   | "raiseSkeleton"
   | "amplifyDamage"
   | "weaken"
+  | "leadenLimbs"
   | "boneWard"
   | "corpseExplosion"
   | "boneSpear";
@@ -243,6 +247,30 @@ export const skillTuning: Record<Skill, SkillTuning> = {
       damageDealt: 0.6,
     },
     synergies: [{ skill: "amplifyDamage", percentPerSkillLevel: 8 }],
+  },
+  // Diablo 2's Decrepify, in spirit: a Cursed Monster walks at 60% of its
+  // speed (an Archer's kiting and a Skeleton's closing both drag) and swings
+  // or shoots at 60% as often, a little shorter than Weaken's duration so the
+  // two Curses trade off rather than stack.
+  leadenLimbs: {
+    name: "Leaden Limbs",
+    branch: "curses",
+    prerequisite: "weaken",
+    requiredLevel: 8,
+    manaCost: 9,
+    manaCostPerSkillLevel: 0,
+    castMs: 400,
+    effect: {
+      type: "curse",
+      kind: "leadenLimbs",
+      radius: 2,
+      radiusPerSkillLevel: 0.5,
+      durationMs: 7000,
+      durationMsPerSkillLevel: 2000,
+      walkSpeed: 0.6,
+      attackSpeed: 0.6,
+    },
+    synergies: [{ skill: "weaken", percentPerSkillLevel: 8 }],
   },
   // Diablo 2's Bone Armor, and its Mana, scaled by starting Life (a Diablo 2
   // Necromancer's 45 to the Hero's 100): 45 soaks about five swings of a

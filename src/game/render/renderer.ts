@@ -67,7 +67,7 @@ import { tileToScreen, type WorldCamera } from "../world3d/camera";
 import { CRUMBLE_SECONDS } from "../world3d/crumble";
 import { groundSpotsOf } from "../world3d/groundSpots";
 import { MONSTER_LOOKS } from "../world3d/monsterLook";
-import { pickablesOf } from "../world3d/pickables";
+import { npcPickablesOf, pickablesOf } from "../world3d/pickables";
 import { characterUnder3d, type Pickable3d } from "../world3d/picking";
 import type { DepartedMinion, Effects } from "../world3d/view";
 import {
@@ -87,6 +87,7 @@ import {
   floatAt,
   floatText,
 } from "./damageNumbers";
+import { DIALOGUE, dialogueLayout, dialogueSheet } from "./dialoguePanel";
 import {
   EXPERIENCE_BAR,
   experienceBar,
@@ -188,7 +189,6 @@ import { GAME_NAME, startChoiceAt, startScreenLayout } from "./startScreen";
 import { tooltipRect } from "./tooltip";
 import { touchControlsLayout, touchControlsShown } from "./touchControls";
 import { shownTownPortals, townPortalCloseScale } from "./townPortalLook";
-import { DIALOGUE, dialogueLayout, dialogueSheet } from "./dialoguePanel";
 import {
   canTravel,
   WAYPOINT_LIST,
@@ -532,6 +532,8 @@ export function createRenderer(
   /** Where each character stood as last drawn, for picking. */
   let standing: Pickable3d<CharacterId>[] = [];
   let highlighted: CharacterId | null = null;
+  /** Where the NPCs stood as last drawn, for picking. */
+  let standingNpcs: Pickable3d<number>[] = [];
   // Over the 3D World, under the HUD, bottom to top: Ground Item labels,
   // damage numbers, then Life bars and Curse marks, which are scaled by the
   // World zoom.
@@ -766,6 +768,13 @@ export function createRenderer(
     return typeof id === "number" ? id : null;
   };
 
+  /**
+   * The NPC (index in the Area's `npcs`) drawn under a point on the canvas
+   * (CSS px), as last drawn.
+   */
+  const npcAt = (screen: Vec): number | null =>
+    characterUnder3d(cameraOf(), standingNpcs, screen);
+
   /** The Ground Item whose label is under a canvas point (CSS px). */
   const groundLabelUnder = (screen: Vec): ItemId | null =>
     groundLabelAt(labels, screen);
@@ -888,6 +897,7 @@ export function createRenderer(
     },
 
     monsterAt,
+    npcAt,
     groundLabelAt: groundLabelUnder,
     groundItemAt,
 
@@ -1144,6 +1154,7 @@ export function createRenderer(
       const camera = cameraOf();
       overheads3d.scale.set(camera.zoom);
       standing = pickablesOf(world, alpha);
+      standingNpcs = npcPickablesOf(world);
       /** Where the top of a Monster's Life bar goes, in the space it's drawn in. */
       const barAnchor = (monster: Monster): Vec => {
         const head = tileToScreen(

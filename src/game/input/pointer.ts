@@ -50,6 +50,8 @@ export type PointerView<Panel> = {
   toTile(screen: Vec): Vec;
   /** The Monster drawn under a canvas point (CSS px), if any. */
   monsterAt(screen: Vec): MonsterId | null;
+  /** The NPC (index in the Area's `npcs`) drawn under a canvas point (CSS px), if any. */
+  npcAt(screen: Vec): number | null;
   /** The Ground Item whose label is under a canvas point (CSS px), if any. */
   groundLabelAt(screen: Vec): ItemId | null;
   /**
@@ -243,6 +245,11 @@ function pollLeft<Panel>(
     if (groundItem !== null) {
       input.holding = { type: "nothing" };
       return { ...nothing, orders: [{ type: "PickUp", groundItem }] };
+    }
+    const npc = input.shift || monster !== null ? null : view.npcAt(pressedAt);
+    if (npc !== null) {
+      input.holding = { type: "nothing" };
+      return { ...nothing, orders: [{ type: "Talk", npc }] };
     }
     if (input.shift) {
       input.holding = { type: "swing" };

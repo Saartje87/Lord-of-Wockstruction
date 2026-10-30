@@ -67,8 +67,7 @@ export function dialoguePanelRect(screen: Viewport, buttons: number): Rect {
   if (screen.compact) return compactPanelRect(screen);
   const { width, padding, firstLine, bodyHeight, rowHeight, hintHeight } =
     atUiScale(DIALOGUE, screen.uiScale);
-  const h =
-    firstLine + bodyHeight + buttons * rowHeight + hintHeight + padding;
+  const h = firstLine + bodyHeight + buttons * rowHeight + hintHeight + padding;
   return {
     x: (screen.width - width) / 2,
     y: (screen.height - h) / 2,

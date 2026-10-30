@@ -24,6 +24,11 @@ export type InputTuning = {
    */
   groundItemReach: number;
   /**
+   * How near the Hero an NPC must stand for A, with no Target, to talk to
+   * it (tiles).
+   */
+  npcReach: number;
+  /**
    * How far ahead of the Hero a controller casts a Skill when there is no
    * Target (tiles).
    */
@@ -42,6 +47,7 @@ export const inputTuning: InputTuning = {
   targetConeDegrees: 90,
   targetRange: 6,
   groundItemReach: 1.5,
+  npcReach: 2,
   castDistance: 3,
   longPressMs: 450,
 };

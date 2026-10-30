@@ -462,10 +462,7 @@ const OPEN_FLAGS = {
 export type WorldPanel = "waypoints" | "dialogue";
 
 /** The World panels, the one drawn on top first. */
-export const WORLD_PANELS: readonly WorldPanel[] = [
-  "dialogue",
-  "waypoints",
-];
+export const WORLD_PANELS: readonly WorldPanel[] = ["dialogue", "waypoints"];
 
 /** The flag on the menus that says whether each World panel is open. */
 const WORLD_OPEN_FLAGS = {

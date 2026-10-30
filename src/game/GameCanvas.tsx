@@ -598,6 +598,7 @@ export default function GameCanvas() {
         const { orders: newOrders, click } = poll(input, now, {
           toTile,
           monsterAt: renderer.monsterAt,
+          npcAt: renderer.npcAt,
           groundLabelAt: renderer.groundLabelAt,
           groundItemAt: renderer.groundItemAt,
           panelAt: (at) => forTheWorld(renderer.panelAt(at)),

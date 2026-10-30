@@ -18,6 +18,7 @@ import {
 const asTiles = {
   toTile: (screen: Vec) => screen,
   monsterAt: () => null,
+  npcAt: () => null,
   groundLabelAt: () => null,
   groundItemAt: () => null,
   panelAt: () => null,
@@ -273,6 +274,44 @@ const withPanel = {
   ...withMonster,
   panelAt: (screen: Vec) => (screen.x < 4 ? "the panel" : null),
 };
+
+/** Like `withMonster`, with NPC 2 standing over the tile (3, 3). */
+const withNpc = {
+  ...withMonster,
+  npcAt: (screen: Vec) =>
+    Math.floor(screen.x) === 3 && Math.floor(screen.y) === 3 ? 2 : null,
+};
+
+describe("pointer input on NPCs", () => {
+  it("orders a Talk with a clicked NPC, with no click marker", () => {
+    const input = createPointerInput();
+
+    press(input, { x: 3.5, y: 3.5 });
+    const { orders, click } = poll(input, 0, withNpc);
+
+    expect(orders).toEqual([{ type: "Talk", npc: 2 }]);
+    expect(click).toBeNull();
+  });
+
+  it("orders nothing more while the click is held", () => {
+    const input = createPointerInput();
+    press(input, { x: 3.5, y: 3.5 });
+    poll(input, 0, withNpc);
+
+    move(input, { x: 8, y: 8 });
+    expect(poll(input, 120, withNpc).orders).toEqual([]);
+  });
+
+  it("swings in place on Shift + click, even on an NPC", () => {
+    const input = createPointerInput();
+
+    press(input, { x: 3.5, y: 3.5 }, { shift: true });
+
+    expect(poll(input, 0, withNpc).orders).toEqual([
+      { type: "SwingAt", target: { x: 3.5, y: 3.5 } },
+    ]);
+  });
+});
 
 describe("pointer input on a panel", () => {
   it("hands back what a click on it hit, ordering nothing", () => {

@@ -20,6 +20,7 @@ import {
   type RaiseEffect,
   type Skill,
   skillTuning,
+  type WallEffect,
   type WardEffect,
 } from "../tuning/skills";
 import { townPortalTuning } from "../tuning/townPortal";
@@ -37,13 +38,21 @@ import {
   TOWN,
 } from "./area";
 import { type BeltColumns, emptyBelt, putInBelt } from "./belt";
-import { freeSpot, monsterBodies, separateBodies, summonPoint } from "./bodies";
+import {
+  freeSpot,
+  heroSideBodies,
+  monsterBodies,
+  separateBodies,
+  summonPoint,
+  wallRadius,
+} from "./bodies";
 import {
   altarRadiusOf,
   type BoneAltar,
   isBoneAltar,
   targetsOf,
 } from "./boneAltars";
+import { type BoneWallPiece, wallSpots } from "./boneWalls";
 import {
   type Belongings,
   type Cell,
@@ -325,6 +334,11 @@ export type Monster = {
   pause: number;
   /** Its Curse, if it has one. */
   curse: MonsterCurse | null;
+  /**
+   * The Bone Wall piece (its `id`) it is attacking in place of its target,
+   * because the Wall cuts it off from them; null when it isn't.
+   */
+  wall: number | null;
 };
 
 /** A Curse on a Monster: the Skill that put it there, and steps left. */
@@ -434,6 +448,8 @@ export type World = {
   monsters: Monster[];
   /** The Bone Altars still standing in the active Area. */
   boneAltars: BoneAltar[];
+  /** The Bone Wall pieces standing in the active Area. */
+  boneWalls: BoneWallPiece[];
   /** The Projectiles in flight in the active Area. */
   projectiles: Projectile[];
   /** The Corpses in the active Area. */
@@ -644,6 +660,12 @@ export type SimEvent =
   | { type: "WaveRaised"; boss: MonsterId; monsters: MonsterId[] }
   /** The Hero killed the Act Boss of Act `act` with its Quest not yet Done. */
   | { type: "ActCompleted"; act: number }
+  /** The Hero raised a Bone Wall of pieces standing at `pieces`. */
+  | { type: "BoneWallRaised"; pieces: Vec[] }
+  /** A Monster hit the Bone Wall piece at `pos` for `damage`. */
+  | { type: "BoneWallHit"; pos: Vec; damage: number }
+  /** The Bone Wall piece at `pos` is gone: `broken` by Monsters, else crumbled. */
+  | { type: "BoneWallCrumbled"; pos: Vec; broken: boolean }
   | { type: "BoneAltarHit"; altar: MonsterId; damage: number }
   /** Bone Altar `altar` raised Monster `monster` at `pos`. */
   | { type: "BoneAltarRaised"; altar: MonsterId; monster: MonsterId; pos: Vec }
@@ -875,6 +897,7 @@ export function createWorld(options: {
     },
     monsters: [],
     boneAltars: [],
+    boneWalls: [],
     projectiles: [],
     corpses: [],
     groundItems: [],
@@ -1248,6 +1271,10 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
     hero.combat = 0;
   }
   world.death = null;
+  // A Bone Wall stands only in the Area it was raised in.
+  for (const piece of [...world.boneWalls]) {
+    removeWallPiece(world, piece, false, events);
+  }
   const { monsters, projectiles, corpses, groundItems, explored } = world;
   const { boneAltars } = world;
   world.keptAreas[world.areaName] = {
@@ -1571,6 +1598,7 @@ function placeMonster(
     // So a pack doesn't set off strolling in step.
     pause: wanderPause(world, type),
     curse: null,
+    wall: null,
     waves:
       type === "grave_wockington"
         ? { cooldown: msToSteps(graveWockingtonTuning.firstWaveMs), raised: [] }
@@ -1829,9 +1857,13 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   landProjectiles(world, events);
   const strikes = stepMonsters(world);
   separateBodies(world);
-  for (const { monster, target } of strikes) {
-    strike(world, target, monsterAttack(monster), events);
+  for (const { monster, target, wall } of strikes) {
+    const attack = monsterAttack(monster);
+    if (wall)
+      hurtWall(world, wall, randomInt(world.rng, attack.damage), events);
+    else strike(world, target, attack, events);
   }
+  stepBoneWalls(world, events);
   stepBoneAltars(world, events);
   stepWaves(world, events);
   if (isRegenerating(world)) {
@@ -1871,6 +1903,7 @@ function stepDeath(
   landProjectiles(world, events);
   stepMonsters(world);
   separateBodies(world);
+  stepBoneWalls(world, events);
 }
 
 /**
@@ -1891,6 +1924,8 @@ function landProjectiles(world: World, events: SimEvent[]) {
         "skill",
         events,
       ),
+    (projectile, piece) =>
+      hurtWall(world, piece, randomInt(world.rng, projectile.damage), events),
   );
 }
 
@@ -2199,10 +2234,23 @@ function castFrom(
       curse(world, skill, effect, skillLevel, target, events);
       break;
     case "projectile":
-      looseFromHero(world, effect, skillLevel);
+      looseFromHero(
+        world,
+        effect,
+        skillLevel,
+        synergyMultiplier(hero.progress.skillLevels, skill),
+      );
       break;
     case "ward":
-      putOnBoneWard(hero, effect, skillLevel);
+      putOnBoneWard(
+        hero,
+        effect,
+        skillLevel,
+        synergyMultiplier(hero.progress.skillLevels, skill),
+      );
+      break;
+    case "wall":
+      raiseBoneWall(world, effect, target, events);
       break;
   }
 }
@@ -2373,20 +2421,31 @@ function curse(
   }
 }
 
-/** The damage `effect`'s Projectile deals per hit at `skillLevel`. */
+/**
+ * The damage `effect`'s Projectile deals per hit at `skillLevel`, times the
+ * Skill's Synergies (`synergy`).
+ */
 export function projectileDamage(
   effect: ProjectileEffect,
   skillLevel: number,
+  synergy = 1,
 ): [number, number] {
   const more = effect.damagePerSkillLevel * (skillLevel - 1);
-  return [effect.damage[0] + more, effect.damage[1] + more];
+  return [
+    Math.round((effect.damage[0] + more) * synergy),
+    Math.round((effect.damage[1] + more) * synergy),
+  ];
 }
 
-/** Looses `effect`'s Projectile from the Hero the way they face. */
+/**
+ * Looses `effect`'s Projectile from the Hero the way they face, its damage
+ * grown by the Skill's Synergies (`synergy`).
+ */
 function looseFromHero(
   world: World,
   effect: ProjectileEffect,
   skillLevel: number,
+  synergy: number,
 ) {
   const { hero } = world;
   world.projectiles.push({
@@ -2397,23 +2456,113 @@ function looseFromHero(
     speed: perStep(effect.speed),
     rangeLeft: effect.range,
     from: "hero",
-    damage: projectileDamage(effect, skillLevel),
+    damage: projectileDamage(effect, skillLevel, synergy),
     hit: [],
   });
 }
 
-/** How much `effect`'s Bone Ward soaks up at `skillLevel`. */
-export function wardAmount(effect: WardEffect, skillLevel: number): number {
-  return effect.amount + effect.amountPerSkillLevel * (skillLevel - 1);
+/**
+ * How much `effect`'s Bone Ward soaks up at `skillLevel`, times the Skill's
+ * Synergies (`synergy`).
+ */
+export function wardAmount(
+  effect: WardEffect,
+  skillLevel: number,
+  synergy = 1,
+): number {
+  return Math.round(
+    (effect.amount + effect.amountPerSkillLevel * (skillLevel - 1)) * synergy,
+  );
 }
 
 /**
  * Puts a full Bone Ward on the Hero for `skillLevel`, replacing whatever is
  * left of theirs.
  */
-function putOnBoneWard(hero: Hero, effect: WardEffect, skillLevel: number) {
-  const full = wardAmount(effect, skillLevel);
+function putOnBoneWard(
+  hero: Hero,
+  effect: WardEffect,
+  skillLevel: number,
+  synergy: number,
+) {
+  const full = wardAmount(effect, skillLevel, synergy);
   hero.boneWard = { left: full, full };
+}
+
+/**
+ * Raises `effect`'s Bone Wall across the Hero's line to `target`, a piece on
+ * each of its tiles that is walkable and has no Body in it.
+ */
+function raiseBoneWall(
+  world: World,
+  effect: WallEffect,
+  target: Vec,
+  events: SimEvent[],
+) {
+  const area = world.areas[world.areaName];
+  const { hero } = world;
+  const raised: Vec[] = [];
+  for (const spot of wallSpots(hero.pos, target, hero.facing, effect.length)) {
+    const id = tileIndex(area, spot);
+    if (!isWalkable(area, spot) || bodyInTile(world, spot)) continue;
+    area.walkable[id] = false;
+    area.lowWalled[id] = true;
+    world.boneWalls.push({
+      id,
+      pos: spot,
+      life: effect.pieceLife,
+      left: msToSteps(effect.durationMs),
+    });
+    raised.push({ ...spot });
+  }
+  if (raised.length > 0)
+    events.push({ type: "BoneWallRaised", pieces: raised });
+}
+
+/** Whether the Body of the Hero, a Minion or a Monster touches the tile at `spot`. */
+function bodyInTile(world: World, spot: Vec): boolean {
+  const bodies = monsterBodies(world).concat(heroSideBodies(world));
+  return bodies.some(
+    (body) =>
+      Math.abs(body.pos.x - spot.x) < 0.5 + wallRadius(body.radius) &&
+      Math.abs(body.pos.y - spot.y) < 0.5 + wallRadius(body.radius),
+  );
+}
+
+/** Takes `piece` down, freeing its tile; `broken` when Monsters did it. */
+function removeWallPiece(
+  world: World,
+  piece: BoneWallPiece,
+  broken: boolean,
+  events: SimEvent[],
+) {
+  const area = world.areas[world.areaName];
+  area.walkable[piece.id] = true;
+  area.lowWalled[piece.id] = false;
+  world.boneWalls = world.boneWalls.filter((one) => one !== piece);
+  events.push({ type: "BoneWallCrumbled", pos: { ...piece.pos }, broken });
+}
+
+/** Lands `damage` from a Monster's side on a Bone Wall piece. */
+function hurtWall(
+  world: World,
+  piece: BoneWallPiece,
+  damage: number,
+  events: SimEvent[],
+) {
+  // Whatever hit it after it fell finds nothing.
+  if (!world.boneWalls.includes(piece)) return;
+  piece.life = Math.max(0, piece.life - damage);
+  events.push({ type: "BoneWallHit", pos: { ...piece.pos }, damage });
+  if (piece.life <= 0) removeWallPiece(world, piece, true, events);
+}
+
+/** Counts every Bone Wall piece down, crumbling those whose time is up. */
+function stepBoneWalls(world: World, events: SimEvent[]) {
+  for (const piece of [...world.boneWalls]) {
+    piece.left -= 1;
+    if (piece.left <= 0) removeWallPiece(world, piece, false, events);
+  }
 }
 
 /** Adds a fresh Minion at full Life at `pos` to the Hero's Minions. */

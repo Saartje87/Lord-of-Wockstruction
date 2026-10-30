@@ -41,8 +41,8 @@ export type Synergy = {
  * What a Skill's cast does: summon a Minion at the cast point, the Hero
  * having one of it; raise one from a Corpse (see `RaiseEffect`); burst a
  * Corpse (see `ExplodeEffect`); Curse Monsters (see `CurseEffect`); loose
- * a Projectile (see `ProjectileEffect`); or put a Bone Ward on the Hero (see
- * `WardEffect`).
+ * a Projectile (see `ProjectileEffect`); put a Bone Ward on the Hero (see
+ * `WardEffect`); or raise a Bone Wall (see `WallEffect`).
  */
 export type SkillEffect =
   | { type: "summon"; minion: MinionType }
@@ -50,7 +50,8 @@ export type SkillEffect =
   | ExplodeEffect
   | CurseEffect
   | ProjectileEffect
-  | WardEffect;
+  | WardEffect
+  | WallEffect;
 
 /**
  * Raise a Minion from the Corpse nearest the cast point, using the Corpse
@@ -127,6 +128,21 @@ export type WardEffect = {
   amountPerSkillLevel: number;
 };
 
+/**
+ * Raise a Bone Wall: a line of `length` tiles across the way the Hero faces
+ * the cast point, centred on it, of bone Props with Life (`pieceLife` each,
+ * one to a tile) that stand for `durationMs` unless broken. No one can walk
+ * through it, and a Monster's Projectile stops at it, but the Hero's fly
+ * through. A tile it would stand on that is not floor to walk, or that a
+ * Body is standing in, gets no piece.
+ */
+export type WallEffect = {
+  type: "wall";
+  length: number;
+  pieceLife: number;
+  durationMs: number;
+};
+
 /** Skills that use a Corpse up. */
 export const corpseTuning = {
   /** How near the cast point a Corpse must lie to be used (tiles). */
@@ -159,7 +175,8 @@ export type Skill =
   | "dread"
   | "boneWard"
   | "corpseExplosion"
-  | "boneSpear";
+  | "boneSpear"
+  | "boneWall";
 
 /**
  * Every Skill's tuning. Each cast roots the Hero 400 ms, a touch longer than
@@ -309,7 +326,7 @@ export const skillTuning: Record<Skill, SkillTuning> = {
     manaCostPerSkillLevel: 1,
     castMs: 400,
     effect: { type: "ward", amount: 45, amountPerSkillLevel: 15 },
-    synergies: [],
+    synergies: [{ skill: "boneWall", percentPerSkillLevel: 6 }],
   },
   // Diablo 2's Corpse Explosion bursts for 60–100% of the dead Monster's
   // max Life, which kills its like in one cast, so it's softened to 40–70%:
@@ -352,6 +369,21 @@ export const skillTuning: Record<Skill, SkillTuning> = {
       damage: [60, 90],
       damagePerSkillLevel: 8,
     },
+    synergies: [{ skill: "boneWall", percentPerSkillLevel: 7 }],
+  },
+  // Three tiles hold a corridor's mouth or cover the Hero from a pack's front.
+  // A Skeleton (swinging about every 2 s for 6-13) breaks a 40 Life piece in
+  // four or five swings, so a Wall buys several seconds, and it crumbles on
+  // its own after 10 s so it can't close an Area off for good.
+  boneWall: {
+    name: "Bone Wall",
+    branch: "bone",
+    prerequisite: "boneSpear",
+    requiredLevel: 8,
+    manaCost: 14,
+    manaCostPerSkillLevel: 1,
+    castMs: 400,
+    effect: { type: "wall", length: 3, pieceLife: 40, durationMs: 10000 },
     synergies: [],
   },
 };

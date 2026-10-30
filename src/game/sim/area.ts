@@ -50,6 +50,12 @@ export type Area = {
    */
   water: boolean[];
   /**
+   * Row-major, `width * height` long; true where a Bone Wall piece stands
+   * right now. Like Water it is not walkable but sight and the Hero's
+   * Projectiles pass over it; only the World raises and clears these.
+   */
+  lowWalled: boolean[];
+  /**
    * Row-major, `width * height` long: the KayKit piece (its model's name)
    * on each floor cell, or null where there is no floor or the cell's tile
    * isn't a KayKit piece.
@@ -185,6 +191,11 @@ const GID_MASK = 0x0fffffff;
 /** Whether there is floor at a point in tile units. */
 export function isFloor(area: Area, point: Vec): boolean {
   return cellAt(area, area.floor, point);
+}
+
+/** Whether a point in tile units is on a tile a Bone Wall piece stands on. */
+export function isLowWalled(area: Area, point: Vec): boolean {
+  return cellAt(area, area.lowWalled, point);
 }
 
 /** Whether a point in tile units is on a Water tile. */
@@ -350,6 +361,7 @@ export function loadArea(
     props,
     walkable,
     water,
+    lowWalled: floor.map(() => false),
     entries,
     spawns,
     exits,

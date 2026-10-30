@@ -1,4 +1,4 @@
-import { type Area, isWalkable, isWater } from "./area";
+import { type Area, isLowWalled, isWalkable, isWater } from "./area";
 import { distance, tileOf, type Vec } from "./vec";
 
 const EDGE_SLACK = 1e-6;
@@ -245,14 +245,17 @@ export function fitsAt(area: Area, point: Vec, radius: number): boolean {
 }
 
 /**
- * Whether nothing blocks the line of sight from `a` to `b`. Water doesn't:
- * Projectiles and Monsters noticing the Hero look over it.
+ * Whether nothing blocks the line of sight from `a` to `b`. Water and a Bone
+ * Wall don't: Projectiles and Monsters noticing the Hero look over them.
  */
 export function canSee(area: Area, a: Vec, b: Vec): boolean {
   return touchesOnly(
     a,
     b,
-    (point) => isWalkable(area, point) || isWater(area, point),
+    (point) =>
+      isWalkable(area, point) ||
+      isWater(area, point) ||
+      isLowWalled(area, point),
   );
 }
 

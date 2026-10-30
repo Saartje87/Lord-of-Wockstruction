@@ -105,6 +105,7 @@ describe("skillTreeSheet", () => {
       "boneWard",
       "corpseExplosion",
       "boneSpear",
+      "boneWall",
       "raiseSkeleton",
       "golem",
       "amplifyDamage",
@@ -185,7 +186,7 @@ describe("skillTreeSheet", () => {
       synergies: [{ giver, percentPerSkillLevel: percent }],
       synergyTotal: String(synergy.percentPerSkillLevel * 3),
     });
-    expect(rowOf(w, "boneSpear")).toMatchObject({
+    expect(rowOf(w, "boneWall")).toMatchObject({
       synergies: [],
       synergyTotal: "0",
     });

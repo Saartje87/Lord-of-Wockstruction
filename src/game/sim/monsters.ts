@@ -9,8 +9,9 @@ import {
 import { skillTuning } from "../tuning/skills";
 import { uniqueTuning } from "../tuning/uniqueMonsters";
 import { attackSpot, heroSideBodies, wallRadius } from "./bodies";
+import { BONE_WALL_HALF, type BoneWallPiece } from "./boneWalls";
 import { faceToward, lands } from "./melee";
-import { canSee, isClear } from "./path";
+import { canReach, canSee, isClear } from "./path";
 import type { AttackNumbers } from "./projectiles";
 import { random, randomInt } from "./random";
 import { msToSteps, perStep } from "./units";
@@ -226,8 +227,15 @@ function attackPace(curse: Monster["curse"]): number {
     : 1;
 }
 
-/** A Monster's attack landing on its target this step. */
-export type Strike = { monster: Monster; target: MonsterTarget };
+/**
+ * A Monster's attack landing this step: on its target, or, with `wall` set,
+ * on the Bone Wall piece it was attacking instead.
+ */
+export type Strike = {
+  monster: Monster;
+  target: MonsterTarget;
+  wall: BoneWallPiece | null;
+};
 
 /**
  * Moves every Monster one step: noticing, chasing, attacking, walking home
@@ -249,7 +257,11 @@ export function stepMonsters(world: World): Strike[] {
     }
     if (monster.state === "windup") {
       if (windUp(world, monster)) {
-        strikes.push({ monster, target: monster.target });
+        strikes.push({
+          monster,
+          target: monster.target,
+          wall: wallOf(world, monster),
+        });
       }
       continue;
     }
@@ -435,7 +447,17 @@ function chase(world: World, monster: Monster) {
   const chased = nearestTarget(world, monster);
   if (!chased) return;
   monster.target = chased.target;
+  monster.wall = null;
   const area = world.areas[world.areaName];
+  // A melee Monster a Bone Wall cuts off from its target attacks the Wall.
+  if (
+    attack.kind === "melee" &&
+    world.boneWalls.length > 0 &&
+    !canReach(area, monster.pos, chased.pos)
+  ) {
+    attackWall(world, monster, attack.reach);
+    return;
+  }
   const gap = distance(monster.pos, chased.pos);
   // A ranged Monster stops only where it can also see its target, and walks
   // on, behind a wall, until it can.
@@ -490,6 +512,42 @@ function chase(world: World, monster: Monster) {
     chased.pos,
     STEPPED[monster.type].speed * walkPace(monster.curse),
     inSight ? gap - stopAt : gap,
+  );
+}
+
+/** The Bone Wall piece `monster` is attacking, if it still stands. */
+function wallOf(world: World, monster: Monster): BoneWallPiece | null {
+  if (monster.wall === null) return null;
+  return world.boneWalls.find((piece) => piece.id === monster.wall) ?? null;
+}
+
+/**
+ * Walks up to the nearest Bone Wall piece and, once its edge is in reach,
+ * winds up an attack on it.
+ */
+function attackWall(world: World, monster: Monster, reach: number) {
+  const area = world.areas[world.areaName];
+  let nearest = world.boneWalls[0];
+  for (const piece of world.boneWalls) {
+    if (distance(monster.pos, piece.pos) < distance(monster.pos, nearest.pos)) {
+      nearest = piece;
+    }
+  }
+  const gap = distance(monster.pos, nearest.pos) - BONE_WALL_HALF;
+  // A swing at a piece is made at its edge, which is an attack's reach
+  // from the middle only up to rounding.
+  if (gap <= reach + 1e-9) {
+    monster.path = [];
+    monster.wall = nearest.id;
+    if (canWindUp(world, monster)) startWindUp(monster, nearest.pos);
+    return;
+  }
+  goToward(
+    area,
+    monster,
+    gaitOf(world, monster),
+    nearest.pos,
+    STEPPED[monster.type].speed * walkPace(monster.curse),
   );
 }
 
@@ -579,6 +637,19 @@ function windUp(world: World, monster: Monster): boolean {
       stepped.windUpSteps,
   );
   const { attack } = stepped;
+  if (monster.wall !== null) {
+    const wall = wallOf(world, monster);
+    return (
+      wall !== null &&
+      attack.kind === "melee" &&
+      lands(
+        monster,
+        wall.pos,
+        attack.reach + attack.reachGrace + BONE_WALL_HALF,
+        attack.arc,
+      )
+    );
+  }
   const at = targetPos(world, monster.target);
   if (!at) return false;
   if (attack.kind === "ranged") {

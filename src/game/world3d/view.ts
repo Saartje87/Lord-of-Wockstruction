@@ -7,7 +7,7 @@ import { type Area, type Placed, TOWN } from "../sim/area";
 import type { ItemId } from "../sim/inventory";
 import { minionRecoveryProgress, minionWindUpProgress } from "../sim/minions";
 import { recoveryProgress, windUpProgress } from "../sim/monsters";
-import { STEP_MS } from "../sim/units";
+import { msToSteps, STEP_MS } from "../sim/units";
 import type { Vec } from "../sim/vec";
 import {
   CAST_STEPS,
@@ -31,8 +31,9 @@ import type { ItemType } from "../tuning/items";
 import type { MinionType } from "../tuning/minions";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import type { ProjectileKind } from "../tuning/projectiles";
-import type { Skill } from "../tuning/skills";
+import { type Skill, skillTuning } from "../tuning/skills";
 import type { BoneAltarView } from "./boneAltarMeshes";
+import type { BoneWallView } from "./boneWallMeshes";
 import { ATTACK_CONTACT, type HeroClip } from "./clips";
 import { type Crumble, crumbleOf } from "./crumble";
 import { MINION_LOOKS } from "./minionLook";
@@ -232,6 +233,8 @@ export type WorldView = {
   townPortals: ShownTownPortal[];
   /** The Bone Altars still standing in the Area. */
   boneAltars: BoneAltarView[];
+  /** The Bone Wall pieces standing in the Area. */
+  boneWalls: BoneWallView[];
   /** The Exits out of the Area. */
   exits: ExitView[];
   projectiles: ProjectileView[];
@@ -390,6 +393,12 @@ export function worldViewOf(
       id: altar.id,
       pos: altar.pos,
       fraction: altar.life / boneAltarTuning.life,
+    })),
+    boneWalls: world.boneWalls.map((piece) => ({
+      id: piece.id,
+      pos: piece.pos,
+      fraction: piece.life / boneWallLife(),
+      sunk: Math.max(0, 1 - piece.left / BONE_WALL_SINK_STEPS),
     })),
     exits: area.exits.map(({ x, y, width, height, area: to }) => ({
       x,
@@ -654,4 +663,13 @@ function clickMarkerOf(click: PointerState["click"]): ClickMarkerView | null {
   if (!click) return null;
   const progress = click.ageMs / inputTuning.clickMarkerMs;
   return progress < 1 ? { at: click.at, progress } : null;
+}
+
+/** How long a Bone Wall piece sinks away as it crumbles (steps). */
+const BONE_WALL_SINK_STEPS = msToSteps(400);
+
+/** The Life a fresh Bone Wall piece has. */
+function boneWallLife(): number {
+  const { effect } = skillTuning.boneWall;
+  return effect.type === "wall" ? effect.pieceLife : 1;
 }

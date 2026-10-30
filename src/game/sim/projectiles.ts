@@ -3,6 +3,7 @@ import { minionTuning } from "../tuning/minions";
 import { monsterTuning } from "../tuning/monsters";
 import type { ProjectileKind } from "../tuning/projectiles";
 import { altarRadiusOf, type BoneAltar, targetsOf } from "./boneAltars";
+import { BONE_WALL_REACH, type BoneWallPiece } from "./boneWalls";
 import { canSee } from "./path";
 import type { Vec } from "./vec";
 import type { Monster, MonsterId, MonsterTarget, World } from "./world";
@@ -66,12 +67,15 @@ export type HeroProjectile = Flight & {
  * them flies on over them. The Hero's calls `strike` on each Monster it
  * touches with no wall between, nearest first, and that it hasn't hit
  * before. A Projectile that lands, meets a blocking tile or has flown its
- * range is removed.
+ * range is removed. A Monster's is also stopped by the first Bone Wall piece
+ * it touches, before anything past it, and calls `hitWall` on that piece; the
+ * Hero's fly through.
  */
 export function stepProjectiles(
   world: World,
   land: (projectile: MonsterProjectile, target: MonsterTarget) => void,
   strike: (projectile: HeroProjectile, target: Monster | BoneAltar) => void,
+  hitWall: (projectile: MonsterProjectile, piece: BoneWallPiece) => void,
 ) {
   const area = world.areas[world.areaName];
   world.projectiles = world.projectiles.filter((projectile) => {
@@ -84,18 +88,24 @@ export function stepProjectiles(
     projectile.prevPos = { ...from };
     projectile.pos = to;
     projectile.rangeLeft -= move;
+    let stopper: { piece: BoneWallPiece; at: Vec } | null = null;
     if (projectile.from === "hero") {
       for (const target of targetsTouched(world, projectile, from, to)) {
         projectile.hit.push(target.id);
         strike(projectile, target);
       }
     } else {
-      const touched = firstTouched(world, from, to);
+      stopper = firstPiece(world, from, to);
+      const touched = firstTouched(world, from, stopper?.at ?? to);
       // A wall before what it touches stops it short.
       if (touched && canSee(area, from, touched.at)) {
         land(projectile, touched.target);
         return false;
       }
+    }
+    if (stopper && projectile.from !== "hero") {
+      hitWall(projectile, stopper.piece);
+      return false;
     }
     if (!canSee(area, from, to)) return false;
     return projectile.rangeLeft > 0;
@@ -145,6 +155,22 @@ function backedOff(from: Vec, to: Vec, back: number): Vec {
     x: from.x + (to.x - from.x) * along,
     y: from.y + (to.y - from.y) * along,
   };
+}
+
+/** The first Bone Wall piece a flight from `a` to `b` touches, and where. */
+function firstPiece(
+  world: World,
+  a: Vec,
+  b: Vec,
+): { piece: BoneWallPiece; at: Vec } | null {
+  let first: { piece: BoneWallPiece; at: Vec; along: number } | null = null;
+  for (const piece of world.boneWalls) {
+    const at = touching(piece.pos, BONE_WALL_REACH, a, b);
+    if (at && (!first || at.along < first.along)) {
+      first = { piece, at: at.nearest, along: at.along };
+    }
+  }
+  return first;
 }
 
 /**

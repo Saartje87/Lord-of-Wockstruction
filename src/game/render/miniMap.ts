@@ -67,6 +67,7 @@ export function miniMapShown(
     | "questOpen"
     | "waypointsOpen"
     | "dialogueOpen"
+    | "vendorOpen"
   >,
   heroDead: boolean,
 ): boolean {

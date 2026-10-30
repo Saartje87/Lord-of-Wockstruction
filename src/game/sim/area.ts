@@ -119,7 +119,13 @@ export type Exit = {
  * A non-hostile character standing at `pos` (tile units) when `stands`
  * holds, or always when it is null.
  */
-export type Npc = { name: string; pos: Vec; stands: NpcCondition | null };
+export type Npc = {
+  name: string;
+  pos: Vec;
+  stands: NpcCondition | null;
+  /** Whether they are the Vendor, whose Dialogue panel offers Trade. */
+  vendor: boolean;
+};
 
 /**
  * The Quest condition an NPC stands where it is placed under: while the
@@ -305,7 +311,12 @@ export function loadArea(
         exits.push(readExit(name, object, pos, size));
       }
       if (kind === "npc") {
-        npcs.push({ name: object.name, pos, stands: readStands(name, object) });
+        npcs.push({
+          name: object.name,
+          pos,
+          stands: readStands(name, object),
+          vendor: propertyOf(object, "vendor") === true,
+        });
       }
       if (kind === "townPortal") townPortal = pos;
       if (kind === "boneAltar") boneAltars.push(pos);

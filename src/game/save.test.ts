@@ -11,6 +11,7 @@ import {
 import type { Belongings } from "./sim/inventory";
 import { emptySkillBar, type SkillBar } from "./sim/skillBar";
 import { FRESH_PROGRESS, type Progress } from "./sim/world";
+import { affixTuning } from "./tuning/items";
 
 /** Storage kept in a Map, standing in for the browser's. */
 function memoryStorage(): SaveStorage & { keys(): string[] } {
@@ -30,6 +31,13 @@ function memoryStorage(): SaveStorage & { keys(): string[] } {
 /** A New Hero's Belongings: the Short Sword Equipped and nothing carried. */
 const SWORD_ONLY: Belongings = {
   inventory: [],
+  equipment: { weapon: { type: "shortSword" } },
+  belt: [[], [], [], []],
+};
+
+/** What version 6 to 10 text holds of Belongings: Items by type alone. */
+const SWORD_V10 = {
+  inventory: [],
   equipment: { weapon: "shortSword" },
   belt: [[], [], [], []],
 };
@@ -39,15 +47,15 @@ const WELL_EQUIPPED: Belongings = {
   inventory: [
     { type: "shortSword", cell: { column: 0, row: 0 } },
     { type: "chainMail", cell: { column: 8, row: 1 } },
-    { type: "ringOfLife", cell: { column: 1, row: 3 } },
+    { type: "ring", cell: { column: 1, row: 3 } },
   ],
   equipment: {
-    weapon: "axe",
-    armour: "leatherArmour",
-    amulet: "amuletOfVitality",
-    ring1: "ringOfStrength",
-    ring2: "ringOfDexterity",
-    belt: "heavyBelt",
+    weapon: { type: "axe" },
+    armour: { type: "leatherArmour" },
+    amulet: { type: "amulet" },
+    ring1: { type: "ring" },
+    ring2: { type: "ring" },
+    belt: { type: "heavyBelt" },
   },
   belt: [["lifePotion", "manaPotion", "lifePotion"], [], ["lifePotion"], []],
 };
@@ -96,6 +104,7 @@ function progress(
     touchedWaypoints: [...FRESH_PROGRESS.touchedWaypoints],
     quests: structuredClone(FRESH_PROGRESS.quests),
     smithService: "locked",
+    gold: 0,
   };
 }
 
@@ -126,7 +135,12 @@ describe("whether a step's events change the Hero's progress", () => {
   });
 
   it("is yes for ItemPickedUp, which changes the Inventory", () => {
-    const item = { id: 3, type: "axe" as const };
+    const item = {
+      id: 3,
+      type: "axe" as const,
+      rarity: "normal" as const,
+      affixes: [],
+    };
     expect(
       changesSave([
         { type: "ItemPickedUp", item, cell: { column: 0, row: 0 } },
@@ -143,7 +157,12 @@ describe("whether a step's events change the Hero's progress", () => {
   });
 
   it("is yes for ItemEquipped and ItemUnequipped", () => {
-    const item = { id: 3, type: "axe" as const };
+    const item = {
+      id: 3,
+      type: "axe" as const,
+      rarity: "normal" as const,
+      affixes: [],
+    };
     expect(changesSave([{ type: "ItemEquipped", item, slot: "weapon" }])).toBe(
       true,
     );
@@ -162,7 +181,7 @@ describe("whether a step's events change the Hero's progress", () => {
         // Ground Items are never saved.
         {
           type: "ItemDropped",
-          item: { id: 3, type: "axe" },
+          item: { id: 3, type: "axe", rarity: "normal", affixes: [] },
           pos: { x: 1, y: 1 },
         },
         { type: "NoRoom" },
@@ -297,9 +316,9 @@ describe("stored text", () => {
   it("keeps the Equipped Belt", () => {
     const kept = save(progress(2, 600), WELL_EQUIPPED);
 
-    expect(parseSave(encodeSave(kept))?.belongings.equipment.belt).toBe(
-      "heavyBelt",
-    );
+    expect(parseSave(encodeSave(kept))?.belongings.equipment.belt).toEqual({
+      type: "heavyBelt",
+    });
   });
 
   it("round-trips Mana and Rejuvenation Potions, in the Belt and Inventory", () => {
@@ -324,7 +343,7 @@ describe("stored text", () => {
 
   it("carries a version number", () => {
     expect(JSON.parse(encodeSave(save(progress(1, 0))))).toMatchObject({
-      version: 10,
+      version: 12,
     });
   });
 
@@ -482,7 +501,7 @@ describe("stored text", () => {
 
   it("gives no Save for another version", () => {
     expect(parseSave(stored(5, fields(progress(2, 500))))).toBeNull();
-    expect(parseSave(stored(11, fields(progress(2, 500))))).toBeNull();
+    expect(parseSave(stored(13, fields(progress(2, 500))))).toBeNull();
   });
 
   // What Saves before Waypoints held: the Hero loads with only Wockville's
@@ -492,7 +511,7 @@ describe("stored text", () => {
       2,
       500,
     );
-    const text = stored(7, { ...before, ...SWORD_ONLY });
+    const text = stored(7, { ...before, ...SWORD_V10 });
 
     expect(parseSave(text)?.progress.touchedWaypoints).toEqual(["town"]);
     expect(parseSave(text)?.progress.level).toBe(2);
@@ -503,7 +522,7 @@ describe("stored text", () => {
       2,
       500,
     );
-    const text = stored(7, { ...before, ...SWORD_ONLY, level: 3 });
+    const text = stored(7, { ...before, ...SWORD_V10, level: 3 });
 
     expect(parseSave(text)).toBeNull();
   });
@@ -515,7 +534,7 @@ describe("stored text", () => {
   // What Saves before Quests held: every Quest Not given.
   it("loads version 8 text without Quests with every Quest Not given", () => {
     const { quests, smithService, ...before } = progress(2, 500);
-    const text = stored(8, { ...before, ...SWORD_ONLY });
+    const text = stored(8, { ...before, ...SWORD_V10 });
 
     expect(parseSave(text)?.progress.quests).toEqual(FRESH_PROGRESS.quests);
     expect(parseSave(text)?.progress.level).toBe(2);
@@ -523,7 +542,7 @@ describe("stored text", () => {
 
   it("still checks the rest of version 8 text", () => {
     const { quests, smithService, ...before } = progress(2, 500);
-    const text = stored(8, { ...before, ...SWORD_ONLY, level: 3 });
+    const text = stored(8, { ...before, ...SWORD_V10, level: 3 });
 
     expect(parseSave(text)).toBeNull();
   });
@@ -642,7 +661,16 @@ describe("stored text", () => {
       2,
       600,
     );
-    const text = stored(6, { ...older, ...before });
+    const text = stored(6, {
+      ...older,
+      ...before,
+      equipment: Object.fromEntries(
+        Object.entries(before.equipment).map(([slot, { type }]) => [
+          slot,
+          type,
+        ]),
+      ),
+    });
 
     expect(parseSave(text)).toEqual(
       save(progress(2, 600), { ...before, belt: [[], [], [], []] }),
@@ -656,7 +684,7 @@ describe("stored text", () => {
     );
     const text = stored(6, {
       ...older,
-      ...SWORD_ONLY,
+      ...SWORD_V10,
       belt: undefined,
       equipment: { weapon: "bow" },
     });
@@ -668,7 +696,7 @@ describe("stored text", () => {
   // starts afresh.
   it("gives no Save for version 5 text without a Skill Bar", () => {
     const { skillBar, ...before } = progress(2, 500);
-    expect(parseSave(stored(5, { ...before, ...SWORD_ONLY }))).toBeNull();
+    expect(parseSave(stored(5, { ...before, ...SWORD_V10 }))).toBeNull();
   });
 
   // What Saves before Energy held, so a Hero from then starts afresh.
@@ -686,7 +714,7 @@ describe("stored text", () => {
   // afresh rather than with a Skill Point for each Level.
   it("gives no Save for version 4 text without Skills", () => {
     const { skillPoints, skillLevels, ...before } = progress(2, 500);
-    expect(parseSave(stored(4, { ...before, ...SWORD_ONLY }))).toBeNull();
+    expect(parseSave(stored(4, { ...before, ...SWORD_V10 }))).toBeNull();
   });
 });
 
@@ -734,7 +762,12 @@ describe("the Smith's service and bonuses", () => {
           smithBonus: { bonus: "defense", amount: 12 },
         },
       ],
-      smithBonuses: { weapon: { bonus: "strength", amount: 4 } },
+      equipment: {
+        weapon: {
+          type: "shortSword",
+          smithBonus: { bonus: "strength", amount: 4 },
+        },
+      },
     };
     const kept = {
       ...progress(2, 500),
@@ -748,7 +781,20 @@ describe("the Smith's service and bonuses", () => {
   });
 
   it("loads text with no Smith bonuses as having none", () => {
-    expect(parseSave(v10({}))?.belongings.smithBonuses).toBeUndefined();
+    expect(
+      parseSave(v10({}))?.belongings.equipment.weapon?.smithBonus,
+    ).toBeUndefined();
+  });
+
+  it("folds a version 10 Save's Smith bonuses into its slots", () => {
+    const loaded = parseSave(
+      v10({ smithBonuses: { weapon: { bonus: "strength", amount: 4 } } }),
+    );
+
+    expect(loaded?.belongings.equipment.weapon).toEqual({
+      type: "shortSword",
+      smithBonus: { bonus: "strength", amount: 4 },
+    });
   });
 
   it.each([
@@ -807,8 +853,8 @@ describe("the Smith's service and bonuses", () => {
   // What Saves before the Smith's service held: it is unlocked if Spa Day is Done.
   it("loads version 9 text with the service unlocked once Spa Day is Done", () => {
     const { smithService, ...before } = progress(2, 500);
-    const done = stored(9, { ...before, ...SWORD_ONLY, quests: doneSpa });
-    const notDone = stored(9, { ...before, ...SWORD_ONLY });
+    const done = stored(9, { ...before, ...SWORD_V10, quests: doneSpa });
+    const notDone = stored(9, { ...before, ...SWORD_V10 });
 
     expect(parseSave(done)?.progress.smithService).toBe("unlocked");
     expect(parseSave(notDone)?.progress.smithService).toBe("locked");
@@ -819,9 +865,40 @@ describe("the Smith's service and bonuses", () => {
   });
 });
 
+describe("an older Save's named Rings and Amulet", () => {
+  it.each([
+    ["ringOfStrength", "ring1", "ring", "strength", 5, 1],
+    ["ringOfDexterity", "ring2", "ring", "dexterity", 5, 1],
+    ["ringOfLife", "ring1", "ring", "life", 10, 0],
+    ["amuletOfVitality", "amulet", "amulet", "vitality", 5, 1],
+  ] as const)("load %s worn as a Magic %s with one %s Affix", (old, slot, type, kind, value, grade) => {
+    const loaded = parseSave(v10({ equipment: { [slot]: old } }));
+    expect(loaded?.belongings.equipment[slot]).toEqual({
+      type,
+      rarity: "magic",
+      affixes: [{ kind, grade, value }],
+    });
+    expect(affixTuning[kind].grades[grade].range[0]).toBeLessThanOrEqual(value);
+  });
+
+  it("load carried ones the same way", () => {
+    const loaded = parseSave(
+      v10({ inventory: [{ type: "ringOfLife", cell: { column: 0, row: 0 } }] }),
+    );
+    expect(loaded?.belongings.inventory).toEqual([
+      {
+        type: "ring",
+        rarity: "magic",
+        affixes: [{ kind: "life", grade: 0, value: 10 }],
+        cell: { column: 0, row: 0 },
+      },
+    ]);
+  });
+});
+
 /** The stored fields of a Save of `progress` with only the Short Sword. */
 function fields(kept: Omit<Progress, "energy">): object {
-  return { ...kept, ...SWORD_ONLY };
+  return { ...kept, ...SWORD_V10 };
 }
 
 /**
@@ -835,5 +912,10 @@ function v10(changes: Record<string, unknown>) {
 
 /** Stored text of `version` holding `fields`. */
 function stored(version: number | undefined, fields: object): string {
-  return JSON.stringify({ version, ...fields });
+  // Gold came with version 12; older text must not hold it.
+  const { gold: _gold, ...older } = fields as { gold?: number };
+  return JSON.stringify({
+    version,
+    ...(version === undefined ? fields : older),
+  });
 }

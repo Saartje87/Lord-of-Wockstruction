@@ -47,7 +47,7 @@ function world(belt: ItemType) {
     seed: 1,
     belongings: {
       inventory: [{ type: "axe", cell: { column: 0, row: 0 } }],
-      equipment: { belt },
+      equipment: { belt: { type: belt } },
       belt: emptyBelt(),
     },
   });
@@ -703,6 +703,7 @@ function withPoints() {
       skillBar: emptySkillBar(),
       touchedWaypoints: [...FRESH_PROGRESS.touchedWaypoints],
       smithService: "locked",
+      gold: 0,
       quests: structuredClone(FRESH_PROGRESS.quests),
     },
   });

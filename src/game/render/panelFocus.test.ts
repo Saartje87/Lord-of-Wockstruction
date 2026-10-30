@@ -57,7 +57,7 @@ const COMPACT = viewportOf({ width: 800, height: 400 });
 /** Belongings with a Belt Equipped, so each Belt Column has four rows. */
 const belted: Belongings = {
   inventory: [],
-  equipment: { belt: "platedBelt" },
+  equipment: { belt: { type: "platedBelt" } },
   belt: emptyBelt(),
 };
 
@@ -268,6 +268,7 @@ describe("the Hero panel's Focus spots", () => {
     questOpen: false,
     waypointsOpen: false,
     dialogueOpen: false,
+    vendorOpen: false,
     dialogueNpc: 0,
     dialoguePage: 0,
     pendingPoints,
@@ -329,6 +330,7 @@ describe("the Skill Tree panel's Focus spots", () => {
     questOpen: false,
     waypointsOpen: false,
     dialogueOpen: false,
+    vendorOpen: false,
     dialogueNpc: 0,
     dialoguePage: 0,
     pendingPoints: noPendingPoints(),

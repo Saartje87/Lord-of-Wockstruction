@@ -256,7 +256,12 @@ describe("createWorld", () => {
     const world = createWorld({ areas: { town: tmj([start, npc]) }, seed: 1 });
 
     expect(world.areas.town.npcs).toEqual([
-      { name: "Gillian", pos: { x: 0.5, y: 0.5 }, stands: null },
+      {
+        name: "Gillian",
+        pos: { x: 0.5, y: 0.5 },
+        stands: null,
+        vendor: false,
+      },
     ]);
   });
 

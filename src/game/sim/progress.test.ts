@@ -40,6 +40,7 @@ describe("a World created from a saved progress", () => {
       skillBar: emptySkillBar(),
       touchedWaypoints: ["town"],
       smithService: "locked" as const,
+      gold: 0,
       quests: structuredClone(FRESH_PROGRESS.quests),
     };
     const w = createWorld({
@@ -78,6 +79,7 @@ describe("a World created without a saved progress", () => {
       skillBar: emptySkillBar(),
       touchedWaypoints: [...FRESH_PROGRESS.touchedWaypoints],
       smithService: "locked",
+      gold: 0,
       quests: structuredClone(FRESH_PROGRESS.quests),
     });
     expect(w.hero.life).toBe(100);

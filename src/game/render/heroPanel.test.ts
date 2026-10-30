@@ -96,6 +96,7 @@ function withPoints(points: number): World {
     skillBar: emptySkillBar(),
     touchedWaypoints: [...FRESH_PROGRESS.touchedWaypoints],
     smithService: "locked",
+    gold: 0,
     quests: structuredClone(FRESH_PROGRESS.quests),
   });
 }
@@ -114,11 +115,22 @@ describe("heroSheet with Items Equipped", () => {
       areas: { town },
       seed: 1,
       belongings: {
-        inventory: [{ type: "ringOfStrength", cell: { column: 0, row: 0 } }],
+        inventory: [
+          {
+            type: "ring",
+            rarity: "magic",
+            affixes: [{ kind: "strength", grade: 1, value: 5 }],
+            cell: { column: 0, row: 0 },
+          },
+        ],
         equipment: {
-          weapon: "shortSword",
-          armour: "chainMail",
-          amulet: "amuletOfVitality",
+          weapon: { type: "shortSword" },
+          armour: { type: "chainMail" },
+          amulet: {
+            type: "amulet",
+            rarity: "magic",
+            affixes: [{ kind: "vitality", grade: 1, value: 5 }],
+          },
         },
         belt: emptyBelt(),
       },
@@ -144,6 +156,77 @@ describe("heroSheet with Items Equipped", () => {
       { name: "Attack Rating", value: "100", changed: false },
       { name: "Chance to hit a Skeleton", value: "85%", changed: false },
     ]);
+  });
+});
+
+describe("heroSheet with a Magic Item Equipped", () => {
+  it("shows the totals with its Affixes included", () => {
+    const w = createWorld({
+      areas: { town },
+      seed: 1,
+      belongings: {
+        inventory: [],
+        equipment: {
+          weapon: {
+            type: "shortSword",
+            rarity: "magic",
+            affixes: [
+              { kind: "brutality", grade: 0, value: 3 },
+              { kind: "strength", grade: 0, value: 5 },
+            ],
+          },
+          armour: {
+            type: "chainMail",
+            rarity: "magic",
+            affixes: [{ kind: "defense", grade: 0, value: 8 }],
+          },
+        },
+        belt: emptyBelt(),
+      },
+    });
+
+    const sheet = heroSheet(w);
+
+    expect(sheet.attributes[0].value).toBe("25");
+    // (50/3 + 3) to (25 + 3), scaled by 25 Strength.
+    expect(sheet.derived.find((d) => d.name === "Damage")?.value).toBe("25–35");
+    expect(sheet.derived.find((d) => d.name === "Defense")?.value).toBe("48");
+  });
+});
+
+describe("heroSheet with the Mana and enhanced percent Affixes", () => {
+  it("shows the new totals", () => {
+    const w = createWorld({
+      areas: { town },
+      seed: 1,
+      belongings: {
+        inventory: [],
+        equipment: {
+          weapon: {
+            type: "shortSword",
+            rarity: "magic",
+            affixes: [{ kind: "enhancedDamage", grade: 0, value: 20 }],
+          },
+          armour: {
+            type: "chainMail",
+            rarity: "magic",
+            affixes: [{ kind: "enhancedDefense", grade: 0, value: 50 }],
+          },
+          amulet: {
+            type: "amulet",
+            rarity: "magic",
+            affixes: [{ kind: "mana", grade: 0, value: 10 }],
+          },
+        },
+        belt: emptyBelt(),
+      },
+    });
+
+    const derived = heroSheet(w).derived;
+
+    expect(derived.find((d) => d.name === "Defense")?.value).toBe("60");
+    expect(derived.find((d) => d.name === "Damage")?.value).toBe("24–36");
+    expect(derived.find((d) => d.name === "Mana")?.value).toMatch(/ \/ 50$/);
   });
 });
 
@@ -210,6 +293,7 @@ describe("heroSheet", () => {
       skillBar: emptySkillBar(),
       touchedWaypoints: [...FRESH_PROGRESS.touchedWaypoints],
       smithService: "locked",
+      gold: 0,
       quests: structuredClone(FRESH_PROGRESS.quests),
     });
     step(w, [{ type: "SpendAttributePoints", points: { dexterity: 1 } }]);
@@ -370,6 +454,7 @@ describe("a click on the Hero panel and the Level Up button", () => {
       skillBar: emptySkillBar(),
       touchedWaypoints: [...FRESH_PROGRESS.touchedWaypoints],
       smithService: "locked",
+      gold: 0,
       quests: structuredClone(FRESH_PROGRESS.quests),
     });
 

@@ -54,6 +54,7 @@ function strongerBy(strength: number): Progress {
     skillBar: emptySkillBar(),
     touchedWaypoints: [...FRESH_PROGRESS.touchedWaypoints],
     smithService: "locked",
+    gold: 0,
     quests: structuredClone(FRESH_PROGRESS.quests),
   };
 }
@@ -91,9 +92,12 @@ describe("Belongings given to a new World", () => {
   const belongings: Belongings = {
     inventory: [
       { type: "axe", cell: { column: 0, row: 0 } },
-      { type: "ringOfLife", cell: { column: 9, row: 3 } },
+      { type: "ring", cell: { column: 9, row: 3 } },
     ],
-    equipment: { weapon: "shortSword", armour: "leatherArmour" },
+    equipment: {
+      weapon: { type: "shortSword" },
+      armour: { type: "leatherArmour" },
+    },
     belt: [["lifePotion"], [], ["lifePotion"], []],
   };
 
@@ -114,7 +118,7 @@ describe("Belongings given to a new World", () => {
     expect(inventoryItemAt(w, { column: 2, row: 0 })).toBeNull();
     expect(inventoryItemAt(w, { column: 0, row: 3 })).toBeNull();
     expect(inventoryItemAt(w, { column: 9, row: 3 })).toMatchObject({
-      item: { type: "ringOfLife" },
+      item: { type: "ring" },
       cell: { column: 9, row: 3 },
     });
   });
@@ -140,7 +144,7 @@ describe("damage", () => {
       progress: strongerBy(10),
       belongings: {
         inventory: [],
-        equipment: { weapon: "axe" },
+        equipment: { weapon: { type: "axe" } },
         belt: emptyBelt(),
       },
     });

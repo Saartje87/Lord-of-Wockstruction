@@ -1,7 +1,12 @@
 import { itemColour } from "../render/itemArt";
+import {
+  GOLD_PILE_SIZES,
+  type GoldPileSize,
+  goldPileSize,
+} from "../tuning/gold";
 import { ITEM_TYPES, type ItemType } from "../tuning/items";
 import type { ProjectileKind } from "../tuning/projectiles";
-import type { GroundItemView, ProjectileView } from "./view";
+import type { GoldPileView, GroundItemView, ProjectileView } from "./view";
 
 /** The stand-in for Item kinds KayKit has no model for: a small gem. */
 export const GEM = "gem";
@@ -45,10 +50,8 @@ export const LOOT_LOOKS: Record<ItemType, Look> = {
     lay: FLAT,
     tint: null,
   },
-  ringOfStrength: { model: GEM, scale: 1, lay: [0, 0, 0], tint: null },
-  ringOfDexterity: { model: GEM, scale: 1, lay: [0, 0, 0], tint: null },
-  ringOfLife: { model: GEM, scale: 1, lay: [0, 0, 0], tint: null },
-  amuletOfVitality: { model: GEM, scale: 1.3, lay: [0, 0, 0], tint: null },
+  ring: { model: GEM, scale: 1, lay: [0, 0, 0], tint: null },
+  amulet: { model: GEM, scale: 1.3, lay: [0, 0, 0], tint: null },
   sash: { model: GEM, scale: 1.1, lay: [0, 0, 0], tint: null },
   heavyBelt: { model: GEM, scale: 1.1, lay: [0, 0, 0], tint: null },
   platedBelt: { model: GEM, scale: 1.1, lay: [0, 0, 0], tint: null },
@@ -71,6 +74,23 @@ export const LOOT_LOOKS: Record<ItemType, Look> = {
     tint: 0xc070ff,
   },
 };
+
+/**
+ * How each size of Gold Pile lies on the floor: Resource Bits' coin stacks,
+ * which are small (a stack is a quarter of a tile across), so they are drawn
+ * bigger.
+ */
+export const GOLD_LOOKS = Object.fromEntries(
+  GOLD_PILE_SIZES.map((size) => [
+    size,
+    {
+      model: `loot/Money_Coins_Stack_${size[0].toUpperCase()}${size.slice(1)}`,
+      scale: 1.3,
+      lay: [0, 0, 0],
+      tint: null,
+    } satisfies Look,
+  ]),
+) as Record<GoldPileSize, Look>;
 
 /** How a Projectile flies: the model, and the pale glow and trail if any. */
 export type ProjectileLook = Look & {
@@ -112,6 +132,7 @@ export const LOOT_MODELS: string[] = [
   ...new Set(
     [
       ...ITEM_TYPES.map((type) => LOOT_LOOKS[type].model),
+      ...GOLD_PILE_SIZES.map((size) => GOLD_LOOKS[size].model),
       ...Object.values(PROJECTILE_LOOKS).map((look) => look.model),
     ].filter((model) => model !== GEM),
   ),
@@ -155,6 +176,22 @@ export function groundPlacement(item: GroundItemView): Placement {
     yaw: item.id * 2.399,
     scale: 1,
     tint: look.model === GEM ? itemColour(item.type) : look.tint,
+    lay: look.lay,
+    base: look.scale,
+  };
+}
+
+/** A Gold Pile as a coin stack on the floor, sized by its amount. */
+export function goldPlacement(pile: GoldPileView): Placement {
+  const look = GOLD_LOOKS[goldPileSize(pile.amount)];
+  return {
+    model: look.model,
+    x: pile.pos.x,
+    y: pile.pos.y,
+    height: LYING_HEIGHT,
+    yaw: pile.id * 2.399,
+    scale: 1,
+    tint: look.tint,
     lay: look.lay,
     base: look.scale,
   };

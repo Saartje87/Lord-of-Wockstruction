@@ -131,7 +131,7 @@ describe("the Belt strip's sheet", () => {
       seed: 1,
       belongings: {
         inventory: [],
-        equipment: { belt: "platedBelt" },
+        equipment: { belt: { type: "platedBelt" } },
         belt: [
           ["manaPotion", "lifePotion", "lifePotion", "lifePotion"],
           [],

@@ -1,3 +1,4 @@
+import { affixBonus, itemTitle, type RolledAffix } from "../sim/affixes";
 import { beltOf, beltRows, isBeltCell } from "../sim/belt";
 import {
   type Cell,
@@ -249,12 +250,11 @@ function slotRects(
   ) as Record<EquipmentSlot, Rect>;
 }
 
+/** A grid of cells: where it is drawn, and one cell's side (CSS px). */
+export type GridLayout = Pick<InventoryPanelLayout, "grid" | "cell">;
+
 /** Where an Item of `type` with its top-left at `at` is drawn on the grid. */
-export function itemRect(
-  layout: InventoryPanelLayout,
-  at: Cell,
-  type: ItemType,
-): Rect {
+export function itemRect(layout: GridLayout, at: Cell, type: ItemType): Rect {
   const { grid, cell } = layout;
   const { columns, rows } = itemOf(type).size;
   return {
@@ -270,7 +270,7 @@ export function itemRect(
  * of the grid's cells, so it covers the cells it would land on.
  */
 export function heldItemRect(
-  layout: InventoryPanelLayout,
+  layout: Pick<GridLayout, "cell">,
   pointer: Vec,
   type: ItemType,
 ): Rect {
@@ -347,7 +347,7 @@ export function inventoryHitAt(
  * off the grid.
  */
 export function landingCell(
-  layout: InventoryPanelLayout,
+  layout: GridLayout,
   point: Vec,
   type: ItemType,
 ): Cell {
@@ -410,9 +410,10 @@ export function putDownOrder(
  */
 export function inventoryRightClickOrder(
   world: World,
-  hit: InventoryHit | DropHit,
+  hit: InventoryHit | DropHit | { vendor: unknown },
 ): Order | null {
-  if ("drop" in hit || !hit.inventory || cursorItemOf(world)) return null;
+  if ("drop" in hit || "vendor" in hit || !hit.inventory || cursorItemOf(world))
+    return null;
   const spot = hit.inventory;
   const item = itemUnder(world, spot);
   if (!item || isBeltCell(spot)) return null;
@@ -440,7 +441,21 @@ const BONUS_NAMES: Record<Bonus, string> = {
   life: "Life",
   defense: "Defense",
   attackRating: "Attack Rating",
+  weaponDamage: "Damage",
+  mana: "Mana",
+  enhancedDamage: "Enhanced Damage",
+  enhancedDefense: "Enhanced Defense",
 };
+
+/** The Bonuses that are percentages, not flat amounts. */
+const PERCENT_BONUSES: readonly Bonus[] = ["enhancedDamage", "enhancedDefense"];
+
+/** A tooltip line giving `amount` of `bonus`. */
+function bonusLine(bonus: Bonus, amount: number): string {
+  return PERCENT_BONUSES.includes(bonus)
+    ? `+${amount}% ${BONUS_NAMES[bonus]}`
+    : `+${amount} to ${BONUS_NAMES[bonus]}`;
+}
 
 /** Each resource a Potion gives back, as a tooltip names it. */
 const RESOURCE_NAMES: Record<PotionResource, string> = {
@@ -462,12 +477,22 @@ function potionLine(effect: PotionEffectTuning): string {
 /**
  * The lines of an Item's tooltip, all of them the Item's own fixed values,
  * as in Diablo 2: its name, then a Weapon's damage before the Hero's
- * Strength, an Armour's Defense, its bonuses, what a Potion gives back and
- * a Belt's rows.
+ * Strength, an Armour's Defense, its type's bonuses, one line for each
+ * Affix, the Smith bonus, what a Potion gives back and a Belt's rows. A
+ * Magic Item's name carries its Affixes' grade names.
  */
-export function itemTooltip(type: ItemType, smithBonus?: SmithBonus): string[] {
-  const item = itemOf(type);
-  const lines = [item.name];
+export function itemTooltip(shown: {
+  type: ItemType;
+  affixes?: readonly RolledAffix[];
+  rareName?: string;
+  smithBonus?: SmithBonus;
+}): string[] {
+  const { smithBonus } = shown;
+  const item = itemOf(shown.type);
+  // A Rare Item shows its Rare name, then its type's name.
+  const lines = shown.rareName
+    ? [shown.rareName, item.name]
+    : [itemTitle(shown)];
   if (item.damage) {
     // Each hit rounds its own damage, so the range shows rounded too.
     const [min, max] = item.damage;
@@ -477,10 +502,12 @@ export function itemTooltip(type: ItemType, smithBonus?: SmithBonus): string[] {
   for (const [bonus, amount] of Object.entries(item.bonuses)) {
     lines.push(`+${amount} to ${BONUS_NAMES[bonus as Bonus]}`);
   }
+  for (const affix of shown.affixes ?? []) {
+    const { bonus, amount } = affixBonus(affix);
+    lines.push(bonusLine(bonus, amount));
+  }
   if (smithBonus) {
-    lines.push(
-      `Smith: +${smithBonus.amount} to ${BONUS_NAMES[smithBonus.bonus]}`,
-    );
+    lines.push(`Smith: ${bonusLine(smithBonus.bonus, smithBonus.amount)}`);
   }
   if (item.potion) lines.push(potionLine(item.potion));
   if (item.beltRows !== undefined) lines.push(`Rows: ${item.beltRows}`);

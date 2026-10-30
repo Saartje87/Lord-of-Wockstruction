@@ -683,10 +683,8 @@ describe("the Item types", () => {
       Axe: "Axe",
       "Leather Armour": "Leather",
       "Chain Mail": "Chain",
-      "Ring of Strength": "Str",
-      "Ring of Dexterity": "Dex",
-      "Ring of Life": "Life",
-      "Amulet of Vitality": "Vit",
+      Ring: "Ring",
+      Amulet: "Amulet",
       Sash: "Sash",
       "Heavy Belt": "Heavy",
       "Plated Belt": "Plated",
@@ -1078,6 +1076,14 @@ describe('the shipped "Lost Wanderer" Quest', () => {
     const names = npcsIn(shippedWorld()).map(({ name }) => name);
 
     expect(names.sort()).toEqual(["Elder", "Smith", "Trader"]);
+  });
+
+  it("flags the Trader, and only the Trader, as the Vendor", () => {
+    const vendors = shippedWorld()
+      .areas.town.npcs.filter((npc) => npc.vendor)
+      .map(({ name }) => name);
+
+    expect(vendors).toEqual(["Trader"]);
   });
 
   it("stands the Wanderer in the Old Mill, on open ground among its Monsters", () => {

@@ -1,3 +1,4 @@
+import { goldTuning } from "../tuning/gold";
 import type { MonsterType } from "../tuning/monsters";
 import type { Area } from "./area";
 import {
@@ -19,6 +20,21 @@ export type LevelRow = {
   killExperience: number;
   /** How many such kills reach the next Level. */
   kills: number;
+  /**
+   * The Gold those kills drop, at the Monster Level of the Area the Hero plays
+   * in at this Level; null when no Area places the type.
+   */
+  gold: LevelGold | null;
+};
+
+/** The Gold a Hero Level's kills drop. */
+export type LevelGold = {
+  /** The Area Level played at: the deepest at or below the Hero Level. */
+  areaLevel: number;
+  /** The expected Gold of one kill there: Gold Pile chance times mean amount. */
+  perKill: number;
+  /** `perKill` times the kills the Level takes. */
+  total: number;
 };
 
 /** A Monster type's numbers in one Combat Area. */
@@ -38,24 +54,43 @@ export type TuningReport = { levels: LevelRow[]; areas: AreaRow[] };
 /**
  * A Monster type's numbers from the live tuning, worked out by the sim's own
  * functions: for each Hero Level below the cap, the kills of own-Level
- * Monsters it takes, and for each of `areas` with an Area Level that places
+ * Monsters it takes and the Gold they drop, and for each of `areas` with an Area Level that places
  * the type, the Monster there, by Area Level. Town, with none, is left out.
  */
 export function tuningReport(
   type: MonsterType,
   areas: Pick<Area, "name" | "areaLevel" | "spawns">[],
 ): TuningReport {
+  const playedLevels = areas
+    .flatMap(({ areaLevel, spawns }) =>
+      areaLevel !== null && spawns.some((spawn) => spawn.monster === type)
+        ? [areaLevel]
+        : [],
+    )
+    .sort((a, b) => a - b);
+  const [least, most] = goldTuning.perMonsterLevel;
+  const goldPerMonsterLevel = (goldTuning.chance * (least + most)) / 2;
+
   const levels: LevelRow[] = [];
   for (let level = 1; ; level++) {
     const next = nextLevelExperience(level);
     if (next === null) break;
     const toNext = next - levelExperience(level);
     const experience = killExperience({ type, monsterLevel: level }, level);
+    const kills = Math.ceil(toNext / experience);
+    const areaLevel =
+      playedLevels.findLast((areaLevel) => areaLevel <= level) ??
+      playedLevels[0];
+    const perKill = goldPerMonsterLevel * areaLevel;
     levels.push({
       level,
       toNext,
       killExperience: experience,
-      kills: Math.ceil(toNext / experience),
+      kills,
+      gold:
+        areaLevel === undefined
+          ? null
+          : { areaLevel, perKill, total: perKill * kills },
     });
   }
 

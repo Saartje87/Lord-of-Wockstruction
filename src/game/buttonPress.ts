@@ -6,6 +6,7 @@ import {
   clickLevelUp,
   clickMiniMap,
   clickPanelButton,
+  clickTrade,
   type Menus,
   removePendingPoint,
 } from "./menus";
@@ -78,6 +79,9 @@ export function pressButton(
       return [];
     case "smithForge":
       return heroDead ? [] : [{ type: "SmithBonus", item: button.item }];
+    case "trade":
+      clickTrade(menus);
+      return [];
     case "goodbye":
       clickClose(menus, "dialogue");
       return [];

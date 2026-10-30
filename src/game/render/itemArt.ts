@@ -1,4 +1,9 @@
-import { type ItemKind, type ItemType, itemOf } from "../tuning/items";
+import {
+  type ItemKind,
+  type ItemType,
+  itemOf,
+  type Rarity,
+} from "../tuning/items";
 
 /** The tint of each kind of Item, wherever it's drawn. */
 const KIND_COLOUR: Record<ItemKind, number> = {
@@ -16,6 +21,12 @@ const TYPE_COLOUR: Partial<Record<ItemType, number>> = {
   manaPotion: 0x2a46b0,
   rejuvenationPotion: 0x8a2aa0,
 };
+
+/** The colour an Item's name is drawn in: white, or blue for Magic. */
+export function rarityColour(rarity: Rarity): number {
+  if (rarity === "rare") return 0xffe05a;
+  return rarity === "magic" ? 0x6f8fff : 0xe8e0c8;
+}
 
 /**
  * The tint an Item type is drawn in, on the ground, in the Inventory and in

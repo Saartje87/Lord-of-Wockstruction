@@ -8,7 +8,9 @@ import {
   isPotion,
   itemOf,
   itemTuning,
+  type Rarity,
 } from "../tuning/items";
+import { isValidRoll, type RolledAffix } from "./affixes";
 import {
   type BeltCell,
   type BeltTypes,
@@ -32,10 +34,68 @@ export type ItemId = number;
 export type SmithBonus = { bonus: Bonus; amount: number };
 
 /**
- * One Item: its type says everything about it but which one it is and the
- * bonus the Smith may have added to it.
+ * One Item: its type, its Rarity and rolled Affixes, and the bonus the Smith
+ * may have added to it, which is never an Affix.
  */
-export type Item = { id: ItemId; type: ItemType; smithBonus?: SmithBonus };
+export type Item = {
+  id: ItemId;
+  type: ItemType;
+  rarity: Rarity;
+  affixes: RolledAffix[];
+  /** A Rare Item's two-word name. */
+  rareName?: string;
+  smithBonus?: SmithBonus;
+};
+
+/**
+ * An Item as the Save keeps it, without its id and place. A Rarity left
+ * out is Normal and Affixes left out are none.
+ */
+export type StoredItem = {
+  type: ItemType;
+  rarity?: Rarity;
+  affixes?: RolledAffix[];
+  rareName?: string;
+  smithBonus?: SmithBonus;
+};
+
+/**
+ * An Item as stored: a copy that shares nothing with it, leaving out a
+ * Normal Rarity and no Affixes, which a stored Item has by default.
+ */
+export function storedOf(item: StoredItem): StoredItem {
+  const { rarity = "normal", affixes = [], rareName, smithBonus } = item;
+  return {
+    type: item.type,
+    ...(rarity !== "normal" && { rarity }),
+    ...(affixes.length > 0 && { affixes: affixes.map((a) => ({ ...a })) }),
+    ...(rareName !== undefined && { rareName }),
+    ...(smithBonus && { smithBonus: { ...smithBonus } }),
+  };
+}
+
+/** A stored Item as the Save writes it, with its Rarity and Affixes named. */
+export function savedItem(
+  item: StoredItem,
+): Required<Pick<StoredItem, "rarity" | "affixes">> & StoredItem {
+  return {
+    ...storedOf(item),
+    rarity: item.rarity ?? "normal",
+    affixes: (item.affixes ?? []).map((a) => ({ ...a })),
+  };
+}
+
+/** A stored Item as an Item, with the World's next id. */
+export function itemFrom(world: World, stored: StoredItem): Item {
+  return {
+    id: world.nextItemId++,
+    type: stored.type,
+    rarity: stored.rarity ?? "normal",
+    affixes: (stored.affixes ?? []).map((a) => ({ ...a })),
+    ...(stored.rareName !== undefined && { rareName: stored.rareName }),
+    ...(stored.smithBonus && { smithBonus: { ...stored.smithBonus } }),
+  };
+}
 
 /** An Inventory cell, counted from the top-left. */
 export type Cell = { column: number; row: number };
@@ -47,11 +107,7 @@ export type PlacedItem = { item: Item; cell: Cell };
  * An Item in the Inventory by its type alone, with `cell` its top-left
  * cell: all the placing rules and the Save need to know of it.
  */
-export type PlacedType = {
-  type: ItemType;
-  cell: Cell;
-  smithBonus?: SmithBonus;
-};
+export type PlacedType = StoredItem & { cell: Cell };
 
 /**
  * Where an Item can be: an Inventory cell (its top-left), an Equipment slot
@@ -59,22 +115,37 @@ export type PlacedType = {
  */
 export type ItemSpot = Cell | EquipmentSlot | BeltCell;
 
+/**
+ * Where a Held Item came from besides the Hero's own spots: the Vendor's
+ * grid, `good` its top-left cell there.
+ */
+export type GoodSpot = { good: Cell };
+
+/** Where a Held Item came from: an `ItemSpot` or a Vendor's good. */
+export type CursorSpot = ItemSpot | GoodSpot;
+
 /** Whether a spot is an Equipment slot rather than a cell. */
-export function isSlot(spot: ItemSpot): spot is EquipmentSlot {
+export function isSlot(spot: CursorSpot): spot is EquipmentSlot {
   return typeof spot === "string";
 }
 
+/** Whether a spot is a good on the Vendor's grid. */
+export function isGoodSpot(spot: CursorSpot): spot is GoodSpot {
+  return typeof spot === "object" && "good" in spot;
+}
+
 /** Whether a spot is an Inventory cell, not a slot or a Belt Column cell. */
-export function isCell(spot: ItemSpot): spot is Cell {
-  return !isSlot(spot) && !isBeltCell(spot);
+export function isCell(spot: CursorSpot): spot is Cell {
+  return !isSlot(spot) && !isGoodSpot(spot) && !isBeltCell(spot);
 }
 
 /**
  * The Item held on the cursor, with `from` the top-left cell or the slot it
  * goes back to if it's never put down, kept free for it all the while it's
- * held.
+ * held. A good lifted from the Vendor is not Belongings: it goes back to the
+ * Vendor, and is bought only by being put down.
  */
-export type CursorItem = { item: Item; from: ItemSpot };
+export type CursorItem = { item: Item; from: CursorSpot };
 
 /** The Hero's Equipment slots, in the order they're listed. */
 export const EQUIPMENT_SLOTS = [
@@ -108,9 +179,7 @@ export const SLOT_KINDS: Record<EquipmentSlot, ItemKind> = {
  */
 export type Belongings = {
   inventory: PlacedType[];
-  equipment: Partial<Record<EquipmentSlot, ItemType>>;
-  /** The Smith bonuses of the Equipped Items, by slot; none where left out. */
-  smithBonuses?: Partial<Record<EquipmentSlot, SmithBonus>>;
+  equipment: Partial<Record<EquipmentSlot, StoredItem>>;
   /** The Potions in each Belt Column, from the left and each from the bottom up. */
   belt: BeltTypes;
 };
@@ -121,7 +190,7 @@ export type Belongings = {
  */
 export const FRESH_BELONGINGS: Belongings = {
   inventory: [],
-  equipment: { weapon: "shortSword" },
+  equipment: { weapon: { type: "shortSword" } },
   belt: newHeroBelt(),
 };
 
@@ -136,16 +205,26 @@ export function covers(type: ItemType, at: Cell, cell: Cell): boolean {
   );
 }
 
-/** Whether an Item of `type` with its top-left at `at` stays on the grid. */
-export function onGrid(type: ItemType, at: Cell): boolean {
+/** A grid's size in cells. */
+export type GridSize = { columns: number; rows: number };
+
+/**
+ * Whether an Item of `type` with its top-left at `at` stays on a grid, the
+ * Inventory's unless `grid` says another.
+ */
+export function onGrid(
+  type: ItemType,
+  at: Cell,
+  grid: GridSize = inventoryTuning,
+): boolean {
   const { columns, rows } = itemTuning[type].size;
   return (
     Number.isInteger(at.column) &&
     Number.isInteger(at.row) &&
     at.column >= 0 &&
     at.row >= 0 &&
-    at.column + columns <= inventoryTuning.columns &&
-    at.row + rows <= inventoryTuning.rows
+    at.column + columns <= grid.columns &&
+    at.row + rows <= grid.rows
   );
 }
 
@@ -167,28 +246,32 @@ export function inTheWay<T extends PlacedType>(
 
 /**
  * Whether an Item of `type` with its top-left at `at` stays on the grid
- * without overlapping any of `placed`.
+ * without overlapping any of `placed`, on the Inventory's grid unless
+ * `grid` says another.
  */
 export function fitsAt(
   placed: readonly PlacedType[],
   type: ItemType,
   at: Cell,
+  grid: GridSize = inventoryTuning,
 ): boolean {
-  return onGrid(type, at) && inTheWay(placed, type, at).length === 0;
+  return onGrid(type, at, grid) && inTheWay(placed, type, at).length === 0;
 }
 
 /**
  * Where an Item of `type` would go among `placed` Items: the first spot it
  * fits, scanning column by column from the top-left, or null when none.
+ * On the Inventory's grid unless `grid` says another.
  */
 export function firstFreeCell(
   placed: readonly PlacedType[],
   type: ItemType,
+  grid: GridSize = inventoryTuning,
 ): Cell | null {
-  for (let column = 0; column < inventoryTuning.columns; column++) {
-    for (let row = 0; row < inventoryTuning.rows; row++) {
+  for (let column = 0; column < grid.columns; column++) {
+    for (let row = 0; row < grid.rows; row++) {
       const cell = { column, row };
-      if (fitsAt(placed, type, cell)) return cell;
+      if (fitsAt(placed, type, cell, grid)) return cell;
     }
   }
   return null;
@@ -215,27 +298,30 @@ export function isValidBelongings(belongings: Belongings): boolean {
   const known = (type: unknown): type is ItemType =>
     ITEM_TYPES.includes(type as ItemType);
   const { inventory, equipment, belt } = belongings;
-  const smithBonuses = belongings.smithBonuses ?? {};
+  const itemFine = (stored: StoredItem) =>
+    known(stored.type) &&
+    isValidRoll(
+      stored.type,
+      stored.rarity ?? "normal",
+      stored.affixes ?? [],
+      stored.rareName,
+    ) &&
+    (stored.smithBonus === undefined ||
+      (isSmithable(stored.type) && isValidSmithBonus(stored.smithBonus)));
   const placedFine = inventory.every(
     (placed, i) =>
-      known(placed.type) &&
+      itemFine(placed) &&
       onGrid(placed.type, placed.cell) &&
-      inTheWay(inventory.slice(0, i), placed.type, placed.cell).length === 0 &&
-      (placed.smithBonus === undefined ||
-        (isSmithable(placed.type) && isValidSmithBonus(placed.smithBonus))),
+      inTheWay(inventory.slice(0, i), placed.type, placed.cell).length === 0,
   );
   const equippedFine = Object.entries(equipment).every(
-    ([slot, type]) =>
+    ([slot, stored]) =>
       Object.hasOwn(SLOT_KINDS, slot) &&
-      known(type) &&
-      itemTuning[type].kind === SLOT_KINDS[slot as EquipmentSlot],
+      itemFine(stored) &&
+      itemTuning[stored.type].kind === SLOT_KINDS[slot as EquipmentSlot],
   );
-  const bonusesFine = Object.entries(smithBonuses).every(([slot, bonus]) => {
-    const type = equipment[slot as EquipmentSlot];
-    return !!type && isSmithable(type) && isValidSmithBonus(bonus);
-  });
-  if (!placedFine || !equippedFine || !bonusesFine) return false;
-  return isValidBelt(belt, rowsOf(equipment.belt));
+  if (!placedFine || !equippedFine) return false;
+  return isValidBelt(belt, rowsOf(equipment.belt?.type));
 }
 
 /** Whether an Item of `type` is a Weapon or Armour, which the Smith can work. */
@@ -268,51 +354,41 @@ export function emptyEquipment(): Equipment {
  */
 export function giveBelongings(world: World, belongings: Belongings) {
   const { hero } = world;
-  for (const { type, cell, smithBonus } of belongings.inventory) {
-    const item: Item = { id: world.nextItemId++, type };
-    if (smithBonus) item.smithBonus = { ...smithBonus };
-    hero.inventory.push({ item, cell: { ...cell } });
+  for (const stored of belongings.inventory) {
+    hero.inventory.push({
+      item: itemFrom(world, stored),
+      cell: { ...stored.cell },
+    });
   }
   for (const slot of EQUIPMENT_SLOTS) {
-    const type = belongings.equipment[slot];
-    if (!type) continue;
-    const item: Item = { id: world.nextItemId++, type };
-    const smithBonus = belongings.smithBonuses?.[slot];
-    if (smithBonus) item.smithBonus = { ...smithBonus };
-    hero.equipment[slot] = item;
+    const stored = belongings.equipment[slot];
+    if (stored) hero.equipment[slot] = itemFrom(world, stored);
   }
   belongings.belt.forEach((column, index) => {
     for (const type of column) {
-      hero.belt[index].push({ id: world.nextItemId++, type });
+      hero.belt[index].push(itemFrom(world, { type }));
     }
   });
 }
 
 /**
- * The Hero's Belongings by Item type, as the Save keeps them: a held Item
- * is back at the cell or slot it was lifted from.
+ * The Hero's Belongings as the Save keeps them, Rarity, Affixes and all: a
+ * held Item is back at the cell or slot it was lifted from.
  */
 export function belongingsOf(world: World): Belongings {
   const { equipment, cursor } = world.hero;
   const worn: Belongings["equipment"] = {};
-  const smithBonuses: NonNullable<Belongings["smithBonuses"]> = {};
-  const keep = (slot: EquipmentSlot, item: Item) => {
-    worn[slot] = item.type;
-    if (item.smithBonus) smithBonuses[slot] = { ...item.smithBonus };
-  };
   for (const slot of EQUIPMENT_SLOTS) {
     const item = equipment[slot];
-    if (item) keep(slot, item);
+    if (item) worn[slot] = storedOf(item);
   }
-  if (cursor && isSlot(cursor.from)) keep(cursor.from, cursor.item);
+  if (cursor && isSlot(cursor.from)) worn[cursor.from] = storedOf(cursor.item);
   return {
-    inventory: taken(world.hero).map(({ type, cell, smithBonus }) => ({
-      type,
-      cell: { ...cell },
-      ...(smithBonus && { smithBonus: { ...smithBonus } }),
+    inventory: taken(world.hero).map((placed) => ({
+      ...storedOf(placed),
+      cell: { ...placed.cell },
     })),
     equipment: worn,
-    ...(Object.keys(smithBonuses).length > 0 && { smithBonuses }),
     belt: beltTypesOf(world),
   };
 }
@@ -342,8 +418,10 @@ export function cursorItemOf(world: World): CursorItem | null {
 }
 
 /** A copy of a spot, so a query's answer can't change the World. */
-function copySpot(spot: ItemSpot): ItemSpot {
-  return isSlot(spot) ? spot : ({ ...spot } as ItemSpot);
+function copySpot(spot: CursorSpot): CursorSpot {
+  if (isSlot(spot)) return spot;
+  if (isGoodSpot(spot)) return { good: { ...spot.good } };
+  return { ...spot } as ItemSpot;
 }
 
 /** What's in each Equipment slot. */
@@ -493,9 +571,10 @@ function planPlacing(world: World, to: ItemSpot): Placing | "noRoom" | null {
  */
 function homeFor(
   type: ItemType,
-  from: ItemSpot,
+  from: CursorSpot,
   placed: readonly PlacedType[],
 ): ItemSpot | null {
+  if (isGoodSpot(from)) return firstFreeCell(placed, type);
   if (isBeltCell(from)) {
     // The cursor Item's row is kept for it, so another Potion fits there.
     return isPotion(type) ? from : firstFreeCell(placed, type);
@@ -509,9 +588,8 @@ function homeFor(
 /** Placed Items by type and top-left cell. */
 function typesOf(inventory: readonly PlacedItem[]): PlacedType[] {
   return inventory.map(({ item, cell }) => ({
-    type: item.type,
+    ...storedOf(item),
     cell,
-    ...(item.smithBonus && { smithBonus: item.smithBonus }),
   }));
 }
 
@@ -655,6 +733,14 @@ export function returnCursorItem(world: World, events: SimEvent[]) {
   const { hero } = world;
   if (!hero.cursor) return;
   const { item, from } = hero.cursor;
+  if (isGoodSpot(from)) {
+    // A Potion stayed in the Vendor's grid when it was lifted.
+    if (!isPotion(item.type)) {
+      world.vendor.goods.push({ item, cell: { ...from.good } });
+    }
+    hero.cursor = null;
+    return;
+  }
   if (isBeltCell(from)) {
     hero.belt[from.beltColumn].splice(from.row, 0, item);
     events.push({ type: "BeltChanged" });
@@ -676,11 +762,7 @@ export function taken(hero: Hero): PlacedType[] {
   const { inventory, cursor } = hero;
   const placed = typesOf(inventory);
   if (cursor && isCell(cursor.from)) {
-    placed.push({
-      type: cursor.item.type,
-      cell: cursor.from,
-      ...(cursor.item.smithBonus && { smithBonus: cursor.item.smithBonus }),
-    });
+    placed.push({ ...storedOf(cursor.item), cell: cursor.from });
   }
   return placed;
 }

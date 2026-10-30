@@ -265,7 +265,7 @@ describe("mapMarks of what stands on the Area", () => {
     expect(seen.npcs).toHaveLength(1);
   });
 
-  it("has no marks for Monsters, Corpses, Ground Items or Projectiles", () => {
+  it("has no marks for Monsters, Corpses, Ground Items, Gold Piles or Projectiles", () => {
     const marks = mapMarks({ area, explored: all(area), heroAt: HERO });
 
     expect(Object.keys(marks).sort()).toEqual([

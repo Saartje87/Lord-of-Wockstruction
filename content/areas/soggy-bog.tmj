@@ -11,7 +11,7 @@
  "infinite": false,
  "compressionlevel": -1,
  "nextlayerid": 5,
- "nextobjectid": 15,
+ "nextobjectid": 17,
  "properties": [
   {
    "name": "act",
@@ -4379,7 +4379,7 @@
     0,
     0,
     0,
-    20,
+    0,
     0,
     0,
     0,
@@ -4572,7 +4572,7 @@
     0,
     0,
     0,
-    20,
+    0,
     0,
     20,
     0,
@@ -4634,7 +4634,7 @@
     0,
     0,
     0,
-    20,
+    0,
     0,
     0,
     0,
@@ -8561,6 +8561,41 @@
      ],
      "rotation": 0,
      "visible": true
+    },
+    {
+     "id": 15,
+     "name": "",
+     "type": "exit",
+     "x": 2880,
+     "y": 288,
+     "width": 192,
+     "height": 192,
+     "rotation": 0,
+     "visible": true,
+     "properties": [
+      {
+       "name": "area",
+       "type": "string",
+       "value": "old-mill"
+      },
+      {
+       "name": "entry",
+       "type": "string",
+       "value": "from-soggy-bog"
+      }
+     ]
+    },
+    {
+     "id": 16,
+     "name": "from-old-mill",
+     "type": "entry",
+     "x": 2976,
+     "y": 624,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true
     }
    ]
   }

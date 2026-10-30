@@ -41,7 +41,7 @@ A Combat Area in an Act that is not on its Main Path, reached from one of the Ma
 _Avoid_: Side dungeon, optional area, branch
 
 **Act Boss**:
-The one named Monster at the end of an Act's Main Path; killing it while the Act's last Quest isn't Done completes the Act, shown across the screen, and makes that Quest Ready to hand in. It is back, like every Monster, in each new Session.
+The one named Monster at the end of an Act's Main Path; killing it while the Act's last Quest isn't Done completes the Act, shown across the screen, and makes that Quest Ready to hand in. It is back, like every Monster, in each new Session. Act 1's has a Fire attack.
 _Avoid_: Final boss, end boss
 
 **Waypoint**:
@@ -205,7 +205,7 @@ One of the three themed parts of the Skill Tree, Bone, Summoning and Curses, eac
 _Avoid_: Tab, school, tree (that's the whole Skill Tree)
 
 **Prerequisite**:
-The Skill above a Skill in its Branch, which must have a Skill Level before a Skill Point can be spent on the one below; a Skill also needs the Hero to have reached its own Level.
+The Skill above a Skill in its Branch, which must have a Skill Level before a Skill Point can be spent on the one below; a Skill also needs the Hero to have reached its own Level. It only holds back spending Skill Points: a Skill Level already learned can always be cast.
 _Avoid_: Requirement, unlock
 
 **Skill Point**:
@@ -285,15 +285,23 @@ Fire, Cold or Lightning: the Damage Types that a Resistance reduces.
 _Avoid_: Magic, elemental type
 
 **Resistance**:
-How much of one Element's damage the Hero or a Monster shrugs off once a hit has landed, given as a percentage. It is what makes the Hero hunt for gear as the game gets harder.
-_Avoid_: Resist, res, elemental defense
+How much of one Element's damage the Hero, a Monster or a Minion shrugs off once a hit has landed, given as a percentage, before Bone Ward soaks up anything and before Amplify Damage adds to it. It can be negative, adding to the damage. The Hero's starts at 0%, comes only from Affixes and never helps their Minions; each Monster type and Minion kind has its own, the same at every Monster Level and always below 100%. Only the Hero's is shown, in the Hero panel. It is what makes the Hero hunt for gear as the game gets harder.
+_Avoid_: Resist, res, elemental defense, immunity
+
+**Maximum Resistance**:
+The most of one Element's damage a Resistance can take off the Hero's hits, 75%. Resistance above it still counts toward the Hero's total, shown as capped, so a Resistance Penalty eats into the excess first.
+_Avoid_: Resist cap, max res
+
+**Resistance Penalty**:
+What each Act past the first takes off every one of the Hero's Resistances while they are in it; the Hero panel shows Resistances with it already taken off. Act 1 has none.
+_Avoid_: Difficulty penalty, curse (that's a Skill's mark)
 
 **Projectile**:
-Something loosed by an attack or a Skill that flies in a straight line through an Area until it meets a wall or runs out of range, Muck aside. A Monster's hits the first Hero or Minion it touches and flies through Monsters; the Skeleton Archer's is the Arrow. The Hero's flies through Minions and hits every Monster on its way, each once; Bone Spear's is one.
+Something loosed by an attack or a Skill that flies in a straight line through an Area until it meets a wall or runs out of range, Muck aside. A Monster's hits the first Hero or Minion it touches and flies through Monsters; the Skeleton Archer's is the Arrow. The Hero's flies through Minions and hits every Monster on its way, each once; Bone Spear's is one, and Splinter Volley looses a fan of them at once, each hitting on its own.
 _Avoid_: Missile, bullet, shot
 
 **Muck**:
-The Bog Spitter's Projectile: lobbed over Props and Walls alike at where the Hero stood when it was loosed, its landing spot marked on the ground from then on, it hits every Hero and Minion within a small circle there when it lands, and nothing on the way.
+The Bog Spitter's Projectile: lobbed over Props and Walls alike at where the Hero stood when it was loosed, its landing spot marked on the ground from then on, it hits every Hero and Minion within a small circle there when it lands, and nothing on the way. Its damage is Cold.
 _Avoid_: Glob, spit, bomb
 
 **Slam**:
@@ -385,7 +393,7 @@ Lifting a Held Item or Held Skill and putting it down in one press, the mouse bu
 _Avoid_: Drag and drop, swipe
 
 **Weapon**:
-The Item kind Equipped in the Weapon slot, setting the Hero's damage.
+The Item kind Equipped in the Weapon slot, setting the Hero's damage: Physical, plus any Elements its Affixes add, which count for the Hero's attacks and never for a Skill's damage.
 _Avoid_: Sword (that's one Weapon)
 
 **Armour**:

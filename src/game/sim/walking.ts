@@ -1,6 +1,12 @@
 import type { Area } from "./area";
-import { findPath, fitsAt, isClear } from "./path";
-import type { Vec } from "./vec";
+import {
+  clearOfBodies,
+  findPath,
+  fitsAt,
+  isClear,
+  type Obstacle,
+} from "./path";
+import { distance, type Vec } from "./vec";
 
 /** A creature the sim walks for itself: a Monster or a Minion. */
 export type Walker = {
@@ -17,7 +23,15 @@ export type Walker = {
  * How a walker walks: its size against walls, never more than the Hero's,
  * and how often it re-plans around walls.
  */
-export type Gait = { radius: number; replanSteps: number };
+export type Gait = {
+  radius: number;
+  replanSteps: number;
+  /**
+   * The walker's Body and the Bodies it can't walk through: it never ends a
+   * step closer to one it overlaps, and plans its walk around them.
+   */
+  body?: { radius: number; obstacles: readonly Obstacle[] };
+};
 
 /**
  * Walks up to `budget` towards `to`: straight along a clear line, otherwise
@@ -32,7 +46,111 @@ export function goToward(
   budget: number,
   limit = Number.POSITIVE_INFINITY,
 ) {
-  if (isClear(area, walker.pos, to, gait.radius)) {
+  const before = walker.pos;
+  const pathBefore = [...walker.path];
+  walkToward(area, walker, gait, to, budget, limit);
+  if (gait.body && holdBack(area, walker, before, gait)) {
+    walker.path = pathBefore;
+    // Re-plan around whatever blocked the way.
+    walker.replan = 0;
+  }
+}
+
+/**
+ * Undoes the part of a walk from `before` that ran into a Body of the
+ * walker's `gait`, sliding along it on whichever axis is open, or standing
+ * still. Returns whether the walk was held back.
+ */
+export function holdBack(
+  area: Area,
+  walker: Pick<Walker, "pos">,
+  before: Vec,
+  gait: Gait,
+): boolean {
+  const { radius, obstacles } = gait.body as NonNullable<Gait["body"]>;
+  const hits = (at: Vec) =>
+    obstacles.some((obstacle) => runsInto(obstacle, radius, before, at));
+  if (!hits(walker.pos)) return false;
+  const { x, y } = walker.pos;
+  const slide = [
+    { x, y: before.y },
+    { x: before.x, y },
+  ].find(
+    (to) =>
+      (to.x !== before.x || to.y !== before.y) &&
+      !hits(to) &&
+      fitsAt(area, to, gait.radius),
+  );
+  walker.pos = slide ?? before;
+  return true;
+}
+
+/**
+ * Where a step from `from` to `to` ends for a body of `radius` that can't
+ * walk into the `obstacles`: `to` itself, else slid round the edge of any
+ * Body it would run into (the nearest point to `to` just outside it), else
+ * `from` where that doesn't fit at the walls either.
+ */
+export function slideAround(
+  area: Area,
+  from: Vec,
+  to: Vec,
+  radius: number,
+  obstacles: readonly Obstacle[],
+): Vec {
+  const hits = (at: Vec) =>
+    obstacles.filter((obstacle) => runsInto(obstacle, radius, from, at));
+  let at = to;
+  for (let pass = 0; pass < 3 && hits(at).length > 0; pass++) {
+    for (const obstacle of hits(at)) {
+      const dx = at.x - obstacle.pos.x;
+      const dy = at.y - obstacle.pos.y;
+      const length = Math.hypot(dx, dy);
+      if (length === 0) return from;
+      const apart = obstacle.radius + radius;
+      at = {
+        x: obstacle.pos.x + (dx / length) * apart,
+        y: obstacle.pos.y + (dy / length) * apart,
+      };
+    }
+  }
+  return hits(at).length === 0 && fitsAt(area, at, radius) ? at : from;
+}
+
+/**
+ * Whether a body of `radius` stepping from `from` to `at` runs into
+ * `obstacle`: it overlaps it there, and is closer than it was.
+ */
+function runsInto(
+  obstacle: Obstacle,
+  radius: number,
+  from: Vec,
+  at: Vec,
+): boolean {
+  const gap = distance(obstacle.pos, at);
+  return (
+    gap < obstacle.radius + radius - 1e-6 && gap < distance(obstacle.pos, from)
+  );
+}
+
+/**
+ * One walk of `walker` towards `to`, up to `budget` and, on a straight line,
+ * `limit`: straight on where the line is clear of walls and of the Bodies of
+ * its `gait`, else along its path, planned afresh when its timer runs out.
+ */
+function walkToward(
+  area: Area,
+  walker: Walker,
+  gait: Gait,
+  to: Vec,
+  budget: number,
+  limit: number,
+) {
+  const body = gait.body;
+  if (
+    isClear(area, walker.pos, to, gait.radius) &&
+    (!body || clearOfBodies(walker.pos, to, body.radius, body.obstacles))
+  ) {
     walker.path = [];
     walker.replan = 0;
     walkAlong(walker, [to], Math.min(budget, limit));
@@ -43,7 +161,14 @@ export function goToward(
   // would find the same path.
   walker.replan -= 1;
   if (walker.replan <= 0) {
-    walker.path = findPath(area, walker.pos, to, gait.radius);
+    walker.path = findPath(
+      area,
+      walker.pos,
+      to,
+      gait.radius,
+      body?.obstacles,
+      body?.radius,
+    );
     walker.replan = gait.replanSteps;
   }
   walkAlong(walker, walker.path, budget);

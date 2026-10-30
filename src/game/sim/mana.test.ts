@@ -62,7 +62,7 @@ function map(rows: string[], pack = 1) {
 /** A Town with the Hero next to a pack of `pack` Skeletons. */
 function world(pack = 1, progress?: Progress): World {
   return createWorld({
-    areas: { town: map(["H.S.."], pack) },
+    areas: { town: map([".....", "H.S..", "....."], pack) },
     seed: 1,
     progress,
   });
@@ -86,7 +86,13 @@ describe("a new Level", () => {
       if (i > 60 * 60) throw new Error("The Hero didn't reach Level 2");
       // Low, so regeneration alone can't fill it before the kill.
       w.hero.mana = 1;
-      const [nearest] = w.monsters;
+      // The nearest, as the others stand in the way of one behind them.
+      const nearest = w.monsters.reduce((a, b) =>
+        Math.hypot(a.pos.x - w.hero.pos.x, a.pos.y - w.hero.pos.y) <=
+        Math.hypot(b.pos.x - w.hero.pos.x, b.pos.y - w.hero.pos.y)
+          ? a
+          : b,
+      );
       const events = step(w, [{ type: "Attack", monster: nearest.id }]);
       levelled = events.some((event) => event.type === "LevelReached");
     }

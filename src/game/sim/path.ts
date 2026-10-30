@@ -1,7 +1,45 @@
 import { type Area, isWalkable } from "./area";
-import { tileOf, type Vec } from "./vec";
+import { distance, tileOf, type Vec } from "./vec";
 
 const EDGE_SLACK = 1e-6;
+
+/** A round Body in the way: where it stands and how big it is. */
+export type Obstacle = { pos: Vec; radius: number };
+
+/**
+ * Whether a body of `radius` can walk the straight line from `a` to `b`
+ * without touching any of the `obstacles` it doesn't already touch at `a`.
+ */
+export function clearOfBodies(
+  from: Vec,
+  to: Vec,
+  radius: number,
+  obstacles: readonly Obstacle[],
+): boolean {
+  return obstacles.every((obstacle) => {
+    const apart = obstacle.radius + radius - EDGE_SLACK;
+    if (distance(obstacle.pos, from) < apart) return true;
+    return distanceToSegment(obstacle.pos, from, to) >= apart;
+  });
+}
+
+/** How far `point` is from the nearest point on the segment `from` to `to`. */
+function distanceToSegment(point: Vec, from: Vec, to: Vec): number {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const lengthSquared = dx * dx + dy * dy;
+  const along =
+    lengthSquared === 0
+      ? 0
+      : Math.min(
+          1,
+          Math.max(
+            0,
+            ((point.x - from.x) * dx + (point.y - from.y) * dy) / lengthSquared,
+          ),
+        );
+  return distance(point, { x: from.x + along * dx, y: from.y + along * dy });
+}
 
 /**
  * Plans a walk from `from` to `to` as waypoints in tile units, not including
@@ -11,14 +49,26 @@ const EDGE_SLACK = 1e-6;
  *
  * When `to` can't be reached, the walk ends at the reachable point nearest to
  * it, kept `radius` inside its tile.
+ *
+ * `obstacles` are Bodies in the way: tiles they touch (other than the first
+ * and last) are not walked through, and a walk of a body of `bodyRadius`
+ * never cuts across one.
  */
 export function findPath(
   area: Area,
   from: Vec,
   to: Vec,
   radius: number,
+  obstacles: readonly Obstacle[] = [],
+  bodyRadius = radius,
 ): Vec[] {
-  const { tiles, reached } = astar(area, tileOf(from), to);
+  const { tiles, reached } = astar(
+    area,
+    tileOf(from),
+    to,
+    obstacles,
+    bodyRadius,
+  );
   const end = reached ? to : clampInto(tiles[tiles.length - 1], to, radius);
 
   // The start tile is where we already are; aim at the end in the last one.
@@ -29,7 +79,11 @@ export function findPath(
   while (i < points.length) {
     // Neighbouring tiles always join in a straight line, so `i` is safe.
     let j = i;
-    while (j + 1 < points.length && isClear(area, at, points[j + 1], radius)) {
+    while (
+      j + 1 < points.length &&
+      isClear(area, at, points[j + 1], radius) &&
+      clearOfBodies(at, points[j + 1], bodyRadius, obstacles)
+    ) {
       j++;
     }
     path.push(points[j]);
@@ -41,7 +95,7 @@ export function findPath(
 
 /** Whether the tile of `to` can be walked to from the tile of `from`. */
 export function canReach(area: Area, from: Vec, to: Vec): boolean {
-  return astar(area, tileOf(from), to).reached;
+  return astar(area, tileOf(from), to, [], 0).reached;
 }
 
 /**
@@ -53,11 +107,37 @@ function astar(
   area: Area,
   start: Vec,
   to: Vec,
+  obstacles: readonly Obstacle[],
+  bodyRadius: number,
 ): { tiles: Vec[]; reached: boolean } {
   const { width } = area;
   const goal = tileOf(to);
   const key = (x: number, y: number) => y * width + x;
-  const open = (x: number, y: number) => isWalkable(area, { x, y });
+  // The Bodies within two tiles of each tile, so a search over a big Area
+  // with many Bodies only ever weighs the few near the tile it looks at.
+  const near = new Map<number, Obstacle[]>();
+  for (const obstacle of obstacles) {
+    const ox = Math.floor(obstacle.pos.x);
+    const oy = Math.floor(obstacle.pos.y);
+    for (let y = oy - 2; y <= oy + 2; y++) {
+      for (let x = ox - 2; x <= ox + 2; x++) {
+        const list = near.get(key(x, y));
+        if (list) list.push(obstacle);
+        else near.set(key(x, y), [obstacle]);
+      }
+    }
+  }
+  const nearTo = (x: number, y: number) => near.get(key(x, y)) ?? [];
+  const taken = (x: number, y: number) =>
+    !(x === start.x && y === start.y) &&
+    !(x === goal.x && y === goal.y) &&
+    nearTo(x, y).some(
+      (obstacle) =>
+        distance(obstacle.pos, { x: x + 0.5, y: y + 0.5 }) <
+        obstacle.radius + bodyRadius,
+    );
+  const open = (x: number, y: number) =>
+    isWalkable(area, { x, y }) && !taken(x, y);
   const h = (x: number, y: number) => {
     const dx = Math.abs(x - goal.x);
     const dy = Math.abs(y - goal.y);
@@ -104,6 +184,17 @@ function astar(
         if (!open(nx, ny)) continue;
         // No corner cutting: a diagonal needs both sides open.
         if (dx && dy && (!open(x + dx, y) || !open(x, y + dy))) continue;
+        if (
+          obstacles.length > 0 &&
+          !clearOfBodies(
+            centre({ x, y }),
+            centre({ x: nx, y: ny }),
+            bodyRadius,
+            nearTo(x, y),
+          )
+        ) {
+          continue;
+        }
         const nk = key(nx, ny);
         const ng = (g.get(k) ?? 0) + (dx && dy ? Math.SQRT2 : 1);
         if (ng < (g.get(nk) ?? Number.POSITIVE_INFINITY)) {

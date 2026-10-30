@@ -7,14 +7,14 @@ import {
   type RangedTuning,
 } from "../tuning/monsters";
 import { uniqueTuning } from "../tuning/uniqueMonsters";
-import { wallRadius } from "./bodies";
+import { attackSpot, heroSideBodies, wallRadius } from "./bodies";
 import { faceToward, lands } from "./melee";
 import { canSee, isClear } from "./path";
 import type { AttackNumbers } from "./projectiles";
 import { random, randomInt } from "./random";
 import { msToSteps, perStep } from "./units";
 import { distance, type Vec } from "./vec";
-import { type Gait, goToward, walkAlong } from "./walking";
+import { type Gait, goToward, holdBack, walkAlong } from "./walking";
 import type { Monster, MonsterTarget, World } from "./world";
 
 /** Each Monster type's tuning converted to steps. */
@@ -266,30 +266,30 @@ function isStrolling(monster: Monster): boolean {
 }
 
 /** Who a Monster can go after, and where they stand. */
-type Quarry = { target: MonsterTarget; pos: Vec };
+type TargetAt = { target: MonsterTarget; pos: Vec };
 
 /** The Hero, while alive, and each of their Minions. */
-function quarriesOf(world: World): Quarry[] {
-  const quarries: Quarry[] = [];
-  if (!world.death) quarries.push({ target: "hero", pos: world.hero.pos });
+function targetsAt(world: World): TargetAt[] {
+  const targets: TargetAt[] = [];
+  if (!world.death) targets.push({ target: "hero", pos: world.hero.pos });
   for (const minion of world.minions) {
-    quarries.push({ target: minion.id, pos: minion.pos });
+    targets.push({ target: minion.id, pos: minion.pos });
   }
-  return quarries;
+  return targets;
 }
 
 /**
  * The nearest to the Monster of the Hero and their Minions, the Hero on a
  * tie, or null with none there.
  */
-function nearestQuarry(world: World, monster: Monster): Quarry | null {
-  let nearest: Quarry | null = null;
-  for (const quarry of quarriesOf(world)) {
+function nearestTarget(world: World, monster: Monster): TargetAt | null {
+  let nearest: TargetAt | null = null;
+  for (const chased of targetsAt(world)) {
     if (
       !nearest ||
-      distance(monster.pos, quarry.pos) < distance(monster.pos, nearest.pos)
+      distance(monster.pos, chased.pos) < distance(monster.pos, nearest.pos)
     ) {
-      nearest = quarry;
+      nearest = chased;
     }
   }
   return nearest;
@@ -308,7 +308,7 @@ function targetPos(world: World, target: MonsterTarget): Vec | null {
 function sees(world: World, monster: Monster): boolean {
   const tuning = monsterTuning[monster.type];
   const area = world.areas[world.areaName];
-  return quarriesOf(world).some(
+  return targetsAt(world).some(
     ({ pos }) =>
       distance(monster.pos, pos) <= tuning.aggroRadius &&
       (!tuning.needsSight || canSee(area, monster.pos, pos)),
@@ -333,7 +333,7 @@ function rest(world: World, monster: Monster) {
     y: monster.home.y + reach * Math.sin(angle),
   };
   const area = world.areas[world.areaName];
-  if (!isClear(area, monster.pos, goal, gaitOf(monster).radius)) return;
+  if (!isClear(area, monster.pos, goal, gaitOf(world, monster).radius)) return;
   monster.state = "wander";
   monster.path = [goal];
 }
@@ -344,8 +344,13 @@ function rest(world: World, monster: Monster) {
  */
 function wander(world: World, monster: Monster) {
   const area = world.areas[world.areaName];
-  if (isClear(area, monster.pos, monster.path[0], gaitOf(monster).radius)) {
+  if (
+    isClear(area, monster.pos, monster.path[0], gaitOf(world, monster).radius)
+  ) {
+    const before = monster.pos;
+    const gait = gaitOf(world, monster);
     walkAlong(monster, monster.path, STEPPED[monster.type].wanderSpeed);
+    holdBack(area, monster, before, gait);
     if (monster.path.length > 0) return;
   }
   monster.state = "idle";
@@ -369,27 +374,62 @@ function chase(world: World, monster: Monster) {
     sendHome(monster);
     return;
   }
-  const quarry = nearestQuarry(world, monster);
-  if (!quarry) return;
-  monster.target = quarry.target;
+  const chased = nearestTarget(world, monster);
+  if (!chased) return;
+  monster.target = chased.target;
   const area = world.areas[world.areaName];
-  const gap = distance(monster.pos, quarry.pos);
+  const gap = distance(monster.pos, chased.pos);
   // A ranged Monster stops only where it can also see its target, and walks
   // on, behind a wall, until it can.
   const ranged = attack.kind === "ranged";
   const stopAt = ranged ? attack.range : attack.reach;
-  const inSight = !ranged || canSee(area, monster.pos, quarry.pos);
+  const inSight = !ranged || canSee(area, monster.pos, chased.pos);
   // A chase stops at reach only up to rounding.
   if (gap <= stopAt + 1e-9 && inSight) {
     monster.path = [];
-    if (canWindUp(world, monster)) startWindUp(monster, quarry.pos);
+    if (canWindUp(world, monster)) startWindUp(monster, chased.pos);
+    return;
+  }
+  const going = targetBody(world, chased.target);
+  const gait = gaitOf(world, monster, going);
+  if (!ranged && going) {
+    // Heads for a free spot round its target within reach; with none free it
+    // waits nearby, a body's width off.
+    const { radius } = monsterTuning[monster.type];
+    const spot = attackSpot(world, monster, radius, chased.pos, stopAt, [
+      going,
+    ]);
+    if (spot) {
+      goToward(
+        area,
+        monster,
+        gait,
+        spot,
+        STEPPED[monster.type].speed,
+        distance(monster.pos, spot),
+      );
+      return;
+    }
+    const wait = stopAt + 2 * radius;
+    if (gap <= wait) {
+      monster.path = [];
+      return;
+    }
+    goToward(
+      area,
+      monster,
+      gait,
+      chased.pos,
+      STEPPED[monster.type].speed,
+      gap - wait,
+    );
     return;
   }
   goToward(
     area,
     monster,
-    gaitOf(monster),
-    quarry.pos,
+    gait,
+    chased.pos,
     STEPPED[monster.type].speed,
     inSight ? gap - stopAt : gap,
   );
@@ -485,7 +525,13 @@ function loose(
 function goHome(world: World, monster: Monster) {
   const area = world.areas[world.areaName];
   const stepped = STEPPED[monster.type];
-  goToward(area, monster, gaitOf(monster), monster.home, stepped.returnSpeed);
+  goToward(
+    area,
+    monster,
+    gaitOf(world, monster),
+    monster.home,
+    stepped.returnSpeed,
+  );
   if (distance(monster.pos, monster.home) > 0) return;
   monster.state = "idle";
   monster.life = monsterMaxLife(monster);
@@ -497,9 +543,21 @@ function goHome(world: World, monster: Monster) {
  * A Monster walks with its type's radius, capped at the Hero's against
  * walls, and its type's re-plan timer.
  */
-function gaitOf(monster: Monster): Gait {
+function gaitOf(
+  world: World,
+  monster: Monster,
+  going: object | null = null,
+): Gait {
+  const { radius } = monsterTuning[monster.type];
   return {
-    radius: wallRadius(monsterTuning[monster.type].radius),
+    radius: wallRadius(radius),
     replanSteps: STEPPED[monster.type].replanSteps,
+    body: { radius, obstacles: heroSideBodies(world, going) },
   };
+}
+
+/** The Hero or Minion a target is. */
+function targetBody(world: World, target: MonsterTarget): object | null {
+  if (target === "hero") return world.hero;
+  return world.minions.find((minion) => minion.id === target) ?? null;
 }

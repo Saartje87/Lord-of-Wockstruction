@@ -895,3 +895,27 @@ describe("a Resistance Affix's tooltip line", () => {
     ).toEqual([null, null]);
   });
 });
+
+describe("the elemental damage Suffix lines", () => {
+  const shown = {
+    type: "axe" as const,
+    affixes: [
+      { kind: "fireDamage" as const, grade: 0, value: 3 },
+      { kind: "coldDamage" as const, grade: 1, value: 6 },
+      { kind: "lightningDamage" as const, grade: 2, value: 12 },
+    ],
+  };
+
+  it("add their damage in a line each, in their Element's colour", () => {
+    expect(itemTooltip(shown).slice(-3)).toEqual([
+      "+3 Fire Damage",
+      "+6 Cold Damage",
+      "+12 Lightning Damage",
+    ]);
+    expect(itemTooltipElements(shown).slice(-3)).toEqual([
+      "fire",
+      "cold",
+      "lightning",
+    ]);
+  });
+});

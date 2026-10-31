@@ -268,6 +268,33 @@ describe("heroSheet with the Mana and enhanced percent Affixes", () => {
   });
 });
 
+describe("heroSheet with elemental damage Suffixes", () => {
+  it("includes the elemental part in the Damage line", () => {
+    const w = createWorld({
+      areas: { town },
+      seed: 1,
+      belongings: {
+        inventory: [],
+        equipment: {
+          weapon: {
+            type: "axe",
+            rarity: "magic",
+            affixes: [
+              { kind: "fireDamage", grade: 0, value: 3 },
+              { kind: "coldDamage", grade: 0, value: 2 },
+            ],
+          },
+        },
+        belt: emptyBelt(),
+      },
+    });
+
+    const damage = heroSheet(w).derived.find((d) => d.name === "Damage");
+    // The Axe's 30–48 with 20 Strength, plus 5 unscaled.
+    expect(damage?.value).toBe("35–53");
+  });
+});
+
 describe("heroSheet", () => {
   it("shows a fresh Hero's Level, Experience, Attributes and what they add up to", () => {
     expect(heroSheet(world())).toEqual({

@@ -472,6 +472,9 @@ const BONUS_NAMES: Record<Bonus, string> = {
   lightningResistance: "Lightning Resistance",
   allResistances: "All Resistances",
   block: "Block",
+  fireDamage: "Fire Damage",
+  coldDamage: "Cold Damage",
+  lightningDamage: "Lightning Damage",
 };
 
 /** The Element a single-Element Resistance Bonus guards against. */
@@ -479,7 +482,17 @@ const BONUS_ELEMENT: Partial<Record<Bonus, Element>> = {
   fireResistance: "fire",
   coldResistance: "cold",
   lightningResistance: "lightning",
+  fireDamage: "fire",
+  coldDamage: "cold",
+  lightningDamage: "lightning",
 };
+
+/** The Bonuses that add an Element's damage, a line each: "+3 Fire Damage". */
+const ELEMENTAL_DAMAGE_BONUSES: readonly Bonus[] = [
+  "fireDamage",
+  "coldDamage",
+  "lightningDamage",
+];
 
 /** The Bonuses that are percentages, not flat amounts. */
 const PERCENT_BONUSES: readonly Bonus[] = [
@@ -494,6 +507,9 @@ const PERCENT_BONUSES: readonly Bonus[] = [
 
 /** A tooltip line giving `amount` of `bonus`. */
 function bonusLine(bonus: Bonus, amount: number): string {
+  if (ELEMENTAL_DAMAGE_BONUSES.includes(bonus)) {
+    return `+${amount} ${BONUS_NAMES[bonus]}`;
+  }
   return PERCENT_BONUSES.includes(bonus)
     ? `+${amount}% ${BONUS_NAMES[bonus]}`
     : `+${amount} to ${BONUS_NAMES[bonus]}`;

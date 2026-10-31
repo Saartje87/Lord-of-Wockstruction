@@ -169,7 +169,7 @@ import {
   itemUnder,
   landingCell,
 } from "./inventoryPanel";
-import { itemColour, itemLabel, rarityColour } from "./itemArt";
+import { itemColour, itemLabel, rarityColour, UNIQUE_COLOUR } from "./itemArt";
 import {
   MAP_LOOK,
   MAP_OVERLAY,
@@ -1398,7 +1398,7 @@ export function createRenderer(
       nameplate.clear();
       nameplateText.visible = hovered !== null;
       if (hovered) {
-        const { name, fraction, friendly } = nameplateOf(hovered);
+        const { name, fraction, friendly, unique } = nameplateOf(hovered);
         const layout = nameplateLayout(viewport, nameplateBelow);
         const { panel, bar } = layout;
         nameplate
@@ -1415,7 +1415,9 @@ export function createRenderer(
         nameplateText.text = name;
         nameplateText.style.fill = friendly
           ? FRIENDLY.name
-          : NAMEPLATE_STYLE.nameColour;
+          : unique
+            ? UNIQUE_COLOUR
+            : NAMEPLATE_STYLE.nameColour;
         sizeText(nameplateText, layout.nameSize);
         nameplateText.position.set(layout.nameAt.x, layout.nameAt.y);
       }

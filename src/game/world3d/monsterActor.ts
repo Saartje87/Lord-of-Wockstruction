@@ -50,6 +50,8 @@ export type Posed = {
   animation: MonsterAnimation;
   /** How white it is washed, 0..1. */
   flash?: number;
+  /** Times the look's scale; 1 when missing. */
+  scale?: number;
   /** Whether it is outlined as hovered or targeted. */
   highlighted: boolean;
 };
@@ -125,6 +127,7 @@ export function poseMonster(actor: MonsterActor, monster: Posed, dt: number) {
     actor.turn = turnTowards(actor.turn, monster.facing, dt, TURN_RATE);
   }
   actor.root.rotation.y = actor.turn ?? 0;
+  actor.root.scale.setScalar(monster.scale ?? 1);
   glowMaterials(
     actor.materials,
     FLASH_COLOUR,

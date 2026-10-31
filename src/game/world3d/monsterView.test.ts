@@ -242,3 +242,15 @@ describe("the 3D World view of the Monsters", () => {
     });
   });
 });
+
+describe("the 3D World view of a Unique Monster", () => {
+  it("draws it about 1.2x its type's scale and an ordinary Monster at 1x", () => {
+    const { world, monster } = withSkeleton();
+    expect(firstMonster(world).scale).toBe(1);
+
+    monster.unique = "Bob";
+
+    expect(firstMonster(world).scale).toBeCloseTo(1.2);
+    expect(firstMonster(world).type).toBe("skeleton");
+  });
+});

@@ -229,12 +229,24 @@ All the Skills the Hero can learn, in three Branches, and how far each has been 
 _Avoid_: Talent tree, spellbook
 
 **Branch**:
-One of the three themed parts of the Skill Tree, Bone, Summoning and Curses, each Skill belonging to exactly one.
+One of the three themed parts of the Skill Tree, Bone, Summoning and Curses, each Skill belonging to exactly one, at its own place in that Branch's grid of three columns and six rows. The Skill Tree panel shows one Branch at a time, picked by its Branch tab.
 _Avoid_: Tab, school, tree (that's the whole Skill Tree)
 
 **Prerequisite**:
-The Skill above a Skill in its Branch, which must have a Skill Level before a Skill Point can be spent on the one below; a Skill also needs the Hero to have reached its own Level. It only holds back spending Skill Points: a Skill Level already learned can always be cast.
+A Skill higher in the same Branch that a Skill hangs from, shown by an arrow between them; a Skill can have one, several or none, and every one must have a Skill Level before a Skill Point can be spent on the Skill below. A Skill also needs the Hero to have reached its own Level. It only holds back spending Skill Points: a Skill Level already learned can always be cast.
 _Avoid_: Requirement, unlock
+
+**Skill Tree panel**:
+The panel showing the Skill Tree one Branch at a time: a Branch tab for each, giving the Skill Points spent in it, and that Branch's Skills as icons in its grid, joined by arrows to their Prerequisites. Each icon shows its Skill Level, is dimmed until learned and has a + while a Skill Point can be spent on it; a Passive Skill's icon has its own frame. It opens on the Branch last looked at.
+_Avoid_: Spell panel, spellbook, skill window
+
+**Branch tab**:
+The tab on the Skill Tree panel that shows one Branch; it is never the Branch itself.
+_Avoid_: Page, tree tab
+
+**Skill tooltip**:
+What a Skill shows when hovered, Focused or Long Pressed: its name, Skill Level and what it does at that Skill Level, as final numbers with its Synergies and Passive Skills already counted: damage with its Damage Types, Mana cost, radius, duration, a Minion's Life and damage and how many, and the like. While a Skill Point can be spent on it, the same numbers follow for the next Skill Level; a Skill not yet learned shows Skill Level 1's. Its Synergies, Prerequisites and needed Level are listed after.
+_Avoid_: Skill description, spell info
 
 **Skill Point**:
 What the Hero gains one of on each new Level, kept until the player spends it to raise a Skill's Skill Level by one; a spent point can't be taken back.
@@ -507,6 +519,14 @@ _Avoid_: X button, exit button
 **Panel button**:
 One of the four buttons on the HUD right of the Skill Bar, one each for the Hero, Inventory, Skill Tree and Quest panels; clicking or tapping it opens or shuts that panel just as its key does, it shows lit while its panel is open, and it does nothing during Death.
 _Avoid_: Menu button, mini-panel, HUD button
+
+**Points mark**:
+The gold "+" on the corner of the Hero panel's Panel button while the Hero has unspent Attribute Points not yet put down as Pending Attribute Points, and on the Skill Tree panel's while they have unspent Skill Points. It shows with the panel open or shut, dims with its button during Death, and that button's tooltip then says how many points are left to spend.
+_Avoid_: Badge, notification dot, level-up indicator
+
+**Level Up button**:
+The "Level Up" button above the Life orb, its edge pulsing, shown while the Hero has unspent Attribute Points or Skill Points; clicking or tapping it opens the Hero panel for Attribute Points and the Skill Tree panel for Skill Points (only the Hero panel in the Compact Layout when both are unspent), and it does nothing during Death.
+_Avoid_: Points mark (that's on the Panel buttons), level-up indicator
 
 **UI Scale**:
 How big the HUD and panels are drawn, following the screen's height within limits, so they read the same on a phone, a tablet and a desktop.

@@ -4,12 +4,9 @@ import {
   dropTuning,
   ITEM_TYPES,
   type ItemType,
-  isPotion,
   itemTuning,
   potionDropTuning,
-  rarityTuning,
 } from "../tuning/items";
-import { itemTitle } from "./affixes";
 import { createWorld, FRESH_PROGRESS, step } from "./world";
 
 /** A Town with the Hero at `H` and one Skeleton at `S`. */

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { smithTuning } from "../tuning/smith";
 import { equipmentOf, FRESH_BELONGINGS, inventoryOf } from "./inventory";
 import {
@@ -9,6 +9,8 @@ import {
   type Order,
   type Progress,
   type SimEvent,
+  SKILLS,
+  skillRaiseOf,
   step,
   type World,
 } from "./world";
@@ -56,7 +58,16 @@ function progressWith(smithService: Progress["smithService"]): Progress {
 function newWorld(
   smithService: Progress["smithService"] = "unlocked",
   inventory: {
-    type: "axe" | "chainMail" | "ring" | "lifePotion";
+    type:
+      | "axe"
+      | "chainMail"
+      | "ring"
+      | "lifePotion"
+      | "ironHelm"
+      | "leatherGloves"
+      | "leatherBoots"
+      | "buckler"
+      | "boneWand";
     cell: { column: number; row: number };
   }[] = [],
 ): World {
@@ -86,7 +97,25 @@ function bonusesOf(world: World) {
   ].flatMap((item) => (item?.smithBonus ? [item] : []));
 }
 
+const pools = {
+  wand: [...smithTuning.wand],
+  weapon: [...smithTuning.weapon],
+  armour: [...smithTuning.armour],
+};
+
+/** Replaces the Smith's `pool` with `only`, until the test is over. */
+function tunePool(pool: keyof typeof pools, only: (typeof pools)["wand"]) {
+  smithTuning[pool].splice(0, smithTuning[pool].length, ...only);
+}
+
 describe("The Smith bonus", () => {
+  afterEach(() => {
+    for (const [name, pool] of Object.entries(pools)) {
+      const live = smithTuning[name as keyof typeof pools];
+      live.splice(0, live.length, ...pool);
+    }
+  });
+
   it("gives a Weapon one bonus from the Weapon pool", () => {
     const world = newWorld();
     const sword = equipmentOf(world).weapon;
@@ -125,37 +154,94 @@ describe("The Smith bonus", () => {
     );
   });
 
-  it("changes the Hero while the Item is Equipped", () => {
-    // Make every roll a Strength bonus.
-    const saved = smithTuning.weapon.splice(0, smithTuning.weapon.length, {
-      bonus: "strength",
-      amount: [5, 5],
-    });
-    try {
-      const world = newWorld();
-      const before = attributesOf(world).strength;
-      const sword = equipmentOf(world).weapon;
-      smith(world, [{ type: "SmithBonus", item: sword?.id ?? -1 }]);
-      expect(attributesOf(world).strength).toBe(before + 5);
-    } finally {
-      smithTuning.weapon.splice(0, smithTuning.weapon.length, ...saved);
+  it.each([
+    "ironHelm",
+    "leatherGloves",
+    "leatherBoots",
+    "buckler",
+  ] as const)("gives a %s a bonus from the Armour pool", (type) => {
+    const world = newWorld("unlocked", [{ type, cell: { column: 0, row: 0 } }]);
+    smith(world, [{ type: "SmithBonus", item: inventoryOf(world)[0].item.id }]);
+    expect(smithTuning.armour.map((entry) => entry.bonus)).toContain(
+      inventoryOf(world)[0].item.smithBonus?.bonus,
+    );
+  });
+
+  it("gives a Wand a bonus from the Wand pool", () => {
+    const wandBonuses = smithTuning.wand.map((entry) => entry.bonus);
+    expect(wandBonuses).toEqual(
+      expect.arrayContaining(["mana", "energy", "skillLevel"]),
+    );
+    for (let seed = 1; seed <= 20; seed++) {
+      const world = createWorld({
+        areas: { town },
+        seed,
+        progress: progressWith("unlocked"),
+        belongings: {
+          ...FRESH_BELONGINGS,
+          inventory: [{ type: "boneWand", cell: { column: 0, row: 0 } }],
+          equipment: { weapon: { type: "shortSword" } },
+        },
+      });
+      smith(world, [
+        { type: "SmithBonus", item: inventoryOf(world)[0].item.id },
+      ]);
+      const given = inventoryOf(world)[0].item.smithBonus;
+      expect(wandBonuses).toContain(given?.bonus);
+      if (given?.bonus === "skillLevel") {
+        expect(SKILLS).toContain(given.skill);
+      }
     }
   });
 
+  it("raises the Skill Level of a random Skill for a Wand while Equipped", () => {
+    tunePool("wand", [
+      {
+        bonus: "skillLevel",
+        amount: [2, 2],
+      },
+    ]);
+    const world = newWorld("unlocked", [
+      { type: "boneWand", cell: { column: 0, row: 0 } },
+    ]);
+    const wand = inventoryOf(world)[0].item;
+    smith(world, [{ type: "SmithBonus", item: wand.id }]);
+    const skill = inventoryOf(world)[0].item.smithBonus?.skill;
+    expect(skill).toBeDefined();
+    if (!skill) return;
+    expect(skillRaiseOf(world, skill)).toBe(0);
+    world.hero.equipment.offHand = inventoryOf(world)[0].item;
+    world.hero.inventory = [];
+    expect(skillRaiseOf(world, skill)).toBe(2);
+  });
+
+  it("changes the Hero while the Item is Equipped", () => {
+    // Make every roll a Strength bonus.
+    tunePool("weapon", [
+      {
+        bonus: "strength",
+        amount: [5, 5],
+      },
+    ]);
+    const world = newWorld();
+    const before = attributesOf(world).strength;
+    const sword = equipmentOf(world).weapon;
+    smith(world, [{ type: "SmithBonus", item: sword?.id ?? -1 }]);
+    expect(attributesOf(world).strength).toBe(before + 5);
+  });
+
   it("adds Defense for a Defense bonus on Armour", () => {
-    const saved = smithTuning.armour.splice(0, smithTuning.armour.length, {
-      bonus: "defense",
-      amount: [7, 7],
-    });
-    try {
-      const world = newWorld();
-      const before = heroDefense(world);
-      const mail = equipmentOf(world).armour;
-      smith(world, [{ type: "SmithBonus", item: mail?.id ?? -1 }]);
-      expect(heroDefense(world)).toBe(before + 7);
-    } finally {
-      smithTuning.armour.splice(0, smithTuning.armour.length, ...saved);
-    }
+    tunePool("armour", [
+      {
+        bonus: "defense",
+        amount: [7, 7],
+      },
+    ]);
+    const world = newWorld();
+    const before = heroDefense(world);
+    const mail = equipmentOf(world).armour;
+    smith(world, [{ type: "SmithBonus", item: mail?.id ?? -1 }]);
+    expect(heroDefense(world)).toBe(before + 7);
   });
 
   it("works only once", () => {

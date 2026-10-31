@@ -179,7 +179,8 @@ const SKILL_ACTIONS: Record<
  * it on the Skill Bar once learned.
  */
 export function skillTooltip(sheet: SkillSheet, way: InputWay): string[] {
-  const lines = [sheet.name, `Skill Level ${sheet.skillLevel}`];
+  const raised = sheet.raised ? ` (+${sheet.raised})` : "";
+  const lines = [sheet.name, `Skill Level ${sheet.skillLevel}${raised}`];
   for (const { giver, percentPerSkillLevel, total } of sheet.synergies) {
     lines.push(
       `Synergy: ${giver} +${percentPerSkillLevel}% per Skill Level, +${total}% now`,

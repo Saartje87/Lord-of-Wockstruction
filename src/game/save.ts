@@ -44,7 +44,7 @@ import { isPassive } from "./tuning/skills";
  * fresh instead of loading something misread; text of the versions between
  * loads through `ADDED_FIELDS`.
  */
-export const SAVE_VERSION = 12;
+export const SAVE_VERSION = 13;
 
 /** The oldest version whose text still loads (the one before the Belt). */
 const OLDEST_LOADABLE_VERSION = 6;
@@ -86,6 +86,15 @@ const SMITH_SINCE_VERSION = 10;
  * `smithBonuses` side map folded into the slots.
  */
 const AFFIXES_SINCE_VERSION = 11;
+
+/**
+ * The version that added the Off-hand, Helm, Gloves and Boots slots: older
+ * text loads with them empty, and must not hold them.
+ */
+const NEW_SLOTS_SINCE_VERSION = 13;
+
+/** The Equipment slots that version `NEW_SLOTS_SINCE_VERSION` added. */
+const NEW_SLOTS: readonly string[] = ["offHand", "helm", "gloves", "boots"];
 
 /** The states the Smith's service goes through, in order. */
 const SMITH_SERVICES: readonly SmithService[] = ["locked", "unlocked", "used"];
@@ -258,7 +267,7 @@ export function parseSave(text: string | null): HeroSave | null {
   }
   const skillLevels = parseSkillLevels(fields.skillLevels);
   if (!skillLevels) return null;
-  const skillBar = parseSkillBar(fields.skillBar, skillLevels);
+  const skillBar = parseSkillBar(fields.skillBar);
   if (!skillBar) return null;
   const touchedWaypoints = parseTouchedWaypoints(fields.touchedWaypoints);
   if (!touchedWaypoints) return null;
@@ -289,6 +298,7 @@ export function parseSave(text: string | null): HeroSave | null {
     fields.belt,
     fields.smithBonuses,
     version < AFFIXES_SINCE_VERSION,
+    version < NEW_SLOTS_SINCE_VERSION,
   );
   return belongings && { progress, belongings };
 }
@@ -305,12 +315,20 @@ function parseBelongings(
   belt: unknown,
   smithBonuses: unknown,
   older: boolean,
+  withoutNewSlots: boolean,
 ): Belongings | null {
   // How many rows the Belt Columns have is checked with the Equipment.
   if (!isValidBelt(belt, Number.POSITIVE_INFINITY)) return null;
   if (!Array.isArray(inventory)) return null;
   if (typeof equipment !== "object" || equipment === null) return null;
   if (Array.isArray(equipment)) return null;
+  // Older text has no Off-hand, Helm, Gloves or Boots to hold anything.
+  if (
+    withoutNewSlots &&
+    Object.keys(equipment).some((s) => NEW_SLOTS.includes(s))
+  ) {
+    return null;
+  }
   // Older text kept Smith bonuses apart, by slot; this version has none.
   if (!older && smithBonuses !== undefined) return null;
   if (
@@ -443,8 +461,12 @@ function parseOlderEquipped(
 
 /** A stored Smith bonus as a fresh object, its parts checked with the Belongings. */
 function copyBonus(stored: unknown): SmithBonus {
-  const { bonus, amount } = (stored ?? {}) as Record<string, unknown>;
-  return { bonus, amount } as SmithBonus;
+  const { bonus, amount, skill } = (stored ?? {}) as Record<string, unknown>;
+  return {
+    bonus,
+    amount,
+    ...(skill !== undefined && { skill }),
+  } as SmithBonus;
 }
 
 /** What the service is for Quests that unlock it: unlocked once that Quest is Done. */
@@ -486,13 +508,11 @@ function parseSkillLevels(stored: unknown): Record<Skill, number> | null {
 
 /**
  * The stored Skill Bar, or null when it isn't an object holding each slot
- * and nothing else, every slot empty or holding a learned cast Skill in
- * `skillLevels`, none in two slots.
+ * and nothing else, every slot empty or holding a cast Skill, none in two
+ * slots. A Skill with no learned Skill Level may be on it: a Wand raised it,
+ * or did.
  */
-function parseSkillBar(
-  stored: unknown,
-  skillLevels: Record<Skill, number>,
-): SkillBar | null {
+function parseSkillBar(stored: unknown): SkillBar | null {
   const slots = objectWithin(stored, SKILL_BAR_SLOTS);
   if (!slots) return null;
   const held: unknown[] = [];
@@ -502,7 +522,7 @@ function parseSkillBar(
     if (!(SKILLS as unknown[]).includes(skill)) return null;
     // A Passive Skill is never cast, so it has no place on the bar.
     if (isPassive(skill as Skill)) return null;
-    if (skillLevels[skill as Skill] === 0 || held.includes(skill)) return null;
+    if (held.includes(skill)) return null;
     held.push(skill);
   }
   return Object.fromEntries(

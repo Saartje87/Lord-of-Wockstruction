@@ -111,7 +111,7 @@ describe("the Inventory panel's Focus spots", () => {
     const spots = panelFocusSpots("inventory", w, screen);
     const { columns, rows: gridRows } = inventoryTuning;
 
-    expect(spots).toHaveLength(columns * gridRows + 6 + 4 * rows + 1);
+    expect(spots).toHaveLength(columns * gridRows + 10 + 4 * rows + 1);
     for (let column = 0; column < columns; column++) {
       for (let row = 0; row < gridRows; row++) spotOf(spots, cell(column, row));
     }
@@ -182,10 +182,10 @@ describe("the Inventory panel's Focus spots", () => {
   it("goes up from the grid's top row to what lies above it", () => {
     const spots = panelFocusSpots("inventory", world(), WIDE);
 
-    expect(move(spots, cell(0, 0), "up")).toEqual(slot("weapon"));
+    expect(move(spots, cell(0, 0), "up")).toEqual(slot("gloves"));
     expect(move(spots, cell(3, 0), "up")).toEqual(belt(0, 0));
     expect(move(spots, cell(6, 0), "up")).toEqual(belt(3, 0));
-    expect(move(spots, cell(9, 0), "up")).toEqual(belt(3, 0));
+    expect(move(spots, cell(9, 0), "up")).toEqual(slot("boots"));
   });
 
   it("goes up and down a Belt Column, and from it to the grid and the Belt", () => {
@@ -203,11 +203,39 @@ describe("the Inventory panel's Focus spots", () => {
 
     expect(move(spots, slot("weapon"), "right")).toEqual(slot("armour"));
     expect(move(spots, slot("armour"), "left")).toEqual(slot("weapon"));
-    expect(move(spots, slot("armour"), "right")).toEqual(slot("amulet"));
+    expect(move(spots, slot("armour"), "right")).toEqual(slot("offHand"));
+    expect(move(spots, slot("armour"), "up")).toEqual(slot("helm"));
+    expect(move(spots, slot("helm"), "right")).toEqual(slot("amulet"));
     expect(move(spots, slot("armour"), "down")).toEqual(slot("belt"));
     expect(move(spots, slot("belt"), "left")).toEqual(slot("ring1"));
     expect(move(spots, slot("belt"), "right")).toEqual(slot("ring2"));
+    expect(move(spots, slot("weapon"), "down")).toEqual(slot("gloves"));
+    expect(move(spots, slot("offHand"), "down")).toEqual(slot("boots"));
     expect(move(spots, slot("amulet"), "up")).toEqual(close);
+  });
+
+  it("lists the ten slots in the figure's order: top row, middle, bottom, left to right", () => {
+    const spots = panelFocusSpots("inventory", world(), WIDE);
+    const slots = spots.flatMap((spot) =>
+      spot.hit &&
+      "inventory" in spot.hit &&
+      typeof spot.hit.inventory === "string"
+        ? [spot.hit.inventory]
+        : [],
+    );
+
+    expect(slots).toEqual([
+      "helm",
+      "amulet",
+      "weapon",
+      "armour",
+      "offHand",
+      "ring1",
+      "belt",
+      "ring2",
+      "gloves",
+      "boots",
+    ]);
   });
 
   it("are none for a shut panel, or one with no Focus spots yet", () => {

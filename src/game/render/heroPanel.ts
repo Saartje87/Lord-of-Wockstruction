@@ -12,14 +12,24 @@ import {
   attackRating,
   attributesOf,
   damageRange,
+  heroAttackSpeed,
+  heroBlockChance,
   heroChanceToHit,
   heroDefense,
+  heroResistance,
+  heroWalkSpeed,
   maxLife,
   maxMana,
   monsterLevelIn,
   type World,
   withAttributePointsSpent,
 } from "../sim/world";
+import {
+  ELEMENT_INFO,
+  ELEMENTS,
+  type Element,
+  MAXIMUM_RESISTANCE,
+} from "../tuning/damage";
 import { atUiScale, type Viewport } from "../viewport";
 import { type CloseButton, closeButtonRect, closeHitAt } from "./closeButton";
 import { compactPanelRect } from "./compactLayout";
@@ -33,7 +43,8 @@ import { orbsLayout } from "./orbs";
  * Attribute's + button `plus` square at the right of its row, its − button
  * the same size `buttonGap` to the left. Accept spans both on the unspent
  * points' row. Its close hint sits `hintHeight` tall at its bottom, inside
- * its padding.
+ * its padding. On the desktop panel the gaps between its sections are only
+ * `gapHeight` tall, to leave room for the conditional speed lines.
  */
 export const HERO_PANEL = {
   left: 16,
@@ -43,6 +54,8 @@ export const HERO_PANEL = {
   padding: 18,
   firstRow: 56,
   rowHeight: 28,
+  derivedRowHeight: 18,
+  gapHeight: 8,
   plus: 22,
   buttonGap: 6,
   hintHeight: 20,
@@ -101,7 +114,13 @@ export type HeroSheet = {
    * and max Mana, the damage range, Defense, Attack Rating and the chance to hit a Skeleton of the
    * Area the Hero is in.
    */
-  derived: { name: string; value: string; changed: boolean }[];
+  derived: {
+    name: string;
+    value: string;
+    changed: boolean;
+    /** The Element of a Resistance line, which is drawn in its colour. */
+    element?: Element;
+  }[];
 };
 
 const NO_PENDING: Readonly<PendingPoints> = noPendingPoints();
@@ -135,16 +154,29 @@ export function heroSheet(
     },
     canRaise: canRaise(world, pending),
     canAccept: hasPendingPoints(pending),
-    derived: after.derived.map(({ name, value }, i) => ({
+    derived: after.derived.map(({ name, value, element }, i) => ({
       name,
       value,
       changed: value !== before.derived[i].value,
+      ...(element && { element }),
     })),
   };
 }
 
+/** A Resistance line's value: the effective Resistance, marked when the total is over the cap. */
+function resistanceText(world: World, element: Element): string {
+  const { total, effective } = heroResistance(world, element);
+  return total > MAXIMUM_RESISTANCE
+    ? `${effective}% (capped)`
+    : `${effective}%`;
+}
+
 /** The values the sheet shows that Attribute Points change, as text. */
-function sheetValues(world: World) {
+function sheetValues(world: World): {
+  attributes: string[];
+  attributePoints: string;
+  derived: { name: string; value: string; element?: Element }[];
+} {
   const [min, max] = damageRange(world);
   // As they count, with the Equipped Items' bonuses.
   const attributes = attributesOf(world);
@@ -165,6 +197,19 @@ function sheetValues(world: World) {
       // Each hit rounds its own damage, so the range shows rounded too.
       { name: "Damage", value: `${Math.round(min)}–${Math.round(max)}` },
       { name: "Defense", value: String(heroDefense(world)) },
+      ...ELEMENTS.map((element) => ({
+        name: `${ELEMENT_INFO[element].name} Resistance`,
+        value: resistanceText(world, element),
+        element,
+      })),
+      { name: "Block", value: `${heroBlockChance(world)}%` },
+      // Shown only when Gloves or Boots give some, to spare the panel's rows.
+      ...(heroAttackSpeed(world) !== 0
+        ? [{ name: "Attack Speed", value: `+${heroAttackSpeed(world)}%` }]
+        : []),
+      ...(heroWalkSpeed(world) !== 0
+        ? [{ name: "Walk Speed", value: `+${heroWalkSpeed(world)}%` }]
+        : []),
       { name: "Attack Rating", value: String(attackRating(world)) },
       {
         name: "Chance to hit a Skeleton",
@@ -273,18 +318,25 @@ function heroPanelRect(screen: Viewport): Rect {
  * clear of the close hint at the bottom on a screen as short as 320 px.
  */
 export function heroPanelRow(screen: Viewport, row: number): Rect {
-  const { width, padding, firstRow, rowHeight } = atUiScale(
-    HERO_PANEL,
-    screen.uiScale,
-  );
+  const { width, padding, firstRow, rowHeight, derivedRowHeight, gapHeight } =
+    atUiScale(HERO_PANEL, screen.uiScale);
   const panel = heroPanelRect(screen);
   const top = (at: number) => panel.y + firstRow + at * rowHeight;
   if (!screen.compact) {
+    // What the Attributes add up to is set closer, to fit its many lines,
+    // and the two gaps between the sections are narrow.
+    const derived = row >= PANEL_ROWS.derived;
+    const gapsAbove = (row >= 3 ? 1 : 0) + (row >= PANEL_ROWS.derived ? 1 : 0);
     return {
       x: panel.x + padding,
-      y: top(row),
+      y:
+        (derived
+          ? top(PANEL_ROWS.derived) +
+            (row - PANEL_ROWS.derived) * derivedRowHeight
+          : top(row)) -
+        gapsAbove * (rowHeight - gapHeight),
       w: width - 2 * padding,
-      h: rowHeight,
+      h: derived ? derivedRowHeight : rowHeight,
     };
   }
   // Two columns as wide as the panel's own, centred, a padding apart.
@@ -293,12 +345,11 @@ export function heroPanelRow(screen: Viewport, row: number): Rect {
   if (row < PANEL_ROWS.derived) {
     return { x: left, y: top(row), w: column, h: rowHeight };
   }
-  const beside = row - PANEL_ROWS.derived + PANEL_ROWS.level;
   return {
     x: left + column + padding,
-    y: top(beside),
+    y: top(PANEL_ROWS.level) + (row - PANEL_ROWS.derived) * derivedRowHeight,
     w: column,
-    h: rowHeight,
+    h: derivedRowHeight,
   };
 }
 

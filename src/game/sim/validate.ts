@@ -1,3 +1,4 @@
+import { ELEMENTS, type Resistances } from "../tuning/damage";
 import { QUEST_IDS, questTuning } from "../tuning/quests";
 import { type Area, type Exit, isWalkable, isWater, TOWN } from "./area";
 import { canReach } from "./path";
@@ -192,6 +193,26 @@ export function validateQuests(areas: Record<string, Area>) {
           fail(`needs an Act Boss in Act ${trigger.act}`);
         }
         break;
+    }
+  }
+}
+
+/**
+ * Checks that no Resistance in `tuning`, Monster types' or Minion kinds',
+ * reaches 100 (no Monster is immune), throwing with a message naming the
+ * type and Element. Run on the shipped tuning by `createWorld`.
+ */
+export function validateResistances(
+  tuning: Record<string, { resistances?: Resistances }>,
+) {
+  for (const [type, { resistances }] of Object.entries(tuning)) {
+    for (const element of ELEMENTS) {
+      const resistance = resistances?.[element] ?? 0;
+      if (!(resistance < 100)) {
+        throw new Error(
+          `"${type}" has ${resistance}% ${element} Resistance; it must be below 100`,
+        );
+      }
     }
   }
 }

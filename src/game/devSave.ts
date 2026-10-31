@@ -7,6 +7,7 @@ import {
   type EquipmentSlot,
   FRESH_BELONGINGS,
   firstFreeCell,
+  fitsSlot,
   SLOT_KINDS,
   type StoredItem,
 } from "./sim/inventory";
@@ -85,9 +86,9 @@ function belongingsOf(options: SaveOptions): Belongings {
       continue;
     }
     const stored = storedOf(spec);
-    if (itemTuning[stored.type].kind !== SLOT_KINDS[slot]) {
+    if (!fitsSlot(slot, stored.type)) {
       throw new Error(
-        `${stored.type} is not a ${SLOT_KINDS[slot]}, so not for ${slot}`,
+        `${stored.type} is not a ${SLOT_KINDS[slot].join(" or ")}, so not for ${slot}`,
       );
     }
     equipment[slot] = stored;

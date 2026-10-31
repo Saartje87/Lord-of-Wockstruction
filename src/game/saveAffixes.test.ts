@@ -88,8 +88,8 @@ describe("the Save of the Mana and enhanced percent Affixes", () => {
 });
 
 describe("the Save of Magic Items", () => {
-  it("is version 12", () => {
-    expect(SAVE_VERSION).toBe(12);
+  it("is at least version 12", () => {
+    expect(SAVE_VERSION).toBeGreaterThanOrEqual(12);
   });
 
   it("round-trips Rarity, Affixes (kind, grade, value) and the Smith bonus", () => {
@@ -235,5 +235,50 @@ describe("older Saves", () => {
     });
 
     expect(parseSave(text)).toBeNull();
+  });
+});
+
+describe("the Save of the Resistance Affixes", () => {
+  const resisting: Belongings = {
+    inventory: [],
+    equipment: {
+      helm: {
+        type: "leatherCap",
+        rarity: "magic",
+        affixes: [{ kind: "coldResistance", grade: 1, value: 14 }],
+      },
+      ring1: {
+        type: "ring",
+        rarity: "magic",
+        affixes: [{ kind: "allResistances", grade: 2, value: 12 }],
+      },
+    },
+    belt: emptyBelt(),
+  };
+
+  it("round-trips with their grades", () => {
+    const text = encodeSave({
+      progress: { ...FRESH_PROGRESS, smithService: "locked" },
+      belongings: resisting,
+    });
+    expect(parseSave(text)?.belongings.equipment).toEqual(resisting.equipment);
+  });
+
+  it("refuses one on an Item it doesn't suit, in an unknown grade or outside its grade's range", () => {
+    const onWeapon = textOf(resisting);
+    onWeapon.equipment.weapon = {
+      type: "axe",
+      rarity: "magic",
+      affixes: [{ kind: "fireResistance", grade: 0, value: 6 }],
+    };
+    expect(parseSave(JSON.stringify(onWeapon))).toBeNull();
+
+    const unknownGrade = textOf(resisting);
+    unknownGrade.equipment.helm.affixes[0].grade = 3;
+    expect(parseSave(JSON.stringify(unknownGrade))).toBeNull();
+
+    const tooHigh = textOf(resisting);
+    tooHigh.equipment.ring1.affixes[0].value = 15;
+    expect(parseSave(JSON.stringify(tooHigh))).toBeNull();
   });
 });

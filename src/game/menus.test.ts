@@ -2138,7 +2138,9 @@ describe("the Dialogue panel", () => {
     const menus = createMenus();
     reactMenus(menus, [talked]);
 
-    reactMenus(menus, [{ type: "HeroHit", damage: 0, warded: 4 }]);
+    reactMenus(menus, [
+      { type: "HeroHit", damage: 0, warded: 4, damageType: "physical" },
+    ]);
 
     expect(menus.dialogueOpen).toBe(false);
   });
@@ -2226,6 +2228,22 @@ describe("the Vendor panel", () => {
     expect(menus.skillTreeOpen).toBe(true);
   });
 
+  it("is never open with the Hero panel: each opening shuts the other", () => {
+    const menus = opened();
+    pressKey(menus, "c", 1000, alive);
+    expect(menus.vendorOpen).toBe(false);
+    expect(menus.heroPanelOpen).toBe(true);
+
+    reactMenus(menus, [talked]);
+    clickTrade(menus);
+    expect(menus.vendorOpen).toBe(true);
+    expect(menus.heroPanelOpen).toBe(false);
+
+    clickLevelUp(menus, { ...alive, attributePoints: 1, skillPoints: 0 });
+    expect(menus.vendorOpen).toBe(false);
+    expect(menus.heroPanelOpen).toBe(true);
+  });
+
   it("shuts as the Hero walks away from the Vendor, and not before", () => {
     const menus = opened();
     const standing = { standingOnWaypoint: false };
@@ -2239,7 +2257,9 @@ describe("the Vendor panel", () => {
 
   it("stays open as the Hero takes damage, the World playing on", () => {
     const menus = opened();
-    reactMenus(menus, [{ type: "HeroHit", damage: 3, warded: 0 }]);
+    reactMenus(menus, [
+      { type: "HeroHit", damage: 3, warded: 0, damageType: "physical" },
+    ]);
     expect(menus.vendorOpen).toBe(true);
   });
 

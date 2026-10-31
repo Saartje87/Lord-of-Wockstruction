@@ -16,7 +16,9 @@ import {
 import { inside, middleOf, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
 import type { Order, World } from "../sim/world";
+import { ELEMENT_INFO, ELEMENTS, type Element } from "../tuning/damage";
 import {
+  affixOf,
   type Bonus,
   beltTuning,
   type ItemType,
@@ -26,9 +28,11 @@ import {
   type PotionEffectTuning,
   type PotionResource,
 } from "../tuning/items";
+import { skillTuning } from "../tuning/skills";
 import { atUiScale, type Viewport } from "../viewport";
 import { type CloseButton, closeButtonRect, closeHitAt } from "./closeButton";
 import { compactPanelRect } from "./compactLayout";
+import { skillBarLayout } from "./skillBar";
 
 /**
  * The Inventory panel at the top right (CSS px at native scale, drawn at
@@ -49,24 +53,30 @@ export const INVENTORY_PANEL = {
 };
 
 /** How many cells tall the Equipment slots' area is, above the grid. */
-const EQUIPMENT_ROWS = 5;
+const EQUIPMENT_ROWS = 7;
 
 /** How many cells wide the Equipment slots' area is. */
-const EQUIPMENT_COLUMNS = 8;
+const EQUIPMENT_COLUMNS = 9;
 
 /**
  * Where each Equipment slot sits in its area and how big it is, in cells
- * from the area's top-left: as in Diablo 2, the Weapon on the left, the
- * Armour in the middle, the Amulet top right, and the Belt below the Armour
- * with a Ring either side.
+ * from the area's top-left, as a Diablo 2-style figure: the Helm top
+ * centre with the Amulet to its right, the Weapon and Off-hand tall either
+ * side of the Armour, Ring, Belt and Ring in a row under the Armour, and the
+ * Gloves and Boots at the bottom corners. No two touch, so every point
+ * belongs to at most one.
  */
 const SLOT_CELLS: Record<EquipmentSlot, Rect> = {
-  weapon: { x: 0.5, y: 0.5, w: 2, h: 4 },
-  armour: { x: 4, y: 0.5, w: 2, h: 3 },
-  amulet: { x: 7, y: 0.5, w: 1, h: 1 },
-  ring1: { x: 3, y: 4, w: 1, h: 1 },
-  ring2: { x: 6, y: 4, w: 1, h: 1 },
-  belt: { x: 4.25, y: 4, w: 1.5, h: 1 },
+  helm: { x: 3.5, y: 0.25, w: 2, h: 2 },
+  amulet: { x: 5.75, y: 0.25, w: 1, h: 1 },
+  weapon: { x: 0.25, y: 1.5, w: 2, h: 3 },
+  armour: { x: 3.5, y: 2.5, w: 2, h: 3 },
+  offHand: { x: 6.75, y: 1.5, w: 2, h: 3 },
+  ring1: { x: 2.5, y: 5.75, w: 1, h: 1 },
+  belt: { x: 3.75, y: 5.75, w: 1.5, h: 1 },
+  ring2: { x: 5.5, y: 5.75, w: 1, h: 1 },
+  gloves: { x: 0.25, y: 4.75, w: 2, h: 2 },
+  boots: { x: 6.75, y: 4.75, w: 2, h: 2 },
 };
 
 /**
@@ -104,7 +114,17 @@ export function inventoryPanelLayout(
   );
   const { columns, rows } = inventoryTuning;
   const fits = (screen.width / 2 - right - 2 * padding) / columns;
-  const cell = cellSize(screen, INVENTORY_PANEL.maxCell * screen.uiScale, fits);
+  // The panel stops above the HUD along the bottom, where the Panel buttons are.
+  const bottom = skillBarLayout(screen).slots.right.y;
+  const fitsDown =
+    (bottom - top - 2 * padding - titleHeight - 2 * gridGap - hintHeight) /
+    (EQUIPMENT_ROWS + beltRows + rows);
+  const cell = cellSize(
+    screen,
+    INVENTORY_PANEL.maxCell * screen.uiScale,
+    fits,
+    fitsDown,
+  );
   const width = columns * cell + 2 * padding;
   const x = screen.width - right - width;
   const inner = x + padding;
@@ -125,7 +145,11 @@ export function inventoryPanelLayout(
     w: columns * cell,
     h: rows * cell,
   };
-  const slots = slotRects(inner, slotsTop, cell);
+  const slots = slotRects(
+    inner + ((columns - EQUIPMENT_COLUMNS) / 2) * cell,
+    slotsTop,
+    cell,
+  );
   const panel = {
     x,
     y: top,
@@ -445,13 +469,50 @@ const BONUS_NAMES: Record<Bonus, string> = {
   mana: "Mana",
   enhancedDamage: "Enhanced Damage",
   enhancedDefense: "Enhanced Defense",
+  fireResistance: "Fire Resistance",
+  coldResistance: "Cold Resistance",
+  lightningResistance: "Lightning Resistance",
+  allResistances: "All Resistances",
+  block: "Block",
+  fireDamage: "Fire Damage",
+  coldDamage: "Cold Damage",
+  lightningDamage: "Lightning Damage",
+  attackSpeed: "Attack Speed",
+  walkSpeed: "Walk Speed",
+  skillLevel: "Skill Level",
 };
 
+/** The Element a single-Element Resistance Bonus guards against. */
+const BONUS_ELEMENT: Partial<Record<Bonus, Element>> = Object.fromEntries(
+  ELEMENTS.flatMap((element) => [
+    [ELEMENT_INFO[element].resistanceBonus, element],
+    [ELEMENT_INFO[element].damageBonus, element],
+  ]),
+);
+
+/** The Bonuses that add an Element's damage, a line each: "+3 Fire Damage". */
+const ELEMENTAL_DAMAGE_BONUSES: readonly Bonus[] = ELEMENTS.map(
+  (element) => ELEMENT_INFO[element].damageBonus,
+);
+
 /** The Bonuses that are percentages, not flat amounts. */
-const PERCENT_BONUSES: readonly Bonus[] = ["enhancedDamage", "enhancedDefense"];
+const PERCENT_BONUSES: readonly Bonus[] = [
+  "enhancedDamage",
+  "enhancedDefense",
+  "fireResistance",
+  "coldResistance",
+  "lightningResistance",
+  "allResistances",
+  "block",
+  "attackSpeed",
+  "walkSpeed",
+];
 
 /** A tooltip line giving `amount` of `bonus`. */
 function bonusLine(bonus: Bonus, amount: number): string {
+  if (ELEMENTAL_DAMAGE_BONUSES.includes(bonus)) {
+    return `+${amount} ${BONUS_NAMES[bonus]}`;
+  }
   return PERCENT_BONUSES.includes(bonus)
     ? `+${amount}% ${BONUS_NAMES[bonus]}`
     : `+${amount} to ${BONUS_NAMES[bonus]}`;
@@ -481,36 +542,72 @@ function potionLine(effect: PotionEffectTuning): string {
  * Affix, the Smith bonus, what a Potion gives back and a Belt's rows. A
  * Magic Item's name carries its Affixes' grade names.
  */
-export function itemTooltip(shown: {
+export function itemTooltip(shown: Shown): string[] {
+  return tooltipLines(shown).map((line) => line.text);
+}
+
+/**
+ * The Element each line of `itemTooltip(shown)` is drawn in, or null for a
+ * line with none: a single-Element Resistance Affix line takes its
+ * Element's colour.
+ */
+export function itemTooltipElements(shown: Shown): (Element | null)[] {
+  return tooltipLines(shown).map((line) => line.element ?? null);
+}
+
+/** What a tooltip needs of an Item. */
+type Shown = {
   type: ItemType;
   affixes?: readonly RolledAffix[];
   rareName?: string;
   smithBonus?: SmithBonus;
-}): string[] {
+};
+
+/** A tooltip line, and the Element it is drawn in when it has one. */
+type TooltipLine = { text: string; element?: Element };
+
+/** The lines of an Item's tooltip, name first. */
+function tooltipLines(shown: Shown): TooltipLine[] {
   const { smithBonus } = shown;
   const item = itemOf(shown.type);
   // A Rare Item shows its Rare name, then its type's name.
-  const lines = shown.rareName
+  const names = shown.rareName
     ? [shown.rareName, item.name]
     : [itemTitle(shown)];
+  const lines: TooltipLine[] = names.map((text) => ({ text }));
   if (item.damage) {
     // Each hit rounds its own damage, so the range shows rounded too.
     const [min, max] = item.damage;
-    lines.push(`Damage: ${Math.round(min)}–${Math.round(max)}`);
+    lines.push({ text: `Damage: ${Math.round(min)}–${Math.round(max)}` });
   }
-  if (item.defense !== undefined) lines.push(`Defense: ${item.defense}`);
+  if (item.defense !== undefined)
+    lines.push({ text: `Defense: ${item.defense}` });
+  if (item.block !== undefined) lines.push({ text: `Block: ${item.block}%` });
   for (const [bonus, amount] of Object.entries(item.bonuses)) {
-    lines.push(`+${amount} to ${BONUS_NAMES[bonus as Bonus]}`);
+    lines.push({ text: `+${amount} to ${BONUS_NAMES[bonus as Bonus]}` });
   }
   for (const affix of shown.affixes ?? []) {
     const { bonus, amount } = affixBonus(affix);
-    lines.push(bonusLine(bonus, amount));
+    const skill = affixOf(affix.kind).skill;
+    lines.push({
+      text: skill
+        ? `+${amount} to ${skillTuning[skill].name}`
+        : bonusLine(bonus, amount),
+      element: BONUS_ELEMENT[bonus],
+    });
   }
   if (smithBonus) {
-    lines.push(`Smith: ${bonusLine(smithBonus.bonus, smithBonus.amount)}`);
+    lines.push({
+      text: `Smith: ${
+        smithBonus.skill
+          ? `+${smithBonus.amount} to ${skillTuning[smithBonus.skill].name}`
+          : bonusLine(smithBonus.bonus, smithBonus.amount)
+      }`,
+    });
   }
-  if (item.potion) lines.push(potionLine(item.potion));
-  if (item.beltRows !== undefined) lines.push(`Rows: ${item.beltRows}`);
+  if (item.potion) lines.push({ text: potionLine(item.potion) });
+  if (item.beltRows !== undefined)
+    lines.push({ text: `Rows: ${item.beltRows}` });
   return lines;
 }
 

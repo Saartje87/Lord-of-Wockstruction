@@ -61,7 +61,7 @@ function covering(goods: readonly Good[], cell: Cell): Good | null {
 
 /**
  * Stocks the Vendor afresh, as the Hero arrives in Town: one of every
- * Potion, then a few Normal Weapons, Armour and Belts, each placed at the
+ * Potion, then a few Normal Weapons, Wands, Shields, Helms, Armour, Gloves, Boots and Belts, each placed at the
  * first spot it fits. A good that fits nowhere is left out.
  */
 export function restockVendor(world: World, events: SimEvent[]) {

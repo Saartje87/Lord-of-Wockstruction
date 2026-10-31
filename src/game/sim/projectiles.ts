@@ -1,3 +1,4 @@
+import type { DamageShares } from "../tuning/damage";
 import { heroTuning } from "../tuning/hero";
 import { minionTuning } from "../tuning/minions";
 import { monsterTuning } from "../tuning/monsters";
@@ -18,6 +19,8 @@ export type AttackNumbers = {
   attackRating: number;
   /** Damage per hit, rolled from `[min, max]` inclusive. */
   damage: [number, number];
+  /** How the damage splits over Damage Types; missing, all Physical. */
+  damageTypes?: DamageShares;
 };
 
 /**

@@ -121,8 +121,44 @@ describe("the Vendor's goods", () => {
       for (const { item } of goods.filter(({ item }) => !isPotion(item.type))) {
         expect(item.rarity).toBe("normal");
         expect(item.affixes).toEqual([]);
-        expect(["weapon", "armour", "belt"]).toContain(itemOf(item.type).kind);
+        expect([
+          "weapon",
+          "wand",
+          "shield",
+          "helm",
+          "armour",
+          "gloves",
+          "boots",
+          "belt",
+        ]).toContain(itemOf(item.type).kind);
       }
+    }
+  });
+
+  it("can include Normal Shields, Wands, Helms, Gloves and Boots", () => {
+    const seen = new Set<string>();
+    for (let seed = 1; seed <= 60; seed++) {
+      for (const { item } of goodsOf(newWorld(seed))) {
+        seen.add(itemOf(item.type).kind);
+        expect(item.rarity).toBe("normal");
+      }
+    }
+    for (const kind of ["shield", "wand", "helm", "gloves", "boots"]) {
+      expect(seen).toContain(kind);
+    }
+  });
+
+  it("sell the new kinds for their Value and buy them for a quarter of it", () => {
+    for (const type of [
+      "buckler",
+      "boneWand",
+      "ironHelm",
+      "chainGloves",
+      "leatherBoots",
+    ] as const) {
+      const value = valueTuning.base[type];
+      expect(value).toBeGreaterThan(0);
+      expect(valueSoldFor({ type })).toBe(Math.floor(value * 0.25));
     }
   });
 

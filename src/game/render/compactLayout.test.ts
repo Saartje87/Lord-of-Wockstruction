@@ -324,10 +324,10 @@ describe("the panels in the Compact Layout", () => {
   });
 
   it.each([
-    { rows: 1, atLeast: 30 },
-    { rows: 2, atLeast: 30 },
-    { rows: 3, atLeast: 27 },
-    { rows: 4, atLeast: 24 },
+    { rows: 1, atLeast: 25 },
+    { rows: 2, atLeast: 24 },
+    { rows: 3, atLeast: 22 },
+    { rows: 4, atLeast: 20 },
   ])("make the Inventory's cells as big as the 640×360 screen has room for, with $rows Belt rows", ({
     rows,
     atLeast,
@@ -337,6 +337,33 @@ describe("the panels in the Compact Layout", () => {
     expect(inventoryPanelLayout(viewport, rows).cell).toBeGreaterThanOrEqual(
       atLeast,
     );
+  });
+
+  it.each(
+    PHONES,
+  )("keep every Inventory cell, Equipment slot and Belt cell at least 20 px square on $width×$height", (size) => {
+    // Neighbouring cells meet on one line by the halfway rule, so a cell's
+    // Touch hit area is the cell as drawn: this is the floor.
+    const viewport = viewportOf(size);
+    for (const rows of BELT_ROWS) {
+      const layout = inventoryPanelLayout(viewport, rows);
+      const targets: [string, Rect][] = [
+        ["cell", { x: 0, y: 0, w: layout.cell, h: layout.cell }],
+        ...EQUIPMENT_SLOTS.map(
+          (slot) => [slot, layout.slots[slot]] as [string, Rect],
+        ),
+        ...layout.belt.flatMap((cells, column) =>
+          cells.map(
+            (rect, row) => [`Belt ${column},${row}`, rect] as [string, Rect],
+          ),
+        ),
+      ];
+      for (const [name, rect] of targets) {
+        const label = `${name}, ${rows} Belt rows`;
+        expect(rect.w, label).toBeGreaterThanOrEqual(20);
+        expect(rect.h, label).toBeGreaterThanOrEqual(20);
+      }
+    }
   });
 
   it("draws the Inventory's cells no bigger than native size on a roomy phone", () => {

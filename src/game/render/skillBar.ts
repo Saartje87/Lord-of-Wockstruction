@@ -6,7 +6,7 @@ import {
   type SkillBarSlot,
 } from "../sim/skillBar";
 import type { Vec } from "../sim/vec";
-import { skillManaCost, type World } from "../sim/world";
+import { skillLevelOf, skillManaCost, type World } from "../sim/world";
 import { beltTuning } from "../tuning/items";
 import { skillTuning } from "../tuning/skills";
 import { atUiScale, type Viewport } from "../viewport";
@@ -87,12 +87,15 @@ export function skillBarSheet(
   const { progress, mana } = world.hero;
   return SHOWN_ORDER.map((slot) => {
     const skill = progress.skillBar[slot];
-    const cost = skill && skillManaCost(skill, progress.skillLevels[skill]);
+    // A Skill at Skill Level 0 stays on the bar, but can't be cast.
+    const level = skill ? skillLevelOf(world, skill) : 0;
+    const cost = skill && level > 0 ? skillManaCost(skill, level) : null;
+    const castable = skill === null || level > 0;
     return {
       slot,
       key: skillBarSlotButton(slot, way),
       name: skill && skillTuning[skill].name,
-      dimmed: (cost !== null && mana < cost) || slot === heldFrom,
+      dimmed: !castable || (cost !== null && mana < cost) || slot === heldFrom,
     };
   });
 }

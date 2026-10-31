@@ -109,44 +109,19 @@ describe("a press on the Mini Map", () => {
   });
 });
 
-describe("a press where the open Inventory panel covers the HUD", () => {
+describe("a press where the open Inventory panel meets the HUD", () => {
   it.each([
     "heavyBelt",
     "platedBelt",
-  ] as const)("goes to the panel over the Panel buttons and Skill Bar slots it covers at 1024 px, with a %s", (belt) => {
+  ] as const)("finds the panel clear of the Panel buttons and Skill Bar slots at 1024 px, with a %s", (belt) => {
     const w = world(belt);
     const { panel } = inventoryPanelLayout(SMALL, beltRows(w));
     const hud = [
       ...Object.values(panelButtonsLayout(SMALL).buttons),
       ...Object.values(skillBarLayout(SMALL).slots),
     ];
-    const covered = hud.filter((rect) => overlaps(rect, panel));
-    expect(covered.length).toBeGreaterThan(0);
 
-    for (const rect of covered) {
-      const hit = cursorHitAt(
-        SMALL,
-        overlapCentre(rect, panel),
-        w,
-        inventoryOpen,
-      );
-      expect(hit).toHaveProperty("inventory");
-    }
-  });
-
-  it("goes to the panel there while an Item is held too", () => {
-    const w = world("platedBelt");
-    step(w, [{ type: "LiftItem", from: { column: 0, row: 0 } }]);
-    const { panel } = inventoryPanelLayout(SMALL, beltRows(w));
-    const { inventory } = panelButtonsLayout(SMALL).buttons;
-
-    const hit = cursorHitAt(
-      SMALL,
-      overlapCentre(inventory, panel),
-      w,
-      inventoryOpen,
-    );
-    expect(hit).toHaveProperty("inventory");
+    for (const rect of hud) expect(overlaps(rect, panel)).toBe(false);
   });
 
   it("finds a Panel button the panel leaves clear at 1280 px, rather than a drop", () => {

@@ -1,11 +1,17 @@
 /** Item tuning: every Item type there is, and the Inventory's size. */
 
 import type { Attribute } from "../sim/world";
+import { type Skill, skillTuning } from "./skills";
 
 /** What an Item is for, which decides the Equipment slot it fits. */
 export type ItemKind =
   | "weapon"
   | "armour"
+  | "helm"
+  | "gloves"
+  | "boots"
+  | "shield"
+  | "wand"
   | "ring"
   | "amulet"
   | "belt"
@@ -20,9 +26,23 @@ export type Bonus =
   | "weaponDamage"
   | "mana"
   | "enhancedDamage"
-  | "enhancedDefense";
+  | "enhancedDefense"
+  | "fireResistance"
+  | "coldResistance"
+  | "lightningResistance"
+  | "allResistances"
+  | "block"
+  | "fireDamage"
+  | "coldDamage"
+  | "lightningDamage"
+  | "attackSpeed"
+  | "walkSpeed"
+  | "skillLevel";
 
-/** Every Bonus there is. */
+/**
+ * Every Bonus there is, but `skillLevel`, which only an Affix gives and which
+ * names a Skill.
+ */
 export const BONUSES: readonly Bonus[] = [
   "strength",
   "dexterity",
@@ -35,6 +55,16 @@ export const BONUSES: readonly Bonus[] = [
   "mana",
   "enhancedDamage",
   "enhancedDefense",
+  "fireResistance",
+  "coldResistance",
+  "lightningResistance",
+  "allResistances",
+  "block",
+  "fireDamage",
+  "coldDamage",
+  "lightningDamage",
+  "attackSpeed",
+  "walkSpeed",
 ];
 
 /** What a Potion gives back. */
@@ -68,8 +98,10 @@ export type ItemTuning = {
    * scales as `heroTuning.unarmedDamage` describes.
    */
   damage?: [number, number];
-  /** An Armour's base Defense. */
+  /** An armour piece's own Defense: Armour, Helm, Gloves, Boots or Shield. */
   defense?: number;
+  /** A Shield's own chance to Block, in percent. */
+  block?: number;
   /** What it adds to the Hero while Equipped. */
   bonuses: Partial<Record<Bonus, number>>;
   /** A Potion's effect when drunk. */
@@ -115,6 +147,89 @@ export const itemTuning = {
     // A Skeleton hits it two times in three.
     defense: 40,
     bonuses: {},
+  },
+  leatherCap: {
+    name: "Leather Cap",
+    shortName: "Cap",
+    kind: "helm",
+    size: { columns: 2, rows: 2 },
+    defense: 8,
+    bonuses: {},
+  },
+  ironHelm: {
+    name: "Iron Helm",
+    shortName: "Helm",
+    kind: "helm",
+    size: { columns: 2, rows: 2 },
+    defense: 16,
+    bonuses: {},
+  },
+  leatherGloves: {
+    name: "Leather Gloves",
+    shortName: "Gloves",
+    kind: "gloves",
+    size: { columns: 2, rows: 2 },
+    defense: 6,
+    bonuses: {},
+  },
+  chainGloves: {
+    name: "Chain Gloves",
+    shortName: "Chain",
+    kind: "gloves",
+    size: { columns: 2, rows: 2 },
+    defense: 12,
+    bonuses: {},
+  },
+  leatherBoots: {
+    name: "Leather Boots",
+    shortName: "Boots",
+    kind: "boots",
+    size: { columns: 2, rows: 2 },
+    defense: 6,
+    bonuses: {},
+  },
+  chainBoots: {
+    name: "Chain Boots",
+    shortName: "Chain",
+    kind: "boots",
+    size: { columns: 2, rows: 2 },
+    defense: 12,
+    bonuses: {},
+  },
+  buckler: {
+    name: "Buckler",
+    shortName: "Buckler",
+    kind: "shield",
+    size: { columns: 2, rows: 2 },
+    defense: 14,
+    block: 15,
+    bonuses: {},
+  },
+  towerShield: {
+    name: "Tower Shield",
+    shortName: "Tower",
+    kind: "shield",
+    size: { columns: 2, rows: 3 },
+    defense: 28,
+    block: 25,
+    bonuses: {},
+  },
+  // Little damage and + Mana; a Wand fits the Weapon slot and the Off-hand.
+  boneWand: {
+    name: "Bone Wand",
+    shortName: "Bone",
+    kind: "wand",
+    size: { columns: 1, rows: 2 },
+    damage: [3, 6],
+    bonuses: { mana: 15 },
+  },
+  yewWand: {
+    name: "Yew Wand",
+    shortName: "Yew",
+    kind: "wand",
+    size: { columns: 1, rows: 2 },
+    damage: [4, 8],
+    bonuses: { mana: 30 },
   },
   ring: {
     name: "Ring",
@@ -205,6 +320,9 @@ export function itemOf(type: ItemType): ItemTuning {
 export function isPotion(type: ItemType): boolean {
   return itemTuning[type].kind === "potion";
 }
+
+/** Block: the most the Hero's chance to Block can be, in percent. */
+export const blockTuning = { cap: 50 };
 
 /** The Inventory grid's size in cells. */
 export const inventoryTuning = { columns: 10, rows: 4 };
@@ -327,13 +445,30 @@ export type AffixTuning = {
   bonus: Bonus;
   /** The Item kinds it can roll on. */
   rollsOn: readonly ItemKind[];
+  /** For a Skill Level Affix, the Skill whose Skill Level it raises. */
+  skill?: Skill;
+  /**
+   * Its odds among the kinds of its side that suit the Item; missing, 100.
+   * A rarer kind has less.
+   */
+  weight?: number;
   /** Weakest first. */
   grades: readonly AffixGrade[];
 };
 
+/** The Item kinds that give Defense. */
+const ARMOUR_KINDS: readonly ItemKind[] = [
+  "armour",
+  "helm",
+  "gloves",
+  "boots",
+  "shield",
+];
+
 const NOT_POTION: readonly ItemKind[] = [
   "weapon",
-  "armour",
+  "wand",
+  ...ARMOUR_KINDS,
   "ring",
   "amulet",
   "belt",
@@ -356,18 +491,78 @@ function threeGrades(
   }));
 }
 
+/** The Item kinds the Resistance Affixes roll on. */
+const RESISTANCE_KINDS: readonly ItemKind[] = [
+  ...ARMOUR_KINDS,
+  "belt",
+  "ring",
+  "amulet",
+];
+
+/** The rolled range of each grade of a Resistance Affix, weakest first. */
+const RESISTANCE_RANGES: [Range, Range, Range] = [
+  [5, 10],
+  [11, 20],
+  [21, 30],
+];
+
+/** The Item kinds the Weapon Affixes roll on. */
+const WEAPON_KINDS: readonly ItemKind[] = ["weapon", "wand"];
+
+/** Flat Element damage added to each of the Hero's attacks; to be tuned. */
+const ELEMENTAL_DAMAGE_RANGES: [Range, Range, Range] = [
+  [1, 3],
+  [4, 8],
+  [9, 15],
+];
+
 const ATTRIBUTE_RANGES: [Range, Range, Range] = [
   [1, 3],
   [4, 6],
   [7, 10],
 ];
 
+/** The key of the Affix kind raising a Skill's Skill Level: "skillBoneSpear". */
+export type SkillAffixKind = `skill${Capitalize<Skill>}`;
+
+/** The Affix kind raising `skill`'s Skill Level. */
+export function skillAffixKind(skill: Skill): SkillAffixKind {
+  return `skill${skill[0].toUpperCase()}${skill.slice(1)}` as SkillAffixKind;
+}
+
+/**
+ * One Affix kind per Skill, each a Wand-only Suffix raising that Skill's
+ * Skill Level by 1, 2 or 3. Each is rarer than a plain Suffix, as there are
+ * many; to be tuned.
+ */
+const skillAffixTuning = Object.fromEntries(
+  (Object.keys(skillTuning) as Skill[]).map((skill) => [
+    skillAffixKind(skill),
+    {
+      side: "suffix",
+      bonus: "skillLevel",
+      rollsOn: ["wand"],
+      skill,
+      weight: 25,
+      grades: threeGrades(
+        ["of the Acolyte", "of the Adept", "of the Master"],
+        [
+          [1, 1],
+          [2, 2],
+          [3, 3],
+        ],
+      ),
+    } satisfies AffixTuning,
+  ]),
+) as unknown as Record<SkillAffixKind, AffixTuning>;
+
 /** Every Affix kind there is, by the key it's known as in code and the Save. */
 export const affixTuning = {
+  ...skillAffixTuning,
   defense: {
     side: "prefix",
     bonus: "defense",
-    rollsOn: ["armour", "belt"],
+    rollsOn: [...ARMOUR_KINDS, "belt"],
     grades: threeGrades(
       ["Sturdy", "Stout", "Ironclad"],
       [
@@ -380,7 +575,7 @@ export const affixTuning = {
   accuracy: {
     side: "prefix",
     bonus: "attackRating",
-    rollsOn: ["weapon", "ring", "amulet"],
+    rollsOn: [...WEAPON_KINDS, "ring", "amulet"],
     grades: threeGrades(
       ["Keen", "Sharp", "Unerring"],
       [
@@ -406,7 +601,7 @@ export const affixTuning = {
   brutality: {
     side: "prefix",
     bonus: "weaponDamage",
-    rollsOn: ["weapon"],
+    rollsOn: WEAPON_KINDS,
     grades: threeGrades(
       ["Brutal", "Savage", "Wrecking"],
       [
@@ -469,7 +664,7 @@ export const affixTuning = {
   enhancedDamage: {
     side: "prefix",
     bonus: "enhancedDamage",
-    rollsOn: ["weapon"],
+    rollsOn: WEAPON_KINDS,
     grades: threeGrades(
       ["Jagged", "Vicious", "Ruinous"],
       [
@@ -482,13 +677,115 @@ export const affixTuning = {
   enhancedDefense: {
     side: "prefix",
     bonus: "enhancedDefense",
-    rollsOn: ["armour"],
+    rollsOn: ARMOUR_KINDS,
     grades: threeGrades(
       ["Reinforced", "Fortified", "Bastioned"],
       [
         [10, 20],
         [21, 40],
         [41, 60],
+      ],
+    ),
+  },
+  // Resistances: the Elements' Prefixes roll on the Defense kinds, Belts,
+  // Rings and Amulets. All Resistances is rarer and weaker; to be tuned.
+  fireResistance: {
+    side: "prefix",
+    bonus: "fireResistance",
+    rollsOn: RESISTANCE_KINDS,
+    grades: threeGrades(["Ruby", "Garnet", "Bloodstone"], RESISTANCE_RANGES),
+  },
+  coldResistance: {
+    side: "prefix",
+    bonus: "coldResistance",
+    rollsOn: RESISTANCE_KINDS,
+    grades: threeGrades(["Sapphire", "Azurite", "Glacial"], RESISTANCE_RANGES),
+  },
+  lightningResistance: {
+    side: "prefix",
+    bonus: "lightningResistance",
+    rollsOn: RESISTANCE_KINDS,
+    grades: threeGrades(["Amber", "Topaz", "Stormglass"], RESISTANCE_RANGES),
+  },
+  allResistances: {
+    side: "prefix",
+    bonus: "allResistances",
+    rollsOn: RESISTANCE_KINDS,
+    weight: 25,
+    grades: threeGrades(
+      ["Shimmering", "Prismatic", "Wockstone"],
+      [
+        [3, 5],
+        [6, 9],
+        [10, 14],
+      ],
+    ),
+  },
+  block: {
+    side: "suffix",
+    bonus: "block",
+    rollsOn: ["shield"],
+    grades: threeGrades(
+      ["of Parrying", "of Deflection", "of the Bulwark"],
+      [
+        [3, 5],
+        [6, 9],
+        [10, 15],
+      ],
+    ),
+  },
+  // Weapon Suffixes: flat Element damage on the Hero's attacks, never Skills.
+  fireDamage: {
+    side: "suffix",
+    bonus: "fireDamage",
+    rollsOn: WEAPON_KINDS,
+    grades: threeGrades(
+      ["of Embers", "of Flames", "of the Furnace"],
+      ELEMENTAL_DAMAGE_RANGES,
+    ),
+  },
+  coldDamage: {
+    side: "suffix",
+    bonus: "coldDamage",
+    rollsOn: WEAPON_KINDS,
+    grades: threeGrades(
+      ["of Frost", "of Ice", "of the Glacier"],
+      ELEMENTAL_DAMAGE_RANGES,
+    ),
+  },
+  lightningDamage: {
+    side: "suffix",
+    bonus: "lightningDamage",
+    rollsOn: WEAPON_KINDS,
+    grades: threeGrades(
+      ["of Sparks", "of Storms", "of Thunder"],
+      ELEMENTAL_DAMAGE_RANGES,
+    ),
+  },
+  // Speed Suffixes: the Hero's swing and walk, never casting.
+  attackSpeed: {
+    side: "suffix",
+    bonus: "attackSpeed",
+    rollsOn: ["gloves"],
+    grades: threeGrades(
+      ["of Alacrity", "of Haste", "of the Whirlwind"],
+      [
+        [5, 8],
+        [9, 14],
+        [15, 22],
+      ],
+    ),
+  },
+  walkSpeed: {
+    side: "suffix",
+    bonus: "walkSpeed",
+    rollsOn: ["boots"],
+    grades: threeGrades(
+      ["of the Wanderer", "of the Courier", "of the Gale"],
+      [
+        [5, 8],
+        [9, 14],
+        [15, 22],
       ],
     ),
   },

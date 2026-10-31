@@ -10,6 +10,8 @@ import {
   itemTuning,
   type Rarity,
 } from "../tuning/items";
+import { type Skill, skillTuning } from "../tuning/skills";
+import { smithPoolOf } from "../tuning/smith";
 import { isValidRoll, type RolledAffix } from "./affixes";
 import {
   type BeltCell,
@@ -31,7 +33,12 @@ import type { Hero, Order, SimEvent, World } from "./world";
 export type ItemId = number;
 
 /** What the Smith added to an Item: one bonus, like the ones Items have. */
-export type SmithBonus = { bonus: Bonus; amount: number };
+export type SmithBonus = {
+  bonus: Bonus;
+  amount: number;
+  /** The Skill a `skillLevel` bonus raises. */
+  skill?: Skill;
+};
 
 /**
  * One Item: its type, its Rarity and rolled Affixes, and the bonus the Smith
@@ -147,14 +154,22 @@ export function isCell(spot: CursorSpot): spot is Cell {
  */
 export type CursorItem = { item: Item; from: CursorSpot };
 
-/** The Hero's Equipment slots, in the order they're listed. */
+/**
+ * The Hero's Equipment slots in the order of the Inventory panel's figure
+ * (top row, middle, bottom, left to right), which is the order Focus
+ * visits them in.
+ */
 export const EQUIPMENT_SLOTS = [
+  "helm",
+  "amulet",
   "weapon",
   "armour",
-  "amulet",
+  "offHand",
   "ring1",
-  "ring2",
   "belt",
+  "ring2",
+  "gloves",
+  "boots",
 ] as const;
 
 /** One of the Hero's Equipment slots. */
@@ -163,15 +178,24 @@ export type EquipmentSlot = (typeof EQUIPMENT_SLOTS)[number];
 /** What's in each Equipment slot, null when empty. */
 export type Equipment = Record<EquipmentSlot, Item | null>;
 
-/** The Item kind each slot takes. */
-export const SLOT_KINDS: Record<EquipmentSlot, ItemKind> = {
-  weapon: "weapon",
-  armour: "armour",
-  amulet: "amulet",
-  ring1: "ring",
-  ring2: "ring",
-  belt: "belt",
+/** The set of Item kinds each slot takes. */
+export const SLOT_KINDS: Record<EquipmentSlot, readonly ItemKind[]> = {
+  weapon: ["weapon", "wand"],
+  offHand: ["shield", "wand"],
+  helm: ["helm"],
+  armour: ["armour"],
+  gloves: ["gloves"],
+  boots: ["boots"],
+  belt: ["belt"],
+  amulet: ["amulet"],
+  ring1: ["ring"],
+  ring2: ["ring"],
 };
+
+/** Whether an Item of `type` fits Equipment slot `slot`. */
+export function fitsSlot(slot: EquipmentSlot, type: ItemType): boolean {
+  return SLOT_KINDS[slot].includes(itemOf(type).kind);
+}
 
 /**
  * The Hero's Belongings by Item type, as the Save keeps them: Item ids are
@@ -318,27 +342,27 @@ export function isValidBelongings(belongings: Belongings): boolean {
     ([slot, stored]) =>
       Object.hasOwn(SLOT_KINDS, slot) &&
       itemFine(stored) &&
-      itemTuning[stored.type].kind === SLOT_KINDS[slot as EquipmentSlot],
+      fitsSlot(slot as EquipmentSlot, stored.type),
   );
   if (!placedFine || !equippedFine) return false;
   return isValidBelt(belt, rowsOf(equipment.belt?.type));
 }
 
-/** Whether an Item of `type` is a Weapon or Armour, which the Smith can work. */
+/** Whether an Item of `type` is one the Smith can work. */
 function isSmithable(type: ItemType): boolean {
-  const { kind } = itemTuning[type];
-  return kind === "weapon" || kind === "armour";
+  return smithPoolOf(itemTuning[type].kind) !== null;
 }
 
 /** Whether `bonus` is a known Bonus by a positive whole amount. */
 function isValidSmithBonus(bonus: unknown): bonus is SmithBonus {
   if (typeof bonus !== "object" || bonus === null) return false;
   const { bonus: kind, amount } = bonus as Record<string, unknown>;
-  return (
-    BONUSES.includes(kind as Bonus) &&
-    Number.isInteger(amount) &&
-    (amount as number) > 0
-  );
+  const { skill } = bonus as Record<string, unknown>;
+  const kindFine =
+    kind === "skillLevel"
+      ? Object.hasOwn(skillTuning, skill as string)
+      : BONUSES.includes(kind as Bonus) && skill === undefined;
+  return kindFine && Number.isInteger(amount) && (amount as number) > 0;
 }
 
 /** Every Equipment slot, empty. */
@@ -541,7 +565,7 @@ function planPlacing(world: World, to: ItemSpot): Placing | "noRoom" | null {
     return isPotion(cursor.item.type) && fits ? { out: null } : null;
   }
   if (isSlot(to)) {
-    if (itemOf(cursor.item.type).kind !== SLOT_KINDS[to]) return null;
+    if (!fitsSlot(to, cursor.item.type)) return null;
     const out = equipment[to];
     const home = out && homeFor(out.type, cursor.from, typesOf(inventory));
     if (out && !home) return null;
@@ -580,9 +604,7 @@ function homeFor(
     return isPotion(type) ? from : firstFreeCell(placed, type);
   }
   if (!isSlot(from)) return backOrFirstFree(placed, type, from);
-  return itemOf(type).kind === SLOT_KINDS[from]
-    ? from
-    : firstFreeCell(placed, type);
+  return fitsSlot(from, type) ? from : firstFreeCell(placed, type);
 }
 
 /** Placed Items by type and top-left cell. */
@@ -724,7 +746,9 @@ function unequipItem(world: World, slot: EquipmentSlot, events: SimEvent[]) {
  */
 function slotFor(equipment: Equipment, type: ItemType): EquipmentSlot | null {
   const { kind } = itemOf(type);
-  const fitting = EQUIPMENT_SLOTS.filter((slot) => SLOT_KINDS[slot] === kind);
+  const fitting = EQUIPMENT_SLOTS.filter((slot) =>
+    SLOT_KINDS[slot].includes(kind),
+  );
   return fitting.find((slot) => !equipment[slot]) ?? fitting[0] ?? null;
 }
 

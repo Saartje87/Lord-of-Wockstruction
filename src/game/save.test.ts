@@ -175,7 +175,13 @@ describe("whether a step's events change the Hero's progress", () => {
     expect(changesSave([])).toBe(false);
     expect(
       changesSave([
-        { type: "HitLanded", attacker: "hero", target: 1, damage: 20 },
+        {
+          type: "HitLanded",
+          attacker: "hero",
+          target: 1,
+          damage: 20,
+          damageType: "physical",
+        },
         { type: "HeroDied" },
         { type: "AreaChanged", area: "town", entry: "start" },
         // Ground Items are never saved.
@@ -368,7 +374,7 @@ describe("stored text", () => {
 
   it("carries a version number", () => {
     expect(JSON.parse(encodeSave(save(progress(1, 0))))).toMatchObject({
-      version: 12,
+      version: 13,
     });
   });
 
@@ -435,10 +441,6 @@ describe("stored text", () => {
     [
       "with an unknown Skill on the Skill Bar",
       v10({ skillBar: { ...emptySkillBar(), key1: "teeth" } }),
-    ],
-    [
-      "with an unlearned Skill on the Skill Bar",
-      v10({ skillBar: { ...emptySkillBar(), right: "golem" } }),
     ],
     [
       "with a Passive Skill on the Skill Bar",

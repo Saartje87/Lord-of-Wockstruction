@@ -134,7 +134,7 @@ describe("Drops", () => {
   it("come from about a quarter of kills, one Item each, of every type but Potions, Belts too", () => {
     let drops = 0;
     const types = new Set<ItemType>();
-    const kills = 200;
+    const kills = 500;
     for (let seed = 1; seed <= kills; seed++) {
       const dropped = ofType(kill(town({ seed }), 1), "ItemDropped").filter(
         ({ item }) => !isPotion(item.type),

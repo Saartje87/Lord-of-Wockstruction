@@ -5,6 +5,7 @@ import {
   type EquipmentSlot,
   inventoryOf,
 } from "../sim/inventory";
+import { overlaps } from "../sim/rect";
 import { createWorld, type Progress, step } from "../sim/world";
 import {
   inventoryHitAt,
@@ -13,6 +14,7 @@ import {
   inventoryRightClickOrder,
   itemRect,
   itemTooltip,
+  itemTooltipElements,
   itemUnder,
   landingCell,
 } from "./inventoryPanel";
@@ -113,14 +115,15 @@ describe("the Inventory panel's layout", () => {
     const one = inventoryPanelLayout(NARROW, 1);
     const four = inventoryPanelLayout(NARROW, 4);
 
-    expect(four.grid.y).toBe(one.grid.y + 3 * one.cell);
-    expect(four.panel.h).toBe(one.panel.h + 3 * one.cell);
+    // The cells shrink so that the taller panel still stays on the screen.
+    expect(four.belt[0]).toHaveLength(4);
+    expect(four.grid.y).toBeGreaterThan(four.belt[0][0].y + four.cell);
     expect(four.panel.y + four.panel.h).toBeLessThan(NARROW.height);
   });
 
   it("shrinks its cells to fit a narrow screen", () => {
     expect(inventoryPanelLayout(WIDE, ONE_ROW).cell).toBe(36);
-    expect(inventoryPanelLayout(NARROW, ONE_ROW).cell).toBe(34);
+    expect(inventoryPanelLayout(NARROW, ONE_ROW).cell).toBe(29);
   });
 
   it("draws an Item over the cells it covers", () => {
@@ -134,6 +137,63 @@ describe("the Inventory panel's layout", () => {
       w: 2 * cell,
       h: 3 * cell,
     });
+  });
+});
+
+describe("the Equipment figure", () => {
+  const screens = [
+    ["wide", WIDE],
+    ["narrow", NARROW],
+    ["compact", { ...WIDE, width: 800, height: 400, compact: true }],
+  ] as const;
+
+  it.each(
+    screens,
+  )("places the ten slots apart, inside the panel and clear of the grid on a %s screen", (_, screen) => {
+    const { slots, panel, grid } = inventoryPanelLayout(screen, ONE_ROW);
+    const named = Object.entries(slots);
+
+    expect(named).toHaveLength(10);
+    for (const [name, rect] of named) {
+      expect(rect.x, name).toBeGreaterThanOrEqual(panel.x);
+      expect(rect.x + rect.w, name).toBeLessThanOrEqual(panel.x + panel.w);
+      expect(rect.y, name).toBeGreaterThanOrEqual(panel.y);
+      expect(rect.y + rect.h, name).toBeLessThanOrEqual(panel.y + panel.h);
+      expect(overlaps(rect, grid), name).toBe(false);
+    }
+    for (const [a, first] of named) {
+      for (const [b, second] of named) {
+        if (a < b) expect(overlaps(first, second), `${a} ${b}`).toBe(false);
+      }
+    }
+  });
+
+  it.each(
+    screens,
+  )("arranges them as Diablo 2 does on a %s screen", (_, screen) => {
+    const { slots: s } = inventoryPanelLayout(screen, ONE_ROW);
+    const mid = (r: { x: number; w: number }) => r.x + r.w / 2;
+
+    // The Helm top centre over the Armour, the Amulet to its right.
+    expect(mid(s.helm)).toBeCloseTo(mid(s.armour));
+    expect(s.helm.y + s.helm.h).toBeLessThanOrEqual(s.armour.y);
+    expect(s.amulet.x).toBeGreaterThanOrEqual(s.helm.x + s.helm.w);
+    // The Weapon and Off-hand either side of the Armour.
+    expect(s.weapon.x + s.weapon.w).toBeLessThanOrEqual(s.armour.x);
+    expect(s.offHand.x).toBeGreaterThanOrEqual(s.armour.x + s.armour.w);
+    // Ring 1, Belt and Ring 2 in a row under the Armour.
+    const under = s.armour.y + s.armour.h;
+    expect(s.ring1.y).toBeGreaterThanOrEqual(under);
+    expect(s.belt.y).toBe(s.ring1.y);
+    expect(s.ring2.y).toBe(s.ring1.y);
+    expect(s.ring1.x).toBeLessThan(s.belt.x);
+    expect(s.belt.x).toBeLessThan(s.ring2.x);
+    expect(mid(s.belt)).toBeCloseTo(mid(s.armour));
+    // Gloves bottom left, Boots bottom right.
+    expect(s.gloves.x).toBeLessThan(s.ring1.x);
+    expect(s.boots.x).toBeGreaterThan(s.ring2.x);
+    expect(s.gloves.y + s.gloves.h).toBeGreaterThan(s.weapon.y + s.weapon.h);
+    expect(s.boots.y).toBe(s.gloves.y);
   });
 });
 
@@ -210,15 +270,17 @@ describe("what a point on the Inventory panel hits", () => {
   });
 
   // Worked out by hand from INVENTORY_PANEL, so they don't lean on the
-  // layout they test. Wide: 36 px cells, the grid's top-left at (886, 326)
-  // and the slots' area at (886, 74). Narrow: 34 px cells, the grid at
-  // (426, 314) and the slots' area at (426, 74). One row of Belt Columns sits
-  // between them: wide at (994, 272), narrow at (528, 262).
+  // layout they test. The slots' area is 7 cells tall and 9 wide, centred
+  // over the grid's 10. Wide: 36 px cells, the grid's top-left at (886, 398)
+  // and the slots' area at (904, 74). Narrow: the Skill Bar's slots start at
+  // y 514, which the panel stops above, so 29 px cells, the grid at
+  // (476, 342) and the slots' area at (490.5, 74). One row of Belt Columns
+  // sits between them: wide at (994, 344), narrow at (563, 295).
   it.each([
-    ["wide", WIDE, { x: 900, y: 344 }, { column: 0, row: 0 }],
-    ["wide", WIDE, { x: 1143, y: 403 }, { column: 7, row: 2 }],
-    ["narrow", NARROW, { x: 430, y: 317 }, { column: 0, row: 0 }],
-    ["narrow", NARROW, { x: 750, y: 432 }, { column: 9, row: 3 }],
+    ["wide", WIDE, { x: 900, y: 416 }, { column: 0, row: 0 }],
+    ["wide", WIDE, { x: 1148, y: 475 }, { column: 7, row: 2 }],
+    ["narrow", NARROW, { x: 480, y: 345 }, { column: 0, row: 0 }],
+    ["narrow", NARROW, { x: 742, y: 434 }, { column: 9, row: 3 }],
   ])("maps a %s screen's point %o to its cell", (_, screen, point, cell) => {
     expect(inventoryHitAt(screen, point, true, false, ONE_ROW)).toEqual({
       inventory: cell,
@@ -227,9 +289,13 @@ describe("what a point on the Inventory panel hits", () => {
 
   it.each([
     ["wide", WIDE, { x: 930, y: 150 }, "weapon"],
-    ["wide", WIDE, { x: 1110, y: 230 }, "ring2"],
-    ["narrow", NARROW, { x: 680, y: 108 }, "amulet"],
-    ["narrow", NARROW, { x: 590, y: 150 }, "armour"],
+    ["wide", WIDE, { x: 1110, y: 290 }, "ring2"],
+    ["wide", WIDE, { x: 1050, y: 100 }, "helm"],
+    ["wide", WIDE, { x: 950, y: 280 }, "gloves"],
+    ["wide", WIDE, { x: 1180, y: 280 }, "boots"],
+    ["narrow", NARROW, { x: 670, y: 95 }, "amulet"],
+    ["narrow", NARROW, { x: 600, y: 200 }, "armour"],
+    ["narrow", NARROW, { x: 700, y: 150 }, "offHand"],
   ] as const)("maps a %s screen's point %o to its slot", (_, screen, point, slot) => {
     expect(inventoryHitAt(screen, point, true, false, ONE_ROW)).toEqual({
       inventory: slot,
@@ -237,9 +303,9 @@ describe("what a point on the Inventory panel hits", () => {
   });
 
   it.each([
-    ["wide", WIDE, { x: 1000, y: 290 }, { beltColumn: 0, row: 0 }],
-    ["wide", WIDE, { x: 1137, y: 307 }, { beltColumn: 3, row: 0 }],
-    ["narrow", NARROW, { x: 600, y: 270 }, { beltColumn: 2, row: 0 }],
+    ["wide", WIDE, { x: 1000, y: 360 }, { beltColumn: 0, row: 0 }],
+    ["wide", WIDE, { x: 1120, y: 360 }, { beltColumn: 3, row: 0 }],
+    ["narrow", NARROW, { x: 630, y: 310 }, { beltColumn: 2, row: 0 }],
   ])("maps a %s screen's point %o to its Belt Column cell", (_, screen, point, spot) => {
     expect(inventoryHitAt(screen, point, true, false, ONE_ROW)).toEqual({
       inventory: spot,
@@ -656,6 +722,40 @@ describe("an Item's tooltip", () => {
     ]);
   });
 
+  it("names a Helm, Gloves, Boots or Shield and its Defense (and Block)", () => {
+    expect(itemTooltip({ type: "ironHelm" })).toEqual([
+      "Iron Helm",
+      "Defense: 16",
+    ]);
+    expect(itemTooltip({ type: "chainGloves" })).toEqual([
+      "Chain Gloves",
+      "Defense: 12",
+    ]);
+    expect(itemTooltip({ type: "leatherBoots" })).toEqual([
+      "Leather Boots",
+      "Defense: 6",
+    ]);
+    expect(itemTooltip({ type: "towerShield" })).toEqual([
+      "Tower Shield",
+      "Defense: 28",
+      "Block: 25%",
+    ]);
+  });
+
+  it("shows a Shield's Block chance and its Block Affixes as +N% Block", () => {
+    expect(itemTooltip({ type: "buckler" })).toEqual([
+      "Buckler",
+      "Defense: 14",
+      "Block: 15%",
+    ]);
+    expect(
+      itemTooltip({
+        type: "towerShield",
+        affixes: [{ kind: "block", grade: 0, value: 4 }],
+      }),
+    ).toContain("+4% Block");
+  });
+
   it("names a plain Ring or Amulet with no bonuses of its own", () => {
     expect(itemTooltip({ type: "ring" })).toEqual(["Ring"]);
     expect(itemTooltip({ type: "amulet" })).toEqual(["Amulet"]);
@@ -763,5 +863,59 @@ describe("a Magic Item's tooltip", () => {
         affixes: [{ kind: "brutality", grade: 0, value: 2 }],
       }),
     ).toEqual(["Brutal Axe", "Damage: 25–40", "+2 to Damage"]);
+  });
+});
+
+describe("a Resistance Affix's tooltip line", () => {
+  const shown = {
+    type: "leatherCap" as const,
+    rarity: "magic" as const,
+    affixes: [
+      { kind: "coldResistance" as const, grade: 1, value: 14 },
+      { kind: "strength" as const, grade: 0, value: 2 },
+    ],
+  };
+
+  it("reads as a percentage and is named by its grade", () => {
+    expect(itemTooltip(shown)).toEqual([
+      "Azurite Leather Cap of the Badger",
+      "Defense: 8",
+      "+14% Cold Resistance",
+      "+2 to Strength",
+    ]);
+  });
+
+  it("is drawn in its Element's colour, other lines in none", () => {
+    expect(itemTooltipElements(shown)).toEqual([null, null, "cold", null]);
+    expect(
+      itemTooltipElements({
+        type: "ring",
+        affixes: [{ kind: "allResistances", grade: 0, value: 4 }],
+      }),
+    ).toEqual([null, null]);
+  });
+});
+
+describe("the elemental damage Suffix lines", () => {
+  const shown = {
+    type: "axe" as const,
+    affixes: [
+      { kind: "fireDamage" as const, grade: 0, value: 3 },
+      { kind: "coldDamage" as const, grade: 1, value: 6 },
+      { kind: "lightningDamage" as const, grade: 2, value: 12 },
+    ],
+  };
+
+  it("add their damage in a line each, in their Element's colour", () => {
+    expect(itemTooltip(shown).slice(-3)).toEqual([
+      "+3 Fire Damage",
+      "+6 Cold Damage",
+      "+12 Lightning Damage",
+    ]);
+    expect(itemTooltipElements(shown).slice(-3)).toEqual([
+      "fire",
+      "cold",
+      "lightning",
+    ]);
   });
 });

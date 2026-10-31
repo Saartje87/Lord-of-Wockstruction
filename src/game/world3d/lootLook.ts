@@ -37,19 +37,20 @@ export const LOOT_LOOKS: Record<ItemType, Look> = {
     tint: null,
   },
   axe: { model: "loot/axe_1handed", scale: 0.4, lay: FLAT, tint: null },
-  // Armour is a shield for now: the kit has no armour to lay down.
-  leatherArmour: {
-    model: "loot/shield_round",
-    scale: 0.45,
-    lay: FLAT,
-    tint: null,
-  },
-  chainMail: {
-    model: "loot/shield_spikes",
-    scale: 0.45,
-    lay: FLAT,
-    tint: null,
-  },
+  // Armour is a gem for now: the kit has no armour to lay down, and a shield
+  // on the ground must not be mistaken for it.
+  leatherArmour: { model: GEM, scale: 1.2, lay: [0, 0, 0], tint: null },
+  chainMail: { model: GEM, scale: 1.2, lay: [0, 0, 0], tint: null },
+  leatherCap: { model: GEM, scale: 1.2, lay: [0, 0, 0], tint: null },
+  ironHelm: { model: GEM, scale: 1.2, lay: [0, 0, 0], tint: null },
+  leatherGloves: { model: GEM, scale: 1.2, lay: [0, 0, 0], tint: null },
+  chainGloves: { model: GEM, scale: 1.2, lay: [0, 0, 0], tint: null },
+  leatherBoots: { model: GEM, scale: 1.2, lay: [0, 0, 0], tint: null },
+  chainBoots: { model: GEM, scale: 1.2, lay: [0, 0, 0], tint: null },
+  buckler: { model: "loot/shield_A", scale: 0.45, lay: FLAT, tint: null },
+  towerShield: { model: "loot/shield_D", scale: 0.45, lay: FLAT, tint: null },
+  boneWand: { model: "loot/wand_A", scale: 0.5, lay: FLAT, tint: null },
+  yewWand: { model: "loot/wand_B", scale: 0.5, lay: FLAT, tint: null },
   ring: { model: GEM, scale: 1, lay: [0, 0, 0], tint: null },
   amulet: { model: GEM, scale: 1.3, lay: [0, 0, 0], tint: null },
   sash: { model: GEM, scale: 1.1, lay: [0, 0, 0], tint: null },

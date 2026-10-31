@@ -33,7 +33,10 @@ describe("arrivedInDisplayName", () => {
 
   it("shows nothing for a step the Hero arrived nowhere", () => {
     expect(
-      arrivedInDisplayName([{ type: "HeroHit", damage: 6, warded: 0 }], NAMES),
+      arrivedInDisplayName(
+        [{ type: "HeroHit", damage: 6, warded: 0, damageType: "physical" }],
+        NAMES,
+      ),
     ).toBeNull();
   });
 });

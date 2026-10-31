@@ -1,10 +1,23 @@
 import { areaTuning } from "../tuning/areas";
 import { boneAltarTuning } from "../tuning/boneAltars";
+import {
+  type DamageShares,
+  type DamageType,
+  ELEMENT_INFO,
+  ELEMENTS,
+  type Element,
+  MAXIMUM_RESISTANCE,
+  MINIMUM_RESISTANCE,
+  type Resistances,
+  resistancePenaltyOf,
+} from "../tuning/damage";
 import { goldTuning } from "../tuning/gold";
 import { graveWockingtonTuning } from "../tuning/graveWockington";
 import { heroTuning } from "../tuning/hero";
 import {
+  affixOf,
   type Bonus,
+  blockTuning,
   dropTuning,
   itemOf,
   potionDropTuning,
@@ -59,6 +72,14 @@ import {
   targetsOf,
 } from "./boneAltars";
 import { type BoneWallPiece, wallSpots } from "./boneWalls";
+import {
+  type Damage,
+  landDamage,
+  minionResistances,
+  monsterResistances,
+  splitDamage,
+  unresistedTotal,
+} from "./damage";
 import {
   type Belongings,
   type Cell,
@@ -138,13 +159,14 @@ import {
   emptySkillBar,
   placeLearnedSkill,
   putSkillOnBar,
+  SKILL_BAR_SLOTS,
   type SkillBar,
   type SkillBarSlot,
 } from "./skillBar";
 import { giveSmithBonus, SMITH } from "./smith";
 import { passiveMultiplier, skillPower } from "./synergies";
 import { msToSteps, perStep } from "./units";
-import { validateAreas } from "./validate";
+import { validateAreas, validateResistances } from "./validate";
 import { distance, type Vec } from "./vec";
 import { moveGood, newVendor, restockVendor, type Vendor } from "./vendor";
 import { holdBack, slideAround, stepInDirection } from "./walking";
@@ -152,10 +174,12 @@ import { holdBack, slideAround, stepInDirection } from "./walking";
 const EXPERIENCE_TABLE = heroTuning.experienceTable;
 /** The most Experience the Hero can have: what the last Level needs. */
 const EXPERIENCE_CAP = EXPERIENCE_TABLE[EXPERIENCE_TABLE.length - 1];
-const WALK_PER_STEP = perStep(heroTuning.walkSpeed);
-/** How many steps a swing takes. */
+/**
+ * How many steps a swing takes with no attack speed; the Hero's own is
+ * `heroSwingSteps`.
+ */
 export const SWING_STEPS = msToSteps(heroTuning.swingMs);
-/** The step of a swing on which its hit lands. */
+/** The step of a base swing on which its hit lands. */
 export const HIT_STEP = msToSteps(heroTuning.swingMs * heroTuning.hitAt);
 const HITSTOP_STEPS = msToSteps(heroTuning.hitstopMs);
 /** How many steps the Hero flinches for. */
@@ -275,6 +299,12 @@ export type Opening = {
 export type Swing = {
   /** Steps since the swing started, not counting hitstop. */
   elapsed: number;
+  /**
+   * How many steps it takes and the step its hit lands on, fixed as it
+   * starts, so Equipping Gloves mid-swing can't skip the hit.
+   */
+  steps: number;
+  hitStep: number;
   /** Whether its hit has landed yet. */
   landed: boolean;
   /** The Monster an `Attack` swings at, or null for a `SwingAt` arc. */
@@ -670,7 +700,7 @@ export type Order =
  * Why a cast failed: the Hero is in Town, lacks the Mana for it, or there's
  * no Corpse near the cast point for a Skill that uses one up.
  */
-export type CastFailure = "town" | "mana" | "corpse";
+export type CastFailure = "town" | "mana" | "corpse" | "skillLevel";
 
 /** What happened during a step. */
 export type SimEvent =
@@ -681,7 +711,10 @@ export type SimEvent =
       type: "HitLanded";
       attacker: "hero" | "minion" | "skill";
       target: MonsterId;
+      /** The one total, after the target's Resistances and Curse. */
       damage: number;
+      /** What most of it was made of. */
+      damageType: DamageType;
     }
   /**
    * A swing of the Hero's or an attack of their Minion's failed its chance
@@ -689,10 +722,21 @@ export type SimEvent =
    */
   | { type: "Missed"; target: MonsterId | "hero" }
   /**
-   * A Monster's attack hit the Hero, `warded` of it soaked by their Bone
-   * Ward and `damage` reaching their Life.
+   * A Monster's attack would have hit the Hero but their Shield Blocked it:
+   * no damage, no flinch, nothing off their Bone Ward.
    */
-  | { type: "HeroHit"; damage: number; warded: number }
+  | { type: "Blocked" }
+  /**
+   * A Monster's attack hit the Hero, `warded` of it soaked by their Bone
+   * Ward and `damage` reaching their Life. `damageType` is what most of the
+   * hit was made of.
+   */
+  | {
+      type: "HeroHit";
+      damage: number;
+      warded: number;
+      damageType: DamageType;
+    }
   /** The Hero got within reach of NPC `npc`, called `name`, and talks to them. */
   | { type: "Talked"; npc: number; name: string }
   /** The Hero took on Quest `quest`. */
@@ -778,8 +822,16 @@ export type SimEvent =
    * Hero died.
    */
   | { type: "MinionCrumbled"; minion: MinionId; pos: Vec }
-  /** A Monster's attack hit Minion `minion` for `damage`. */
-  | { type: "MinionHit"; minion: MinionId; damage: number }
+  /**
+   * A Monster's attack hit Minion `minion` for `damage`, most of it
+   * `damageType`.
+   */
+  | {
+      type: "MinionHit";
+      minion: MinionId;
+      damage: number;
+      damageType: DamageType;
+    }
   /** A Monster's attack failed to hit Minion `minion`. */
   | { type: "MinionMissed"; minion: MinionId }
   /** Minion `minion` was killed at `pos`, leaving no Corpse. */
@@ -918,6 +970,8 @@ export function createWorld(options: {
   }
 
   validateAreas(areas);
+  validateResistances(monsterTuning);
+  validateResistances(minionTuning);
   const town = areas[TOWN];
   if (!town) throw new Error(`No Area named "${TOWN}"`);
   const start = town.entries.start;
@@ -1075,17 +1129,85 @@ export function nextLevelExperience(level: number): number | null {
   return level < EXPERIENCE_TABLE.length ? EXPERIENCE_TABLE[level] : null;
 }
 
+/** What one Item adds of `bonus`: its type's, its Affixes' and its Smith bonus. */
+function itemBonus(item: Item, bonus: Bonus): number {
+  return (
+    (itemOf(item.type).bonuses[bonus] ?? 0) +
+    affixTotal(item.affixes, bonus) +
+    (item.smithBonus?.bonus === bonus ? item.smithBonus.amount : 0)
+  );
+}
+
+/** How many Skill Levels the Equipped Items' Affixes and Smith bonuses raise `skill` by. */
+export function skillRaiseOf(world: World, skill: Skill): number {
+  let total = 0;
+  for (const slot of EQUIPMENT_SLOTS) {
+    const item = world.hero.equipment[slot];
+    for (const affix of item?.affixes ?? []) {
+      if (affixOf(affix.kind).skill === skill) total += affix.value;
+    }
+    if (item?.smithBonus?.skill === skill) total += item.smithBonus.amount;
+  }
+  return total;
+}
+
+/**
+ * A Skill's Skill Level: the learned level (Skill Points spent) plus the
+ * Equipped Items' raise, which goes with them. Everything reads this but
+ * spending Skill Points and Prerequisites, which read the learned level.
+ */
+export function skillLevelOf(world: World, skill: Skill): number {
+  return world.hero.progress.skillLevels[skill] + skillRaiseOf(world, skill);
+}
+
+/** Every Skill's Skill Level (see `skillLevelOf`). */
+export function skillLevelsOf(world: World): Record<Skill, number> {
+  return Object.fromEntries(
+    SKILLS.map((skill) => [skill, skillLevelOf(world, skill)]),
+  ) as Record<Skill, number>;
+}
+
 /** What the Equipped Items add up to, bonus by bonus (0 for none). */
 function bonusOf(world: World, bonus: Bonus): number {
   let total = 0;
   for (const slot of EQUIPMENT_SLOTS) {
     const item = world.hero.equipment[slot];
-    if (!item) continue;
-    total += itemOf(item.type).bonuses[bonus] ?? 0;
-    total += affixTotal(item.affixes, bonus);
-    if (item.smithBonus?.bonus === bonus) total += item.smithBonus.amount;
+    if (item) total += itemBonus(item, bonus);
   }
   return total;
+}
+
+/**
+ * The Hero's Resistance to `element`: the `total` the Equipped Items' Affixes
+ * add up to (All Resistances counting for each Element), and the `effective`
+ * Resistance a hit is reduced by, capped at the Maximum Resistance and
+ * floored at -100. Both come after the Resistance Penalty of the Act the Hero
+ * is in is taken off, so `total` can be negative, and above the cap only by
+ * what the Penalty left.
+ */
+export function heroResistance(
+  world: World,
+  element: Element,
+): { total: number; effective: number } {
+  const total =
+    bonusOf(world, `${element}Resistance`) +
+    bonusOf(world, "allResistances") -
+    resistancePenaltyOf(world.areas[world.areaName].act);
+  const effective = Math.max(
+    MINIMUM_RESISTANCE,
+    Math.min(total, MAXIMUM_RESISTANCE),
+  );
+  return { total, effective };
+}
+
+/** What the Hero shrugs off of each Element, as a hit on them lands. */
+function heroResistances(world: World): Resistances {
+  return Object.fromEntries(
+    ELEMENTS.map((element) => [
+      element,
+      heroResistance(world, element).effective,
+    ]),
+  );
 }
 
 /**
@@ -1132,19 +1254,78 @@ function maxima(world: World): PotionMaxima {
   return { life: maxLife(world), mana: maxMana(world) };
 }
 
+/** The slots whose Items' own Defense counts towards the Hero's Defense. */
+const DEFENSE_SLOTS: readonly EquipmentSlot[] = [
+  "helm",
+  "armour",
+  "gloves",
+  "boots",
+  "offHand",
+];
+
 /**
- * The Hero's Defense, which Monsters' Attack Rating has to beat: the
- * Equipped Armour's base Defense plus the Equipped Items' +Defense, 0 with
- * neither.
+ * The Hero's Defense, which Monsters' Attack Rating has to beat: the own
+ * Defense of each Equipped Helm, Armour, Gloves, Boots and Shield, each
+ * scaled by its own enhanced Defense %, plus the Equipped Items' flat
+ * +Defense; 0 with none.
  */
 export function heroDefense(world: World): number {
-  const armour = world.hero.equipment.armour;
-  const own = (armour && itemOf(armour.type).defense) ?? 0;
-  // The Armour's own Defense is scaled before flat Defense is added.
-  const enhanced = Math.round(
-    own * (1 + bonusOf(world, "enhancedDefense") / 100),
+  let total = bonusOf(world, "defense");
+  for (const slot of DEFENSE_SLOTS) {
+    const item = world.hero.equipment[slot];
+    if (!item) continue;
+    const own = itemOf(item.type).defense ?? 0;
+    // The Item's own Defense is scaled before flat Defense is added.
+    total += Math.round(own * (1 + itemBonus(item, "enhancedDefense") / 100));
+  }
+  return total;
+}
+
+/**
+ * The Hero's chance, in percent, to Block a Monster's attack that would hit:
+ * the Equipped Shield's own plus its Block Affixes, never above
+ * `blockTuning.cap`; 0 with no Shield.
+ */
+export function heroBlockChance(world: World): number {
+  const shield = world.hero.equipment.offHand;
+  const tuning = shield && itemOf(shield.type);
+  if (!shield || tuning?.kind !== "shield") return 0;
+  return Math.min(
+    blockTuning.cap,
+    (tuning.block ?? 0) + itemBonus(shield, "block"),
   );
-  return enhanced + bonusOf(world, "defense");
+}
+
+/** The Hero's attack speed, in percent: what the Equipped Items add; 0 for none. */
+export function heroAttackSpeed(world: World): number {
+  return bonusOf(world, "attackSpeed");
+}
+
+/** The Hero's walk speed bonus, in percent: what the Equipped Items add; 0 for none. */
+export function heroWalkSpeed(world: World): number {
+  return bonusOf(world, "walkSpeed");
+}
+
+/** How many times faster than the base the Hero swings: 1 + attack speed %. */
+function swingSpeedFactor(world: World): number {
+  return 1 + heroAttackSpeed(world) / 100;
+}
+
+/** How many whole steps the Hero's swing takes: the base swing over (1 + attack speed %). */
+function heroSwingSteps(world: World): number {
+  return Math.max(2, msToSteps(heroTuning.swingMs / swingSpeedFactor(world)));
+}
+
+/** The step of the Hero's swing on which its hit lands, at the base swing's fraction through it. */
+function heroHitStep(world: World): number {
+  const faster = swingSpeedFactor(world);
+  const steps = msToSteps((heroTuning.swingMs * heroTuning.hitAt) / faster);
+  return Math.min(Math.max(1, steps), heroSwingSteps(world) - 1);
+}
+
+/** How far the Hero walks in one step (tiles): the base walk speed times (1 + walk speed %). */
+function heroWalkPerStep(world: World): number {
+  return perStep(heroTuning.walkSpeed * (1 + heroWalkSpeed(world) / 100));
 }
 
 /** Whether the Hero is regaining Life: alive, out of combat and below full. */
@@ -1153,11 +1334,11 @@ export function isRegenerating(world: World): boolean {
 }
 
 /**
- * The least and most damage one of the Hero's hits deals: the Equipped
- * Weapon's, or a punch's with none, 1% more for each point of Strength.
- * Left unrounded, so every point counts: each hit rounds its own damage.
+ * The least and most Physical damage one of the Hero's hits deals: the
+ * Equipped Weapon's, or a punch's with none, 1% more for each point of
+ * Strength. Left unrounded, so every point counts.
  */
-export function damageRange(world: World): [number, number] {
+function physicalDamageRange(world: World): [number, number] {
   const weapon = world.hero.equipment.weapon;
   const scale = 1 + attributesOf(world).strength / 100;
   const [ownMin, ownMax] =
@@ -1169,13 +1350,46 @@ export function damageRange(world: World): [number, number] {
   return [(min + flat) * scale, (max + flat) * scale];
 }
 
+/** The flat damage of `element` the Equipped Items add to the Hero's hits. */
+function elementalDamage(world: World, element: Element): number {
+  return bonusOf(world, ELEMENT_INFO[element].damageBonus);
+}
+
 /**
- * The damage one of the Hero's hits deals for a `roll` in [0, 1): that far
- * through the damage range, rounded to a whole number.
+ * The least and most damage one of the Hero's hits deals before any
+ * Resistance: the Physical range plus each Element's flat damage, which
+ * neither Strength nor enhanced damage scales. Left unrounded.
+ */
+export function damageRange(world: World): [number, number] {
+  const [min, max] = physicalDamageRange(world);
+  const elemental = ELEMENTS.reduce(
+    (sum, element) => sum + elementalDamage(world, element),
+    0,
+  );
+  return [min + elemental, max + elemental];
+}
+
+/**
+ * The damage one of the Hero's attacks deals for a `roll` in [0, 1): that
+ * far through the Physical range, rounded, plus each Element's flat damage.
+ * Skills never add the Elements.
+ */
+export function heroAttackDamage(world: World, roll: number): Damage {
+  const [min, max] = physicalDamageRange(world);
+  const damage: Damage = { physical: Math.round(min + roll * (max - min)) };
+  for (const element of ELEMENTS) {
+    const amount = elementalDamage(world, element);
+    if (amount > 0) damage[element] = amount;
+  }
+  return damage;
+}
+
+/**
+ * The whole damage one of the Hero's hits deals for a `roll` in [0, 1),
+ * before any Resistance.
  */
 export function heroDamage(world: World, roll: number): number {
-  const [min, max] = damageRange(world);
-  return Math.round(min + roll * (max - min));
+  return unresistedTotal(heroAttackDamage(world, roll));
 }
 
 /**
@@ -1945,8 +2159,7 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   separateBodies(world);
   for (const { monster, target, wall } of strikes) {
     const attack = monsterAttack(monster);
-    if (wall)
-      hurtWall(world, wall, randomInt(world.rng, attack.damage), events);
+    if (wall) hurtWall(world, wall, rollWallHit(world, attack), events);
     else strike(world, target, attack, events);
   }
   stepBoneWalls(world, events);
@@ -2006,12 +2219,17 @@ function landProjectiles(world: World, events: SimEvent[]) {
       heroHurts(
         world,
         target,
-        randomInt(world.rng, projectile.damage),
+        splitDamage(randomInt(world.rng, projectile.damage)),
         "skill",
         events,
       ),
     (projectile, piece) =>
-      hurtWall(world, piece, randomInt(world.rng, projectile.damage), events),
+      hurtWall(
+        world,
+        piece,
+        unresistedTotal(splitDamage(randomInt(world.rng, projectile.damage))),
+        events,
+      ),
     (projectile, target) =>
       minionStrike(world, projectile.minion, target, events),
   );
@@ -2110,11 +2328,15 @@ function spendSkillPoint(world: World, skill: Skill, events: SimEvent[]) {
   const { progress } = world.hero;
   progress.skillPoints -= 1;
   // A Passive Skill is never cast, so it never goes on the Skill Bar.
-  if (progress.skillLevels[skill] === 0 && !isPassive(skill)) {
+  // One a Wand already raised may be on it.
+  const onBar = SKILL_BAR_SLOTS.some(
+    (slot) => progress.skillBar[slot] === skill,
+  );
+  if (progress.skillLevels[skill] === 0 && !isPassive(skill) && !onBar) {
     progress.skillBar = placeLearnedSkill(progress.skillBar, skill);
   }
   progress.skillLevels[skill] += 1;
-  const skillLevel = progress.skillLevels[skill];
+  const skillLevel = skillLevelOf(world, skill);
   events.push({ type: "SkillLevelRaised", skill, skillLevel });
 }
 
@@ -2129,7 +2351,7 @@ function putOnBar(
   events: SimEvent[],
 ) {
   const { progress } = world.hero;
-  if (progress.skillLevels[skill] === 0 || isPassive(skill)) return;
+  if (skillLevelOf(world, skill) === 0 || isPassive(skill)) return;
   if (progress.skillBar[slot] === skill) return;
   progress.skillBar = putSkillOnBar(progress.skillBar, skill, slot);
   events.push({ type: "SkillBarChanged" });
@@ -2253,7 +2475,7 @@ function give(world: World, order: Order, events: SimEvent[]) {
     case "SwingAt":
       hero.pickingUp = null;
       hero.talkingTo = null;
-      startSwing(hero, null, order.target);
+      startSwing(world, null, order.target);
       break;
     case "Cast":
       castFrom(world, order.slot, order.target, events);
@@ -2295,7 +2517,11 @@ function castFrom(
     events.push({ type: "CastFailed", reason: "corpse" });
     return;
   }
-  const skillLevel = hero.progress.skillLevels[skill];
+  const skillLevel = skillLevelOf(world, skill);
+  if (skillLevel === 0) {
+    events.push({ type: "CastFailed", reason: "skillLevel" });
+    return;
+  }
   const cost = skillManaCost(skill, skillLevel);
   if (hero.mana < cost) {
     events.push({ type: "CastFailed", reason: "mana" });
@@ -2327,7 +2553,7 @@ function castFrom(
         world,
         effect,
         skillLevel,
-        skillPower(hero.progress.skillLevels, skill),
+        skillPower(skillLevelsOf(world), skill),
       );
       break;
     case "ward":
@@ -2335,7 +2561,7 @@ function castFrom(
         hero,
         effect,
         skillLevel,
-        skillPower(hero.progress.skillLevels, skill),
+        skillPower(skillLevelsOf(world), skill),
       );
       break;
     case "wall":
@@ -2346,7 +2572,7 @@ function castFrom(
         world,
         effect,
         skillLevel,
-        skillPower(hero.progress.skillLevels, skill),
+        skillPower(skillLevelsOf(world), skill),
       );
       break;
   }
@@ -2443,7 +2669,7 @@ function explode(
   });
   const life = monsterMaxLife(corpse);
   const [least, most] = effect.share;
-  const synergy = skillPower(world.hero.progress.skillLevels, skill);
+  const synergy = skillPower(skillLevelsOf(world), skill);
   const range: [number, number] = [
     Math.ceil(life * least * synergy),
     Math.floor(life * most * synergy),
@@ -2453,7 +2679,14 @@ function explode(
   );
   // A Skill's damage always hits: no roll against Defense, and no hitstop.
   for (const target of victims) {
-    heroHurts(world, target, randomInt(world.rng, range), "skill", events);
+    const rolled = randomInt(world.rng, range);
+    heroHurts(
+      world,
+      target,
+      splitDamage(rolled, effect.damageTypes),
+      "skill",
+      events,
+    );
   }
 }
 
@@ -2495,7 +2728,7 @@ function curse(
   target: Vec,
   events: SimEvent[],
 ) {
-  const { skillLevels } = world.hero.progress;
+  const skillLevels = skillLevelsOf(world);
   const radius = curseRadius(
     effect,
     skillLevel,
@@ -2505,7 +2738,7 @@ function curse(
   const left = curseSteps(
     effect,
     skillLevel,
-    skillPower(world.hero.progress.skillLevels, skill),
+    skillPower(skillLevelsOf(world), skill),
   );
   for (const monster of world.monsters) {
     if (distance(monster.pos, target) <= radius) {
@@ -2683,6 +2916,13 @@ function removeWallPiece(
   events.push({ type: "BoneWallCrumbled", pos: { ...piece.pos }, broken });
 }
 
+/** Rolls a Monster's attack on a Bone Wall piece, which has no Resistance. */
+function rollWallHit(world: World, attack: AttackNumbers): number {
+  return unresistedTotal(
+    splitDamage(randomInt(world.rng, attack.damage), attack.damageTypes),
+  );
+}
+
 /** Lands `damage` from a Monster's side on a Bone Wall piece. */
 function hurtWall(
   world: World,
@@ -2721,7 +2961,7 @@ function bringMinion(
     skillLevel,
     pos,
     world.hero.facing,
-    skillPower(world.hero.progress.skillLevels, skill),
+    skillPower(skillLevelsOf(world), skill),
   );
   world.minions.push(minion);
   events.push({ type: "MinionSummoned", minion: minion.id, pos: { ...pos } });
@@ -2752,7 +2992,7 @@ function walkInDirection(world: World, direction: Vec) {
     area,
     hero.pos,
     direction,
-    WALK_PER_STEP,
+    heroWalkPerStep(world),
     heroTuning.radius,
   );
   if (to) {
@@ -2775,7 +3015,7 @@ function approach(world: World) {
     hero.attacking = null;
     hero.path = [];
   } else if (gapTo(hero.pos, monster) <= heroTuning.reach) {
-    startSwing(hero, monster.id, monster.pos);
+    startSwing(world, monster.id, monster.pos);
   } else if (hero.path.length === 0) {
     // Walked as near as it can get, still out of reach.
     hero.attacking = null;
@@ -2971,9 +3211,16 @@ function reachGoldPiles(world: World, events: SimEvent[]) {
   }
 }
 
-function startSwing(hero: Hero, monster: MonsterId | null, toward: Vec) {
+function startSwing(world: World, monster: MonsterId | null, toward: Vec) {
+  const { hero } = world;
   faceToward(hero, toward);
-  hero.swing = { elapsed: 0, landed: false, monster };
+  hero.swing = {
+    elapsed: 0,
+    steps: heroSwingSteps(world),
+    hitStep: heroHitStep(world),
+    landed: false,
+    monster,
+  };
   hero.attacking = null;
   hero.path = [];
 }
@@ -2981,8 +3228,8 @@ function startSwing(hero: Hero, monster: MonsterId | null, toward: Vec) {
 function advanceSwing(world: World, swing: Swing, events: SimEvent[]) {
   const { hero } = world;
   swing.elapsed += 1;
-  if (swing.elapsed === HIT_STEP) land(world, swing, events);
-  if (swing.elapsed < SWING_STEPS) return;
+  if (swing.elapsed === swing.hitStep) land(world, swing, events);
+  if (swing.elapsed < swing.steps) return;
 
   hero.swing = null;
   giveBuffered(world, events);
@@ -3055,23 +3302,24 @@ function miss(world: World, monster: Monster, events: SimEvent[]) {
 }
 
 function hit(world: World, target: Monster | BoneAltar, events: SimEvent[]) {
-  const damage = heroDamage(world, random(world.rng));
+  const damage = heroAttackDamage(world, random(world.rng));
   heroHurts(world, target, damage, "hero", events);
 }
 
 /**
  * Lands `rolled` damage from the Hero's swing or Skill on a Monster, keeping
- * the Hero In Combat.
+ * the Hero In Combat. A Bone Altar has no Resistances.
  */
 function heroHurts(
   world: World,
   target: Monster | BoneAltar,
-  rolled: number,
+  rolled: Damage,
   attacker: "hero" | "skill",
   events: SimEvent[],
 ) {
   world.hero.combat = COMBAT_STEPS;
-  if (isBoneAltar(target)) hurtAltar(world, target, rolled, events);
+  if (isBoneAltar(target))
+    hurtAltar(world, target, unresistedTotal(rolled), events);
   else takeDamage(world, target, rolled, attacker, events);
 }
 
@@ -3103,19 +3351,29 @@ function hurtAltar(
 }
 
 /**
- * Lands `rolled` damage from the Hero's side on a Monster, more if a Curse
- * makes it take more.
+ * Lands `rolled` damage from the Hero's side on a Monster: each Element cut by
+ * its type's Resistance, then more if a Curse makes it take more.
  */
 function takeDamage(
   world: World,
   monster: Monster,
-  rolled: number,
+  rolled: Damage,
   attacker: "hero" | "minion" | "skill",
   events: SimEvent[],
 ) {
-  const damage = Math.round(rolled * damageTaken(monster));
+  const { total: damage, main } = landDamage(
+    rolled,
+    monsterResistances(monster.type),
+    damageTaken(monster),
+  );
   monster.life = Math.max(0, monster.life - damage);
-  events.push({ type: "HitLanded", attacker, target: monster.id, damage });
+  events.push({
+    type: "HitLanded",
+    attacker,
+    target: monster.id,
+    damage,
+    damageType: main,
+  });
   hurt(world, monster, events);
 }
 
@@ -3195,16 +3453,17 @@ function flinchMonster(monster: Monster) {
 
 /**
  * Rolls an attack with `chance` to hit: the damage it deals, from `range`
- * inclusive, or null for a Miss. A certain hit rolls only its damage, so the
- * rolls after it stay as they were.
+ * inclusive and split over Damage Types by `shares`, or null for a Miss. A
+ * certain hit rolls only its damage, so the rolls after it stay as they were.
  */
 function rollAttack(
   world: World,
   chance: number,
   range: [number, number],
-): number | null {
+  shares?: DamageShares,
+): Damage | null {
   if (chance < 1 && random(world.rng) >= chance) return null;
-  return randomInt(world.rng, range);
+  return splitDamage(randomInt(world.rng, range), shares);
 }
 
 /**
@@ -3222,7 +3481,9 @@ function minionStrike(
     hurtAltar(
       world,
       monster,
-      randomInt(world.rng, minionDamageRange(minion)),
+      unresistedTotal(
+        splitDamage(randomInt(world.rng, minionDamageRange(minion))),
+      ),
       events,
     );
     return;
@@ -3311,19 +3572,33 @@ function rollGold(
  * with 0 Defense is always hit; above it the attack can Miss, which deals no
  * damage, so it neither flinches the Hero nor keeps them In Combat. A hit's
  * damage comes off their Bone Ward first, gone once used up, and only the
- * rest off their Life.
+ * rest off their Life. An attack that would hit can still be Blocked by an
+ * Equipped Shield (see `heroBlockChance`): that too deals no damage, never
+ * flinches the Hero and leaves their Bone Ward be, but keeps them In Combat.
  */
 function hitHero(world: World, attack: AttackNumbers, events: SimEvent[]) {
   const { hero } = world;
-  const damage = rollAttack(
-    world,
-    heroChanceToBeHit(world, attack.attackRating),
-    attack.damage,
-  );
-  if (damage === null) {
+  const chance = heroChanceToBeHit(world, attack.attackRating);
+  if (chance < 1 && random(world.rng) >= chance) {
     events.push({ type: "Missed", target: "hero" });
     return;
   }
+  // A Block is rolled once the attack would hit, before any damage. With no
+  // Shield nothing is rolled, so the rolls after it stay as they were.
+  const blockChance = heroBlockChance(world);
+  if (blockChance > 0 && random(world.rng) * 100 < blockChance) {
+    hero.combat = COMBAT_STEPS;
+    events.push({ type: "Blocked" });
+    return;
+  }
+  const rolled = splitDamage(
+    randomInt(world.rng, attack.damage),
+    attack.damageTypes,
+  );
+  const { total: damage, main: damageType } = landDamage(
+    rolled,
+    heroResistances(world),
+  );
   const warded = Math.min(damage, hero.boneWard?.left ?? 0);
   if (hero.boneWard) {
     hero.boneWard.left -= warded;
@@ -3331,7 +3606,12 @@ function hitHero(world: World, attack: AttackNumbers, events: SimEvent[]) {
   }
   hero.life = Math.max(0, hero.life - (damage - warded));
   hero.combat = COMBAT_STEPS;
-  events.push({ type: "HeroHit", damage: damage - warded, warded });
+  events.push({
+    type: "HeroHit",
+    damage: damage - warded,
+    warded,
+    damageType,
+  });
   if (hero.life === 0) {
     die(world, events);
     return;
@@ -3366,17 +3646,22 @@ function hitMinion(
 ) {
   const minion = world.minions.find((one) => one.id === id);
   if (!minion) return;
-  const damage = rollAttack(
+  const rolled = rollAttack(
     world,
     chanceToHit(attack.attackRating, minionDefense(minion)),
     attack.damage,
+    attack.damageTypes,
   );
-  if (damage === null) {
+  if (rolled === null) {
     events.push({ type: "MinionMissed", minion: minion.id });
     return;
   }
+  const { total: damage, main: damageType } = landDamage(
+    rolled,
+    minionResistances(minion.type),
+  );
   minion.life = Math.max(0, minion.life - damage);
-  events.push({ type: "MinionHit", minion: minion.id, damage });
+  events.push({ type: "MinionHit", minion: minion.id, damage, damageType });
   if (minion.life > 0) return;
   removeMinion(world, minion);
   events.push({
@@ -3491,7 +3776,7 @@ function walkHero(world: World) {
   const except =
     hero.attacking === null ? null : monsterById(world, hero.attacking);
   const obstacles = monsterBodies(world, except);
-  walk(hero);
+  walk(hero, heroWalkPerStep(world));
   const radius = heroTuning.radius;
   const gait = { radius, replanSteps: 1, body: { radius, obstacles } };
   if (holdBack(world.areas[world.areaName], hero, before, gait)) {
@@ -3500,8 +3785,8 @@ function walkHero(world: World) {
 }
 
 /** Moves the Hero one step along its path, carrying over past waypoints. */
-function walk(hero: Hero) {
-  let budget = WALK_PER_STEP;
+function walk(hero: Hero, perStepBudget: number) {
+  let budget = perStepBudget;
   while (budget > 0 && hero.path.length > 0) {
     const next = hero.path[0];
     const dx = next.x - hero.pos.x;

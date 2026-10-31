@@ -25,6 +25,9 @@ export type ItemRoll = {
   rareName?: string;
 };
 
+/** The odds of an Affix kind with no `weight` of its own. */
+const DEFAULT_KIND_WEIGHT = 100;
+
 const RARITY_ORDER: readonly Rarity[] = ["normal", "magic", "rare"];
 
 /** Picks an index by `weights`, advancing `rng` once. */
@@ -121,7 +124,13 @@ export function rollItem(
       (kind) => !affixes.some((a) => a.kind === kind),
     );
     if (kinds.length === 0) continue;
-    const kind = kinds[randomInt(rng, [0, kinds.length - 1])];
+    const kind =
+      kinds[
+        pickWeighted(
+          rng,
+          kinds.map((one) => affixOf(one).weight ?? DEFAULT_KIND_WEIGHT),
+        )
+      ];
     affixes.push(rollAffix(rng, kind, monsterLevel));
   }
   if (rarity === "magic") return { rarity, affixes };

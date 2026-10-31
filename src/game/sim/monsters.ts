@@ -199,9 +199,11 @@ export function monsterAttack(
   const weakened = (damage: number) =>
     dealt === 1 ? damage : Math.max(1, Math.round(damage * dealt));
   const [least, most] = monsterDamageRange(monster);
+  const { damageTypes } = monsterTuning[monster.type];
   return {
     attackRating: monsterAttackRating(monster),
     damage: [weakened(least), weakened(most)],
+    ...(damageTypes && { damageTypes }),
   };
 }
 

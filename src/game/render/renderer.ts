@@ -522,14 +522,17 @@ const PANEL_BUTTON_STYLE = {
 const GROUND_ITEM_GRAB = 24;
 
 /**
- * A Ground Item's name label: a dark back `labelAlpha` opaque, the name gold
- * while hovered (where the label goes and how big is `groundLabels`).
+ * A Ground Item's name label: a dark back `labelAlpha` opaque, in its Rarity
+ * colour, outlined in gold while hovered (where the label goes and how big is
+ * `groundLabels`).
  */
 const GROUND_ITEM = {
   label: 0x000000,
   labelAlpha: 0.7,
   /** The back of a hovered label, which keeps its Rarity colour. */
   hoveredAlpha: 0.95,
+  /** The gold outline round a hovered label (CSS px at UI Scale 1). */
+  hoveredOutline: 1.5,
 };
 
 /**
@@ -860,7 +863,7 @@ export function createRenderer(
 
   /**
    * Draws each Ground Item's name label over where its model is on the
-   * screen, gold for `hovered`, and drops the labels of Items no longer
+   * screen, outlined in gold for `hovered`, and drops the labels of Items no longer
    * lying there.
    */
   const drawGroundItems = (
@@ -917,6 +920,12 @@ export function createRenderer(
         alpha:
           id === hovered ? GROUND_ITEM.hoveredAlpha : GROUND_ITEM.labelAlpha,
       });
+      if (id === hovered) {
+        labelBacks.stroke({
+          color: GOLD_COLOUR,
+          width: GROUND_ITEM.hoveredOutline * uiScale,
+        });
+      }
       const text = labelTexts.get(id);
       if (!text) continue;
       text.style.fill =

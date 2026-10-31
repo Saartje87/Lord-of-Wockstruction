@@ -1,6 +1,7 @@
 /** Item tuning: every Item type there is, and the Inventory's size. */
 
 import type { Attribute } from "../sim/world";
+import { type Skill, skillTuning } from "./skills";
 
 /** What an Item is for, which decides the Equipment slot it fits. */
 export type ItemKind =
@@ -33,9 +34,13 @@ export type Bonus =
   | "block"
   | "fireDamage"
   | "coldDamage"
-  | "lightningDamage";
+  | "lightningDamage"
+  | "skillLevel";
 
-/** Every Bonus there is. */
+/**
+ * Every Bonus there is, but `skillLevel`, which only an Affix gives and which
+ * names a Skill.
+ */
 export const BONUSES: readonly Bonus[] = [
   "strength",
   "dexterity",
@@ -436,6 +441,8 @@ export type AffixTuning = {
   bonus: Bonus;
   /** The Item kinds it can roll on. */
   rollsOn: readonly ItemKind[];
+  /** For a Skill Level Affix, the Skill whose Skill Level it raises. */
+  skill?: Skill;
   /**
    * Its odds among the kinds of its side that suit the Item; missing, 100.
    * A rarer kind has less.
@@ -510,8 +517,43 @@ const ATTRIBUTE_RANGES: [Range, Range, Range] = [
   [7, 10],
 ];
 
+/** The key of the Affix kind raising a Skill's Skill Level: "skillBoneSpear". */
+export type SkillAffixKind = `skill${Capitalize<Skill>}`;
+
+/** The Affix kind raising `skill`'s Skill Level. */
+export function skillAffixKind(skill: Skill): SkillAffixKind {
+  return `skill${skill[0].toUpperCase()}${skill.slice(1)}` as SkillAffixKind;
+}
+
+/**
+ * One Affix kind per Skill, each a Wand-only Suffix raising that Skill's
+ * Skill Level by 1, 2 or 3. Each is rarer than a plain Suffix, as there are
+ * many; to be tuned.
+ */
+const skillAffixTuning = Object.fromEntries(
+  (Object.keys(skillTuning) as Skill[]).map((skill) => [
+    skillAffixKind(skill),
+    {
+      side: "suffix",
+      bonus: "skillLevel",
+      rollsOn: ["wand"],
+      skill,
+      weight: 25,
+      grades: threeGrades(
+        ["of the Acolyte", "of the Adept", "of the Master"],
+        [
+          [1, 1],
+          [2, 2],
+          [3, 3],
+        ],
+      ),
+    } satisfies AffixTuning,
+  ]),
+) as unknown as Record<SkillAffixKind, AffixTuning>;
+
 /** Every Affix kind there is, by the key it's known as in code and the Save. */
 export const affixTuning = {
+  ...skillAffixTuning,
   defense: {
     side: "prefix",
     bonus: "defense",

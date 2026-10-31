@@ -105,6 +105,7 @@ describe("the hints and labels that name buttons", () => {
     synergies: [],
     synergyTotal: "0",
     manaCost: "15",
+    raised: "",
     requiredLevel: null,
     passive: null,
   } as const;

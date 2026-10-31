@@ -5,6 +5,8 @@ import type { Vec } from "../sim/vec";
 import {
   canRaiseSkill,
   type Skill,
+  skillLevelOf,
+  skillLevelsOf,
   skillManaCost,
   type World,
 } from "../sim/world";
@@ -83,6 +85,8 @@ export type SkillSheet = {
   skill: Skill;
   name: string;
   skillLevel: string;
+  /** How many of those a Wand's Affix gives; empty for none. */
+  raised: string;
   branch: Branch;
   /**
    * The name of its Prerequisite while the Hero has no Skill Level in it,
@@ -131,6 +135,9 @@ export type SkillTreeSheet = {
 /** What the Skill Tree panel shows, from the Hero's progress. */
 export function skillTreeSheet(world: World): SkillTreeSheet {
   const { progress } = world.hero;
+  // Everything the sheet shows reads the Skill Level, a Wand's raise
+  // included; only a Prerequisite (to spend a point) reads the learned one.
+  const levels = skillLevelsOf(world);
   return {
     skillPoints: String(progress.skillPoints),
     branches: BRANCHES.map((branch) => ({
@@ -138,7 +145,8 @@ export function skillTreeSheet(world: World): SkillTreeSheet {
       name: branchTuning[branch].name,
     })),
     skills: BRANCHES.flatMap((branch) => branchSkills[branch]).map((skill) => {
-      const skillLevel = progress.skillLevels[skill];
+      const skillLevel = levels[skill];
+      const raised = skillLevel - progress.skillLevels[skill];
       const { requiredLevel, prerequisite } = skillTuning[skill];
       const { passive } = skillTuning[skill];
       return {
@@ -150,17 +158,14 @@ export function skillTreeSheet(world: World): SkillTreeSheet {
             ? skillTuning[prerequisite].name
             : null,
         skillLevel: String(skillLevel),
+        raised: raised > 0 ? String(raised) : "",
         synergies: skillTuning[skill].synergies.map((synergy) => ({
           giver: skillTuning[synergy.skill].name,
           percentPerSkillLevel: String(synergy.percentPerSkillLevel),
-          total: String(
-            synergy.percentPerSkillLevel * progress.skillLevels[synergy.skill],
-          ),
+          total: String(synergy.percentPerSkillLevel * levels[synergy.skill]),
         })),
         synergyTotal: String(
-          Math.round(
-            (synergyMultiplier(progress.skillLevels, skill) - 1) * 100,
-          ),
+          Math.round((synergyMultiplier(levels, skill) - 1) * 100),
         ),
         manaCost: isPassive(skill)
           ? ""
@@ -373,7 +378,7 @@ export function skillTreeHitAt(
     if (canRaiseSkill(world, skill) && inside(layout.raise[skill], point)) {
       return { button: { type: "learn", skill } };
     }
-    const learned = world.hero.progress.skillLevels[skill] > 0;
+    const learned = skillLevelOf(world, skill) > 0;
     // A Passive Skill is never put on the Skill Bar, so there's nothing to lift.
     if (learned && !isPassive(skill) && inside(layout.skills[skill], point)) {
       return { button: { type: "pickUpSkill", skill } };
@@ -410,7 +415,7 @@ export function skillTreeFocusSpots(
   ).map((skill) => {
     const at = middleOf(layout.raise[skill]);
     const hit = skillTreeHitAt(screen, at, world, true) ?? { button: null };
-    const learned = world.hero.progress.skillLevels[skill] > 0;
+    const learned = skillLevelOf(world, skill) > 0;
     const spot = { rect: layout.skills[skill], at, hit };
     if (!learned || isPassive(skill)) return spot;
     return { ...spot, secondHit: { button: { type: "pickUpSkill", skill } } };

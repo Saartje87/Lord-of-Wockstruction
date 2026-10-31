@@ -14,6 +14,7 @@ import { goldTuning } from "../tuning/gold";
 import { graveWockingtonTuning } from "../tuning/graveWockington";
 import { heroTuning } from "../tuning/hero";
 import {
+  affixOf,
   type Bonus,
   blockTuning,
   dropTuning,
@@ -157,6 +158,7 @@ import {
   emptySkillBar,
   placeLearnedSkill,
   putSkillOnBar,
+  SKILL_BAR_SLOTS,
   type SkillBar,
   type SkillBarSlot,
 } from "./skillBar";
@@ -689,7 +691,7 @@ export type Order =
  * Why a cast failed: the Hero is in Town, lacks the Mana for it, or there's
  * no Corpse near the cast point for a Skill that uses one up.
  */
-export type CastFailure = "town" | "mana" | "corpse";
+export type CastFailure = "town" | "mana" | "corpse" | "skillLevel";
 
 /** What happened during a step. */
 export type SimEvent =
@@ -1125,6 +1127,33 @@ function itemBonus(item: Item, bonus: Bonus): number {
     affixTotal(item.affixes, bonus) +
     (item.smithBonus?.bonus === bonus ? item.smithBonus.amount : 0)
   );
+}
+
+/** How many Skill Levels the Equipped Items' Affixes raise `skill` by. */
+export function skillRaiseOf(world: World, skill: Skill): number {
+  let total = 0;
+  for (const slot of EQUIPMENT_SLOTS) {
+    for (const affix of world.hero.equipment[slot]?.affixes ?? []) {
+      if (affixOf(affix.kind).skill === skill) total += affix.value;
+    }
+  }
+  return total;
+}
+
+/**
+ * A Skill's Skill Level: the learned level (Skill Points spent) plus the
+ * Equipped Items' raise, which goes with them. Everything reads this but
+ * spending Skill Points and Prerequisites, which read the learned level.
+ */
+export function skillLevelOf(world: World, skill: Skill): number {
+  return world.hero.progress.skillLevels[skill] + skillRaiseOf(world, skill);
+}
+
+/** Every Skill's Skill Level (see `skillLevelOf`). */
+export function skillLevelsOf(world: World): Record<Skill, number> {
+  return Object.fromEntries(
+    SKILLS.map((skill) => [skill, skillLevelOf(world, skill)]),
+  ) as Record<Skill, number>;
 }
 
 /** What the Equipped Items add up to, bonus by bonus (0 for none). */
@@ -2262,11 +2291,15 @@ function spendSkillPoint(world: World, skill: Skill, events: SimEvent[]) {
   const { progress } = world.hero;
   progress.skillPoints -= 1;
   // A Passive Skill is never cast, so it never goes on the Skill Bar.
-  if (progress.skillLevels[skill] === 0 && !isPassive(skill)) {
+  // One a Wand already raised may be on it.
+  const onBar = SKILL_BAR_SLOTS.some(
+    (slot) => progress.skillBar[slot] === skill,
+  );
+  if (progress.skillLevels[skill] === 0 && !isPassive(skill) && !onBar) {
     progress.skillBar = placeLearnedSkill(progress.skillBar, skill);
   }
   progress.skillLevels[skill] += 1;
-  const skillLevel = progress.skillLevels[skill];
+  const skillLevel = skillLevelOf(world, skill);
   events.push({ type: "SkillLevelRaised", skill, skillLevel });
 }
 
@@ -2281,7 +2314,7 @@ function putOnBar(
   events: SimEvent[],
 ) {
   const { progress } = world.hero;
-  if (progress.skillLevels[skill] === 0 || isPassive(skill)) return;
+  if (skillLevelOf(world, skill) === 0 || isPassive(skill)) return;
   if (progress.skillBar[slot] === skill) return;
   progress.skillBar = putSkillOnBar(progress.skillBar, skill, slot);
   events.push({ type: "SkillBarChanged" });
@@ -2447,7 +2480,11 @@ function castFrom(
     events.push({ type: "CastFailed", reason: "corpse" });
     return;
   }
-  const skillLevel = hero.progress.skillLevels[skill];
+  const skillLevel = skillLevelOf(world, skill);
+  if (skillLevel === 0) {
+    events.push({ type: "CastFailed", reason: "skillLevel" });
+    return;
+  }
   const cost = skillManaCost(skill, skillLevel);
   if (hero.mana < cost) {
     events.push({ type: "CastFailed", reason: "mana" });
@@ -2479,7 +2516,7 @@ function castFrom(
         world,
         effect,
         skillLevel,
-        skillPower(hero.progress.skillLevels, skill),
+        skillPower(skillLevelsOf(world), skill),
       );
       break;
     case "ward":
@@ -2487,7 +2524,7 @@ function castFrom(
         hero,
         effect,
         skillLevel,
-        skillPower(hero.progress.skillLevels, skill),
+        skillPower(skillLevelsOf(world), skill),
       );
       break;
     case "wall":
@@ -2498,7 +2535,7 @@ function castFrom(
         world,
         effect,
         skillLevel,
-        skillPower(hero.progress.skillLevels, skill),
+        skillPower(skillLevelsOf(world), skill),
       );
       break;
   }
@@ -2595,7 +2632,7 @@ function explode(
   });
   const life = monsterMaxLife(corpse);
   const [least, most] = effect.share;
-  const synergy = skillPower(world.hero.progress.skillLevels, skill);
+  const synergy = skillPower(skillLevelsOf(world), skill);
   const range: [number, number] = [
     Math.ceil(life * least * synergy),
     Math.floor(life * most * synergy),
@@ -2654,7 +2691,7 @@ function curse(
   target: Vec,
   events: SimEvent[],
 ) {
-  const { skillLevels } = world.hero.progress;
+  const skillLevels = skillLevelsOf(world);
   const radius = curseRadius(
     effect,
     skillLevel,
@@ -2664,7 +2701,7 @@ function curse(
   const left = curseSteps(
     effect,
     skillLevel,
-    skillPower(world.hero.progress.skillLevels, skill),
+    skillPower(skillLevelsOf(world), skill),
   );
   for (const monster of world.monsters) {
     if (distance(monster.pos, target) <= radius) {
@@ -2887,7 +2924,7 @@ function bringMinion(
     skillLevel,
     pos,
     world.hero.facing,
-    skillPower(world.hero.progress.skillLevels, skill),
+    skillPower(skillLevelsOf(world), skill),
   );
   world.minions.push(minion);
   events.push({ type: "MinionSummoned", minion: minion.id, pos: { ...pos } });

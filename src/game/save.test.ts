@@ -443,10 +443,6 @@ describe("stored text", () => {
       v10({ skillBar: { ...emptySkillBar(), key1: "teeth" } }),
     ],
     [
-      "with an unlearned Skill on the Skill Bar",
-      v10({ skillBar: { ...emptySkillBar(), right: "golem" } }),
-    ],
-    [
       "with a Passive Skill on the Skill Bar",
       v10({
         skillPoints: 0,

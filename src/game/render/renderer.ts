@@ -3330,7 +3330,9 @@ function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
         shown.requiredLevel.visible = heldBack !== null && !screen.compact;
         shown.requiredLevel.text = heldBack ?? "";
         shown.requiredLevel.position.set(column.requiredLevel, y);
-        shown.skillLevel.text = skill.skillLevel;
+        shown.skillLevel.text = skill.raised
+          ? `${skill.skillLevel} (+${skill.raised})`
+          : skill.skillLevel;
         shown.skillLevel.position.set(column.skillLevel, y);
         shown.manaCost.visible = !screen.compact;
         shown.manaCost.text = skill.manaCost;

@@ -85,6 +85,8 @@ export type MonsterView = {
   /** How white a hit Monster is washed, 0..1. */
   flash: number;
   corpse: boolean;
+  /** Whether it has flared up, as Grave Wockington does past half his Life. */
+  flared: boolean;
   /** Times its type's own scale: a Unique Monster's, else 1. */
   scale: number;
   /** Whether it is outlined as hovered or targeted. */
@@ -401,6 +403,7 @@ export function worldViewOf(
           animation: corpseAnimationOf(effects.deadForMs.get(corpse.id)),
           flash: 0,
           corpse: true,
+          flared: false,
           scale: 1,
           highlighted: false,
         }),
@@ -638,6 +641,7 @@ function monsterViewOf(
     animation,
     flash: effects.flashes.get(monster.id) ?? 0,
     corpse: false,
+    flared: (monster.waves?.stage ?? 0) > 0,
     scale: monster.unique === null ? 1 : uniqueTuning.scale,
     highlighted: highlight === monster.id,
   };

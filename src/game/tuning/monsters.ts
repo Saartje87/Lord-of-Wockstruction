@@ -516,7 +516,7 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
         burn: { burnMs: 4000, tickMs: 500, damage: 0.25 },
       },
       melee: { reach: 1.5, reachGrace: 0.25, arcDegrees: 70 },
-      recoveryMs: [1800],
+      recoveryMs: [1800, 1000],
     },
     windUpMs: 900,
     rootMs: 400,

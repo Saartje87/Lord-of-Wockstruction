@@ -105,6 +105,19 @@ describe("the 3D World view of the Monsters", () => {
     ).toBe("idle");
   });
 
+  it("shows Grave Wockington's flare on his model from the turn on", () => {
+    const { world, monster } = withSkeleton();
+    monster.type = "grave_wockington";
+    monster.waves = { cooldown: 100, raised: [], stage: 0 };
+    expect(firstMonster(world).flared).toBe(false);
+
+    monster.waves.stage = 1;
+    expect(firstMonster(world).flared).toBe(true);
+    expect(worldViewOf(world, 1, NO_POINTER, NO_EFFECTS).monsters).toHaveLength(
+      1,
+    );
+  });
+
   it("plays Grave Wockington's Spellcast clip while he casts Gravefire, and his melee clip for his swing", () => {
     const { world, monster } = withSkeleton();
     monster.type = "grave_wockington";

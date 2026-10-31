@@ -17,6 +17,19 @@ export type GraveWockingtonTuning = {
   raises: MonsterType;
   /** How far from him a Monster he raises stands (tiles). */
   raiseDistance: number;
+  /**
+   * The turn: his Life at or below this fraction of his maximum is past half.
+   * His Gravefire recovery past it is in his type's attack.
+   */
+  halfAt: number;
+  /** His waves past half his Life, in place of the numbers above. */
+  pastHalf: {
+    waveEveryMs: number;
+    waveSize: number;
+    raisedLimit: number;
+    /** Skeleton Archers in each wave, among its `waveSize`. */
+    archers: number;
+  };
 };
 
 export const graveWockingtonTuning: GraveWockingtonTuning = {
@@ -26,4 +39,6 @@ export const graveWockingtonTuning: GraveWockingtonTuning = {
   raisedLimit: 6,
   raises: "skeleton",
   raiseDistance: 1.6,
+  halfAt: 0.5,
+  pastHalf: { waveEveryMs: 7000, waveSize: 5, raisedLimit: 9, archers: 1 },
 };

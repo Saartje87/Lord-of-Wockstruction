@@ -716,10 +716,11 @@ function windUp(world: World, monster: Monster, events: SimEvent[]): Strike[] {
 
 /**
  * Which stage of its fight a Monster is in, from 0: the index into numbers
- * tuned per stage. Every Monster is in its first for now.
+ * tuned per stage. Grave Wockington's second is past half his Life; every
+ * other Monster stays in its first.
  */
-function stageOf(_monster: Monster): number {
-  return 0;
+function stageOf(monster: Monster): number {
+  return monster.waves?.stage ?? 0;
 }
 
 /** Looses a ranged Monster's Projectile from where it stands at `at`. */

@@ -334,10 +334,10 @@ export type Monster = {
   unique: string | null;
   /**
    * Grave Wockington's Skeleton waves: steps left until the next, counted
-   * while he is after the Hero, and the Monsters he raised. Null for the
-   * others.
+   * while he is after the Hero, the Monsters he raised, and his stage: 0 for
+   * the first half of his Life, 1 once past half. Null for the others.
    */
-  waves: { cooldown: number; raised: MonsterId[] } | null;
+  waves: { cooldown: number; raised: MonsterId[]; stage: number } | null;
   pos: Vec;
   prevPos: Vec;
   life: number;
@@ -784,6 +784,8 @@ export type SimEvent =
   /** The Hero's side hit Bone Altar `altar` for `damage`. */
   /** Monster `boss` raised a wave of `monsters` around itself. */
   | { type: "WaveRaised"; boss: MonsterId; monsters: MonsterId[] }
+  /** Monster `boss` flared up, crossing half its Life. */
+  | { type: "BossFlared"; boss: MonsterId }
   /** A Monster cast Gravefire, which will land on `landing`. */
   | { type: "GravefireCast"; monster: MonsterId; landing: Vec }
   /** A Gravefire landed on `at` and began to burn there. */
@@ -1967,7 +1969,11 @@ function placeMonster(
     swinging: false,
     waves:
       type === "grave_wockington"
-        ? { cooldown: msToSteps(graveWockingtonTuning.firstWaveMs), raised: [] }
+        ? {
+            cooldown: msToSteps(graveWockingtonTuning.firstWaveMs),
+            raised: [],
+            stage: 0,
+          }
         : null,
   };
   world.monsters.push(monster);
@@ -2093,13 +2099,29 @@ function stepWaves(world: World, events: SimEvent[]) {
     const afterHero = !["idle", "wander", "return", "flee"].includes(
       boss.state,
     );
+    const { halfAt, pastHalf } = graveWockingtonTuning;
+    // The first step at or below half his Life is the turn: a wave at once.
+    if (
+      afterHero &&
+      waves.stage === 0 &&
+      boss.life <= monsterMaxLife(boss) * halfAt
+    ) {
+      waves.stage = 1;
+      waves.cooldown = 0;
+      events.push({ type: "BossFlared", boss: boss.id });
+    }
+    const past = waves.stage > 0;
+    let archers = past ? pastHalf.archers : 0;
     const made = raiseWhenDue(world, waves, afterHero, {
       from: boss.pos,
       distance: graveWockingtonTuning.raiseDistance,
-      limit: graveWockingtonTuning.raisedLimit,
-      size: graveWockingtonTuning.waveSize,
-      type: () => graveWockingtonTuning.raises,
-      cooldown: msToSteps(graveWockingtonTuning.waveEveryMs),
+      limit: past ? pastHalf.raisedLimit : graveWockingtonTuning.raisedLimit,
+      size: past ? pastHalf.waveSize : graveWockingtonTuning.waveSize,
+      type: () =>
+        archers-- > 0 ? "skeleton_archer" : graveWockingtonTuning.raises,
+      cooldown: msToSteps(
+        past ? pastHalf.waveEveryMs : graveWockingtonTuning.waveEveryMs,
+      ),
     });
     if (made.length === 0) continue;
     // Raised already after the Hero.
@@ -3549,7 +3571,10 @@ function fallRaised(world: World, raiser: Monster, events: SimEvent[]) {
 /** Lets the raised Monsters of every raiser that is Returning fall dead. */
 function fallWithReturning(world: World, events: SimEvent[]) {
   for (const monster of world.monsters) {
-    if (monster.state === "return") fallRaised(world, monster, events);
+    if (monster.state !== "return") continue;
+    fallRaised(world, monster, events);
+    // Back to the first half of his Life, as his Life is restored at home.
+    if (monster.waves) monster.waves.stage = 0;
   }
 }
 

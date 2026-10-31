@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { graveWockingtonTuning } from "../tuning/graveWockington";
 import { heroTuning } from "../tuning/hero";
+import { monsterTuning } from "../tuning/monsters";
 import { loadArea } from "./area";
 import { monsterMaxLife } from "./monsters";
+import { isLobbed } from "./projectiles";
 import { combatArea } from "./testAreas";
 import { msToSteps } from "./units";
 import {
@@ -99,6 +101,8 @@ function kill(world: World): SimEvent[] {
   const boss = world.monsters.find((m) => m.type === "grave_wockington");
   if (!boss) throw new Error("no Grave Wockington");
   boss.life = 1;
+  // Already past half, so no turn gets between the Hero and his kill.
+  if (boss.waves) boss.waves.stage = 1;
   const events: SimEvent[] = [];
   for (let i = 0; i < 6000 && world.monsters.includes(boss); i++) {
     const orders: Order[] =
@@ -287,6 +291,160 @@ describe("his raised Monsters falling with him", () => {
 
     expect(world.corpses.map((corpse) => corpse.id)).toContain(skeleton.id);
     expect(events.some((e) => e.type === "ExperienceGained")).toBe(true);
+  });
+});
+
+/** Steps until his first wave is raised; the events. */
+function untilFirstWave(world: World): SimEvent[] {
+  const events: SimEvent[] = [];
+  for (let i = 0; i < 60 * 20; i++) {
+    events.push(...wait(world, 1));
+    if (events.some((e) => e.type === "WaveRaised")) return events;
+  }
+  throw new Error("No wave");
+}
+
+function bossOf(world: World) {
+  const boss = world.monsters.find((m) => m.type === "grave_wockington");
+  if (!boss) throw new Error("no Grave Wockington");
+  return boss;
+}
+
+/** Raises his first wave, then lowers him to `fraction` of his Life. */
+function afterFirstWave(fraction: number) {
+  const world = inOssuary(6);
+  const boss = bossOf(world);
+  untilFirstWave(world);
+  boss.life = Math.floor(monsterMaxLife(boss) * fraction);
+  return { world, boss };
+}
+
+describe("the turn at half his Life", () => {
+  const second = graveWockingtonTuning.pastHalf;
+
+  it("raises Skeletons only while he is above half his Life", () => {
+    const world = inOssuary(6);
+    const boss = bossOf(world);
+    boss.life = Math.floor(monsterMaxLife(boss) / 2) + 1;
+
+    const events = wait(
+      world,
+      3 * msToSteps(graveWockingtonTuning.waveEveryMs),
+    );
+
+    expect(events.some((e) => e.type === "WaveRaised")).toBe(true);
+    expect(events.some((e) => e.type === "BossFlared")).toBe(false);
+    expect(
+      world.monsters.filter((m) => m !== boss).map((m) => m.type),
+    ).not.toContain("skeleton_archer");
+  });
+
+  it("raises a wave at once, once, the first step he is at or below half", () => {
+    const { world, boss } = afterFirstWave(0.5);
+    // Well before the timer would raise one.
+    expect(boss.waves?.cooldown ?? 0).toBeGreaterThan(30);
+    for (const m of world.monsters) if (m !== boss) m.life = 0;
+    world.monsters = [boss];
+    const before = world.monsters.length;
+
+    const events = wait(world, 1);
+    const later = wait(world, 2 * msToSteps(second.waveEveryMs) - 10);
+
+    expect(events).toContainEqual({ type: "BossFlared", boss: boss.id });
+    expect(events.some((e) => e.type === "WaveRaised")).toBe(true);
+    expect(world.monsters.length).toBeGreaterThan(before);
+    expect(later.filter((e) => e.type === "BossFlared")).toHaveLength(0);
+  });
+
+  it("raises more in later waves, each with one Skeleton Archer, on a shorter timer", () => {
+    const { world, boss } = afterFirstWave(0.4);
+    wait(world, 1);
+    expect(second.waveEveryMs).toBeLessThan(graveWockingtonTuning.waveEveryMs);
+    expect(second.waveSize).toBeGreaterThan(graveWockingtonTuning.waveSize);
+
+    const events = wait(world, msToSteps(second.waveEveryMs) + 5);
+    const waves = events.filter((e) => e.type === "WaveRaised");
+
+    expect(waves.length).toBeGreaterThanOrEqual(1);
+    for (const wave of waves) {
+      if (wave.type !== "WaveRaised") continue;
+      const types = wave.monsters.map(
+        (id) =>
+          world.monsters.find((m) => m.id === id)?.type ??
+          world.corpses.find((c) => c.id === id)?.type,
+      );
+      expect(types.filter((t) => t === "skeleton_archer")).toHaveLength(1);
+    }
+    expect(second.raisedLimit).toBeGreaterThanOrEqual(
+      graveWockingtonTuning.raisedLimit,
+    );
+    expect(boss.waves?.raised.length).toBeLessThanOrEqual(second.raisedLimit);
+  });
+
+  it("casts Gravefire again sooner than before the turn", () => {
+    const recoveryMs = monsterTuning.grave_wockington.attack;
+    if (recoveryMs.kind !== "ranged" || !recoveryMs.recoveryMs)
+      throw new Error("no tuning");
+    expect(recoveryMs.recoveryMs[1]).toBeLessThan(recoveryMs.recoveryMs[0]);
+    const { world, boss } = afterFirstWave(0.4);
+    wait(world, 1);
+    for (const m of world.monsters) if (m !== boss) m.life = 0;
+    boss.cooldown = 0;
+    boss.state = "chase";
+    for (let i = 0; i < 600 && !world.projectiles.some(isLobbed); i++) {
+      wait(world, 1);
+    }
+    expect(world.projectiles.some(isLobbed)).toBe(true);
+    const t = monsterTuning.grave_wockington;
+    const most =
+      msToSteps(t.rootMs) +
+      msToSteps(recoveryMs.recoveryMs[1]) +
+      msToSteps(t.jitterMs) +
+      msToSteps(t.windUpMs) +
+      4;
+
+    expect(boss.cooldown).toBeLessThanOrEqual(most);
+  });
+
+  it("takes damage throughout the turn", () => {
+    heroTuning.flinchChance = 0;
+    const world = inOssuary(3);
+    const boss = bossOf(world);
+    boss.life = Math.floor(monsterMaxLife(boss) / 2) + 1;
+    let flared = false;
+    let hurtAfter = false;
+    for (let i = 0; i < 3000 && !hurtAfter; i++) {
+      const events = step(
+        world,
+        i % 120 === 0 ? [{ type: "Attack", monster: boss.id }] : [],
+      );
+      world.hero.life = 1_000_000;
+      flared ||= events.some((e) => e.type === "BossFlared");
+      hurtAfter =
+        flared &&
+        events.some((e) => e.type === "HitLanded" && e.target === boss.id);
+    }
+
+    expect(flared).toBe(true);
+    expect(hurtAfter).toBe(true);
+  });
+
+  it("goes back to the first stage with full Life when he Returns", () => {
+    const { world, boss } = afterFirstWave(0.4);
+    wait(world, 1);
+    boss.pos = { x: boss.home.x + 25, y: boss.home.y };
+
+    wait(world, 2);
+    expect(boss.state).toBe("return");
+    boss.pos = { ...boss.home };
+    const events: SimEvent[] = [];
+    for (let i = 0; i < 600 && boss.life < monsterMaxLife(boss); i++) {
+      events.push(...step(world, []));
+      world.hero.life = 1_000_000;
+    }
+
+    expect(boss.life).toBe(monsterMaxLife(boss));
+    expect(boss.waves?.stage).toBe(0);
   });
 });
 

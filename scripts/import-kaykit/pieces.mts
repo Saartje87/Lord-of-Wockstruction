@@ -73,6 +73,7 @@ export const PIECES: PieceSource[] = [
   building("tavern", "red"),
   building("church", "blue"),
   building("well", "red"),
+  // Kept though no Area uses it now: a tile number is never reused.
   building("blacksmith", "red"),
   // The Old Mill's watermill, static: no turning wheel.
   building("watermill", "red"),

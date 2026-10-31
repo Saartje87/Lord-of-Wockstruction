@@ -105,7 +105,7 @@ export type WaterMeshes = {
 export function waterMeshesOf(area: Area): WaterMeshes {
   const group = new Group();
   const look = area.hotSprings ? WATER_LOOK.hotSprings : WATER_LOOK.plain;
-  const material = driftingLight(look);
+  const material = waterMaterialOf(look);
   for (const pond of pondsOf(area)) {
     const positions: number[] = [];
     const indices: number[] = [];
@@ -149,7 +149,12 @@ void main() {
 `;
 
 // No tonemapping_fragment: Water keeps its colours. Two sine waves crossing
-// at an angle make soft bands, drifting along World x and z.
+// at an angle make soft bands, drifting along World x and z. The numbers:
+// each wave runs along its own direction (0.8, 0.6) and (-0.4, 0.9), so the
+// bands cross rather than line up; the second travels at 0.7 of the first's
+// speed and spreads 1.7 times wider, so the pattern never visibly repeats; the
+// sum of the waves sits in 0..1 around 0.5 (each adds up to 0.25), and the
+// smoothstep from 0.35 to 0.95 keeps the bands soft-edged, lit only on peaks.
 const FRAGMENT = `
 uniform vec3 uColour;
 uniform vec3 uGlint;
@@ -170,8 +175,8 @@ void main() {
 }
 `;
 
-/** The Water's material, shared by all its ponds. */
-function driftingLight(look: { colour: number; glint: number }) {
+/** Builds the Water material (colour, drifting glint bands), shared by all an Area's ponds. */
+function waterMaterialOf(look: { colour: number; glint: number }) {
   return new ShaderMaterial({
     uniforms: UniformsUtils.merge([
       UniformsLib.fog,

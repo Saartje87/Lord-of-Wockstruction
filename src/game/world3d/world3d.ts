@@ -27,6 +27,7 @@ import {
   type FloorEffectMeshes,
   floorEffectMeshesOf,
 } from "./floorEffectMeshes";
+import { floorPiecesOf } from "./floorPieces";
 import { type HeroActor, heroActorOf, poseHero } from "./heroActor";
 import { createLighting, type Lighting, lightScene } from "./lighting";
 import {
@@ -111,9 +112,8 @@ export type World3d = {
 /** What the 3D World is made of, loaded. */
 type Models = {
   hero: HeroActor;
-  floorPieces: FloorPieces;
-  /** The same pieces as they look under the open sky. */
-  outdoorFloorPieces: FloorPieces;
+  /** The floor pieces an Area is drawn with, in its look. */
+  floorPiecesFor: (area: Area) => FloorPieces;
   monsters: MonsterModels;
   /** Ground Items and Projectiles, one instanced draw per model. */
   loot: Record<string, Instances>;
@@ -256,23 +256,11 @@ export async function loadModels(
     // A draw call for a body rather than for each limb.
     mergeSkinned(monsterGltfs[i].scene);
   });
-  const floorPieces: FloorPieces = {};
-  const outdoorFloorPieces: FloorPieces = {};
+  const floorScenes: FloorPieces = {};
   floorNames.forEach((name, i) => {
-    const scene = floorGltfs[i].scene;
-    // A piece that looks different outdoors gets a copy of its own.
-    if (lookOf(name, true) !== lookOf(name)) {
-      const outdoor = scene.clone();
-      toonShade(outdoor, lookOf(name, true));
-      outdoorFloorPieces[name] = outdoor;
-    }
-    floorPieces[name] = scene;
-    toonShade(scene, lookOf(name));
+    floorScenes[name] = floorGltfs[i].scene;
   });
-  Object.assign(outdoorFloorPieces, {
-    ...floorPieces,
-    ...outdoorFloorPieces,
-  });
+  const floorPiecesFor = floorPiecesOf(floorScenes);
   const hero = heroActorOf(knight);
   world3d.scene.add(hero.root);
   const loot: Record<string, Instances> = {};
@@ -285,13 +273,7 @@ export async function loadModels(
     loot[file] = instances;
     world3d.scene.add(instances.group);
   });
-  world3d.models = {
-    hero,
-    floorPieces,
-    outdoorFloorPieces,
-    monsters,
-    loot,
-  };
+  world3d.models = { hero, floorPiecesFor, monsters, loot };
 }
 
 /** Puts `area`'s floor in the scene in place of the last Area's. */
@@ -308,12 +290,7 @@ function showFloor(world3d: World3d, area: Area) {
       );
     }
   }
-  const floor = floorOf(
-    area,
-    area.outdoors
-      ? world3d.models.outdoorFloorPieces
-      : world3d.models.floorPieces,
-  );
+  const floor = floorOf(area, world3d.models.floorPiecesFor(area));
   const exits = exitMeshesOf(
     area.exits.map(({ x, y, width, height, area: to }) => ({
       x,

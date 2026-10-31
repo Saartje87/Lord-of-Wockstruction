@@ -1,8 +1,9 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import kaykit from "../../content/tilesets/kaykit.tsj";
 import { PIECES, type PieceSource, pieceName } from "./pieces.mts";
 import TILE_NUMBERS from "./tile-numbers.json";
-import { tilesetOf } from "./tileset.mts";
+import { numberTiles, tileNumbersJson, tilesetOf } from "./tileset.mts";
 
 const piece = (model: string): PieceSource => ({
   pack: "halloween",
@@ -20,11 +21,20 @@ const numbersOf = (tiles: Tile[]) =>
     ]),
   );
 
+/** What the import writes: numbers extended once, then the tileset from them. */
+const importedTileset = (
+  pieces: PieceSource[],
+  record: Record<string, number>,
+) => tilesetOf(pieces, numberTiles(pieces, record));
+
 describe("the KayKit tileset's tile numbers", () => {
   const record = { "halloween/a": 0, "halloween/b": 1, water: 2 };
 
   it("keeps every recorded number when a piece is added, and appends the new one", () => {
-    const tileset = tilesetOf([piece("a"), piece("new"), piece("b")], record);
+    const tileset = importedTileset(
+      [piece("a"), piece("new"), piece("b")],
+      record,
+    );
     expect(numbersOf(tileset.tiles)).toEqual({
       "halloween/a": 0,
       "halloween/b": 1,
@@ -35,18 +45,18 @@ describe("the KayKit tileset's tile numbers", () => {
   });
 
   it("leaves the number of a piece no longer imported unused", () => {
-    const tileset = tilesetOf([piece("b")], record);
+    const tileset = importedTileset([piece("b")], record);
     expect(numbersOf(tileset.tiles)).toEqual({ "halloween/b": 1, water: 2 });
     expect(tileset.tilecount).toBe(3);
   });
 
   it("numbers a first import from 0, Water an entry like any other", () => {
-    const tileset = tilesetOf([piece("a")], {});
+    const tileset = importedTileset([piece("a")], {});
     expect(numbersOf(tileset.tiles)).toEqual({ "halloween/a": 0, water: 1 });
   });
 
   it("takes the next free number after the highest recorded one", () => {
-    const tileset = tilesetOf([piece("a"), piece("new")], { water: 5 });
+    const tileset = importedTileset([piece("a"), piece("new")], { water: 5 });
     expect(numbersOf(tileset.tiles)).toEqual({
       water: 5,
       "halloween/a": 6,
@@ -77,8 +87,15 @@ describe("the shipped tile numbers", () => {
   });
 
   it("make re-running the import change nothing", () => {
-    expect(tilesetOf(PIECES, TILE_NUMBERS)).toEqual(kaykit);
+    expect(importedTileset(PIECES, TILE_NUMBERS)).toEqual(kaykit);
+    expect(numberTiles(PIECES, TILE_NUMBERS)).toEqual(TILE_NUMBERS);
     for (const source of PIECES)
       expect(TILE_NUMBERS).toHaveProperty([pieceName(source)]);
+  });
+
+  it("are written in the format the formatter leaves unchanged", () => {
+    expect(tileNumbersJson(TILE_NUMBERS)).toBe(
+      readFileSync("scripts/import-kaykit/tile-numbers.json", "utf8"),
+    );
   });
 });

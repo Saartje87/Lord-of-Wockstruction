@@ -51,23 +51,28 @@ export const LOOKS = {
   warm: { saturation: 1, tint: 0xffffff },
 } satisfies Record<string, Look>;
 
-/**
- * The look of a KayKit piece (`dungeon/wall`, `halloween/crypt`, ...) in an
- * Area: Halloween dirt is daylight dirt outdoors and dusk-lit in Wockville.
- */
-export function lookOf(piece: string, outdoors = false): Look {
+/** The look of a KayKit piece (`dungeon/wall`, `halloween/crypt`, ...). */
+export function lookOf(piece: string): Look {
   const name = piece.slice(piece.indexOf("/") + 1);
   if (piece === "city/park_base") return LOOKS.grass;
   if (piece.startsWith("city/")) return LOOKS.green;
   if (piece === "dungeon/floor_dirt_large") return LOOKS.mud;
   if (/torch|candle|lantern|pumpkin/.test(name)) return LOOKS.warm;
   if (piece.startsWith("halloween/") && /^(floor|path)/.test(name)) {
-    return outdoors && name === "floor_dirt" ? LOOKS.daylightDirt : LOOKS.dusk;
+    return LOOKS.dusk;
   }
   if (/^(floor|wall|pillar|column|path|fence|rubble)/.test(name)) {
     return LOOKS.stone;
   }
   return LOOKS.prop;
+}
+
+/**
+ * The look of a KayKit piece under the open sky: Halloween dirt is daylight
+ * dirt rather than dusk-lit as in Wockville, the rest looks as `lookOf` says.
+ */
+export function outdoorLookOf(piece: string): Look {
+  return piece === "halloween/floor_dirt" ? LOOKS.daylightDirt : lookOf(piece);
 }
 
 /**

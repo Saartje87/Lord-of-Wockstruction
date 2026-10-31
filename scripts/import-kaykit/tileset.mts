@@ -46,14 +46,19 @@ export function numberTiles(
   return numbers;
 }
 
+/** `numbers` as the text of `tile-numbers.json`, in the formatter's style. */
+export function tileNumbersJson(numbers: TileNumbers): string {
+  return `${JSON.stringify(numbers, null, 2)}\n`;
+}
+
 /**
  * The KayKit tileset as Tiled's `.tsj`: a collection of images, one tile per
  * piece and one for Water, each with the properties `piece`, `blocks` and
- * `kind`. The tiles are numbered by the record of `numberTiles`, so a piece
- * keeps its number forever and Areas never need repainting after an import.
+ * `kind`. The tiles are numbered by `numbers`, the record as `numberTiles`
+ * extended it, so a piece keeps its number forever and Areas never need
+ * repainting after an import.
  */
-export function tilesetOf(pieces: PieceSource[], record: TileNumbers) {
-  const numbers = numberTiles(pieces, record);
+export function tilesetOf(pieces: PieceSource[], numbers: TileNumbers) {
   const tiles = [
     ...pieces.map((source) => ({
       id: numbers[pieceName(source)],

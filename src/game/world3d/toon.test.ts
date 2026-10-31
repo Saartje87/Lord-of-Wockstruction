@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LOOKS, lookOf } from "./toon";
+import { LOOKS, lookOf, outdoorLookOf } from "./toon";
 
 describe("the look of a KayKit piece", () => {
   it("keeps Town's dirt and paths warmer than the dungeon's stone", () => {
@@ -34,16 +34,16 @@ describe("the look of a KayKit piece", () => {
   });
 
   it("draws outdoor dirt as warm daylight earth, with no evening blue", () => {
-    const dirt = lookOf("halloween/floor_dirt", true);
+    const dirt = outdoorLookOf("halloween/floor_dirt");
     expect(dirt).toBe(LOOKS.daylightDirt);
     const [r, g, b] = [16, 8, 0].map((s) => (dirt.tint >> s) & 255);
     expect(r).toBeGreaterThan(g);
     expect(g).toBeGreaterThan(b);
-    expect(lookOf("halloween/floor_dirt", false)).toBe(LOOKS.dusk);
+    expect(lookOf("halloween/floor_dirt")).toBe(LOOKS.dusk);
   });
 
   it("keeps the Bog's mud and grass their own look outdoors", () => {
-    expect(lookOf("dungeon/floor_dirt_large", true)).toBe(LOOKS.mud);
-    expect(lookOf("city/park_base", true)).toBe(LOOKS.grass);
+    expect(outdoorLookOf("dungeon/floor_dirt_large")).toBe(LOOKS.mud);
+    expect(outdoorLookOf("city/park_base")).toBe(LOOKS.grass);
   });
 });

@@ -8,6 +8,7 @@ import {
   MAXIMUM_RESISTANCE,
   MINIMUM_RESISTANCE,
   type Resistances,
+  resistancePenaltyOf,
 } from "../tuning/damage";
 import { goldTuning } from "../tuning/gold";
 import { graveWockingtonTuning } from "../tuning/graveWockington";
@@ -1140,18 +1141,21 @@ function bonusOf(world: World, bonus: Bonus): number {
  * The Hero's Resistance to `element`: the `total` the Equipped Items' Affixes
  * add up to (All Resistances counting for each Element), and the `effective`
  * Resistance a hit is reduced by, capped at the Maximum Resistance and
- * floored at -100. The Resistance Penalty is 0 until the Acts have one.
+ * floored at -100. Both come after the Resistance Penalty of the Act the Hero
+ * is in is taken off, so `total` can be negative, and above the cap only by
+ * what the Penalty left.
  */
 export function heroResistance(
   world: World,
   element: Element,
 ): { total: number; effective: number } {
   const total =
-    bonusOf(world, `${element}Resistance`) + bonusOf(world, "allResistances");
-  const penalty = 0;
+    bonusOf(world, `${element}Resistance`) +
+    bonusOf(world, "allResistances") -
+    resistancePenaltyOf(world.areas[world.areaName].act);
   const effective = Math.max(
     MINIMUM_RESISTANCE,
-    Math.min(total - penalty, MAXIMUM_RESISTANCE),
+    Math.min(total, MAXIMUM_RESISTANCE),
   );
   return { total, effective };
 }

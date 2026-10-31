@@ -130,6 +130,17 @@ describe("damageNumbers", () => {
   });
 });
 
+describe("a Block", () => {
+  it("shows over the Hero as a Miss does, reading Block", () => {
+    const [number] = damageNumbers([{ type: "Blocked" }]);
+    expect(number).toEqual({ on: "hero", kind: "block" });
+    expect(floatText(number)).toBe("Block");
+    expect(numberColour(number)).toBe(
+      numberColour({ on: "hero", kind: "miss" }),
+    );
+  });
+});
+
 describe("floatText", () => {
   it("is the damage, Miss or No room", () => {
     expect(

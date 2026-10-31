@@ -1770,8 +1770,10 @@ describe("the shipped Wockwolf packs", () => {
 });
 
 describe("the dev-only `fight` Entries", () => {
-  /** How near a `fight` Entry stands to its pack at most, in tiles: near enough for the pack to notice the Hero on arrival. */
-  const FIGHT_ENTRY_DISTANCE = 4;
+  /** How near a `fight` Entry stands to its pack's nearest spawn at least, in tiles: not on top of it. */
+  const FIGHT_ENTRY_MIN_DISTANCE = 3;
+  /** How near it stands at most, in tiles: near enough for the pack to notice the Hero on arrival. */
+  const FIGHT_ENTRY_MAX_DISTANCE = 4;
 
   it.each([
     ["catacombs", "skeleton"],
@@ -1789,13 +1791,17 @@ describe("the dev-only `fight` Entries", () => {
           Math.hypot(spawn.pos.x - fight.x, spawn.pos.y - fight.y),
         ),
     );
-    expect(nearest).toBeLessThanOrEqual(FIGHT_ENTRY_DISTANCE);
-    expect(nearest).toBeGreaterThanOrEqual(FIGHT_ENTRY_DISTANCE - 1);
+    expect(nearest).toBeLessThanOrEqual(FIGHT_ENTRY_MAX_DISTANCE);
+    expect(nearest).toBeGreaterThanOrEqual(FIGHT_ENTRY_MIN_DISTANCE);
   });
 
   it("is led to by no Exit", () => {
-    for (const area of Object.values(shippedWorld().areas)) {
-      expect(area.exits.map((exit) => exit.entry)).not.toContain("fight");
-    }
+    const offenders = Object.entries(shippedWorld().areas).flatMap(
+      ([name, area]) =>
+        area.exits
+          .filter((exit) => exit.entry === "fight")
+          .map((exit) => `${name} -> ${exit.area}`),
+    );
+    expect(offenders).toEqual([]);
   });
 });

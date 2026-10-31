@@ -1,14 +1,18 @@
 import { readdirSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { areas, tilesets } from "./content";
+import { createShippedWorld } from "./content";
 import { docLinkProblems } from "./docLinks";
-import { createWorld } from "./sim/world";
+
+/** The repo root, found from this file so the test doesn't depend on the working directory. */
+const root = fileURLToPath(new URL("../../", import.meta.url));
 
 /** Each shipped Area's Entry names, loaded as the shipped-content tests load them. */
 const entriesOf = Object.fromEntries(
-  Object.entries(createWorld({ areas, tilesets, seed: 1 }).areas).map(
-    ([name, area]) => [name, Object.keys(area.entries)],
-  ),
+  Object.entries(createShippedWorld({ seed: 1 }).areas).map(([name, area]) => [
+    name,
+    Object.keys(area.entries),
+  ]),
 );
 
 const known = { town: ["start", "from-cave"], cave: ["start"] };
@@ -46,13 +50,13 @@ describe("the links in the docs", () => {
   it("name Areas and Entries the game ships", () => {
     const files = [
       "README.md",
-      ...readdirSync("docs/agents")
+      ...readdirSync(`${root}docs/agents`)
         .filter((name) => name.endsWith(".md"))
         .map((name) => `docs/agents/${name}`),
     ];
     const docs = files.map((file) => ({
       file,
-      text: readFileSync(file, "utf8"),
+      text: readFileSync(`${root}${file}`, "utf8"),
     }));
     expect(docLinkProblems(docs, entriesOf)).toEqual([]);
   });

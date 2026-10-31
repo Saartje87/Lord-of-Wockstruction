@@ -2934,7 +2934,9 @@ function minionFrameView() {
   const graphics = new Graphics();
   layer.addChild(graphics);
   layer.eventMode = "none";
-  // One count label per row, made as rows first need them.
+  // One count label per row, made as rows first need them: every row gets
+  // one, even a kind without a count such as the Golem, so no row's place
+  // is left empty for hiding them all to trip over.
   const counts: Text[] = [];
 
   return {
@@ -2957,17 +2959,18 @@ function minionFrameView() {
           .fill({ color: look.box, alpha: look.boxAlpha })
           .stroke({ width: 1, color: look.edge });
         MINION_ICONS[row.kind](graphics, row.icon);
+        let label = counts[index];
+        if (!label) {
+          label = new Text({
+            text: "",
+            style: { fill: look.bone, fontFamily: SERIF },
+          });
+          label.anchor.set(0, 0.5);
+          label.visible = false;
+          counts[index] = label;
+          layer.addChild(label);
+        }
         if (row.count !== null) {
-          let label = counts[index];
-          if (!label) {
-            label = new Text({
-              text: "",
-              style: { fill: look.bone, fontFamily: SERIF },
-            });
-            label.anchor.set(0, 0.5);
-            counts[index] = label;
-            layer.addChild(label);
-          }
           label.visible = true;
           label.text = row.count.text;
           sizeText(label, MINION_FRAME.countSize * screen.uiScale, 2);

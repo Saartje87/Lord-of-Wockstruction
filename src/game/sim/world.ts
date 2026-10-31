@@ -409,12 +409,15 @@ export type MonsterState =
   | "return"
   | "flee";
 
+/** Entry `entry` of Area `area`: a place the Hero can be put down at. */
+export type AreaEntry = { area: string; entry: string };
+
 /**
- * Walking through an Exit to Entry `entry` in Area `area`, or through a Town
- * Portal to Area `area`, beside its end there. The World stands still and
- * orders are ignored until it ends.
+ * Where the Hero arrives in Area `area`: beside its Waypoint when
+ * `waypoint`, else at Entry `entry`, or beside the Town Portal's end there
+ * when `entry` is null.
  */
-export type AreaChange = {
+export type Destination = {
   area: string;
   /**
    * The Entry the Hero arrives at, or null through a Town Portal or by
@@ -423,6 +426,13 @@ export type AreaChange = {
   entry: string | null;
   /** Whether the Hero travels to the Area's Waypoint, arriving beside it. */
   waypoint: boolean;
+};
+
+/**
+ * Walking through an Exit, a Town Portal or a Waypoint to a Destination. The
+ * World stands still and orders are ignored until it ends.
+ */
+export type AreaChange = Destination & {
   /** Steps since the Hero walked into the Exit. */
   elapsed: number;
 };
@@ -1000,7 +1010,7 @@ export function createWorld(options: {
   seed: number;
   progress?: Progress | null;
   belongings?: Belongings | null;
-  start?: { area: string; entry: string } | null;
+  start?: AreaEntry | null;
 }): World {
   const areas: Record<string, Area> = {};
   for (const [name, content] of Object.entries(options.areas)) {
@@ -1080,14 +1090,13 @@ export function createWorld(options: {
   world.hero.life = maxLife(world);
   world.hero.mana = maxMana(world);
   for (const spawn of town.spawns) placePack(world, town, spawn);
-  const at = options.start;
+  const startAt = options.start;
   if (
-    at &&
-    Object.hasOwn(areas, at.area) &&
-    Object.hasOwn(areas[at.area].entries, at.entry)
+    startAt &&
+    Object.hasOwn(areas, startAt.area) &&
+    Object.hasOwn(areas[startAt.area].entries, startAt.entry)
   ) {
-    const change = { ...at, waypoint: false, elapsed: 0 };
-    arrive(world, { ...change, elapsed: arriveStep(change) }, []);
+    arrive(world, { ...startAt, waypoint: false }, []);
   }
   return world;
 }
@@ -1622,16 +1631,16 @@ function stepAreaChange(world: World, change: AreaChange, events: SimEvent[]) {
  * or Corpses), else just as the Hero left it. Leaving an Area, by any
  * route, sets aside what it holds.
  *
- * The Hero carries over to the target Entry, facing away from the Area's
- * nearest edge, or through a Town Portal to beside its end there, facing
- * away from it, with their Life restored to full on arriving in Town, and
+ * The Hero carries over to the Destination: to its Entry, facing away from
+ * the Area's nearest edge, or beside its Waypoint or the Town Portal's end
+ * there, facing away from it, with their Life restored to full on arriving in Town, and
  * back on their feet if they died. Their Minions come along, next to them.
  * Going through a Town Portal from Town closes it.
  */
-function arrive(world: World, change: AreaChange, events: SimEvent[]) {
-  const area = world.areas[change.area];
+function arrive(world: World, destination: Destination, events: SimEvent[]) {
+  const area = world.areas[destination.area];
   const { hero } = world;
-  if (change.waypoint && area.waypoint) {
+  if (destination.waypoint && area.waypoint) {
     const beside = besideSpot(
       area,
       area.waypoint,
@@ -1639,12 +1648,12 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
     );
     hero.pos = { ...beside.pos };
     hero.facing = beside.facing;
-  } else if (change.entry === null) {
+  } else if (destination.entry === null) {
     const beside = besideTownPortal(world, area);
     hero.pos = { ...beside.pos };
     hero.facing = beside.facing;
   } else {
-    hero.pos = { ...area.entries[change.entry] };
+    hero.pos = { ...area.entries[destination.entry] };
     hero.facing = awayFromEdge(area, hero.pos);
   }
   hero.prevPos = { ...hero.pos };
@@ -1700,8 +1709,16 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
       placeMonster(world, area, unique.monster, unique.pos, unique.name);
     }
   }
-  events.push({ type: "AreaChanged", area: area.name, entry: change.entry });
-  if (change.entry === null && !change.waypoint && area.name !== TOWN) {
+  events.push({
+    type: "AreaChanged",
+    area: area.name,
+    entry: destination.entry,
+  });
+  if (
+    destination.entry === null &&
+    !destination.waypoint &&
+    area.name !== TOWN
+  ) {
     closeTownPortal(world, events);
   }
 }

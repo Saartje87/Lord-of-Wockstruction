@@ -3,6 +3,7 @@ import {
   clickLevelUp,
   clickPanelButton,
   createMenus,
+  type HeroPoints,
   PANELS,
   pressKey,
 } from "../menus";
@@ -231,9 +232,13 @@ describe("a click on the Town Portal button", () => {
   });
 });
 
-describe("the Panel buttons' sheet", () => {
-  const alive = { heroDead: false };
+const alive: HeroPoints = {
+  heroDead: false,
+  attributePoints: 0,
+  skillPoints: 0,
+};
 
+describe("the Panel buttons' sheet", () => {
   it("shows a Panel button lit while its panel is opened by key", () => {
     const menus = createMenus();
 
@@ -299,8 +304,103 @@ describe("the Panel buttons' sheet", () => {
     const menus = createMenus();
 
     expect(
-      panelButtonsSheet(menus, { heroDead: true }).map(({ dimmed }) => dimmed),
+      panelButtonsSheet(menus, { ...alive, heroDead: true }).map(
+        ({ dimmed }) => dimmed,
+      ),
     ).toEqual([true, true, true, true]);
+  });
+});
+
+describe("the Panel buttons' Points mark", () => {
+  const marks = (menus: ReturnType<typeof createMenus>, hero: HeroPoints) =>
+    panelButtonsSheet(menus, hero).map(({ points }) => points);
+
+  it("shows no mark and plain tooltips without points", () => {
+    const menus = createMenus();
+    expect(marks(menus, alive)).toEqual([false, false, false, false]);
+    expect(
+      panelButtonsSheet(menus, alive).map(({ tooltip }) => tooltip),
+    ).toEqual(["Hero (C)", "Inventory (I)", "Skill Tree (T)", "Quests (Q)"]);
+  });
+
+  it("marks the Hero button for Attribute Points only", () => {
+    expect(marks(createMenus(), { ...alive, attributePoints: 5 })).toEqual([
+      true,
+      false,
+      false,
+      false,
+    ]);
+  });
+
+  it("marks the Skill Tree button for Skill Points only", () => {
+    expect(marks(createMenus(), { ...alive, skillPoints: 1 })).toEqual([
+      false,
+      false,
+      true,
+      false,
+    ]);
+  });
+
+  it("marks both, never Inventory or Quests", () => {
+    expect(
+      marks(createMenus(), { ...alive, attributePoints: 5, skillPoints: 1 }),
+    ).toEqual([true, false, true, false]);
+  });
+
+  it("drops the Hero mark once every point is pending, and brings it back", () => {
+    const menus = createMenus();
+    const hero = { ...alive, attributePoints: 2 };
+    clickPanelButton(menus, "hero", hero);
+    menus.pendingPoints.strength = 2;
+    expect(marks(menus, hero)[0]).toBe(false);
+
+    menus.pendingPoints.strength = 1;
+    expect(marks(menus, hero)[0]).toBe(true);
+
+    menus.pendingPoints.strength = 2;
+    clickPanelButton(menus, "hero", hero);
+    expect(marks(menus, hero)[0]).toBe(true);
+  });
+
+  it("keeps the mark with the panel open", () => {
+    const menus = createMenus();
+    const hero = { ...alive, attributePoints: 1, skillPoints: 1 };
+    pressKey(menus, "c", 1000, hero);
+    pressKey(menus, "t", 1000, hero);
+    expect(panelButtonsSheet(menus, hero).map(({ lit }) => lit)).toEqual([
+      true,
+      false,
+      true,
+      false,
+    ]);
+    expect(marks(menus, hero)).toEqual([true, false, true, false]);
+  });
+
+  it("keeps the mark, dimmed, while the Hero lies in Death", () => {
+    const sheet = panelButtonsSheet(createMenus(), {
+      heroDead: true,
+      attributePoints: 1,
+      skillPoints: 0,
+    });
+    expect(sheet[0]).toMatchObject({ points: true, dimmed: true });
+  });
+
+  it("says how many points are left to spend, singular at one", () => {
+    const menus = createMenus();
+    const tooltips = (hero: HeroPoints) =>
+      panelButtonsSheet(menus, hero).map(({ tooltip }) => tooltip);
+    expect(tooltips({ ...alive, attributePoints: 5, skillPoints: 1 })).toEqual([
+      "Hero (C) \u00b7 5 Attribute Points to spend",
+      "Inventory (I)",
+      "Skill Tree (T) \u00b7 1 Skill Point to spend",
+      "Quests (Q)",
+    ]);
+    expect(tooltips({ ...alive, attributePoints: 1, skillPoints: 2 })).toEqual([
+      "Hero (C) \u00b7 1 Attribute Point to spend",
+      "Inventory (I)",
+      "Skill Tree (T) \u00b7 2 Skill Points to spend",
+      "Quests (Q)",
+    ]);
   });
 });
 

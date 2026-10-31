@@ -154,6 +154,12 @@ export type PadPoll = {
   orders: Order[];
   /** The Target, for the renderer to show. */
   target: MonsterId | null;
+  /**
+   * The Item in Reach, for the renderer to show: the very Ground Item A's
+   * PickUp order names this frame. None with a Target, an NPC to talk to, a
+   * panel open or during Death. The game loop drops it where it isn't shown.
+   */
+  itemInReach: ItemId | null;
   /** The buttons pressed this frame, for the menus. */
   presses: PadButton[];
   /** The spot the Focus rests on, while it shows in an open panel. */
@@ -184,7 +190,7 @@ export function hideFocus(input: PadInput) {
 
 /**
  * Called once per frame, as `poll` is for the pointer. Returns the orders
- * for the sim and the Target, for the renderer to show.
+ * for the sim, the Target and the Item in Reach, for the renderer to show.
  *
  * The stick walks the Hero in the direction it points on screen, in tiles,
  * for as long as it is pushed past the dead zone; nothing once let go, which
@@ -232,7 +238,13 @@ export function pollPad(
   const wasShown = input.focusShown;
   if (presses.length > 0) input.focusShown = true;
   const { world } = view;
-  const none = { target: null, focus: null, click: null, rightClick: null };
+  const none = {
+    target: null,
+    itemInReach: null,
+    focus: null,
+    click: null,
+    rightClick: null,
+  };
   if (anyPanelOpen(view.menus)) {
     const focus = steerFocus(input, presses, view.focusSpots, wasShown);
     return { ...none, ...focus, orders: [], presses };
@@ -249,7 +261,10 @@ export function pollPad(
   };
   const target = pickTarget(world, walk);
   const talk = target === null ? talkNear(world) : null;
-  const action = target !== null ? attack(target) : (talk ?? pickUpNear(world));
+  const reachableItem =
+    target === null && talk === null ? pickUpNear(world) : null;
+  const action =
+    target !== null ? attack(target) : (talk ?? pickUpOrder(reachableItem));
   // The walk goes first, so an Attack or Cast after it in the same step
   // isn't cancelled by it; while a swing or cast roots the Hero, the sim
   // holds the walk back until it ends, so the Hero kites between them.
@@ -274,7 +289,7 @@ export function pollPad(
   if (snapshot.pressed.includes(TOWN_PORTAL_PAD_BUTTON)) {
     orders.push({ type: "OpenTownPortal" });
   }
-  return { ...none, orders, target, presses };
+  return { ...none, orders, target, itemInReach: reachableItem, presses };
 }
 
 /**
@@ -400,8 +415,13 @@ function talkNear(world: World): Order | null {
   return nearest && { type: "Talk", npc: nearest.npc };
 }
 
-/** A pick-up of the nearest Ground Item within reach of the Hero, if any. */
-function pickUpNear(world: World): Order | null {
+/** A pick-up of `groundItem`, if there is one. */
+function pickUpOrder(groundItem: ItemId | null): Order | null {
+  return groundItem === null ? null : { type: "PickUp", groundItem };
+}
+
+/** The nearest Ground Item within reach of the Hero, if any. */
+function pickUpNear(world: World): ItemId | null {
   let nearest: { id: ItemId; away: number } | null = null;
   for (const { item, pos } of world.groundItems) {
     const away = distance(world.hero.pos, pos);
@@ -409,5 +429,5 @@ function pickUpNear(world: World): Order | null {
     if (nearest && away >= nearest.away) continue;
     nearest = { id: item.id, away };
   }
-  return nearest && { type: "PickUp", groundItem: nearest.id };
+  return nearest?.id ?? null;
 }

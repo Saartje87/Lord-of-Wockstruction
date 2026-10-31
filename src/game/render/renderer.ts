@@ -522,14 +522,17 @@ const PANEL_BUTTON_STYLE = {
 const GROUND_ITEM_GRAB = 24;
 
 /**
- * A Ground Item's name label: a dark back `labelAlpha` opaque, the name gold
- * while hovered (where the label goes and how big is `groundLabels`).
+ * A Ground Item's name label: a dark back `labelAlpha` opaque, in its Rarity
+ * colour, outlined in gold while hovered (where the label goes and how big is
+ * `groundLabels`).
  */
 const GROUND_ITEM = {
   label: 0x000000,
   labelAlpha: 0.7,
   /** The back of a hovered label, which keeps its Rarity colour. */
   hoveredAlpha: 0.95,
+  /** The gold outline round a hovered label (CSS px at UI Scale 1). */
+  hoveredOutline: 1.5,
 };
 
 /**
@@ -860,7 +863,7 @@ export function createRenderer(
 
   /**
    * Draws each Ground Item's name label over where its model is on the
-   * screen, gold for `hovered`, and drops the labels of Items no longer
+   * screen, outlined in gold for `hovered`, and drops the labels of Items no longer
    * lying there.
    */
   const drawGroundItems = (
@@ -917,6 +920,12 @@ export function createRenderer(
         alpha:
           id === hovered ? GROUND_ITEM.hoveredAlpha : GROUND_ITEM.labelAlpha,
       });
+      if (id === hovered) {
+        labelBacks.stroke({
+          color: GOLD_COLOUR,
+          width: GROUND_ITEM.hoveredOutline * uiScale,
+        });
+      }
       const text = labelTexts.get(id);
       if (!text) continue;
       text.style.fill =
@@ -1181,7 +1190,8 @@ export function createRenderer(
      * up from, drawn dimmed. `target` is the Target auto-aim picked, if any,
      * named as a hovered Monster is when the pointer is over no one. `focus`
      * is where the Focus rests in an open panel, if it shows, ringed as the
-     * pause menu's focused button is.
+     * pause menu's focused button is. `itemInReach` is the Item in Reach, if
+     * any, named in gold as a hovered Item is when the pointer is over none.
      */
     draw(
       world: World,
@@ -1193,6 +1203,7 @@ export function createRenderer(
       heldSkillSlot: SkillBarSlot | null = null,
       target: MonsterId | null = null,
       focus: Rect | null = null,
+      itemInReach: ItemId | null = null,
     ) {
       if (hudHidden) {
         // Play after the Start Screen: each view sets its own layer's
@@ -1357,7 +1368,8 @@ export function createRenderer(
         (overWorld && typeof hoveredId !== "number"
           ? groundItemAt(overWorld)
           : null);
-      drawGroundItems(world, hoveredItem, uiScale);
+      // With the pointer over no Item, the Item in Reach is shown as if hovered.
+      drawGroundItems(world, hoveredItem ?? itemInReach, uiScale);
       // With the pointer over no one, the Target is shown as if hovered.
       const pointed =
         typeof hoveredId === "number" || typeof hoveredId === "object"
@@ -1462,7 +1474,7 @@ export function createRenderer(
       minionFrame.draw(viewport, world, minionFlashedAtMs, nowMs);
       experience.draw(viewport, world);
       levelUp.draw(viewport, world, nowMs);
-      touchControls.draw(viewport, world, menus);
+      touchControls.draw(viewport, world, menus, itemInReach !== null);
       heroPanel.draw(viewport, world, menus.heroPanelOpen, menus.pendingPoints);
       // The focused or long-pressed Skill shows its tooltip; the mouse's
       // pointer, as before, none, and nor does a Held Skill.
@@ -2007,7 +2019,7 @@ function touchControlsView(
 
   return {
     layer,
-    draw(screen: Viewport, world: World, menus: Menus) {
+    draw(screen: Viewport, world: World, menus: Menus, pickUpReady: boolean) {
       layer.visible = touchControlsShown(
         activeInput.way,
         menus,
@@ -2047,6 +2059,7 @@ function touchControlsView(
           )
           .fill({ color: style.edge, alpha: style.edgeAlpha });
       }
+      attackLabel.text = pickUpReady ? "Pick up" : "Attack";
       attackLabel.visible = !layout.pauseOnly;
       for (const label of skillLabels.values()) {
         label.visible = !layout.pauseOnly;

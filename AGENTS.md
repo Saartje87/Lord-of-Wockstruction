@@ -28,7 +28,7 @@ Single-context: one root `GLOSSARY.md` plus `docs/adr/`. See `docs/agents/domain
 
 ### Playtesting
 
-Before finishing a ticket that changes a panel's layout, a model's look or any on-screen criterion, see it running: `docs/agents/playtesting.md` (dev servers in worktrees, starting at a given Level or Area, touch screens, reading the game state, the live deploy).
+Before finishing a ticket that changes a panel's layout, a model's look or any on-screen criterion, see it running: `docs/agents/playtesting.md` (dev servers in worktrees, starting at a given Level or Area, screen sizes, touch screens, controllers, reading the game state, the live deploy).
 
 ### Tuning
 

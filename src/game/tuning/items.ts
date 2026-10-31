@@ -25,6 +25,10 @@ export type Bonus =
   | "mana"
   | "enhancedDamage"
   | "enhancedDefense"
+  | "fireResistance"
+  | "coldResistance"
+  | "lightningResistance"
+  | "allResistances"
   | "block";
 
 /** Every Bonus there is. */
@@ -40,6 +44,10 @@ export const BONUSES: readonly Bonus[] = [
   "mana",
   "enhancedDamage",
   "enhancedDefense",
+  "fireResistance",
+  "coldResistance",
+  "lightningResistance",
+  "allResistances",
   "block",
 ];
 
@@ -404,6 +412,11 @@ export type AffixTuning = {
   bonus: Bonus;
   /** The Item kinds it can roll on. */
   rollsOn: readonly ItemKind[];
+  /**
+   * Its odds among the kinds of its side that suit the Item; missing, 100.
+   * A rarer kind has less.
+   */
+  weight?: number;
   /** Weakest first. */
   grades: readonly AffixGrade[];
 };
@@ -441,6 +454,20 @@ function threeGrades(
     weight: weights[i],
   }));
 }
+
+/** The Item kinds the Resistance Affixes roll on. */
+const RESISTANCE_KINDS: readonly ItemKind[] = [
+  ...ARMOUR_KINDS,
+  "belt",
+  "ring",
+  "amulet",
+];
+
+const RESISTANCE_RANGES: [Range, Range, Range] = [
+  [5, 10],
+  [11, 20],
+  [21, 30],
+];
 
 const ATTRIBUTE_RANGES: [Range, Range, Range] = [
   [1, 3],
@@ -575,6 +602,40 @@ export const affixTuning = {
         [10, 20],
         [21, 40],
         [41, 60],
+      ],
+    ),
+  },
+  // Resistances: the Elements' Prefixes roll on the Defense kinds, Belts,
+  // Rings and Amulets. All Resistances is rarer and weaker; to be tuned.
+  fireResistance: {
+    side: "prefix",
+    bonus: "fireResistance",
+    rollsOn: RESISTANCE_KINDS,
+    grades: threeGrades(["Ruby", "Garnet", "Bloodstone"], RESISTANCE_RANGES),
+  },
+  coldResistance: {
+    side: "prefix",
+    bonus: "coldResistance",
+    rollsOn: RESISTANCE_KINDS,
+    grades: threeGrades(["Sapphire", "Azurite", "Glacial"], RESISTANCE_RANGES),
+  },
+  lightningResistance: {
+    side: "prefix",
+    bonus: "lightningResistance",
+    rollsOn: RESISTANCE_KINDS,
+    grades: threeGrades(["Amber", "Topaz", "Stormglass"], RESISTANCE_RANGES),
+  },
+  allResistances: {
+    side: "prefix",
+    bonus: "allResistances",
+    rollsOn: RESISTANCE_KINDS,
+    weight: 25,
+    grades: threeGrades(
+      ["Shimmering", "Prismatic", "Wockstone"],
+      [
+        [3, 5],
+        [6, 9],
+        [10, 14],
       ],
     ),
   },

@@ -1,5 +1,6 @@
 import type { CastFailure, MonsterId, SimEvent } from "../sim/world";
 import type { DamageType } from "../tuning/damage";
+import { ELEMENT_COLOUR } from "./elementColours";
 import type { CharacterId } from "./hover";
 
 /** How long a damage number floats (ms). */
@@ -49,17 +50,10 @@ const NUMBER_COLOUR: Record<DamageNumber["kind"], number> = {
   noRoom: 0xe8e0c8,
   castFailed: 0x8ab4ff,
 };
-/** What an Element tints a hit's damage number, whatever its kind. */
-const ELEMENT_NUMBER_COLOUR: Record<Exclude<DamageType, "physical">, number> = {
-  fire: 0xff8a2a,
-  cold: 0x4aa8ff,
-  lightning: 0xffee3a,
-};
-
 /** The colour a damage number is drawn in. */
 export function numberColour(number: DamageNumber): number {
   if ("damageType" in number && number.damageType !== "physical") {
-    return ELEMENT_NUMBER_COLOUR[number.damageType];
+    return ELEMENT_COLOUR[number.damageType];
   }
   return NUMBER_COLOUR[number.kind];
 }

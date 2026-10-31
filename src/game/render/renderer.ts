@@ -114,6 +114,7 @@ import {
   numberColour,
 } from "./damageNumbers";
 import { DIALOGUE, dialogueLayout, dialogueSheet } from "./dialoguePanel";
+import { ELEMENT_COLOUR, RESISTANCE_LINE_COLOUR } from "./elementColours";
 import {
   EXPERIENCE_BAR,
   experienceBar,
@@ -162,6 +163,7 @@ import {
   inventoryPanelLayout,
   itemRect,
   itemTooltip,
+  itemTooltipElements,
   itemUnder,
   landingCell,
 } from "./inventoryPanel";
@@ -2942,7 +2944,7 @@ function heroPanelView(activeInput: Readonly<ActiveInput>) {
       const layout = heroPanelLayout(screen);
       const { panel } = layout;
       const scale = screen.uiScale;
-      const { padding, rowHeight } = atUiScale(HERO_PANEL, scale);
+      const { padding } = atUiScale(HERO_PANEL, scale);
       // Attribute values leave room for their − and + buttons.
       const beforeButtons = layout.accept.x - style.plusGap * scale;
 
@@ -2964,7 +2966,7 @@ function heroPanelView(activeInput: Readonly<ActiveInput>) {
         valueRight?: number,
       ) => {
         const row = heroPanelRow(screen, at);
-        const y = row.y + rowHeight / 2;
+        const y = row.y + row.h / 2;
         shown.name.text = name;
         shown.name.position.set(row.x, y);
         shown.value.text = value;
@@ -3009,6 +3011,10 @@ function heroPanelView(activeInput: Readonly<ActiveInput>) {
       sheet.derived.forEach((value, i) => {
         derived[i] ??= row();
         place(derived[i], PANEL_ROWS.derived + i, value.name, value.value);
+        if (value.element) {
+          derived[i].name.style.fill = RESISTANCE_LINE_COLOUR[value.element];
+          derived[i].value.style.fill = RESISTANCE_LINE_COLOUR[value.element];
+        }
         if (value.changed) derived[i].value.style.fill = style.changed;
       });
       for (const at of [PANEL_ROWS.attributes, PANEL_ROWS.derived]) {
@@ -3703,6 +3709,7 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
               item.type,
             );
       const lines = itemTooltip(item);
+      const elements = itemTooltipElements(item);
       lines.forEach((line, i) => {
         if (!tooltipLines[i]) {
           tooltipLines[i] = text(look.tooltipLine, look.tooltipSize);
@@ -3713,8 +3720,13 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
         layer.setChildIndex(shown, layer.children.length - 1);
         shown.visible = true;
         shown.text = line;
+        const element = elements[i];
         shown.style.fill =
-          i === 0 ? rarityColour(item.rarity) : look.tooltipLine;
+          i === 0
+            ? rarityColour(item.rarity)
+            : element
+              ? ELEMENT_COLOUR[element]
+              : look.tooltipLine;
         shown.anchor.set(0.5, 0);
       });
       // Over the Item, or under it where there's no room above.

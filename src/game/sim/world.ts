@@ -1,6 +1,14 @@
 import { areaTuning } from "../tuning/areas";
 import { boneAltarTuning } from "../tuning/boneAltars";
-import type { DamageShares, DamageType } from "../tuning/damage";
+import {
+  type DamageShares,
+  type DamageType,
+  ELEMENTS,
+  type Element,
+  MAXIMUM_RESISTANCE,
+  MINIMUM_RESISTANCE,
+  type Resistances,
+} from "../tuning/damage";
 import { goldTuning } from "../tuning/gold";
 import { graveWockingtonTuning } from "../tuning/graveWockington";
 import { heroTuning } from "../tuning/hero";
@@ -1126,6 +1134,36 @@ function bonusOf(world: World, bonus: Bonus): number {
     if (item) total += itemBonus(item, bonus);
   }
   return total;
+}
+
+/**
+ * The Hero's Resistance to `element`: the `total` the Equipped Items' Affixes
+ * add up to (All Resistances counting for each Element), and the `effective`
+ * Resistance a hit is reduced by, capped at the Maximum Resistance and
+ * floored at -100. The Resistance Penalty is 0 until the Acts have one.
+ */
+export function heroResistance(
+  world: World,
+  element: Element,
+): { total: number; effective: number } {
+  const total =
+    bonusOf(world, `${element}Resistance`) + bonusOf(world, "allResistances");
+  const penalty = 0;
+  const effective = Math.max(
+    MINIMUM_RESISTANCE,
+    Math.min(total - penalty, MAXIMUM_RESISTANCE),
+  );
+  return { total, effective };
+}
+
+/** What the Hero shrugs off of each Element, as a hit on them lands. */
+function heroResistances(world: World): Resistances {
+  return Object.fromEntries(
+    ELEMENTS.map((element) => [
+      element,
+      heroResistance(world, element).effective,
+    ]),
+  );
 }
 
 /**
@@ -3429,8 +3467,10 @@ function hitHero(world: World, attack: AttackNumbers, events: SimEvent[]) {
     randomInt(world.rng, attack.damage),
     attack.damageTypes,
   );
-  // The Hero's Resistances come from Affixes, which no Item has yet.
-  const { total: damage, main: damageType } = landDamage(rolled);
+  const { total: damage, main: damageType } = landDamage(
+    rolled,
+    heroResistances(world),
+  );
   const warded = Math.min(damage, hero.boneWard?.left ?? 0);
   if (hero.boneWard) {
     hero.boneWard.left -= warded;

@@ -14,6 +14,7 @@ import {
   inventoryRightClickOrder,
   itemRect,
   itemTooltip,
+  itemTooltipElements,
   itemUnder,
   landingCell,
 } from "./inventoryPanel";
@@ -862,5 +863,35 @@ describe("a Magic Item's tooltip", () => {
         affixes: [{ kind: "brutality", grade: 0, value: 2 }],
       }),
     ).toEqual(["Brutal Axe", "Damage: 25–40", "+2 to Damage"]);
+  });
+});
+
+describe("a Resistance Affix's tooltip line", () => {
+  const shown = {
+    type: "leatherCap" as const,
+    rarity: "magic" as const,
+    affixes: [
+      { kind: "coldResistance" as const, grade: 1, value: 14 },
+      { kind: "strength" as const, grade: 0, value: 2 },
+    ],
+  };
+
+  it("reads as a percentage and is named by its grade", () => {
+    expect(itemTooltip(shown)).toEqual([
+      "Azurite Leather Cap of the Badger",
+      "Defense: 8",
+      "+14% Cold Resistance",
+      "+2 to Strength",
+    ]);
+  });
+
+  it("is drawn in its Element's colour, other lines in none", () => {
+    expect(itemTooltipElements(shown)).toEqual([null, null, "cold", null]);
+    expect(
+      itemTooltipElements({
+        type: "ring",
+        affixes: [{ kind: "allResistances", grade: 0, value: 4 }],
+      }),
+    ).toEqual([null, null]);
   });
 });

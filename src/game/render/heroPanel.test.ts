@@ -153,6 +153,14 @@ describe("heroSheet with Items Equipped", () => {
       { name: "Mana", value: "40 / 40", changed: false },
       { name: "Damage", value: "21–31", changed: false },
       { name: "Defense", value: "40", changed: false },
+      { name: "Fire Resistance", value: "0%", changed: false, element: "fire" },
+      { name: "Cold Resistance", value: "0%", changed: false, element: "cold" },
+      {
+        name: "Lightning Resistance",
+        value: "0%",
+        changed: false,
+        element: "lightning",
+      },
       { name: "Block", value: "0%", changed: false },
       { name: "Attack Rating", value: "100", changed: false },
       { name: "Chance to hit a Skeleton", value: "85%", changed: false },
@@ -302,6 +310,24 @@ describe("heroSheet", () => {
         { name: "Mana", value: "40 / 40", changed: false },
         { name: "Damage", value: "20–30", changed: false },
         { name: "Defense", value: "0", changed: false },
+        {
+          name: "Fire Resistance",
+          value: "0%",
+          changed: false,
+          element: "fire",
+        },
+        {
+          name: "Cold Resistance",
+          value: "0%",
+          changed: false,
+          element: "cold",
+        },
+        {
+          name: "Lightning Resistance",
+          value: "0%",
+          changed: false,
+          element: "lightning",
+        },
         { name: "Block", value: "0%", changed: false },
         { name: "Attack Rating", value: "100", changed: false },
         { name: "Chance to hit a Skeleton", value: "85%", changed: false },
@@ -341,6 +367,14 @@ describe("heroSheet", () => {
       { name: "Mana", value: "44 / 44", changed: false },
       { name: "Damage", value: "22–33", changed: false },
       { name: "Defense", value: "0", changed: false },
+      { name: "Fire Resistance", value: "0%", changed: false, element: "fire" },
+      { name: "Cold Resistance", value: "0%", changed: false, element: "cold" },
+      {
+        name: "Lightning Resistance",
+        value: "0%",
+        changed: false,
+        element: "lightning",
+      },
       { name: "Block", value: "0%", changed: false },
       { name: "Attack Rating", value: "105", changed: false },
       // 2 × 105 / (105 + 135)
@@ -403,6 +437,14 @@ describe("heroSheet with Pending Attribute Points", () => {
       { name: "Mana", value: "34 / 45", changed: true },
       { name: "Damage", value: "20–30", changed: false },
       { name: "Defense", value: "0", changed: false },
+      { name: "Fire Resistance", value: "0%", changed: false, element: "fire" },
+      { name: "Cold Resistance", value: "0%", changed: false, element: "cold" },
+      {
+        name: "Lightning Resistance",
+        value: "0%",
+        changed: false,
+        element: "lightning",
+      },
       { name: "Block", value: "0%", changed: false },
       { name: "Attack Rating", value: "100", changed: false },
       { name: "Chance to hit a Skeleton", value: "85%", changed: false },
@@ -654,5 +696,86 @@ describe("Pending Attribute Points and the Save", () => {
       vitality: 21,
       attributePoints: 3,
     });
+  });
+});
+
+describe("heroSheet's Resistance lines", () => {
+  const wearing = (...values: number[]) =>
+    createWorld({
+      areas: { town },
+      seed: 1,
+      belongings: {
+        inventory: [],
+        equipment: {
+          ring1: values[0]
+            ? {
+                type: "ring",
+                rarity: "magic",
+                affixes: [
+                  { kind: "coldResistance", grade: 2, value: values[0] },
+                ],
+              }
+            : undefined,
+          ring2: values[1]
+            ? {
+                type: "ring",
+                rarity: "magic",
+                affixes: [
+                  { kind: "coldResistance", grade: 2, value: values[1] },
+                ],
+              }
+            : undefined,
+          amulet: values[2]
+            ? {
+                type: "amulet",
+                rarity: "magic",
+                affixes: [
+                  { kind: "coldResistance", grade: 2, value: values[2] },
+                ],
+              }
+            : undefined,
+        },
+        belt: emptyBelt(),
+      },
+    });
+  const lines = (w: World) =>
+    heroSheet(w)
+      .derived.filter((d) => d.element)
+      .map(({ name, value, element }) => ({ name, value, element }));
+
+  it("sit right under Defense: Fire, Cold and Lightning at 0%", () => {
+    const names = heroSheet(world()).derived.map((d) => d.name);
+    const defense = names.indexOf("Defense");
+    expect(names.slice(defense + 1, defense + 4)).toEqual([
+      "Fire Resistance",
+      "Cold Resistance",
+      "Lightning Resistance",
+    ]);
+    expect(lines(world())).toEqual([
+      { name: "Fire Resistance", value: "0%", element: "fire" },
+      { name: "Cold Resistance", value: "0%", element: "cold" },
+      { name: "Lightning Resistance", value: "0%", element: "lightning" },
+    ]);
+  });
+
+  it("show the effective Resistance, and (capped) above 75%", () => {
+    expect(lines(wearing(20, 20))[1].value).toBe("40%");
+    expect(lines(wearing(25, 25, 25))[1].value).toBe("75%");
+    expect(lines(wearing(30, 30, 30))[1].value).toBe("75% (capped)");
+  });
+
+  it("fit the desktop panel and the Compact Layout", () => {
+    for (const size of [
+      { width: 1280, height: 720 },
+      { width: 844, height: 390 },
+    ]) {
+      const screen = viewportOf(size);
+      const { panel } = heroPanelLayout(screen);
+      const count = heroSheet(world()).derived.length;
+      for (let i = 0; i < count; i++) {
+        const row = heroPanelRow(screen, PANEL_ROWS.derived + i);
+        expect(inside(panel, row)).toBe(true);
+      }
+    }
   });
 });

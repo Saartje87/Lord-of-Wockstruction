@@ -106,7 +106,8 @@ describe("the hints and labels that name buttons", () => {
     nextStats: [],
     synergies: [],
     synergyTotal: "0",
-    manaCost: "15",
+    grid: { column: 0, row: 1 },
+    arrows: [],
     raised: "",
     requiredLevel: null,
     passive: null,
@@ -213,7 +214,6 @@ describe("the hints and labels that name buttons", () => {
         name: "Grave Command",
         skillLevel: "2",
         canRaise: true,
-        manaCost: "",
         passive: {
           percentPerSkillLevel: "5",
           total: "10",

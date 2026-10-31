@@ -8,15 +8,16 @@ import {
   type Skill,
   skillLevelOf,
   skillLevelsOf,
-  skillManaCost,
   type World,
 } from "../sim/world";
 import {
+  BRANCH_GRID,
   BRANCHES,
   type Branch,
   branchSkills,
   branchTuning,
   type CastSkill,
+  type GridPlace,
   isPassive,
   skillTuning,
 } from "../tuning/skills";
@@ -27,53 +28,27 @@ import { type SkillBarHit, skillBarLayout } from "./skillBar";
 
 /**
  * The Skill Tree panel at the top right, where the Inventory panel goes
- * (CSS px at native scale, drawn at the UI Scale): `right` and `top` from the screen's corner, its rows
- * `rowHeight` apart from `firstRow` down, `hintHeight` under them for its
- * hint, and each Skill's + button `plus` square at the right of its name.
+ * (CSS px at native scale, drawn at the UI Scale): `right` and `top` from the
+ * screen's corner, `tabsTop` down to the Branch tabs, each `tabHeight` tall
+ * and `tabGap` apart, `gridGap` under them the grid of Skill tiles, its
+ * rows `rowPitch` apart, each tile `tile` square at most and each + at
+ * most `plus` square on its corner, and `hintHeight` under the grid for the
+ * hint. In the Compact Layout the grid shrinks to the room the screen leaves.
  */
 export const SKILL_TREE_PANEL = {
   right: 16,
   top: 16,
   width: 320,
   padding: 18,
-  firstRow: 56,
-  rowHeight: 24,
-  hintHeight: 28,
+  tabsTop: 46,
+  tabHeight: 30,
+  tabGap: 6,
+  gridGap: 10,
+  rowPitch: 70,
+  tile: 50,
   plus: 22,
+  hintHeight: 28,
 };
-
-/**
- * How far left of a Skill's row's right edge its columns go (CSS px at
- * native scale, drawn at the UI Scale): where its required Level starts,
- * and where its Skill Level and its Mana cost end, clear of its +.
- */
-export const SKILL_TREE_COLUMNS = {
-  requiredLevel: 156,
-  skillLevel: 78,
-  manaCost: 32,
-};
-
-/**
- * The rows of the panel under its title: the unspent Skill Points, then
- * the Branches, each a heading row (its name, and over the Skills' columns
- * theirs) with a row for each of its Skills under it. In the Compact Layout
- * the Branches stand side by side instead, `gap` apart (CSS px at native
- * scale, drawn at the UI Scale), with Skill Level and + the only columns.
- */
-export const SKILL_TREE_ROWS = { skillPoints: 0, firstBranch: 1 } as const;
-
-/** The space between Branch columns in the Compact Layout, and its column. */
-export const SKILL_TREE_COMPACT = { gap: 10, skillLevel: 30 };
-
-/** How many Skills each Branch's rows make room for. */
-export type BranchRooms = Record<Branch, number>;
-
-/** The rooms the Skills in tuning take. */
-export function tunedRooms(): BranchRooms {
-  return Object.fromEntries(
-    BRANCHES.map((branch) => [branch, branchSkills[branch].length]),
-  ) as BranchRooms;
-}
 
 /** What the Skill Tree panel shows of a Skill, as text. */
 export type SkillSheet = {
@@ -83,6 +58,13 @@ export type SkillSheet = {
   /** How many of those a Wand's Affix gives; empty for none. */
   raised: string;
   branch: Branch;
+  /** Its place in its Branch's grid. */
+  grid: GridPlace;
+  /**
+   * An arrow to each of its Prerequisites, lit once that Prerequisite has a
+   * Skill Level learned.
+   */
+  arrows: readonly { from: Skill; lit: boolean }[];
   /**
    * The names of its Prerequisites the Hero has no Skill Level in, so no
    * Skill Point can go into this Skill yet; empty once all are learned.
@@ -110,8 +92,6 @@ export type SkillSheet = {
   }[];
   /** The percent its Synergies add to its main number now. */
   synergyTotal: string;
-  /** What a cast costs at the next Skill Level: what a + buys; empty for a Passive Skill. */
-  manaCost: string;
   /**
    * What a Passive Skill gives, which has its own frame in the Skill Tree
    * and can't go on the Skill Bar; null for a Skill that is cast.
@@ -134,8 +114,11 @@ export type SkillTreeSheet = {
   skillPoints: string;
   /** The Skills grouped by Branch, each Branch by grid place. */
   skills: SkillSheet[];
-  /** The Branches' names, in the order the Skills are grouped. */
-  branches: { branch: Branch; name: string }[];
+  /**
+   * The Branches' names, in the order the Skills are grouped, with the Skill
+   * Points spent in each, for its Branch tab.
+   */
+  branches: { branch: Branch; name: string; spent: string }[];
 };
 
 /** What the Skill Tree panel shows, from the Hero's progress. */
@@ -149,6 +132,12 @@ export function skillTreeSheet(world: World): SkillTreeSheet {
     branches: BRANCHES.map((branch) => ({
       branch,
       name: branchTuning[branch].name,
+      spent: String(
+        branchSkills[branch].reduce(
+          (sum, skill) => sum + progress.skillLevels[skill],
+          0,
+        ),
+      ),
     })),
     skills: BRANCHES.flatMap((branch) => branchSkills[branch]).map((skill) => {
       const skillLevel = levels[skill];
@@ -166,6 +155,11 @@ export function skillTreeSheet(world: World): SkillTreeSheet {
         skill,
         name: skillTuning[skill].name,
         branch: skillTuning[skill].branch,
+        grid: skillTuning[skill].grid,
+        arrows: prerequisites.map((from) => ({
+          from,
+          lit: progress.skillLevels[from] > 0,
+        })),
         prerequisites: prerequisites
           .filter((before) => progress.skillLevels[before] === 0)
           .map((before) => skillTuning[before].name),
@@ -179,9 +173,6 @@ export function skillTreeSheet(world: World): SkillTreeSheet {
         synergyTotal: String(
           Math.round((synergyMultiplier(levels, skill) - 1) * 100),
         ),
-        manaCost: isPassive(skill)
-          ? ""
-          : String(skillManaCost(skill, skillLevel + 1)),
         passive: passive
           ? {
               percentPerSkillLevel: String(passive.percentPerSkillLevel),
@@ -201,171 +192,156 @@ export function skillTreeSheet(world: World): SkillTreeSheet {
   };
 }
 
-/**
- * Where the panel's row `row` is drawn (CSS px), at the UI Scale: its name
- * goes at its left and its value at its right. The rows run down the panel
- * from under its title, inside its padding; in the Compact Layout, where
- * the panel fills the screen, as wide as on a desktop and centred.
- */
-export function skillTreeRow(screen: Viewport, row: number): Rect {
-  const { width, padding, firstRow, rowHeight } = atUiScale(
-    SKILL_TREE_PANEL,
-    screen.uiScale,
-  );
-  const panel = skillTreePanelRect(screen);
-  const w = width - 2 * padding;
-  return {
-    x: panel.x + (panel.w - w) / 2,
-    y: panel.y + firstRow + row * rowHeight,
-    w,
-    h: rowHeight,
-  };
-}
+/** The Skill Tree panel's parts, laid out for one open Branch. */
+export type SkillTreeLayout = {
+  panel: Rect;
+  closeButton: Rect;
+  /** Where the unspent Skill Points are written, right-aligned, left of the ×. */
+  points: Rect;
+  /** A tab for each Branch, over the grid. */
+  tabs: Record<Branch, Rect>;
+  /** The open Branch's Skills: each one's tile and its + on the tile's corner. */
+  skills: { skill: Skill; tile: Rect; raise: Rect }[];
+  /** A line from each Prerequisite down to the Skill hanging from it. */
+  arrows: { from: Skill; to: Skill; points: Vec[] }[];
+};
 
 /**
- * Where the panel itself is drawn: at the top right, as tall as its rows
- * for Branches of `rooms` Skills, or in the Compact Layout filling the
- * screen.
+ * Where the panel itself is drawn: at the top right, as tall as its grid
+ * wants, or in the Compact Layout filling the screen.
  */
-export function skillTreePanelRect(
-  screen: Viewport,
-  rooms: BranchRooms = tunedRooms(),
-): Rect {
+export function skillTreePanelRect(screen: Viewport): Rect {
   if (screen.compact) return compactPanelRect(screen);
-  const { right, top, width, padding, firstRow, rowHeight, hintHeight } =
-    atUiScale(SKILL_TREE_PANEL, screen.uiScale);
-  const rows = BRANCHES.reduce<number>(
-    (sum, branch) => sum + 1 + rooms[branch],
-    SKILL_TREE_ROWS.firstBranch,
-  );
+  const size = atUiScale(SKILL_TREE_PANEL, screen.uiScale);
   return {
-    x: screen.width - right - width,
-    y: top,
-    w: width,
-    h: firstRow + rows * rowHeight + hintHeight + padding,
-  };
-}
-
-/** Where the heading row of Branch `branch` is drawn (CSS px). */
-export function skillTreeBranchRow(
-  screen: Viewport,
-  branch: Branch,
-  rooms: BranchRooms = tunedRooms(),
-): Rect {
-  const { rowHeight, padding, firstRow } = atUiScale(
-    SKILL_TREE_PANEL,
-    screen.uiScale,
-  );
-  const index = BRANCHES.indexOf(branch);
-  if (screen.compact) {
-    const panel = skillTreePanelRect(screen, rooms);
-    const gap = SKILL_TREE_COMPACT.gap * screen.uiScale;
-    const w = (panel.w - 2 * padding - (BRANCHES.length - 1) * gap) / 3;
-    return {
-      x: panel.x + padding + index * (w + gap),
-      y: panel.y + firstRow + SKILL_TREE_ROWS.firstBranch * rowHeight,
-      w,
-      h: rowHeight,
-    };
-  }
-  const before = BRANCHES.slice(0, index).reduce(
-    (sum, other) => sum + 1 + rooms[other],
-    0,
-  );
-  return skillTreeRow(screen, SKILL_TREE_ROWS.firstBranch + before);
-}
-
-/** Where the `index`th Skill of Branch `branch` has its row (CSS px). */
-export function skillTreeSkillRow(
-  screen: Viewport,
-  branch: Branch,
-  index: number,
-  rooms: BranchRooms = tunedRooms(),
-): Rect {
-  const heading = skillTreeBranchRow(screen, branch, rooms);
-  return { ...heading, y: heading.y + (1 + index) * heading.h };
-}
-
-/**
- * Where a Skill's row puts its columns (CSS px), at the UI Scale: the x its
- * required Level starts at, and the x its Skill Level and its Mana cost end
- * at. The headings over them line up the same way. In the Compact Layout's
- * narrow columns only the Skill Level is kept, clear of the +; the others
- * sit on it, unshown.
- */
-export function skillTreeColumns(
-  screen: Viewport,
-  row: Rect,
-): { requiredLevel: number; skillLevel: number; manaCost: number } {
-  const right = row.x + row.w;
-  if (screen.compact) {
-    const skillLevel = right - SKILL_TREE_COMPACT.skillLevel * screen.uiScale;
-    return { requiredLevel: skillLevel, skillLevel, manaCost: skillLevel };
-  }
-  const at = atUiScale(SKILL_TREE_COLUMNS, screen.uiScale);
-  return {
-    requiredLevel: right - at.requiredLevel,
-    skillLevel: right - at.skillLevel,
-    manaCost: right - at.manaCost,
+    x: screen.width - size.right - size.width,
+    y: size.top,
+    w: size.width,
+    h:
+      size.tabsTop +
+      size.tabHeight +
+      size.gridGap +
+      BRANCH_GRID.rows * size.rowPitch +
+      size.hintHeight +
+      size.padding,
   };
 }
 
 /**
- * Where the panel and its × close button are drawn, each Skill's row (where
- * pressing a learned Skill picks it up to drag onto the Skill Bar) and each
- * Skill's + button.
+ * Where the panel, its × close button, the Branch tabs and, for the open
+ * Branch `branch`, each Skill's tile, its + and the arrows to its
+ * Prerequisites are drawn. The grid is 3 columns by 6 rows; on a short
+ * screen its rows squeeze to what fits.
  */
 export function skillTreePanelLayout(
   screen: Viewport,
-  rooms: BranchRooms = tunedRooms(),
-): {
-  panel: Rect;
-  closeButton: Rect;
-  branches: Record<Branch, Rect>;
-  skills: Record<Skill, Rect>;
-  raise: Record<Skill, Rect>;
-} {
-  const { rowHeight, plus } = atUiScale(SKILL_TREE_PANEL, screen.uiScale);
-  const panel = skillTreePanelRect(screen, rooms);
-  const rows = BRANCHES.flatMap((branch) =>
-    branchSkills[branch].map(
-      (skill, index) =>
-        [skill, skillTreeSkillRow(screen, branch, index, rooms)] as const,
-    ),
-  );
-  const skills = Object.fromEntries(rows) as Record<Skill, Rect>;
-  const plusAt = (skill: Skill): Rect => {
-    const at = skills[skill];
-    return {
-      x: at.x + at.w - plus,
-      y: at.y + (rowHeight - plus) / 2,
-      w: plus,
-      h: plus,
-    };
+  branch: Branch = "bone",
+): SkillTreeLayout {
+  const size = atUiScale(SKILL_TREE_PANEL, screen.uiScale);
+  const panel = skillTreePanelRect(screen);
+  const closeButton = closeButtonRect(panel, screen.uiScale);
+  const pointsWidth = 110 * screen.uiScale;
+  const points = {
+    x: closeButton.x - 8 * screen.uiScale - pointsWidth,
+    y: closeButton.y,
+    w: pointsWidth,
+    h: closeButton.h,
   };
+  // The Compact Layout is wide and short: the tabs go on the title's line,
+  // between the title and the Skill Points, leaving the height to the grid.
+  const tabsY = screen.compact
+    ? closeButton.y + (closeButton.h - size.tabHeight) / 2
+    : panel.y + size.tabsTop;
+  const gridTop = screen.compact
+    ? tabsY + size.tabHeight + size.tabGap
+    : tabsY + size.tabHeight + size.gridGap;
+  const gridBottom = panel.y + panel.h - size.hintHeight - size.padding;
+  const pitchY = Math.min(
+    size.rowPitch,
+    (gridBottom - gridTop) / BRANCH_GRID.rows,
+  );
+  const pitchX = Math.min(
+    (panel.w - 2 * size.padding) / BRANCH_GRID.columns,
+    pitchY * 1.7,
+  );
+  const gridWidth = pitchX * BRANCH_GRID.columns;
+  const gridLeft = panel.x + (panel.w - gridWidth) / 2;
+  const tile = Math.min(size.tile, pitchY * 0.74, pitchX * 0.7);
+  const plus = Math.min(size.plus, tile * 0.45);
+
+  const tabsLeft = screen.compact
+    ? panel.x + size.padding + 115 * screen.uiScale
+    : gridLeft;
+  const tabsWidth = screen.compact
+    ? points.x - 8 * screen.uiScale - tabsLeft
+    : gridWidth;
+  const tabWidth = Math.min(
+    (tabsWidth - (BRANCHES.length - 1) * size.tabGap) / 3,
+    screen.compact ? 100 * screen.uiScale : Infinity,
+  );
+  const tabs = Object.fromEntries(
+    BRANCHES.map((other, index) => [
+      other,
+      {
+        x: tabsLeft + index * (tabWidth + size.tabGap),
+        y: tabsY,
+        w: tabWidth,
+        h: size.tabHeight,
+      },
+    ]),
+  ) as Record<Branch, Rect>;
+
+  const tileAt = ({ column, row }: GridPlace): Rect => ({
+    x: gridLeft + column * pitchX + (pitchX - tile) / 2,
+    y: gridTop + row * pitchY + (pitchY - tile) / 2,
+    w: tile,
+    h: tile,
+  });
+  const skills = branchSkills[branch].map((skill) => {
+    const rect = tileAt(skillTuning[skill].grid);
+    return {
+      skill,
+      tile: rect,
+      raise: { x: rect.x + rect.w - plus, y: rect.y, w: plus, h: plus },
+    };
+  });
+  const tileOf = (skill: Skill) =>
+    skills.find((shown) => shown.skill === skill)?.tile as Rect;
+  const gap = (pitchY - tile) / 2;
+  const arrows = skills.flatMap(({ skill, tile: to }) =>
+    skillTuning[skill].prerequisites.map((from) => {
+      const start = tileOf(from);
+      const top = { x: to.x + to.w / 2, y: to.y };
+      const bottom = { x: start.x + start.w / 2, y: start.y + start.h };
+      const bend = top.y - gap;
+      return {
+        from,
+        to: skill,
+        points:
+          bottom.x === top.x
+            ? [bottom, top]
+            : [bottom, { x: bottom.x, y: bend }, { x: top.x, y: bend }, top],
+      };
+    }),
+  );
   return {
     panel,
-    closeButton: closeButtonRect(panel, screen.uiScale),
-    branches: Object.fromEntries(
-      BRANCHES.map((branch) => [
-        branch,
-        skillTreeBranchRow(screen, branch, rooms),
-      ]),
-    ) as Record<Branch, Rect>,
+    closeButton,
+    points,
+    tabs,
     skills,
-    raise: Object.fromEntries(
-      rows.map(([skill]) => [skill, plusAt(skill)]),
-    ) as Record<Skill, Rect>,
+    arrows,
   };
 }
 
 /**
- * A click on the open Skill Tree panel, so not for the World: the ×, the
- * Skill whose + it pressed, the learned Skill it picked up to drag onto the
- * Skill Bar, or null elsewhere.
+ * A click on the open Skill Tree panel, so not for the World: the ×, a
+ * Branch tab, the Skill whose + it pressed, the learned Skill it picked up
+ * to drag onto the Skill Bar, or null elsewhere.
  */
 export type SkillTreeHit = {
   button:
+    | { type: "branchTab"; branch: Branch }
     | { type: "learn"; skill: Skill }
     | { type: "pickUpSkill"; skill: Skill }
     | CloseButton
@@ -373,28 +349,34 @@ export type SkillTreeHit = {
 };
 
 /**
- * What a click at `point` hits of the Skill Tree panel, or null when it's
- * off it or the panel isn't `open`, so it's for the World. A Skill's +
- * button is there only while a Skill Point can be spent on it; the rest of
- * a learned Skill's rows pick it up.
+ * What a click at `point` hits of the Skill Tree panel with `branch` open,
+ * or null when it's off it or the panel isn't `open`, so it's for the
+ * World. A Skill's + button is there only while a Skill Point can be spent
+ * on it; the rest of a learned Skill's tile picks it up.
  */
 export function skillTreeHitAt(
   screen: Viewport,
   point: Vec,
   world: World,
   open: boolean,
+  branch: Branch = "bone",
 ): SkillTreeHit | null {
-  const layout = skillTreePanelLayout(screen);
+  const layout = skillTreePanelLayout(screen, branch);
   if (!open || !inside(layout.panel, point)) return null;
   const closeHit = closeHitAt(layout, point, "skillTree");
   if (closeHit) return closeHit;
-  for (const skill of BRANCHES.flatMap((branch) => branchSkills[branch])) {
-    if (canRaiseSkill(world, skill) && inside(layout.raise[skill], point)) {
+  for (const other of BRANCHES) {
+    if (inside(layout.tabs[other], point)) {
+      return { button: { type: "branchTab", branch: other } };
+    }
+  }
+  for (const { skill, tile, raise } of layout.skills) {
+    if (canRaiseSkill(world, skill) && inside(raise, point)) {
       return { button: { type: "learn", skill } };
     }
     const learned = skillLevelOf(world, skill) > 0;
     // A Passive Skill is never put on the Skill Bar, so there's nothing to lift.
-    if (learned && !isPassive(skill) && inside(layout.skills[skill], point)) {
+    if (learned && !isPassive(skill) && inside(tile, point)) {
       return { button: { type: "pickUpSkill", skill } };
     }
   }
@@ -402,8 +384,9 @@ export function skillTreeHitAt(
 }
 
 /**
- * A spot the Focus can rest on with the Skill Tree open: a Skill, a Skill
- * Bar slot or the ×; for a learned Skill, the hit picking it up.
+ * A spot the Focus can rest on with the Skill Tree open: a Branch tab, a
+ * Skill, a Skill Bar slot or the ×; for a learned Skill, the hit picking it
+ * up.
  */
 export type SkillTreeFocusSpot = {
   rect: Rect;
@@ -413,27 +396,36 @@ export type SkillTreeFocusSpot = {
 };
 
 /**
- * The Skill Tree panel's Focus spots: each Skill's rows, clicked on its +,
- * which spends a point on it while one can be, else picks it up if learned,
- * the second face button always picking a learned one up; each Skill Bar
- * slot, to put a Held Skill in; and the ×.
+ * The Skill Tree panel's Focus spots with `branch` open: each Branch tab;
+ * each Skill's tile, clicked on its +, which spends a point on it while one
+ * can be, else picks it up if learned, the second face button always
+ * picking a learned one up; each Skill Bar slot, to put a Held Skill in;
+ * and the ×.
  */
 export function skillTreeFocusSpots(
   world: World,
   screen: Viewport,
+  branch: Branch = "bone",
 ): SkillTreeFocusSpot[] {
-  const layout = skillTreePanelLayout(screen);
-  // Top to bottom, Branch by Branch, so the Focus starts at the first.
-  const spots: SkillTreeFocusSpot[] = BRANCHES.flatMap(
-    (branch) => branchSkills[branch],
-  ).map((skill) => {
-    const at = middleOf(layout.raise[skill]);
-    const hit = skillTreeHitAt(screen, at, world, true) ?? { button: null };
+  const layout = skillTreePanelLayout(screen, branch);
+  const spots: SkillTreeFocusSpot[] = BRANCHES.map((other) => ({
+    rect: layout.tabs[other],
+    at: middleOf(layout.tabs[other]),
+    hit: { button: { type: "branchTab", branch: other } },
+  }));
+  for (const { skill, tile, raise } of layout.skills) {
+    const at = middleOf(raise);
+    const hit = skillTreeHitAt(screen, at, world, true, branch) ?? {
+      button: null,
+    };
     const learned = skillLevelOf(world, skill) > 0;
-    const spot = { rect: layout.skills[skill], at, hit };
-    if (!learned || isPassive(skill)) return spot;
-    return { ...spot, secondHit: { button: { type: "pickUpSkill", skill } } };
-  });
+    const spot = { rect: tile, at, hit };
+    spots.push(
+      !learned || isPassive(skill)
+        ? spot
+        : { ...spot, secondHit: { button: { type: "pickUpSkill", skill } } },
+    );
+  }
   const { slots } = skillBarLayout(screen);
   for (const slot of SKILL_BAR_SLOTS) {
     const rect = slots[slot];

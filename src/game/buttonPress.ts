@@ -21,7 +21,7 @@ export type PressedButton = Extract<CursorHit, { button: unknown }>["button"];
 /**
  * A press on `button`, which never orders the Hero about, nor goes on from
  * their Death: Level Up opens the Hero or Skill Tree panel (but for a dead
- * Hero), a + on the Skill Tree spends a point while the Hero panel's +, −
+ * Hero), a Branch tab opens its Branch on the Skill Tree panel, a + on it spends a point while the Hero panel's +, −
  * and Accept plan and spend Pending Attribute Points, and a panel's × or
  * Panel button shuts it as its key does (a Panel button opening it too),
  * while the game runs on, and the Town Portal button opens a Town Portal
@@ -59,6 +59,9 @@ export function pressButton(
       return [];
     case "panelButton":
       clickPanelButton(menus, button.panel, { heroDead });
+      return [];
+    case "branchTab":
+      menus.skillTreeBranch = button.branch;
       return [];
     case "learn":
       return [{ type: "SpendSkillPoint", skill: button.skill }];

@@ -1,6 +1,7 @@
 import type { FocusSpot } from "../input/focus";
 import type { ClosablePanel, PendingPoints } from "../menus";
 import type { World } from "../sim/world";
+import type { Branch } from "../tuning/skills";
 import type { Viewport } from "../viewport";
 import { dialogueFocusSpots } from "./dialoguePanel";
 import { heroFocusSpots } from "./heroPanel";
@@ -21,6 +22,7 @@ export function panelFocusSpots(
   pending?: Readonly<PendingPoints>,
   dialogueNpc = 0,
   dialoguePage = 0,
+  skillTreeBranch: Branch = "bone",
 ): FocusSpot[] {
   switch (panel) {
     case "hero":
@@ -28,7 +30,7 @@ export function panelFocusSpots(
     case "inventory":
       return inventoryFocusSpots(world, screen);
     case "skillTree":
-      return skillTreeFocusSpots(world, screen);
+      return skillTreeFocusSpots(world, screen, skillTreeBranch);
     case "quest":
       return questFocusSpots(world, screen);
     case "dialogue":

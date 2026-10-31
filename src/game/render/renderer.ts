@@ -96,7 +96,7 @@ import {
   bannerOpacityAt,
 } from "./areaBanner";
 import { beltStripLayout, beltStripSheet } from "./beltStrip";
-import { bossBarOf as bossBarContent, bossBarLayout } from "./bossBar";
+import { bossBarContentOf, bossBarLayout } from "./bossBar";
 import { CLOSE_BUTTON } from "./closeButton";
 import { corpseBurst } from "./corpseBurst";
 import {
@@ -1370,7 +1370,7 @@ export function createRenderer(
           : { minion: hovered.minion.id }
         : null;
       // The Boss bar, while the Act Boss is In Combat with the Hero.
-      const bossContent = bossBarContent(bossBarOf(world));
+      const bossContent = bossBarContentOf(bossBarOf(world));
       bossBar.clear();
       bossBarText.visible = bossContent !== null;
       let nameplateBelow = 0;

@@ -2104,9 +2104,7 @@ function stepWaves(world: World, events: SimEvent[]) {
   for (const boss of [...world.monsters]) {
     const { waves } = boss;
     if (!waves) continue;
-    const afterHero = !["idle", "wander", "return", "flee"].includes(
-      boss.state,
-    );
+    const afterHero = AFTER_HERO.includes(boss.state);
     const { halfAt, pastHalf } = graveWockingtonTuning;
     // The first step at or below half his Life is the turn: a wave at once.
     if (
@@ -2125,8 +2123,12 @@ function stepWaves(world: World, events: SimEvent[]) {
       distance: graveWockingtonTuning.raiseDistance,
       limit: past ? pastHalf.raisedLimit : graveWockingtonTuning.raisedLimit,
       size: past ? pastHalf.waveSize : graveWockingtonTuning.waveSize,
-      type: () =>
-        archers-- > 0 ? "skeleton_archer" : graveWockingtonTuning.raises,
+      // The first of each wave's Monsters are its Archers, the rest Skeletons.
+      type: () => {
+        if (archers <= 0) return graveWockingtonTuning.raises;
+        archers -= 1;
+        return "skeleton_archer";
+      },
       cooldown: msToSteps(
         past ? pastHalf.waveEveryMs : graveWockingtonTuning.waveEveryMs,
       ),
@@ -2361,10 +2363,10 @@ function strike(
   target: MonsterTarget,
   attack: AttackNumbers,
   events: SimEvent[],
-  sure = false,
+  alwaysHits = false,
 ) {
-  if (target !== "hero") hitMinion(world, target, attack, events, sure);
-  else if (!world.death) hitHero(world, attack, events, sure);
+  if (target !== "hero") hitMinion(world, target, attack, events, alwaysHits);
+  else if (!world.death) hitHero(world, attack, events, alwaysHits);
 }
 
 /**
@@ -3728,25 +3730,25 @@ function rollGold(
  * rest off their Life. An attack that would hit can still be Blocked by an
  * Equipped Shield (see `heroBlockChance`): that too deals no damage, never
  * flinches the Hero and leaves their Bone Ward be, but keeps them In Combat.
- * A `sure` hit (a burning circle's) is neither Missed nor Blocked, rolls
+ * An `alwaysHits` hit (a burning circle's) is neither Missed nor Blocked, rolls
  * nothing for either, and never flinches the Hero; the rest is as above.
  */
 function hitHero(
   world: World,
   attack: AttackNumbers,
   events: SimEvent[],
-  sure = false,
+  alwaysHits = false,
 ) {
   const { hero } = world;
   const chance = heroChanceToBeHit(world, attack.attackRating);
-  if (!sure && chance < 1 && random(world.rng) >= chance) {
+  if (!alwaysHits && chance < 1 && random(world.rng) >= chance) {
     events.push({ type: "Missed", target: "hero" });
     return;
   }
   // A Block is rolled once the attack would hit, before any damage. With no
   // Shield nothing is rolled, so the rolls after it stay as they were.
   const blockChance = heroBlockChance(world);
-  if (!sure && blockChance > 0 && random(world.rng) * 100 < blockChance) {
+  if (!alwaysHits && blockChance > 0 && random(world.rng) * 100 < blockChance) {
     hero.combat = COMBAT_STEPS;
     events.push({ type: "Blocked" });
     return;
@@ -3777,7 +3779,7 @@ function hitHero(
     return;
   }
 
-  if (sure) return;
+  if (alwaysHits) return;
   // A swing's follow-through carries on.
   if (hero.swing?.landed) return;
   if (random(world.rng) >= heroTuning.flinchChance) return;
@@ -3797,20 +3799,20 @@ function hitHero(
  * Lands a Monster's attack, a melee one or a Projectile, on the Hero's
  * Minion `id`, if it still lives: it rolls the attack's Attack Rating against
  * the Minion's Defense, and at 0 Life the Minion dies, leaving no Corpse.
- * Neither keeps the Hero In Combat. A `sure` hit always hits.
+ * Neither keeps the Hero In Combat. An `alwaysHits` hit always hits.
  */
 function hitMinion(
   world: World,
   id: MinionId,
   attack: AttackNumbers,
   events: SimEvent[],
-  sure = false,
+  alwaysHits = false,
 ) {
   const minion = world.minions.find((one) => one.id === id);
   if (!minion) return;
   const rolled = rollAttack(
     world,
-    sure ? 1 : chanceToHit(attack.attackRating, minionDefense(minion)),
+    alwaysHits ? 1 : chanceToHit(attack.attackRating, minionDefense(minion)),
     attack.damage,
     attack.damageTypes,
   );

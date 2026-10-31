@@ -9,7 +9,7 @@ import {
   monsterDefense,
   monsterExperience,
   monsterMaxLife,
-  shared,
+  shareOfRange,
 } from "./monsters";
 import { levelExperience, nextLevelExperience } from "./world";
 
@@ -172,7 +172,7 @@ export function bossReport(type: MonsterType, areaLevel: number): BossReport {
   }
   const { burn } = attack.lob;
   const damage = monsterDamageRange(monster);
-  const tick = shared(damage, burn.damage);
+  const tick = shareOfRange(damage, burn.damage);
   const ticks = Math.floor(burn.burnMs / burn.tickMs);
   const recoveries = attack.recoveryMs ?? [tuning.recoveryMs];
   const wave = graveWockingtonTuning;

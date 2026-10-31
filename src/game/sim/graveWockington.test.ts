@@ -393,6 +393,32 @@ describe("the turn at half his Life", () => {
     expect(later.filter((e) => e.type === "BossFlared")).toHaveLength(0);
   });
 
+  it("raises the turn's wave to the past-half limit, with the Archer, over first-half Skeletons alive", () => {
+    const { world, boss } = afterFirstWave(0.6);
+    const first = graveWockingtonTuning.raisedLimit;
+    const alive = () => boss.waves?.raised.length ?? 0;
+    // Fill his first-half limit with living Skeletons.
+    for (let i = 0; i < 60 * 30 && alive() < first; i++) {
+      if (boss.waves) boss.waves.cooldown = Math.min(boss.waves.cooldown, 1);
+      wait(world, 1);
+    }
+    boss.life = Math.floor(monsterMaxLife(boss) / 2);
+    expect(alive()).toBe(first);
+
+    const events = wait(world, 1);
+    const wave = events.find((e) => e.type === "WaveRaised");
+
+    expect(second.raisedLimit).toBeGreaterThan(first);
+    if (wave?.type !== "WaveRaised") throw new Error("no turn wave");
+    expect(wave.monsters).toHaveLength(
+      Math.min(second.waveSize, second.raisedLimit - first),
+    );
+    expect(
+      wave.monsters.map((id) => world.monsters.find((m) => m.id === id)?.type),
+    ).toContain("skeleton_archer");
+    expect(alive()).toBeLessThanOrEqual(second.raisedLimit);
+  });
+
   it("raises more in later waves, each with one Skeleton Archer, on a shorter timer", () => {
     const { world, boss } = afterFirstWave(0.4);
     wait(world, 1);

@@ -33,7 +33,7 @@ export const BOSS_BAR = {
 };
 
 /** What the Boss bar shows for the World's query, or null for no bar. */
-export function bossBarOf(bar: BossBar | null): BossBarContent | null {
+export function bossBarContentOf(bar: BossBar | null): BossBarContent | null {
   if (!bar) return null;
   return { name: bar.name, fraction: Math.max(0, bar.life / bar.maxLife) };
 }

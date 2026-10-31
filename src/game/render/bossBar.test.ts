@@ -3,7 +3,7 @@ import { overlaps, type Rect } from "../sim/rect";
 import { viewportOf } from "../viewport";
 import { ACT_COMPLETE_BANNER } from "./actCompleteBanner";
 import { AREA_BANNER } from "./areaBanner";
-import { BOSS_BAR, bossBarLayout, bossBarOf } from "./bossBar";
+import { BOSS_BAR, bossBarContentOf, bossBarLayout } from "./bossBar";
 import { nameplateLayout } from "./hover";
 
 const SIZES = [
@@ -28,12 +28,12 @@ function bannerRect(
 describe("the Boss bar's content", () => {
   it("shows the name with the Life bar's fill", () => {
     expect(
-      bossBarOf({ name: "Grave Wockington", life: 30, maxLife: 120 }),
+      bossBarContentOf({ name: "Grave Wockington", life: 30, maxLife: 120 }),
     ).toEqual({ name: "Grave Wockington", fraction: 0.25 });
   });
 
   it("shows nothing without an Act Boss In Combat", () => {
-    expect(bossBarOf(null)).toBeNull();
+    expect(bossBarContentOf(null)).toBeNull();
   });
 });
 

@@ -698,16 +698,23 @@ function windUp(world: World, monster: Monster, events: SimEvent[]): Strike[] {
     return strikes;
   }
   if (attack.kind === "melee" && attack.slam) return strikes;
-  // Gravefire lands where the Hero stands, whoever its caster is after.
+  // Gravefire lands where the Hero stands while they are in its caster's
+  // range and sight, else where the Minion it is after stands.
   const atHero =
-    swing === null && attack.kind === "ranged" && attack.lob?.atHero;
+    swing === null &&
+    attack.kind === "ranged" &&
+    attack.lob?.atHero &&
+    (monster.target === "hero" ||
+      (distance(monster.pos, world.hero.pos) <= attack.range &&
+        canSee(world.areas[world.areaName], monster.pos, world.hero.pos)));
   const at = atHero ? { ...world.hero.pos } : targetPos(world, monster.target);
   if (!at) return strikes;
   if (swing === null && attack.kind === "ranged") {
     loose(world, monster, attack, at, events);
   } else if (
     swing &&
-    lands(monster, at, swing.reach + swing.reachGrace, swing.arc)
+    lands(monster, at, swing.reach + swing.reachGrace, swing.arc) &&
+    canSee(world.areas[world.areaName], monster.pos, at)
   ) {
     strikes.push({ monster, target: monster.target, wall: null });
   }
@@ -748,7 +755,7 @@ function loose(
     world.projectiles.push({
       ...flying,
       // A burning circle hits for a share of the blow each time.
-      ...(burn && { damage: shared(flying.damage, burn.damage) }),
+      ...(burn && { damage: shareOfRange(flying.damage, burn.damage) }),
       lob: true,
       origin: { ...monster.pos },
       landing: { ...at },
@@ -776,7 +783,7 @@ function loose(
 }
 
 /** A damage range `share` of itself, each end at least 1. */
-export function shared(
+export function shareOfRange(
   [min, max]: [number, number],
   share: number,
 ): [number, number] {

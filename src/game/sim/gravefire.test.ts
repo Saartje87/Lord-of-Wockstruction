@@ -6,6 +6,7 @@ import { monsterMaxLife } from "./monsters";
 import { isLobbed, type LobbedProjectile } from "./projectiles";
 import { combatArea } from "./testAreas";
 import { msToSteps } from "./units";
+import { distance } from "./vec";
 import {
   burningCircles,
   createWorld,
@@ -100,7 +101,7 @@ const attack = monsterTuning.grave_wockington.attack;
 if (attack.kind !== "ranged" || !attack.lob?.burn || !attack.recoveryMs) {
   throw new Error("No Gravefire tuning");
 }
-const { lob, recoveryMs } = attack;
+const { lob, recoveryMs, range } = attack;
 const { burn } = lob;
 if (!burn) throw new Error("No burn tuning");
 const ticks = Math.floor(burn.burnMs / burn.tickMs);
@@ -210,6 +211,23 @@ describe("Grave Wockington fighting as a caster", () => {
     expect(onHero(events).length).toBeGreaterThan(0);
   });
 
+  it("swings only at a target he can see, not through a Wall", () => {
+    const w = fight(["H#G........"]);
+    const boss = bossOf(w);
+    // Either side of a Wall, still within the reach of his blow.
+    w.hero.pos = { x: 0.95, y: 0.5 };
+    w.hero.prevPos = { ...w.hero.pos };
+    boss.pos = { x: 2.05, y: 0.5 };
+    boss.prevPos = { ...boss.pos };
+    // He can't notice the Hero through the Wall, so is set after them.
+    boss.state = "chase";
+    untilWindUp(w, boss);
+    const events: SimEvent[] = [];
+    for (let i = 0; i < 60 * 2; i++) events.push(...step(w, []));
+
+    expect(onHero(events)).toEqual([]);
+  });
+
   it("walks closer while his target is out of range", () => {
     const w = fight(["H......................G"]);
     const boss = bossOf(w);
@@ -239,6 +257,40 @@ describe("Grave Wockington fighting as a caster", () => {
     expect(burningCircles(w)[0].pos).toEqual({ x: 0.5, y: 0.5 });
     expect(burningCircles(w)[0].radius).toBe(lob.radius);
     expect(w.boneWalls[0].life).toBe(100);
+  });
+
+  it("lands on a Minion's spot when only the Minion is in his range and sight", () => {
+    const w = fight(["H..........G"]);
+    const boss = bossOf(w);
+    // The Hero is beyond his range, a Minion well inside it.
+    expect(distance(boss.pos, w.hero.pos)).toBeGreaterThan(range);
+    const minion = newMinion(90, "golem", "golem", 1, { x: 6.5, y: 0.5 }, 0);
+    w.minions.push(minion);
+    // It stays put, rather than following the Hero.
+    while (!w.projectiles.some(isLobbed)) {
+      if (w.tick > 60 * 10) throw new Error("He never cast");
+      minion.pos = { x: 6.5, y: 0.5 };
+      step(w, []);
+    }
+    const fire = untilCast(w);
+
+    // Where the Minion stood, give or take its step on the way.
+    expect(fire.landing.x).toBeCloseTo(6.5, 0);
+    expect(fire.landing.y).toBeCloseTo(0.5, 5);
+  });
+
+  it("lands where the Hero stands when the Hero is in his range and sight, though a Minion is nearer", () => {
+    const w = fight(["H.....G...."]);
+    const minion = newMinion(90, "golem", "golem", 1, { x: 4.5, y: 0.5 }, 0);
+    w.minions.push(minion);
+    while (!w.projectiles.some(isLobbed)) {
+      if (w.tick > 60 * 10) throw new Error("He never cast");
+      minion.pos = { x: 4.5, y: 0.5 };
+      step(w, []);
+    }
+    const fire = untilCast(w);
+
+    expect(fire.landing).toEqual(w.hero.pos);
   });
 
   it("reports a cast, a landing and a burn ending", () => {

@@ -12,6 +12,7 @@ import { CORPSE_BURST } from "../render/corpseBurst";
 import { CURSE_CIRCLE } from "../render/curse";
 import { LEVEL_UP } from "../render/levelUp";
 import { TELEGRAPH } from "../render/telegraph";
+import { GRAVEFIRE_COLOUR } from "./lootLook";
 import type { FloorEffectsView } from "./view";
 
 /**
@@ -29,10 +30,15 @@ const MUCK_MARK = {
 };
 
 /** The colour of a landing mark by what was lobbed: Gravefire's is fire. */
-const MARK_COLOURS: Partial<Record<string, number>> = { gravefire: 0xff6a1a };
+const MARK_COLOURS: Partial<Record<string, number>> = {
+  gravefire: GRAVEFIRE_COLOUR,
+};
 
 /** A burning circle on the ground: a fire disc, brightest at its rim. */
-const BURN = { colour: 0xff6a1a, fillAlpha: 0.35, edgeAlpha: 0.9 };
+const BURN = { colour: GRAVEFIRE_COLOUR, fillAlpha: 0.35, edgeAlpha: 0.9 };
+
+/** How long a burning circle fades out over the end of its burn (seconds). */
+const BURN_FADE_SECONDS = 0.25;
 
 /** How high the effects lie, over the Exit pool's glow (0.12) on the floor. */
 const LIFT = 0.14;
@@ -221,7 +227,7 @@ export function floorEffectMeshesOf(): FloorEffectMeshes {
         place(fill, shown.pos, shown.radius);
         place(edge, shown.pos, shown.radius);
         // Fades out over the last of its burn.
-        const fade = Math.min(1, shown.left / 0.25);
+        const fade = Math.min(1, shown.left / BURN_FADE_SECONDS);
         opacity(fill, BURN.fillAlpha * fade);
         opacity(edge, BURN.edgeAlpha * fade);
       });

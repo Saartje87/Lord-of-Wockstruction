@@ -8,10 +8,8 @@ import {
 } from "three";
 import type { ClickMarkerView } from "./view";
 
-/** The click marker's colour and the hover tile's. */
+/** The click marker's colour. */
 const MARKER_COLOUR = 0xe8d27a;
-const HOVER_COLOUR = 0xd8c48a;
-const HOVER_OPACITY = 0.7;
 /** How far above the floor the outlines lie, so they don't fight with it. */
 const LIFT = 0.07;
 
@@ -51,33 +49,25 @@ function outline(colour: number): Mesh {
   return mesh;
 }
 
-/** The click marker and hover tile outlines on the floor. */
-export type Markers = { click: Mesh; hover: Mesh };
+/** The click marker outline on the floor. */
+export type Markers = { click: Mesh };
 
 /** Makes the markers, hidden. */
 export function createMarkers(): Markers {
-  return { click: outline(MARKER_COLOUR), hover: outline(HOVER_COLOUR) };
+  return { click: outline(MARKER_COLOUR) };
 }
 
 /** Shows the markers as the view says. */
 export function showMarkers(
   markers: Markers,
-  view: {
-    clickMarker: ClickMarkerView | null;
-    hoverTile: { x: number; y: number } | null;
-  },
+  view: { clickMarker: ClickMarkerView | null },
 ) {
-  const { click, hover } = markers;
-  const { clickMarker, hoverTile } = view;
+  const { click } = markers;
+  const { clickMarker } = view;
   click.visible = clickMarker !== null;
   if (clickMarker) {
     click.position.set(clickMarker.at.x, LIFT, clickMarker.at.y);
     click.scale.setScalar(1 - 0.6 * clickMarker.progress);
     (click.material as MeshBasicMaterial).opacity = 1 - clickMarker.progress;
-  }
-  hover.visible = hoverTile !== null;
-  if (hoverTile) {
-    hover.position.set(hoverTile.x + 0.5, LIFT, hoverTile.y + 0.5);
-    (hover.material as MeshBasicMaterial).opacity = HOVER_OPACITY;
   }
 }

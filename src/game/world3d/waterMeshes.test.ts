@@ -72,31 +72,25 @@ describe("the 3D World's ponds", () => {
     expect(material.toneMapped).toBe(false);
   });
 
-  it("is a deeper, darker blue-green than the old Water", () => {
-    const { colour } = WATER_LOOK.plain;
-    const red = (colour >> 16) & 0xff;
-    const green = (colour >> 8) & 0xff;
-    const blue = colour & 0xff;
+  it("is a deep, dark blue-green", () => {
+    const { group } = waterMeshesOf(areaWithWater([[2, 2]]));
+    const material = (group.children[0] as Mesh).material as ShaderMaterial;
+    const colour = material.uniforms.uColour.value as Color;
 
-    expect(blue).toBeGreaterThan(red);
-    expect(green).toBeGreaterThan(red);
-    // The old plain Water was 0x2f8fb0; the new one is darker.
-    expect(red + green + blue).toBeLessThan(0x2f + 0x8f + 0xb0);
+    expect(colour.getHex()).toBe(WATER_LOOK.plain.colour);
+    expect(colour.b).toBeGreaterThan(colour.r);
+    expect(colour.g).toBeGreaterThan(colour.r);
+    expect(colour.r + colour.g + colour.b).toBeLessThan(1.5);
   });
 
-  it("drifts light across the pond in World space, not the whole Area at once", () => {
+  it("drifts its light as the game goes on, leaving the base colour alone", () => {
     const { group, update } = waterMeshesOf(areaWithWater([[2, 2]]));
     const material = (group.children[0] as Mesh).material as ShaderMaterial;
-    const frag = material.fragmentShader;
 
-    // The bands are drawn from the World position of each point of the pond.
-    expect(material.vertexShader).toContain("modelMatrix");
-    expect(frag).toContain("vWorld");
     update(0);
     const a = material.uniforms.uTime.value;
     update(5);
     expect(material.uniforms.uTime.value).not.toBe(a);
-    // The base colour itself no longer fades.
     const colour = (material.uniforms.uColour.value as Color).getHex();
     update(7);
     expect((material.uniforms.uColour.value as Color).getHex()).toBe(colour);

@@ -27,6 +27,7 @@ import {
 import { ITEM_TYPES, itemOf } from "./tuning/items";
 import { type MonsterType, monsterTuning } from "./tuning/monsters";
 import { questTuning } from "./tuning/quests";
+import { LOOKS, outdoorLookOf } from "./world3d/toon";
 import { pondsOf } from "./world3d/waterMeshes";
 
 // Building the World runs the loader's validation: a `start` Entry, Exits to
@@ -767,6 +768,30 @@ describe("the shipped Areas' trails", () => {
     }
   });
 
+  it("never draw an outdoor floor with a piece that has the dusk look", () => {
+    const outdoor = Object.values(shippedWorld().areas).filter(
+      (area) => area.outdoors,
+    );
+    for (const area of outdoor) {
+      for (const piece of new Set(area.floorPieces)) {
+        if (piece === null || piece === "water") continue;
+        expect(outdoorLookOf(piece), `${area.name}: ${piece}`).not.toBe(
+          LOOKS.dusk,
+        );
+      }
+    }
+  });
+
+  it("run as dirt through the Soggy Bog's mud", () => {
+    const bog = shippedWorld().areas["soggy-bog"];
+    const count = (piece: string) =>
+      bog.floorPieces.filter((p) => p === piece).length;
+    expect(count("dungeon/floor_dirt_large")).toBeGreaterThan(0);
+    expect(count("halloween/floor_dirt")).toBeGreaterThan(0);
+    expect(outdoorLookOf("halloween/floor_dirt")).toBe(LOOKS.daylightDirt);
+    expect(outdoorLookOf("dungeon/floor_dirt_large")).toBe(LOOKS.mud);
+  });
+
   it("stay stone paths in Wockville", () => {
     expect(pathsIn(shippedWorld().areas.town)).toBeGreaterThan(50);
   });
@@ -909,6 +934,12 @@ describe("the Cozy Plains' grass", () => {
 describe("the Old Mill's grass and millpond", () => {
   const mill = () => shippedWorld().areas["old-mill"];
   const MILL_BUILDINGS = /^hexagon\/building_/;
+  /** How many tiles from a millpond tile a building still stands beside it. */
+  const BESIDE_THE_MILLPOND = 3;
+  const pondTilesOf = (area: Area): Vec[] =>
+    area.water.flatMap((isWater, i) =>
+      isWater ? [{ x: i % area.width, y: Math.floor(i / area.width) }] : [],
+    );
 
   it("is mostly grass, with dirt around the mill", () => {
     const area = mill();
@@ -938,28 +969,25 @@ describe("the Old Mill's grass and millpond", () => {
     expect(pieces.some((p) => /tree_dead|grave/.test(p))).toBe(false);
   });
 
-  it("has the watermill beside its millpond, blocking its footprint, and no blacksmith", () => {
+  it("has the watermill beside its millpond, blocking its tile, and no blacksmith", () => {
     const area = mill();
     expect(area.props.some((p) => /blacksmith/.test(p.piece))).toBe(false);
     const watermills = area.props.filter(
       (p) => p.piece === "hexagon/building_watermill_red",
     );
     expect(watermills).toHaveLength(1);
-    const pond: Vec[] = [];
-    area.water.forEach((isWater, i) => {
-      if (isWater)
-        pond.push({ x: i % area.width, y: Math.floor(i / area.width) });
-    });
-    const [mill_] = watermills;
+    const [watermill] = watermills;
+    const besidePond = pondTilesOf(area).some(
+      (tile) =>
+        Math.abs(watermill.x - tile.x) <= BESIDE_THE_MILLPOND &&
+        Math.abs(watermill.y - tile.y) <= BESIDE_THE_MILLPOND,
+    );
+    expect(besidePond).toBe(true);
+    // A building's footprint in the sim is the tile it stands on.
+    expect(watermill.blocks).toBe(true);
     expect(
-      pond.some(
-        (t) => Math.abs(mill_.x - t.x) <= 3 && Math.abs(mill_.y - t.y) <= 3,
-      ),
-    ).toBe(true);
-    const blocked = (p: Vec) =>
-      !canReach(area, { x: mill_.x - 2.5, y: mill_.y + 0.5 }, p) ||
-      !canReach(area, p, { x: mill_.x - 2.5, y: mill_.y + 0.5 });
-    expect(blocked({ x: mill_.x + 0.5, y: mill_.y + 0.5 })).toBe(true);
+      isWalkable(area, { x: watermill.x + 0.5, y: watermill.y + 0.5 }),
+    ).toBe(false);
   });
 
   it("has a small millpond beside the mill", () => {
@@ -975,7 +1003,9 @@ describe("the Old Mill's grass and millpond", () => {
     const buildings = area.props.filter((p) => MILL_BUILDINGS.test(p.piece));
     const beside = pond.some((tile) =>
       buildings.some(
-        (b) => Math.abs(b.x - tile.x) <= 3 && Math.abs(b.y - tile.y) <= 3,
+        (b) =>
+          Math.abs(b.x - tile.x) <= BESIDE_THE_MILLPOND &&
+          Math.abs(b.y - tile.y) <= BESIDE_THE_MILLPOND,
       ),
     );
     expect(beside).toBe(true);

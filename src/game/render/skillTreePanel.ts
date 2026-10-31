@@ -1,5 +1,6 @@
 import { inside, middleOf, type Rect } from "../sim/rect";
 import { SKILL_BAR_SLOTS } from "../sim/skillBar";
+import { skillNumbers } from "../sim/skillNumbers";
 import { synergyMultiplier } from "../sim/synergies";
 import type { Vec } from "../sim/vec";
 import {
@@ -15,6 +16,7 @@ import {
   type Branch,
   branchSkills,
   branchTuning,
+  type CastSkill,
   isPassive,
   skillTuning,
 } from "../tuning/skills";
@@ -87,6 +89,17 @@ export type SkillSheet = {
    */
   prerequisites: readonly string[];
   /**
+   * What a cast Skill does at its Skill Level (Skill Level 1's numbers while
+   * it is unlearned), as "Label: text" lines with its Synergies and Passive
+   * Skills counted; empty for a Passive Skill.
+   */
+  stats: readonly string[];
+  /**
+   * The same lines one Skill Level up: what a Skill Point buys. Only while one
+   * can be spent on a learned Skill; empty otherwise.
+   */
+  nextStats: readonly string[];
+  /**
    * Its Synergies: each giving Skill's name, percent per Skill Level and the
    * percent that giver adds now.
    */
@@ -142,6 +155,13 @@ export function skillTreeSheet(world: World): SkillTreeSheet {
       const raised = skillLevel - progress.skillLevels[skill];
       const { requiredLevel, prerequisites } = skillTuning[skill];
       const { passive } = skillTuning[skill];
+      const canRaise = canRaiseSkill(world, skill);
+      const statsAt = (at: number): string[] =>
+        isPassive(skill)
+          ? []
+          : skillNumbers(skill as CastSkill, at, levels).map(
+              ({ label, text }) => `${label}: ${text}`,
+            );
       return {
         skill,
         name: skillTuning[skill].name,
@@ -173,7 +193,9 @@ export function skillTreeSheet(world: World): SkillTreeSheet {
           : null,
         requiredLevel:
           progress.level < requiredLevel ? String(requiredLevel) : null,
-        canRaise: canRaiseSkill(world, skill),
+        canRaise,
+        stats: statsAt(Math.max(skillLevel, 1)),
+        nextStats: canRaise && skillLevel > 0 ? statsAt(skillLevel + 1) : [],
       };
     }),
   };

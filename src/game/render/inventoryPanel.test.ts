@@ -918,4 +918,13 @@ describe("the elemental damage Suffix lines", () => {
       "lightning",
     ]);
   });
+
+  it("read as one number when the low and high are the same", () => {
+    expect(
+      itemTooltip({
+        type: "axe",
+        affixes: [{ kind: "fireDamage", grade: 0, value: 2, high: 2 }],
+      }).at(-1),
+    ).toBe("+2 Fire Damage");
+  });
 });

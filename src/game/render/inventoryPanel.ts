@@ -509,9 +509,10 @@ const PERCENT_BONUSES: readonly Bonus[] = [
 ];
 
 /** A tooltip line giving `amount` of `bonus`. */
-function bonusLine(bonus: Bonus, amount: number, high = amount): string {
+function bonusLine(bonus: Bonus, amount: number, high: number): string {
   if (ELEMENTAL_DAMAGE_BONUSES.includes(bonus)) {
-    return `+${amount}–${high} ${BONUS_NAMES[bonus]}`;
+    const range = high === amount ? `${amount}` : `${amount}–${high}`;
+    return `+${range} ${BONUS_NAMES[bonus]}`;
   }
   return PERCENT_BONUSES.includes(bonus)
     ? `+${amount}% ${BONUS_NAMES[bonus]}`
@@ -601,7 +602,7 @@ function tooltipLines(shown: Shown): TooltipLine[] {
       text: `Smith: ${
         smithBonus.skill
           ? `+${smithBonus.amount} to ${skillTuning[smithBonus.skill].name}`
-          : bonusLine(smithBonus.bonus, smithBonus.amount)
+          : bonusLine(smithBonus.bonus, smithBonus.amount, smithBonus.amount)
       }`,
     });
   }

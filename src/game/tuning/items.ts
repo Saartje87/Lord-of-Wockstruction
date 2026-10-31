@@ -822,3 +822,8 @@ export const AFFIX_KINDS = Object.keys(affixTuning) as AffixKind[];
 export function affixOf(kind: AffixKind): AffixTuning {
   return affixTuning[kind];
 }
+
+/** Whether an Affix of `kind` rolls a low and a high value, as an elemental damage Suffix does. */
+export function hasDamageRange(kind: AffixKind): boolean {
+  return !!affixOf(kind).grades[0].highRange;
+}

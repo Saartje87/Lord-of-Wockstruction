@@ -6,6 +6,7 @@ import {
   type AffixSide,
   affixOf,
   type Bonus,
+  hasDamageRange,
   type ItemType,
   isPotion,
   itemOf,
@@ -59,7 +60,11 @@ function kindsFor(type: ItemType, side: AffixSide): AffixKind[] {
   });
 }
 
-/** Rolls one Affix of `kind` among the grades `monsterLevel` reaches. */
+/**
+ * Rolls one Affix of `kind` among the grades `monsterLevel` reaches. An
+ * Affix with a damage range takes one draw more, for its high end, so a drop
+ * with none rolls the seeded sequence it always did.
+ */
 function rollAffix(
   rng: Rng,
   kind: AffixKind,
@@ -78,10 +83,10 @@ function rollAffix(
       )
     ];
   const value = randomInt(rng, picked.grade.range);
-  const { highRange } = picked.grade;
-  if (!highRange) return { kind, grade: picked.index, value };
+  if (!hasDamageRange(kind)) return { kind, grade: picked.index, value };
   // The high end is never below the low end.
-  const high = randomInt(rng, [Math.max(highRange[0], value), highRange[1]]);
+  const [highMin, highMax] = picked.grade.highRange ?? picked.grade.range;
+  const high = randomInt(rng, [Math.max(highMin, value), highMax]);
   return { kind, grade: picked.index, value, high };
 }
 
@@ -187,7 +192,10 @@ export function itemTitle(item: Titled): string {
     .join(" ");
 }
 
-/** What an Affix gives: the Bonus and how much, `high` being `amount` but for a damage range. */
+/**
+ * What an Affix gives: the Bonus and how much, `high` being `amount` but
+ * for a damage range.
+ */
 export function affixBonus(affix: RolledAffix): {
   bonus: Bonus;
   amount: number;
@@ -237,9 +245,10 @@ export function isRarity(rarity: unknown): rarity is Rarity {
 /**
  * Whether `rarity` and `affixes` could be an Item of `type`'s: the count
  * fits the Rarity, with no Potion above Normal, a Rare name on a Rare Item
- * only, at most one Prefix and one Suffix (two of each on a Rare Item), no kind twice, every kind known and suiting the type, every grade
- * there and every value a whole number inside its grade's range, a damage
- * range's high end inside its own range and not below the low end.
+ * only, at most one Prefix and one Suffix (two of each on a Rare Item), no
+ * kind twice, every kind known and suiting the type, every grade there and
+ * every value a whole number inside its grade's range, a damage range's
+ * high end inside its own range and not below the low end.
  */
 export function isValidRoll(
   type: ItemType,
@@ -275,10 +284,10 @@ export function isValidRoll(
     const [min, max] = rolled.range;
     if ((value as number) < min || (value as number) > max) return false;
     const { high } = affix as Record<string, unknown>;
-    if (!rolled.highRange) {
+    if (!hasDamageRange(affixKind as AffixKind)) {
       if (high !== undefined) return false;
     } else {
-      const [highMin, highMax] = rolled.highRange;
+      const [highMin, highMax] = rolled.highRange ?? rolled.range;
       if (!Number.isInteger(high)) return false;
       if ((high as number) < highMin || (high as number) > highMax) {
         return false;

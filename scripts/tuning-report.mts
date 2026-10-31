@@ -4,9 +4,10 @@
  * Experience to the next, the kills of own-Level Monsters it takes and the
  * Gold they drop in the Areas played at that Level, and
  * per Combat Area in `content/areas/` that places it, its Area Level and the
- * Monster there. Then each cast Skill's numbers per Skill Level, with Synergies
- * and Passive Skills, and the casts it takes to kill each kind of Monster in
- * each Combat Area (`skillReport` in `src/game/sim/skillReport.ts`).
+ * Monster there. Then each Unique Monster's numbers, and each cast Skill's
+ * numbers per Skill Level, with Synergies and Passive Skills, and the casts it
+ * takes to kill each kind of Monster in each Combat Area (`skillReport` in
+ * `src/game/sim/skillReport.ts`).
  *
  * Run it with `npm run tuning:report`.
  */
@@ -16,6 +17,7 @@ import { runnerImport } from "vite";
 import type * as AreaModule from "../src/game/sim/area.ts";
 import type * as SkillReportModule from "../src/game/sim/skillReport.ts";
 import type * as ReportModule from "../src/game/sim/tuningReport.ts";
+import type { UniqueRow } from "../src/game/sim/tuningReport.ts";
 import type * as MonstersModule from "../src/game/tuning/monsters.ts";
 import type { MonsterType } from "../src/game/tuning/monsters.ts";
 
@@ -24,9 +26,9 @@ const load = async <T,>(path: string) =>
   (await runnerImport<T>(path, { configFile: false, logLevel: "error" }))
     .module;
 const { loadArea } = await load<typeof AreaModule>("./src/game/sim/area.ts");
-const { bossReport, tuningReport } = await load<typeof ReportModule>(
-  "./src/game/sim/tuningReport.ts",
-);
+const { bossReport, tuningReport, uniqueReport } = await load<
+  typeof ReportModule
+>("./src/game/sim/tuningReport.ts");
 const { skillReport } = await load<typeof SkillReportModule>(
   "./src/game/sim/skillReport.ts",
 );
@@ -63,6 +65,15 @@ function table(headers: string[], rows: (string | number)[][]): string {
 }
 
 const grouped = (n: number) => n.toLocaleString("en-GB");
+
+/** The Monster numbers a Combat Area row and a Unique Monster row share. */
+const numberCells = (row: UniqueRow) => [
+  grouped(row.maxLife),
+  `${row.damage[0]}–${row.damage[1]}`,
+  row.attackRating,
+  row.defense,
+  grouped(row.experience),
+];
 
 for (const [type, { name }] of Object.entries(monsterTuning)) {
   const report = tuningReport(type as MonsterType, areas);
@@ -101,14 +112,38 @@ for (const [type, { name }] of Object.entries(monsterTuning)) {
         "Defense",
         "Experience",
       ],
-      report.areas.map((row) => [
-        row.area,
-        row.areaLevel,
-        grouped(row.maxLife),
-        `${row.damage[0]}–${row.damage[1]}`,
-        row.attackRating,
-        row.defense,
-        grouped(row.experience),
+      report.areas.map((row) => [row.area, row.areaLevel, ...numberCells(row)]),
+    ),
+  );
+  console.log();
+}
+
+const uniqueRows = areas.flatMap(({ name, areaLevel, uniques }) =>
+  areaLevel === null
+    ? []
+    : uniques.map((unique) => ({ area: name, areaLevel, unique })),
+);
+if (uniqueRows.length > 0) {
+  console.log("# Unique Monsters, with the Unique multipliers\n");
+  console.log(
+    table(
+      [
+        "Unique",
+        "Monster",
+        "Combat Area",
+        "Area Level",
+        "Max Life",
+        "Damage",
+        "Attack Rating",
+        "Defense",
+        "Experience",
+      ],
+      uniqueRows.map(({ area, areaLevel, unique }) => [
+        unique.name,
+        monsterTuning[unique.monster].name,
+        area,
+        areaLevel,
+        ...numberCells(uniqueReport(unique.monster, unique.name, areaLevel)),
       ]),
     ),
   );
@@ -118,7 +153,8 @@ for (const [type, { name }] of Object.entries(monsterTuning)) {
 const bossArea = areas.find((area) => area.actBoss !== null);
 if (bossArea?.actBoss && bossArea.areaLevel !== null) {
   const boss = bossReport(
-    bossArea.actBoss.monster as MonsterType,
+    bossArea.actBoss.monster,
+    bossArea.actBoss.name,
     bossArea.areaLevel,
   );
   const { gravefire: fire } = boss;

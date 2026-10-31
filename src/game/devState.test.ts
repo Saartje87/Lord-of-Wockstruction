@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { devStateOf } from "./devState";
 import { arenaWith } from "./input/testArena";
 import { newMinion } from "./sim/minions";
+import { QUEST_IDS } from "./sim/quests";
 import { maxMana, minionMaxLife } from "./sim/world";
 
 describe("devStateOf", () => {
@@ -34,11 +35,27 @@ describe("devStateOf", () => {
           type: "skeleton",
           pos: { x: 13, y: 10 },
           life: skeleton.life,
+          unique: null,
         },
       ],
       corpses: [],
       minions: [],
+      quests: world.hero.progress.quests,
     });
+  });
+
+  it("reads a Unique Monster's name and each Quest's progress", () => {
+    const world = arenaWith([{ x: 13, y: 10 }], { combat: true });
+    world.monsters[0].unique = "Bruckle";
+    const [quest] = QUEST_IDS;
+    world.hero.progress.quests[quest] = { state: "ready", count: 0 };
+
+    const state = devStateOf(world, null);
+
+    expect(state.monsters[0].unique).toBe("Bruckle");
+    expect(state.quests[quest]).toEqual({ state: "ready", count: 0 });
+    state.quests[quest].state = "done";
+    expect(world.hero.progress.quests[quest].state).toBe("ready");
   });
 
   it("reads the Hero's Mana and Bone Ward", () => {

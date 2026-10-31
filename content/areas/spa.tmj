@@ -3283,6 +3283,18 @@
      "point": true
     },
     {
+     "id": 12,
+     "name": "fight",
+     "type": "entry",
+     "x": 2256,
+     "y": 528,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true
+    },
+    {
      "id": 4,
      "name": "",
      "type": "monsterSpawn",
@@ -3427,8 +3439,32 @@
      ]
     },
     {
+     "id": 11,
+     "name": "",
+     "type": "monsterSpawn",
+     "x": 1968,
+     "y": 816,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true,
+     "properties": [
+      {
+       "name": "count",
+       "type": "int",
+       "value": 5
+      },
+      {
+       "name": "monster",
+       "type": "string",
+       "value": "wockwolf"
+      }
+     ]
+    },
+    {
      "id": 10,
-     "name": "Sir Soaks-a-Lot",
+     "name": "Bruckle",
      "type": "uniqueMonster",
      "x": 1968,
      "y": 624,
@@ -3441,7 +3477,7 @@
       {
        "name": "monster",
        "type": "string",
-       "value": "zombie"
+       "value": "wockbrute"
       }
      ]
     }
@@ -3454,7 +3490,7 @@
   }
  ],
  "nextlayerid": 4,
- "nextobjectid": 11,
+ "nextobjectid": 13,
  "orientation": "isometric",
  "renderorder": "right-down",
  "tiledversion": "1.11.2",

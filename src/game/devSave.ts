@@ -1,4 +1,10 @@
-import { encodeSave, parseSave, pointsGained } from "./save";
+import {
+  encodeSave,
+  parseQuestProgress,
+  parseSave,
+  pointsGained,
+  QUEST_STATES,
+} from "./save";
 import { isValidRoll } from "./sim/affixes";
 import { type BeltTypes, rowsOf } from "./sim/belt";
 import {
@@ -11,7 +17,12 @@ import {
   SLOT_KINDS,
   type StoredItem,
 } from "./sim/inventory";
-import { freshQuests, type QuestStates } from "./sim/quests";
+import {
+  freshQuests,
+  QUEST_IDS,
+  type QuestId,
+  type QuestStates,
+} from "./sim/quests";
 import { smithQuestDone } from "./sim/smith";
 import {
   ATTRIBUTES,
@@ -105,6 +116,21 @@ function belongingsOf(options: SaveOptions): Belongings {
   return { inventory, equipment, belt };
 }
 
+/** Throws naming the first Quest given that the game would refuse, and the shape a Quest takes. */
+function checkQuests(quests: Partial<QuestStates>) {
+  for (const [id, progress] of Object.entries(quests)) {
+    if (!(QUEST_IDS as readonly string[]).includes(id)) {
+      throw new Error(`unknown Quest ${id}`);
+    }
+    if (!parseQuestProgress(id as QuestId, progress)) {
+      const states = QUEST_STATES.map((state) => `"${state}"`).join(" | ");
+      throw new Error(
+        `Quest ${id}: give { state: ${states}, count: parts done }, not ${JSON.stringify(progress)}`,
+      );
+    }
+  }
+}
+
 /**
  * Save text for a Hero with the progress `options` ask for, at the current
  * Save version. Unspent Attribute Points and Skill Points are what the Level
@@ -114,6 +140,7 @@ function belongingsOf(options: SaveOptions): Belongings {
  */
 export function buildSave(options: SaveOptions = {}): string {
   const level = options.level ?? FRESH_PROGRESS.level;
+  checkQuests(options.quests ?? {});
   const quests: QuestStates = { ...freshQuests(), ...options.quests };
   const skillLevels = {
     ...FRESH_PROGRESS.skillLevels,

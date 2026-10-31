@@ -8,7 +8,7 @@ import {
 } from "../menus";
 import { changesSave, saveOf } from "../save";
 import { emptyBelt } from "../sim/belt";
-import { inventoryOf } from "../sim/inventory";
+import { type Belongings, inventoryOf } from "../sim/inventory";
 import { inside as insidePoint, overlaps, type Rect } from "../sim/rect";
 import { emptySkillBar } from "../sim/skillBar";
 import {
@@ -153,6 +153,7 @@ describe("heroSheet with Items Equipped", () => {
       { name: "Mana", value: "40 / 40", changed: false },
       { name: "Damage", value: "21–31", changed: false },
       { name: "Defense", value: "40", changed: false },
+      { name: "Block", value: "0%", changed: false },
       { name: "Attack Rating", value: "100", changed: false },
       { name: "Chance to hit a Skeleton", value: "85%", changed: false },
     ]);
@@ -191,6 +192,34 @@ describe("heroSheet with a Magic Item Equipped", () => {
     // (50/3 + 3) to (25 + 3), scaled by 25 Strength.
     expect(sheet.derived.find((d) => d.name === "Damage")?.value).toBe("25–35");
     expect(sheet.derived.find((d) => d.name === "Defense")?.value).toBe("48");
+  });
+});
+
+describe("heroSheet with a Shield", () => {
+  const withOffHand = (equipment: Belongings["equipment"]) =>
+    heroSheet(
+      createWorld({
+        areas: { town },
+        seed: 1,
+        belongings: { inventory: [], equipment, belt: emptyBelt() },
+      }),
+    ).derived.find((d) => d.name === "Block");
+
+  it("shows the Hero's Block chance", () => {
+    expect(withOffHand({ offHand: { type: "buckler" } })?.value).toBe("15%");
+    expect(
+      withOffHand({
+        offHand: {
+          type: "buckler",
+          rarity: "magic",
+          affixes: [{ kind: "block", grade: 0, value: 4 }],
+        },
+      })?.value,
+    ).toBe("19%");
+  });
+
+  it("shows 0% with no Shield", () => {
+    expect(withOffHand({})?.value).toBe("0%");
   });
 });
 
@@ -273,6 +302,7 @@ describe("heroSheet", () => {
         { name: "Mana", value: "40 / 40", changed: false },
         { name: "Damage", value: "20–30", changed: false },
         { name: "Defense", value: "0", changed: false },
+        { name: "Block", value: "0%", changed: false },
         { name: "Attack Rating", value: "100", changed: false },
         { name: "Chance to hit a Skeleton", value: "85%", changed: false },
       ],
@@ -311,6 +341,7 @@ describe("heroSheet", () => {
       { name: "Mana", value: "44 / 44", changed: false },
       { name: "Damage", value: "22–33", changed: false },
       { name: "Defense", value: "0", changed: false },
+      { name: "Block", value: "0%", changed: false },
       { name: "Attack Rating", value: "105", changed: false },
       // 2 × 105 / (105 + 135)
       { name: "Chance to hit a Skeleton", value: "88%", changed: false },
@@ -372,6 +403,7 @@ describe("heroSheet with Pending Attribute Points", () => {
       { name: "Mana", value: "34 / 45", changed: true },
       { name: "Damage", value: "20–30", changed: false },
       { name: "Defense", value: "0", changed: false },
+      { name: "Block", value: "0%", changed: false },
       { name: "Attack Rating", value: "100", changed: false },
       { name: "Chance to hit a Skeleton", value: "85%", changed: false },
     ]);

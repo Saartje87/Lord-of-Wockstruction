@@ -12,6 +12,7 @@ import {
   attackRating,
   attributesOf,
   damageRange,
+  heroBlockChance,
   heroChanceToHit,
   heroDefense,
   maxLife,
@@ -165,6 +166,7 @@ function sheetValues(world: World) {
       // Each hit rounds its own damage, so the range shows rounded too.
       { name: "Damage", value: `${Math.round(min)}–${Math.round(max)}` },
       { name: "Defense", value: String(heroDefense(world)) },
+      { name: "Block", value: `${heroBlockChance(world)}%` },
       { name: "Attack Rating", value: String(attackRating(world)) },
       {
         name: "Chance to hit a Skeleton",

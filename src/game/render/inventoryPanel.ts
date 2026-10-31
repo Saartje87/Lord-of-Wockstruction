@@ -466,10 +466,15 @@ const BONUS_NAMES: Record<Bonus, string> = {
   mana: "Mana",
   enhancedDamage: "Enhanced Damage",
   enhancedDefense: "Enhanced Defense",
+  block: "Block",
 };
 
 /** The Bonuses that are percentages, not flat amounts. */
-const PERCENT_BONUSES: readonly Bonus[] = ["enhancedDamage", "enhancedDefense"];
+const PERCENT_BONUSES: readonly Bonus[] = [
+  "enhancedDamage",
+  "enhancedDefense",
+  "block",
+];
 
 /** A tooltip line giving `amount` of `bonus`. */
 function bonusLine(bonus: Bonus, amount: number): string {
@@ -520,6 +525,7 @@ export function itemTooltip(shown: {
     lines.push(`Damage: ${Math.round(min)}–${Math.round(max)}`);
   }
   if (item.defense !== undefined) lines.push(`Defense: ${item.defense}`);
+  if (item.block !== undefined) lines.push(`Block: ${item.block}%`);
   for (const [bonus, amount] of Object.entries(item.bonuses)) {
     lines.push(`+${amount} to ${BONUS_NAMES[bonus as Bonus]}`);
   }

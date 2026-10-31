@@ -262,40 +262,31 @@ describe("the pause button's touch hit area", () => {
   );
 
   it.each(
-    cases,
-  )("takes a touch just outside the drawn button, as far as the halfway rule allows, at %s with %s open", (_, __, on) => {
+    cases.filter(([, panel]) => panel === "a panel"),
+  )("takes a touch 5 px outside the drawn button at %s with %s open", (_, __, on) => {
     const { pause } = on;
     const middle = centre(pause);
-    // Drawn 33 px square: up to 5.5 px out is within 44 px square, but
-    // never past halfway to a button beside it, across the axis the two
-    // are furthest apart along.
+    // Drawn 33 px square: 5 px out is still within 44 px square, and with a
+    // panel open nothing else is drawn beside it to stop it.
     expect(pause.w).toBe(33);
-    const beside = [on.attack, ...SKILL_BAR_SLOTS.map((s) => on.skills[s])];
-    const pauseEnd = { x: pause.x + pause.w, y: pause.y + pause.h };
-    const reach = (gaps: number[]) =>
-      Math.min(5, ...gaps.map((gap) => gap / 2 - 0.01));
-    const gapsOf = (rect: Rect) => ({
-      x: Math.max(rect.x - pauseEnd.x, pause.x - (rect.x + rect.w)),
-      y: Math.max(rect.y - pauseEnd.y, pause.y - (rect.y + rect.h)),
-    });
-    const left = reach(
-      beside
-        .filter((rect) => rect.x + rect.w <= pause.x)
-        .map(gapsOf)
-        .filter((gap) => gap.x >= gap.y && gap.y < 5.5)
-        .map((gap) => gap.x),
-    );
-    const below = reach(
-      beside
-        .filter((rect) => rect.y >= pauseEnd.y)
-        .map(gapsOf)
-        .filter((gap) => gap.y > gap.x && gap.x < 5.5)
-        .map((gap) => gap.y),
-    );
-    expect(pauses({ x: pause.x - left, y: middle.y }, on)).toBe(true);
-    expect(pauses({ x: middle.x, y: pauseEnd.y + below }, on)).toBe(true);
+    expect(pauses({ x: pause.x - 5, y: middle.y }, on)).toBe(true);
+    expect(pauses({ x: middle.x, y: pause.y + pause.h + 5 }, on)).toBe(true);
     // Beyond 44 px square it takes nothing.
     expect(pauses({ x: pause.x - 6, y: middle.y }, on)).toBe(false);
+  });
+
+  it.each(
+    PHONES,
+  )("meets the Skill row below it halfway, or 5.5 px out if that is less, with no panel open at %o", (screen) => {
+    const on = touchControlsLayout(screen);
+    const { pause, skills } = on;
+    const { x } = centre(pause);
+    // Drawn 33 px square, it can grow 5.5 px each way, but the Skill row
+    // is drawn under it, so they meet halfway.
+    const below = skills.right.y - (pause.y + pause.h);
+    const edge = pause.y + pause.h + Math.min(5.5, below / 2);
+    expect(pauses({ x, y: edge - 0.05 }, on)).toBe(true);
+    expect(pauses({ x, y: edge + 0.05 }, on)).toBe(false);
   });
 
   it.each(

@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { areaDisplayNames, createShippedWorld } from "../content";
-import { canShareScreen, PANELS, type Panel } from "../menus";
+import { canShareScreen, createMenus, PANELS, type Panel } from "../menus";
 import { emptyBelt } from "../sim/belt";
 import { EQUIPMENT_SLOTS } from "../sim/inventory";
-import { overlaps, type Rect } from "../sim/rect";
-import { ATTRIBUTES } from "../sim/world";
+import { inside, middleOf, overlaps, type Rect } from "../sim/rect";
+import { ATTRIBUTES, FRESH_PROGRESS } from "../sim/world";
 import { DESKTOP_SCREENS, PHONES } from "../testScreens";
+import { inventoryTuning } from "../tuning/items";
+import { vendorTuning } from "../tuning/vendor";
 import { atUiScale, type Viewport, viewportOf } from "../viewport";
 import { beltStripLayout } from "./beltStrip";
+import { compactPanelRect } from "./compactLayout";
+import { cursorHitAt } from "./cursorHit";
 import {
   DIALOGUE,
   dialogueLayout,
@@ -103,7 +107,12 @@ const speedyWorld = createShippedWorld({
 /** The rows of Belt Columns a Belt can give, from none Equipped up. */
 const BELT_ROWS = [1, 2, 3, 4];
 
-/** The close hint at the bottom of `panel`, inside `padding` and `hintHeight` tall (CSS px at native scale). */
+/**
+ * Where a panel's close hint goes, for the panels whose layout doesn't
+ * hand it back: at the bottom of `panel`, inside `size.padding` and
+ * `size.hintHeight` tall (CSS px at native scale, scaled by the viewport's
+ * UI Scale).
+ */
 function closeHintOf(
   panel: Rect,
   size: { padding: number; hintHeight: number },
@@ -281,12 +290,21 @@ const PANELS_UNDER_TEST: PanelUnderTest[] = [
         buttons: [],
         cells: [
           [
-            "cell",
+            "goods cell",
             {
               x: layout.goods.x,
               y: layout.goods.y,
-              w: layout.cell,
-              h: layout.cell,
+              w: layout.goods.w / vendorTuning.grid.columns,
+              h: layout.goods.h / vendorTuning.grid.rows,
+            },
+          ],
+          [
+            "inventory cell",
+            {
+              x: layout.inventory.x,
+              y: layout.inventory.y,
+              w: layout.inventory.w / inventoryTuning.columns,
+              h: layout.inventory.h / inventoryTuning.rows,
             },
           ],
         ],
@@ -330,7 +348,7 @@ const PANELS_UNDER_TEST: PanelUnderTest[] = [
   },
 ];
 
-/** A circle's bounding square. */
+/** The bounding square of an orb's circle, its rim included, which is what it covers on screen. */
 function squareOf(circle: {
   x: number;
   y: number;
@@ -347,17 +365,19 @@ function squareOf(circle: {
 }
 
 /**
- * What a panel must leave uncovered on `viewport`, by name. The Compact
- * Layout's panel fills the screen over the orbs, the Level Up button and
- * the Experience bar by design, so there only the buttons a panel leaves in
- * reach are listed. The Mini Map is not listed at all: it hides while any
+ * What a panel must leave uncovered on `viewport`, by name: the Skill Bar's
+ * slots, the Belt strip's columns, the Panel buttons, the Town Portal
+ * button and the Experience bar, and on a desktop the orbs and the Level Up
+ * button too. In the Compact Layout the open panel is drawn over the Level
+ * Up button and the top of the orbs, so those are checked apart, in
+ * `compactCovered`. The Mini Map is not listed at all: it hides while any
  * panel is open.
  */
 function hudToClear(viewport: Viewport): [string, Rect][] {
   const { slots } = skillBarLayout(viewport);
   const { columns } = beltStripLayout(viewport);
   const { buttons, townPortal } = panelButtonsLayout(viewport);
-  const reach: [string, Rect][] = [
+  const clear: [string, Rect][] = [
     ...Object.entries(slots).map(([slot, rect]): [string, Rect] => [
       `Skill Bar ${slot}`,
       rect,
@@ -371,15 +391,15 @@ function hudToClear(viewport: Viewport): [string, Rect][] {
       rect,
     ]),
     ["Town Portal button", townPortal],
+    ["Experience bar", experienceBarLayout(viewport)],
   ];
-  if (viewport.compact) return reach;
+  if (viewport.compact) return clear;
   const { life, mana } = orbsLayout(viewport);
   return [
-    ...reach,
+    ...clear,
     ["Life orb", squareOf(life)],
     ["Mana orb", squareOf(mana)],
     ["Level Up button", heroPanelLayout(viewport).levelUp],
-    ["Experience bar", experienceBarLayout(viewport)],
   ];
 }
 
@@ -397,7 +417,7 @@ const LAYOUTS = [
 const EPSILON = 1e-6;
 
 /** Whether `a` and `b` share more than rounding's worth of area. */
-function overlapsForReal(a: Rect, b: Rect): boolean {
+function overlapsBeyondRounding(a: Rect, b: Rect): boolean {
   return overlaps(
     {
       x: a.x + EPSILON,
@@ -409,6 +429,7 @@ function overlapsForReal(a: Rect, b: Rect): boolean {
   );
 }
 
+/** Expects `rect` to lie within `outer`, named `name` in a failure, give or take rounding. */
 function expectInside(rect: Rect, outer: Rect, name: string) {
   expect(rect.x, `${name} left`).toBeGreaterThanOrEqual(outer.x - EPSILON);
   expect(rect.y, `${name} top`).toBeGreaterThanOrEqual(outer.y - EPSILON);
@@ -418,18 +439,6 @@ function expectInside(rect: Rect, outer: Rect, name: string) {
   expect(rect.y + rect.h, `${name} bottom`).toBeLessThanOrEqual(
     outer.y + outer.h + EPSILON,
   );
-}
-
-/** `rect` grown about its middle to at least `TOUCH_HIT_AREA` each way. */
-function grownToTouch(rect: Rect): Rect {
-  const w = Math.max(rect.w, TOUCH_HIT_AREA);
-  const h = Math.max(rect.h, TOUCH_HIT_AREA);
-  return {
-    x: rect.x - (w - rect.w) / 2,
-    y: rect.y - (h - rect.h) / 2,
-    w,
-    h,
-  };
 }
 
 /**
@@ -457,7 +466,8 @@ function expectTouchHitArea(
   expect(hit.y + hit.h, `${name} hit area keeps the button`).toBeGreaterThan(
     rect.y + rect.h - EPSILON,
   );
-  const grown = grownToTouch(rect);
+  // With no neighbour to stop it, the game's own helper gives the full growth.
+  const grown = touchHitRect(rect, []);
   const axes = [
     { pos: "x", size: "w", other: "y", otherSize: "h" },
     { pos: "y", size: "h", other: "x", otherSize: "w" },
@@ -489,12 +499,14 @@ function expectTouchHitArea(
   }
 }
 
+/** Expects no two of `parts`, each named, to share more than rounding's worth of area. */
 function expectApart(parts: [string, Rect][]) {
   for (const [i, [name, rect]] of parts.entries()) {
     for (const [other, otherRect] of parts.slice(i + 1)) {
-      expect(overlapsForReal(rect, otherRect), `${name} and ${other}`).toBe(
-        false,
-      );
+      expect(
+        overlapsBeyondRounding(rect, otherRect),
+        `${name} and ${other}`,
+      ).toBe(false);
     }
   }
 }
@@ -536,7 +548,7 @@ describe.each(LAYOUTS)("every panel at $label", ({ compact, viewport }) => {
     const { panel } = rects(viewport);
 
     for (const [name, rect] of hudToClear(viewport)) {
-      expect(overlapsForReal(panel, rect), name).toBe(false);
+      expect(overlapsBeyondRounding(panel, rect), name).toBe(false);
     }
   });
 
@@ -602,6 +614,55 @@ describe.each(LAYOUTS)("the HUD's buttons at $label", ({ viewport }) => {
   });
 });
 
+describe.each(LAYOUTS)("the Belt strip at $label", ({ viewport }) => {
+  it("keeps each Belt Column's square at least MIN_CELL_HIT", () => {
+    for (const [column, cell] of beltStripLayout(viewport).columns.entries()) {
+      expect(cell.w, `Belt Column ${column} width`).toBeGreaterThanOrEqual(
+        MIN_CELL_HIT,
+      );
+      expect(cell.h, `Belt Column ${column} height`).toBeGreaterThanOrEqual(
+        MIN_CELL_HIT,
+      );
+    }
+  });
+});
+
+describe.each(
+  LAYOUTS.filter(({ compact }) => compact),
+)("the open panel over the HUD at $label", ({ viewport }) => {
+  const world = createShippedWorld({
+    seed: 1,
+    progress: { ...FRESH_PROGRESS, attributePoints: 5 },
+  });
+  const openers = {
+    hero: { ...createMenus(), heroPanelOpen: true },
+    inventory: { ...createMenus(), inventoryOpen: true },
+    skillTree: { ...createMenus(), skillTreeOpen: true },
+    quest: { ...createMenus(), questOpen: true },
+  } satisfies Record<Panel, ReturnType<typeof createMenus>>;
+
+  // The Compact Layout's panel is drawn over the Level Up button and the top
+  // of the orbs, not hidden from them, so what matters is that it takes the
+  // clicks there, and leaves the orbs' middles and the Experience bar showing.
+  it("covers the Level Up button, and a click there is the panel's", () => {
+    const { levelUp } = heroPanelLayout(viewport);
+    const panel = compactPanelRect(viewport);
+    expectInside(levelUp, panel, "Level Up button");
+    for (const [name, menus] of Object.entries(openers)) {
+      const hit = cursorHitAt(viewport, middleOf(levelUp), world, menus);
+      const button = hit && "button" in hit ? hit.button : null;
+      expect(button?.type, `${name} open`).not.toBe("levelUp");
+    }
+  });
+
+  it("leaves the middle of each orb uncovered", () => {
+    const panel = compactPanelRect(viewport);
+    const { life, mana } = orbsLayout(viewport);
+    expect(inside(panel, life), "Life orb").toBe(false);
+    expect(inside(panel, mana), "Mana orb").toBe(false);
+  });
+});
+
 describe.each(
   DESKTOP_SCREENS,
 )("panels open together at $width×$height", (screen) => {
@@ -627,7 +688,7 @@ describe.each(
     for (const first of under(panel)) {
       for (const second of under(other)) {
         expect(
-          overlapsForReal(
+          overlapsBeyondRounding(
             first.rects(viewport).panel,
             second.rects(viewport).panel,
           ),

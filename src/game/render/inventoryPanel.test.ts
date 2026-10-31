@@ -743,7 +743,7 @@ describe("a Magic Item's tooltip", () => {
         ],
       }),
     ).toEqual([
-      "Jagged Axe of the Spark",
+      "Jagged Axe of the Spring",
       "Damage: 25–40",
       "+12% Enhanced Damage",
       "+6 to Mana",

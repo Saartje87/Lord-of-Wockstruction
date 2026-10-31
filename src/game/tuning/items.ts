@@ -457,7 +457,7 @@ export const affixTuning = {
     bonus: "mana",
     rollsOn: NOT_POTION,
     grades: threeGrades(
-      ["of the Spark", "of the Well", "of the Wellspring"],
+      ["of the Spring", "of the Well", "of the Wellspring"],
       [
         [5, 10],
         [11, 20],

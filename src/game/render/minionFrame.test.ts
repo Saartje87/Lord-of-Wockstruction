@@ -330,14 +330,18 @@ describe("minionFrameLayout", () => {
 describe("minionsFlashed", () => {
   it("flashes a Minion that lost Life to a hit", () => {
     expect(
-      minionsFlashed([{ type: "MinionHit", minion: 4, damage: 3 }]),
+      minionsFlashed([
+        { type: "MinionHit", minion: 4, damage: 3, damageType: "physical" },
+      ]),
     ).toEqual([4]);
   });
 
   it("flashes nothing for a Miss, a hit for no damage or no events", () => {
     expect(minionsFlashed([{ type: "MinionMissed", minion: 4 }])).toEqual([]);
     expect(
-      minionsFlashed([{ type: "MinionHit", minion: 4, damage: 0 }]),
+      minionsFlashed([
+        { type: "MinionHit", minion: 4, damage: 0, damageType: "physical" },
+      ]),
     ).toEqual([]);
     expect(minionsFlashed([])).toEqual([]);
   });
@@ -345,10 +349,10 @@ describe("minionsFlashed", () => {
   it("flashes each Minion hit in one step, once", () => {
     expect(
       minionsFlashed([
-        { type: "MinionHit", minion: 4, damage: 3 },
+        { type: "MinionHit", minion: 4, damage: 3, damageType: "physical" },
         { type: "MinionMissed", minion: 5 },
-        { type: "MinionHit", minion: 6, damage: 1 },
-        { type: "MinionHit", minion: 4, damage: 2 },
+        { type: "MinionHit", minion: 6, damage: 1, damageType: "physical" },
+        { type: "MinionHit", minion: 4, damage: 2, damageType: "physical" },
       ]),
     ).toEqual([4, 6]);
   });

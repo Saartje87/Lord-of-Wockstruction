@@ -77,21 +77,33 @@ describe("wardFill", () => {
 
 describe("heroHitShows", () => {
   it("pulses the ring and no red flash for a hit soaked whole", () => {
-    expect(heroHitShows([{ type: "HeroHit", damage: 0, warded: 8 }])).toEqual({
+    expect(
+      heroHitShows([
+        { type: "HeroHit", damage: 0, warded: 8, damageType: "physical" },
+      ]),
+    ).toEqual({
       hurt: false,
       pulses: true,
     });
   });
 
   it("flashes and pulses for a hit only partly soaked", () => {
-    expect(heroHitShows([{ type: "HeroHit", damage: 3, warded: 5 }])).toEqual({
+    expect(
+      heroHitShows([
+        { type: "HeroHit", damage: 3, warded: 5, damageType: "physical" },
+      ]),
+    ).toEqual({
       hurt: true,
       pulses: true,
     });
   });
 
   it("only flashes for a hit with no Bone Ward", () => {
-    expect(heroHitShows([{ type: "HeroHit", damage: 8, warded: 0 }])).toEqual({
+    expect(
+      heroHitShows([
+        { type: "HeroHit", damage: 8, warded: 0, damageType: "physical" },
+      ]),
+    ).toEqual({
       hurt: true,
       pulses: false,
     });

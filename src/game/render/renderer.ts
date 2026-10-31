@@ -111,6 +111,7 @@ import {
   damageNumbers,
   floatAt,
   floatText,
+  numberColour,
 } from "./damageNumbers";
 import { DIALOGUE, dialogueLayout, dialogueSheet } from "./dialoguePanel";
 import {
@@ -310,19 +311,6 @@ const LIFE_COLOUR = 0xc02020;
 /** A hovered Minion's nameplate: a green name and Life bar, on the Hero's side. */
 const FRIENDLY = { name: 0x9ee08a, life: 0x3fa83a };
 const LIFE_BACK = { colour: 0x2a0606, alpha: 0.85 };
-/**
- * White for the Hero's hits, gold for a killing blow, red for damage taken
- * grey for a Miss and pale gold for No room.
- */
-const NUMBER_COLOUR: Record<DamageNumber["kind"], number> = {
-  hit: 0xffffff,
-  kill: 0xffd04a,
-  taken: 0xff4a4a,
-  miss: 0x9a9a9a,
-  noRoom: 0xe8e0c8,
-  castFailed: 0x8ab4ff,
-};
-
 /**
  * The Skill Bar's look, in the HUD's colours; where things go is
  * `skillBarLayout`. A Skill the Hero lacks the Mana for shows `dimmed`
@@ -1104,7 +1092,7 @@ export function createRenderer(
         if (!at) continue;
         const text = new Text({
           text: floatText(number),
-          style: { fill: NUMBER_COLOUR[number.kind], fontFamily: SERIF },
+          style: { fill: numberColour(number), fontFamily: SERIF },
         });
         text.anchor.set(0.5, 1);
         numbers.addChild(text);

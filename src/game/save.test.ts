@@ -175,7 +175,13 @@ describe("whether a step's events change the Hero's progress", () => {
     expect(changesSave([])).toBe(false);
     expect(
       changesSave([
-        { type: "HitLanded", attacker: "hero", target: 1, damage: 20 },
+        {
+          type: "HitLanded",
+          attacker: "hero",
+          target: 1,
+          damage: 20,
+          damageType: "physical",
+        },
         { type: "HeroDied" },
         { type: "AreaChanged", area: "town", entry: "start" },
         // Ground Items are never saved.

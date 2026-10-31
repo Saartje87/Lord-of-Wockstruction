@@ -32,9 +32,9 @@ import { panelButtonsLayout } from "./panelButtons";
 import { QUEST_PANEL, questPanelLayout, questPanelSheet } from "./questPanel";
 import { skillBarLayout } from "./skillBar";
 import {
-  fullRooms,
   SKILL_TREE_PANEL,
   skillTreePanelLayout,
+  tunedRooms,
 } from "./skillTreePanel";
 import { touchControlsLayout } from "./touchControls";
 import { MIN_CELL_HIT, TOUCH_HIT_AREA, touchHitRect } from "./touchHitArea";
@@ -236,7 +236,7 @@ const PANELS_UNDER_TEST: PanelUnderTest[] = [
     name: "Skill Tree",
     panel: "skillTree",
     rects(viewport) {
-      const layout = skillTreePanelLayout(viewport, fullRooms());
+      const layout = skillTreePanelLayout(viewport, tunedRooms());
       return {
         panel: layout.panel,
         closeHint: closeHintOf(layout.panel, SKILL_TREE_PANEL, viewport),

@@ -1109,16 +1109,16 @@ export function progressOf(world: World): Progress {
 /**
  * Whether a Skill Point can be spent on `skill` now: one is unspent, the
  * Hero lives, their Level is up to the Skill's required Level and its
- * Prerequisite, if any, has a Skill Level.
+ * Prerequisites, if any, each have a Skill Level.
  */
 export function canRaiseSkill(world: World, skill: Skill): boolean {
   const { progress } = world.hero;
-  const { requiredLevel, prerequisite } = skillTuning[skill];
+  const { requiredLevel, prerequisites } = skillTuning[skill];
   return (
     progress.skillPoints > 0 &&
     !world.death &&
     progress.level >= requiredLevel &&
-    (!prerequisite || progress.skillLevels[prerequisite] > 0)
+    prerequisites.every((before) => progress.skillLevels[before] > 0)
   );
 }
 

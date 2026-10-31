@@ -132,7 +132,7 @@ if (dread.type !== "curse" || dread.kind !== "dread") {
 describe("Dread", () => {
   it("sits after Leaden Limbs with Leaden Limbs as its Prerequisite", () => {
     expect(skillTuning.dread.branch).toBe("curses");
-    expect(skillTuning.dread.prerequisite).toBe("leadenLimbs");
+    expect(skillTuning.dread.prerequisites).toEqual(["leadenLimbs"]);
   });
 
   it("Curses the Monsters in its circle with its own Curse", () => {

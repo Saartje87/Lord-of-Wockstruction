@@ -123,9 +123,9 @@ if (limbs.type !== "curse" || limbs.kind !== "leadenLimbs") {
 }
 
 describe("Leaden Limbs", () => {
-  it("sits after Weaken with Weaken as its Prerequisite", () => {
+  it("hangs from Amplify Damage", () => {
     expect(skillTuning.leadenLimbs.branch).toBe("curses");
-    expect(skillTuning.leadenLimbs.prerequisite).toBe("weaken");
+    expect(skillTuning.leadenLimbs.prerequisites).toEqual(["amplifyDamage"]);
   });
 
   it("Curses the Monsters in its circle with its own Curse", () => {

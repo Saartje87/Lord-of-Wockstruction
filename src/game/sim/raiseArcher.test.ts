@@ -196,9 +196,9 @@ const SKELETON_FIELD = areas([
 ]);
 
 describe("casting Raise Archer", () => {
-  it("sits after Golem in the Summoning Branch", () => {
+  it("hangs from Raise Skeleton in the Summoning Branch", () => {
     expect(skillTuning.raiseArcher.branch).toBe("summoning");
-    expect(skillTuning.raiseArcher.prerequisite).toBe("golem");
+    expect(skillTuning.raiseArcher.prerequisites).toEqual(["raiseSkeleton"]);
   });
 
   it("spends its Mana and raises a Raised Archer on the nearest Corpse near the cast point, using it up", () => {

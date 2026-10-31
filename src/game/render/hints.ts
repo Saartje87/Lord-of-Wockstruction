@@ -189,7 +189,9 @@ export function skillTooltip(sheet: SkillSheet, way: InputWay): string[] {
   if (sheet.synergies.length) {
     lines.push(`Synergies add +${sheet.synergyTotal}% now`);
   }
-  if (sheet.prerequisite) lines.push(`Needs ${sheet.prerequisite} first`);
+  if (sheet.prerequisites.length) {
+    lines.push(`Needs ${sheet.prerequisites.join(" and ")} first`);
+  }
   if (sheet.requiredLevel) lines.push(`Needs Level ${sheet.requiredLevel}`);
   if (sheet.passive) {
     const { percentPerSkillLevel, boosts, total } = sheet.passive;

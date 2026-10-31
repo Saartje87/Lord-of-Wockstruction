@@ -22,13 +22,13 @@ import { inventoryHitAt, inventoryPanelLayout } from "./inventoryPanel";
 import { panelButtonsLayout } from "./panelButtons";
 import { skillBarLayout } from "./skillBar";
 import {
-  fullRooms,
   SKILL_TREE_PANEL,
   skillTreeBranchRow,
   skillTreeHitAt,
   skillTreePanelLayout,
   skillTreePanelRect,
   skillTreeSkillRow,
+  tunedRooms,
 } from "./skillTreePanel";
 
 /** A Town of one tile with the Hero's `start` on it. */
@@ -218,7 +218,7 @@ describe("the panels in the Compact Layout", () => {
     const at = (rect: Rect) =>
       skillTreeHitAt(viewport, centre(rect), world, true);
     // Room for 15 Skills: Bone 6, Summoning 4 and Curses 5.
-    const rooms = fullRooms();
+    const rooms = tunedRooms();
     const panel = skillTreePanelRect(viewport, rooms);
     const hint =
       (SKILL_TREE_PANEL.hintHeight + SKILL_TREE_PANEL.padding) *

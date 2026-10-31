@@ -21,6 +21,7 @@ import {
   dropTuning,
   itemOf,
   potionDropTuning,
+  type Rarity,
 } from "../tuning/items";
 import { mapTuning } from "../tuning/map";
 import { minionTuning } from "../tuning/minions";
@@ -3516,24 +3517,24 @@ function hurt(world: World, monster: Monster, events: SimEvent[]) {
       killExperience(monster, world.hero.progress.level),
       events,
     );
+    const { actBoss, act } = world.areas[world.areaName];
+    const isActBoss =
+      !!actBoss &&
+      monster.unique === actBoss.name &&
+      monster.type === actBoss.monster;
     rollDrop(
       world,
       monster.pos,
       events,
       monster.unique !== null,
       monster.monsterLevel,
+      isActBoss ? graveWockingtonTuning.itemDrops : uniqueTuning.itemDrops,
     );
     if (monster.unique !== null) {
       const { name } = world.areas[world.areaName];
       noteDeed(world, { type: "uniqueKilled", area: name }, events);
     }
-    const { actBoss, act } = world.areas[world.areaName];
-    if (
-      actBoss &&
-      act !== null &&
-      monster.unique === actBoss.name &&
-      monster.type === actBoss.monster
-    ) {
+    if (isActBoss && act !== null) {
       const completes = actBossQuestOpen(world.hero.progress.quests, act);
       noteDeed(world, { type: "actBossKilled", act }, events);
       if (completes) events.push({ type: "ActCompleted", act });
@@ -3649,7 +3650,7 @@ function minionStrike(
  * `dropTuning.chance` one Item, then by `potionDropTuning.chance` one Potion,
  * each of a type picked with equal odds. `monsterLevel` is the dying
  * Monster's, which decides the grades its Items' Affixes can roll. A Unique Monster's Items are
- * rolled once for each of `uniqueTuning.itemDrops` instead.
+ * rolled once for each of `uniqueDrops` instead (the Act Boss has his own list).
  */
 function rollDrop(
   world: World,
@@ -3657,9 +3658,10 @@ function rollDrop(
   events: SimEvent[],
   unique: boolean,
   monsterLevel: number,
+  uniqueDrops: readonly (readonly Rarity[])[],
 ) {
   const itemDrops = unique
-    ? uniqueTuning.itemDrops.map((only) => ({
+    ? uniqueDrops.map((only) => ({
         chance: 1,
         items: dropTuning.items,
         only,

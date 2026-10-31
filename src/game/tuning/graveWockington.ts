@@ -1,3 +1,4 @@
+import type { Rarity } from "./items";
 import type { MonsterType } from "./monsters";
 
 /**
@@ -22,6 +23,12 @@ export type GraveWockingtonTuning = {
    * His Gravefire recovery past it is in his type's attack.
    */
   halfAt: number;
+  /**
+   * The Items his kill always drops, in turn, in place of a Unique Monster's
+   * (`uniqueTuning.itemDrops`): each lists the Rarities it may roll. His
+   * Potion drop is as usual.
+   */
+  itemDrops: readonly (readonly Rarity[])[];
   /** His waves past half his Life, in place of the numbers above. */
   pastHalf: {
     waveEveryMs: number;
@@ -33,6 +40,7 @@ export type GraveWockingtonTuning = {
 };
 
 export const graveWockingtonTuning: GraveWockingtonTuning = {
+  itemDrops: [["rare"], ["rare"], ["magic", "rare"]],
   firstWaveMs: 2000,
   waveEveryMs: 10000,
   waveSize: 3,

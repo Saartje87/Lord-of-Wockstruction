@@ -6,6 +6,10 @@ import type { Attribute } from "../sim/world";
 export type ItemKind =
   | "weapon"
   | "armour"
+  | "helm"
+  | "gloves"
+  | "boots"
+  | "shield"
   | "ring"
   | "amulet"
   | "belt"
@@ -68,7 +72,7 @@ export type ItemTuning = {
    * scales as `heroTuning.unarmedDamage` describes.
    */
   damage?: [number, number];
-  /** An Armour's base Defense. */
+  /** An armour piece's own Defense: Armour, Helm, Gloves, Boots or Shield. */
   defense?: number;
   /** What it adds to the Hero while Equipped. */
   bonuses: Partial<Record<Bonus, number>>;
@@ -114,6 +118,70 @@ export const itemTuning = {
     size: { columns: 2, rows: 3 },
     // A Skeleton hits it two times in three.
     defense: 40,
+    bonuses: {},
+  },
+  leatherCap: {
+    name: "Leather Cap",
+    shortName: "Cap",
+    kind: "helm",
+    size: { columns: 2, rows: 2 },
+    defense: 8,
+    bonuses: {},
+  },
+  ironHelm: {
+    name: "Iron Helm",
+    shortName: "Helm",
+    kind: "helm",
+    size: { columns: 2, rows: 2 },
+    defense: 16,
+    bonuses: {},
+  },
+  leatherGloves: {
+    name: "Leather Gloves",
+    shortName: "Gloves",
+    kind: "gloves",
+    size: { columns: 2, rows: 2 },
+    defense: 6,
+    bonuses: {},
+  },
+  chainGloves: {
+    name: "Chain Gloves",
+    shortName: "Chain",
+    kind: "gloves",
+    size: { columns: 2, rows: 2 },
+    defense: 12,
+    bonuses: {},
+  },
+  leatherBoots: {
+    name: "Leather Boots",
+    shortName: "Boots",
+    kind: "boots",
+    size: { columns: 2, rows: 2 },
+    defense: 6,
+    bonuses: {},
+  },
+  chainBoots: {
+    name: "Chain Boots",
+    shortName: "Chain",
+    kind: "boots",
+    size: { columns: 2, rows: 2 },
+    defense: 12,
+    bonuses: {},
+  },
+  buckler: {
+    name: "Buckler",
+    shortName: "Buckler",
+    kind: "shield",
+    size: { columns: 2, rows: 2 },
+    defense: 14,
+    bonuses: {},
+  },
+  towerShield: {
+    name: "Tower Shield",
+    shortName: "Tower",
+    kind: "shield",
+    size: { columns: 2, rows: 3 },
+    defense: 28,
     bonuses: {},
   },
   ring: {
@@ -331,9 +399,18 @@ export type AffixTuning = {
   grades: readonly AffixGrade[];
 };
 
+/** The Item kinds that give Defense. */
+const ARMOUR_KINDS: readonly ItemKind[] = [
+  "armour",
+  "helm",
+  "gloves",
+  "boots",
+  "shield",
+];
+
 const NOT_POTION: readonly ItemKind[] = [
   "weapon",
-  "armour",
+  ...ARMOUR_KINDS,
   "ring",
   "amulet",
   "belt",
@@ -367,7 +444,7 @@ export const affixTuning = {
   defense: {
     side: "prefix",
     bonus: "defense",
-    rollsOn: ["armour", "belt"],
+    rollsOn: [...ARMOUR_KINDS, "belt"],
     grades: threeGrades(
       ["Sturdy", "Stout", "Ironclad"],
       [
@@ -482,7 +559,7 @@ export const affixTuning = {
   enhancedDefense: {
     side: "prefix",
     bonus: "enhancedDefense",
-    rollsOn: ["armour"],
+    rollsOn: ARMOUR_KINDS,
     grades: threeGrades(
       ["Reinforced", "Fortified", "Bastioned"],
       [

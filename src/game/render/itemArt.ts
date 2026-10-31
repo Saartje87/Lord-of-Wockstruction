@@ -9,6 +9,10 @@ import {
 const KIND_COLOUR: Record<ItemKind, number> = {
   weapon: 0x4a4a52,
   armour: 0x5a4028,
+  helm: 0x4e4a40,
+  gloves: 0x4a3a2a,
+  boots: 0x45341f,
+  shield: 0x3e4a58,
   ring: 0x3a3a68,
   amulet: 0x5a3a5a,
   belt: 0x6a5030,

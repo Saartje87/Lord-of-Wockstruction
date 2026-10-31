@@ -226,6 +226,7 @@ import {
   skillTreeRow,
   skillTreeSheet,
 } from "./skillTreePanel";
+import { slotHintPolygons } from "./slotHints";
 import { GAME_NAME, startChoiceAt, startScreenLayout } from "./startScreen";
 import { tooltipRect } from "./tooltip";
 import { touchControlsLayout, touchControlsShown } from "./touchControls";
@@ -460,8 +461,9 @@ const INVENTORY_STYLE = {
   landingAlpha: 0.45,
   cell: 0x0e0b08,
   cellEdge: 0x2e2618,
-  slotLabel: 0x6a6050,
-  slotLabelSize: 12,
+  /** The faint outline in an empty slot, hinting at what it takes. */
+  slotHint: 0x6a6050,
+  slotHintAlpha: 0.55,
   itemEdge: 0x8a7a50,
   itemAlpha: 0.9,
   /** A held Item's, so the highlight under it shows through. */
@@ -536,16 +538,6 @@ const GROUND_ITEM = {
   labelAlpha: 0.7,
   /** The back of a hovered label, which keeps its Rarity colour. */
   hoveredAlpha: 0.95,
-};
-
-/** The name shown in each empty Equipment slot. */
-const SLOT_NAMES: Record<EquipmentSlot, string> = {
-  weapon: "Weapon",
-  armour: "Armour",
-  amulet: "Amulet",
-  ring1: "Ring",
-  ring2: "Ring",
-  belt: "Belt",
 };
 
 /**
@@ -3500,14 +3492,6 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
   gold.anchor.set(0, 0);
   const hint = text(style.hint, style.hintSize);
   hint.anchor.set(0.5, 1);
-  const slotLabels = Object.fromEntries(
-    EQUIPMENT_SLOTS.map((slot) => {
-      const label = text(look.slotLabel, look.slotLabelSize);
-      label.text = SLOT_NAMES[slot];
-      label.anchor.set(0.5);
-      return [slot, label];
-    }),
-  ) as Record<EquipmentSlot, Text>;
   /**
    * Item names, one per Item drawn, made as more are needed, each sized by
    * its label rather than with the panel's texts.
@@ -3641,8 +3625,15 @@ function inventoryPanelView(activeInput: Readonly<ActiveInput>) {
         const rect = slots[slot];
         box(rect);
         const item = equipment[slot];
-        slotLabels[slot].visible = item === null;
-        slotLabels[slot].position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
+        if (item === null) {
+          for (const polygon of slotHintPolygons(slot, rect)) {
+            graphics.poly(polygon).stroke({
+              color: look.slotHint,
+              width: 1,
+              alpha: look.slotHintAlpha,
+            });
+          }
+        }
         if (item) items.push({ rect, type: item.type, rarity: item.rarity });
       }
       for (const { item, cell: at } of inventoryOf(world)) {

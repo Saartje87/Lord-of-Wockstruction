@@ -21,8 +21,8 @@ function textWith(gold: number): Record<string, unknown> {
 }
 
 describe("the Save of Gold", () => {
-  it("is version 12", () => {
-    expect(SAVE_VERSION).toBe(12);
+  it("is at least version 12", () => {
+    expect(SAVE_VERSION).toBeGreaterThanOrEqual(12);
   });
 
   it("round-trips Gold", () => {

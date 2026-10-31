@@ -1,6 +1,6 @@
 import { itemOf } from "../tuning/items";
 import { QUEST_IDS, questTuning } from "../tuning/quests";
-import { smithTuning } from "../tuning/smith";
+import { smithPoolOf, smithTuning } from "../tuning/smith";
 import { EQUIPMENT_SLOTS, type Item, type ItemId } from "./inventory";
 import type { QuestStates } from "./quests";
 import { randomInt } from "./random";
@@ -20,8 +20,7 @@ export function smithQuestDone(quests: QuestStates): boolean {
 
 /** Whether the Smith can work `item`: a Weapon or Armour without his bonus yet. */
 export function canSmith(item: Item): boolean {
-  const { kind } = itemOf(item.type);
-  return (kind === "weapon" || kind === "armour") && !item.smithBonus;
+  return smithPoolOf(itemOf(item.type).kind) !== null && !item.smithBonus;
 }
 
 /**
@@ -60,7 +59,8 @@ export function giveSmithBonus(
     ...world.hero.inventory.map((placed) => placed.item),
   ].find((candidate) => candidate?.id === itemId);
   if (!item || !canSmith(item)) return;
-  const pool = smithTuning[itemOf(item.type).kind as "weapon" | "armour"];
+  const pool =
+    smithTuning[smithPoolOf(itemOf(item.type).kind) as "weapon" | "armour"];
   const entry = pool[randomInt(world.rng, [0, pool.length - 1])];
   item.smithBonus = {
     bonus: entry.bonus,

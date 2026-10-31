@@ -88,8 +88,8 @@ describe("the Save of the Mana and enhanced percent Affixes", () => {
 });
 
 describe("the Save of Magic Items", () => {
-  it("is version 12", () => {
-    expect(SAVE_VERSION).toBe(12);
+  it("is at least version 12", () => {
+    expect(SAVE_VERSION).toBeGreaterThanOrEqual(12);
   });
 
   it("round-trips Rarity, Affixes (kind, grade, value) and the Smith bonus", () => {

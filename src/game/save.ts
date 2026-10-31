@@ -461,8 +461,12 @@ function parseOlderEquipped(
 
 /** A stored Smith bonus as a fresh object, its parts checked with the Belongings. */
 function copyBonus(stored: unknown): SmithBonus {
-  const { bonus, amount } = (stored ?? {}) as Record<string, unknown>;
-  return { bonus, amount } as SmithBonus;
+  const { bonus, amount, skill } = (stored ?? {}) as Record<string, unknown>;
+  return {
+    bonus,
+    amount,
+    ...(skill !== undefined && { skill }),
+  } as SmithBonus;
 }
 
 /** What the service is for Quests that unlock it: unlocked once that Quest is Done. */

@@ -9,6 +9,8 @@ import {
   type Order,
   type Progress,
   type SimEvent,
+  SKILLS,
+  skillRaiseOf,
   step,
   type World,
 } from "./world";
@@ -56,7 +58,16 @@ function progressWith(smithService: Progress["smithService"]): Progress {
 function newWorld(
   smithService: Progress["smithService"] = "unlocked",
   inventory: {
-    type: "axe" | "chainMail" | "ring" | "lifePotion";
+    type:
+      | "axe"
+      | "chainMail"
+      | "ring"
+      | "lifePotion"
+      | "ironHelm"
+      | "leatherGloves"
+      | "leatherBoots"
+      | "buckler"
+      | "boneWand";
     cell: { column: number; row: number };
   }[] = [],
 ): World {
@@ -123,6 +134,69 @@ describe("The Smith bonus", () => {
     expect(smithTuning.armour.map((entry) => entry.bonus)).toContain(
       given?.bonus,
     );
+  });
+
+  it.each([
+    "ironHelm",
+    "leatherGloves",
+    "leatherBoots",
+    "buckler",
+  ] as const)("gives a %s a bonus from the Armour pool", (type) => {
+    const world = newWorld("unlocked", [{ type, cell: { column: 0, row: 0 } }]);
+    smith(world, [{ type: "SmithBonus", item: inventoryOf(world)[0].item.id }]);
+    expect(smithTuning.armour.map((entry) => entry.bonus)).toContain(
+      inventoryOf(world)[0].item.smithBonus?.bonus,
+    );
+  });
+
+  it("gives a Wand a bonus from the Wand pool", () => {
+    const wandBonuses = smithTuning.wand.map((entry) => entry.bonus);
+    expect(wandBonuses).toEqual(
+      expect.arrayContaining(["mana", "energy", "skillLevel"]),
+    );
+    for (let seed = 1; seed <= 20; seed++) {
+      const world = createWorld({
+        areas: { town },
+        seed,
+        progress: progressWith("unlocked"),
+        belongings: {
+          ...FRESH_BELONGINGS,
+          inventory: [{ type: "boneWand", cell: { column: 0, row: 0 } }],
+          equipment: { weapon: { type: "shortSword" } },
+        },
+      });
+      smith(world, [
+        { type: "SmithBonus", item: inventoryOf(world)[0].item.id },
+      ]);
+      const given = inventoryOf(world)[0].item.smithBonus;
+      expect(wandBonuses).toContain(given?.bonus);
+      if (given?.bonus === "skillLevel") {
+        expect(SKILLS).toContain(given.skill);
+      }
+    }
+  });
+
+  it("raises the Skill Level of a random Skill for a Wand while Equipped", () => {
+    const saved = smithTuning.wand.splice(0, smithTuning.wand.length, {
+      bonus: "skillLevel",
+      amount: [2, 2],
+    });
+    try {
+      const world = newWorld("unlocked", [
+        { type: "boneWand", cell: { column: 0, row: 0 } },
+      ]);
+      const wand = inventoryOf(world)[0].item;
+      smith(world, [{ type: "SmithBonus", item: wand.id }]);
+      const skill = inventoryOf(world)[0].item.smithBonus?.skill;
+      expect(skill).toBeDefined();
+      if (!skill) return;
+      expect(skillRaiseOf(world, skill)).toBe(0);
+      world.hero.equipment.offHand = inventoryOf(world)[0].item;
+      world.hero.inventory = [];
+      expect(skillRaiseOf(world, skill)).toBe(2);
+    } finally {
+      smithTuning.wand.splice(0, smithTuning.wand.length, ...saved);
+    }
   });
 
   it("changes the Hero while the Item is Equipped", () => {

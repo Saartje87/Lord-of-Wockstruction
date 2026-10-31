@@ -50,6 +50,28 @@ describe("the Save of the Helm, Gloves, Boots and Off-hand slots", () => {
     expect(parseSave(text)?.belongings).toEqual(BELONGINGS);
   });
 
+  it("round-trips a Wand's Skill Level Smith bonus and refuses an unknown Skill", () => {
+    const wand = (skill: string) => ({
+      ...BELONGINGS,
+      equipment: {
+        offHand: {
+          type: "boneWand",
+          smithBonus: { bonus: "skillLevel", amount: 1, skill },
+        },
+      },
+    });
+
+    const kept = parseSave(JSON.stringify(textOf(wand("boneSpear") as never)));
+    expect(kept?.belongings.equipment.offHand?.smithBonus).toEqual({
+      bonus: "skillLevel",
+      amount: 1,
+      skill: "boneSpear",
+    });
+    expect(
+      parseSave(JSON.stringify(textOf(wand("nonsense") as never))),
+    ).toBeNull();
+  });
+
   it("refuses an Item in a slot whose kinds don't include it", () => {
     for (const [slot, type] of [
       ["offHand", "axe"],

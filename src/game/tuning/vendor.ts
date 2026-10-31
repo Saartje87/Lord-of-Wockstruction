@@ -12,8 +12,17 @@ export const vendorTuning: {
   grid: { columns: number; rows: number };
   stock: Partial<Record<ItemKind, [number, number]>>;
 } = {
-  grid: { columns: 8, rows: 6 },
-  stock: { weapon: [2, 3], armour: [2, 3], belt: [1, 2] },
+  grid: { columns: 12, rows: 6 },
+  stock: {
+    weapon: [2, 3],
+    wand: [0, 1],
+    shield: [0, 1],
+    helm: [0, 1],
+    armour: [2, 3],
+    gloves: [0, 1],
+    boots: [0, 1],
+    belt: [1, 2],
+  },
 };
 
 /**

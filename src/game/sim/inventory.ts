@@ -10,6 +10,7 @@ import {
   itemTuning,
   type Rarity,
 } from "../tuning/items";
+import { type Skill, skillTuning } from "../tuning/skills";
 import { smithPoolOf } from "../tuning/smith";
 import { isValidRoll, type RolledAffix } from "./affixes";
 import {
@@ -32,7 +33,12 @@ import type { Hero, Order, SimEvent, World } from "./world";
 export type ItemId = number;
 
 /** What the Smith added to an Item: one bonus, like the ones Items have. */
-export type SmithBonus = { bonus: Bonus; amount: number };
+export type SmithBonus = {
+  bonus: Bonus;
+  amount: number;
+  /** The Skill a `skillLevel` bonus raises. */
+  skill?: Skill;
+};
 
 /**
  * One Item: its type, its Rarity and rolled Affixes, and the bonus the Smith
@@ -351,11 +357,12 @@ function isSmithable(type: ItemType): boolean {
 function isValidSmithBonus(bonus: unknown): bonus is SmithBonus {
   if (typeof bonus !== "object" || bonus === null) return false;
   const { bonus: kind, amount } = bonus as Record<string, unknown>;
-  return (
-    BONUSES.includes(kind as Bonus) &&
-    Number.isInteger(amount) &&
-    (amount as number) > 0
-  );
+  const { skill } = bonus as Record<string, unknown>;
+  const kindFine =
+    kind === "skillLevel"
+      ? Object.hasOwn(skillTuning, skill as string)
+      : BONUSES.includes(kind as Bonus) && skill === undefined;
+  return kindFine && Number.isInteger(amount) && (amount as number) > 0;
 }
 
 /** Every Equipment slot, empty. */

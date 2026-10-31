@@ -18,6 +18,8 @@ Names in code, comments and on-screen text use the terms in `GLOSSARY.md`. Where
 
 Tests sit at the existing seams (`createWorld` + `step` → events, World queries, pure render helpers, the Save module) and assert what those return, not internal fields. A tuning value a test overrides is restored in `afterEach`.
 
+A divergence from the spec made to keep an existing test unchanged is a finding: the test changes instead.
+
 ## Style
 
 Match the surrounding file: one JSDoc line on each export and each non-obvious function, short intent comments, full words over one-letter aliases.

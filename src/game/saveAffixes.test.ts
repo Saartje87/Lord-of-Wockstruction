@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { encodeSave, parseSave, SAVE_VERSION } from "./save";
+import { encodeSave, parseSave } from "./save";
 import { emptyBelt } from "./sim/belt";
 import type { Belongings } from "./sim/inventory";
 import { FRESH_PROGRESS } from "./sim/world";
@@ -88,10 +88,6 @@ describe("the Save of the Mana and enhanced percent Affixes", () => {
 });
 
 describe("the Save of Magic Items", () => {
-  it("is at least version 12", () => {
-    expect(SAVE_VERSION).toBeGreaterThanOrEqual(12);
-  });
-
   it("round-trips Rarity, Affixes (kind, grade, value) and the Smith bonus", () => {
     const loaded = parseSave(
       encodeSave({

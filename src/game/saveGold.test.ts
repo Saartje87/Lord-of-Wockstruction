@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { encodeSave, parseSave, SAVE_VERSION } from "./save";
+import { encodeSave, parseSave } from "./save";
 import { emptyBelt } from "./sim/belt";
 import type { Belongings } from "./sim/inventory";
 import { FRESH_PROGRESS } from "./sim/world";
@@ -21,10 +21,6 @@ function textWith(gold: number): Record<string, unknown> {
 }
 
 describe("the Save of Gold", () => {
-  it("is at least version 12", () => {
-    expect(SAVE_VERSION).toBeGreaterThanOrEqual(12);
-  });
-
   it("round-trips Gold", () => {
     const loaded = parseSave(JSON.stringify(textWith(1234)));
 

@@ -19,6 +19,7 @@ Issues and specs for this repo live as Tickets in the Tandembike project **Lord 
 - **A spec is an Epic** titled `Spec: <name>`. The tickets split from it are its children (`epicNumber`).
 - **The Epic is the source of truth for its tickets.** Where a ticket or its acceptance criteria say less than a spec line, build the spec line and comment on the ticket saying so.
 - **Tickets that rewrite the same module go in sequence**, with a blocker between them, even when their features are independent.
+- **A Blocker from another spec's ticket** goes in this Epic's *Depends on* too, so the dependency shows before anyone starts the spec.
 - **Every Implementation Decision lands in some ticket's acceptance criteria**, deferred ones ("once X exists") included: they go to the ticket that builds X, or to a ticket of their own. Check each decision against the criteria before the split is done.
 - **Plan new tickets into the Active cycle**, the Epic included: find it with `list_cycles` (projectId 2), then `plan_tickets`.
 

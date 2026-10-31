@@ -63,8 +63,8 @@ export function skillBarLayout(screen: Viewport): {
 
 /**
  * What a Skill Bar slot shows: its key or button, its Skill (drawn as its
- * icon) or null when empty, and whether it's dimmed because the Hero lacks the Mana for it or
- * its Skill is the Held Skill.
+ * icon) or null when empty, and whether it's dimmed because the Hero lacks
+ * the Mana for it or its Skill is the Held Skill.
  */
 export type SkillBarSlotSheet = {
   slot: SkillBarSlot;

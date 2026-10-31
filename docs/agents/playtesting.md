@@ -115,6 +115,34 @@ window.__wockstruction.state();
 
 Production builds don't have `window.__wockstruction`.
 
+## Aim and walk
+
+Clicking roughly toward a tile and reading `state()` afterwards wastes calls and hits the wrong thing. Two more dev helpers aim for you:
+
+- **`walkTo(pos)`** walks the Hero to `pos` (tile units, as `state()` gives them) along the game's own path, as a click on the bare floor there would: a walk to its tile's centre, with the click marker. It only ever walks, even with a Monster, NPC or Ground Item on that tile, where a click would attack, talk or pick up. While paused, on the Start Screen or in the Hero's Death it does nothing. Read `state().hero.pos` once the Hero arrives.
+- **`screenOf(pos, height?)`** is where `pos` is drawn on the canvas this frame, in CSS px (the space of `offsetX`/`offsetY`), or `null` when it is off the canvas. The floor point under a Monster's `state().monsters` pos lands on that Monster; pass `height` (tiles) to lift the point, say to the middle of a tall model. It is only good for the frame it was called in, as the camera follows the Hero, so call it again just before each event.
+
+To hover or attack, turn `screenOf`'s CSS px into a dispatched `PointerEvent`, scaled by `devicePixelRatio` as under Touch screen:
+
+```js
+const w = window.__wockstruction;
+const canvas = document.querySelector("canvas");
+const mouse = (type, { x, y }, extra = {}) => canvas.dispatchEvent(new PointerEvent(type, {
+  pointerId: 1, pointerType: "mouse", isPrimary: true, bubbles: true, button: 0,
+  buttons: type === "pointerup" ? 0 : 1, clientX: x * devicePixelRatio, clientY: y * devicePixelRatio,
+  ...extra,
+}));
+// Bruckle, not his pack.
+const bruckle = w.state().monsters.find((m) => m.unique === "Bruckle");
+const at = w.screenOf(bruckle.pos);
+mouse("pointermove", at, { buttons: 0 }); // Hover: his nameplate and Life bar show.
+mouse("pointerdown", at);                  // Hold to attack him…
+await new Promise((r) => setTimeout(r, 2000));
+mouse("pointerup", w.screenOf(bruckle.pos)); // …and let go.
+```
+
+**Shift-hold attacks in place**: a press with Shift held swings toward the pointer without walking, and keeps swinging while held, even at nothing. Use it for a click meant as an attack, so a miss doesn't walk the Hero into the pack. The game reads Shift from the press itself, so pass `shiftKey: true` in the `pointerdown`: `mouse("pointerdown", at, { shiftKey: true })`.
+
 ## Touch screen
 
 Chrome stands in for a phone: touch controls read `PointerEvent`s with `pointerType: "touch"` on the canvas (`src/game/input/touch.ts`), so dispatched events drive them.

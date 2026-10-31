@@ -14,6 +14,7 @@ import {
   releaseCursor,
   settleCursor,
 } from "./cursor";
+import { screenOf, walkToOrders } from "./devAim";
 import { devOptionsOf } from "./devOptions";
 import { buildSave, type SaveOptions } from "./devSave";
 import { devStartOf, skipsStartScreen } from "./devStart";
@@ -233,11 +234,20 @@ export default function GameCanvas() {
       /** The Target as last drawn. */
       let drawnTarget: MonsterId | null = null;
       let drawnItemInReach: ItemId | null = null;
+      /** Where `walkTo` asked the Hero to walk, carried out next frame. */
+      let devWalks: Vec[] = [];
       // Playtests read the game from here instead of by eye. Production
       // builds don't have it.
       if (process.env.NODE_ENV === "development") {
         window.__wockstruction = {
           state: () => devStateOf(world, drawnTarget, drawnItemInReach),
+          screenOf: (pos: Vec, height?: number) =>
+            screenOf(worldCamera, pos, height),
+          walkTo: (pos: Vec) => {
+            // Only in play, as a click on the floor walks only there; the
+            // pause and the Hero's Death are checked as it is carried out.
+            if (menus.screen.type === "playing") devWalks.push(pos);
+          },
           loadSave: (options?: SaveOptions) => {
             writeSaveText(storage, buildSave(options));
             window.location.reload();
@@ -600,7 +610,7 @@ export default function GameCanvas() {
             pressed = false;
           }
         }
-        const { orders: newOrders, click } = poll(input, now, {
+        const { orders: newOrders, click: clickedTile } = poll(input, now, {
           toTile,
           monsterAt: renderer.monsterAt,
           npcAt: renderer.npcAt,
@@ -609,6 +619,16 @@ export default function GameCanvas() {
           panelAt: (at) => forTheWorld(renderer.panelAt(at)),
         });
         orders.push(...newOrders);
+        // `walkTo` walks as a click on its tile would, and marks the floor
+        // there unless a real click did this frame.
+        const walked = devWalks.flatMap((pos) =>
+          walkToOrders(pos, { paused: wasPaused || pause.paused, heroDead }),
+        );
+        devWalks = [];
+        orders.push(...walked);
+        const lastWalk = walked.at(-1);
+        const click =
+          clickedTile ?? (lastWalk?.type === "MoveTo" ? lastWalk.target : null);
         // A walk in a direction is for the steps of this frame only, each of
         // them, so it goes apart from the other orders. The controller orders
         // nothing while paused, nor for the Rotate Notice.

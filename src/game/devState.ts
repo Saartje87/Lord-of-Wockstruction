@@ -74,6 +74,13 @@ declare global {
       state: () => DevState;
       /** Writes the Save `options` describe, then reloads. */
       loadSave: (options?: SaveOptions) => void;
+      /**
+       * Where a tile position, lifted `height` tiles, is drawn on the canvas
+       * this frame (CSS px, offsetX/offsetY space), or null off the canvas.
+       */
+      screenOf: (pos: Vec, height?: number) => Vec | null;
+      /** Walks the Hero to `pos` as a click on that tile would. */
+      walkTo: (pos: Vec) => void;
     };
   }
 }

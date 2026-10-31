@@ -302,7 +302,8 @@ function holdOrder<Panel>(
   }
 }
 
-function tileCentre(point: Vec): Vec {
+/** The centre of the tile `point` lies on, where a click walks to. */
+export function tileCentre(point: Vec): Vec {
   const tile = tileOf(point);
   return { x: tile.x + 0.5, y: tile.y + 0.5 };
 }

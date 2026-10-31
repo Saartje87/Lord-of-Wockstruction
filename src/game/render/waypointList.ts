@@ -31,8 +31,8 @@ export type WaypointSheet = {
 };
 
 /**
- * What the Waypoint list shows: Act 1's Waypoints in Main Path order, each
- * named by its Area's display name from `displayNames`.
+ * What the Waypoint list shows: the Waypoints of the active Area's Act in
+ * Main Path order, each named by its Area's display name from `displayNames`.
  */
 export function waypointListSheet(
   world: World,
@@ -84,7 +84,7 @@ export function waypointListLayout(
   const w = width - 2 * padding;
   // A short screen's panel is too short for every row at full height.
   const roomForRows = panel.h - firstRow - hintHeight - padding;
-  const h = screen.compact
+  const height = screen.compact
     ? Math.min(rowHeight, roomForRows / rows)
     : rowHeight;
   return {
@@ -92,9 +92,9 @@ export function waypointListLayout(
     closeButton: closeButtonRect(panel, screen.uiScale),
     rows: Array.from({ length: rows }, (_, index) => ({
       x: panel.x + (panel.w - w) / 2,
-      y: panel.y + firstRow + index * h,
+      y: panel.y + firstRow + index * height,
       w,
-      h,
+      h: height,
     })),
   };
 }

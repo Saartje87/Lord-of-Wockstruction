@@ -1818,8 +1818,15 @@ export function waypointList(
   const { act } = world.areas[world.areaName];
   return Object.values(world.areas)
     .filter((area) => area.waypoint && area.act === act)
-    .sort((a, b) => (a.mainPath ?? 0) - (b.mainPath ?? 0))
-    .map((area) => ({
+    .map((area) => {
+      // `validateActs` puts a Waypoint only on Main Path Areas.
+      if (area.mainPath === null) {
+        throw new Error(`Area "${area.name}" has a Waypoint but no Main Path`);
+      }
+      return { area, position: area.mainPath };
+    })
+    .sort((a, b) => a.position - b.position)
+    .map(({ area }) => ({
       area: area.name,
       touched: world.hero.progress.touchedWaypoints.includes(area.name),
     }));

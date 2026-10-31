@@ -141,6 +141,9 @@ export function validateActs(areas: Record<string, Area>) {
       throw new Error(`Act ${act} has no Waypoint in its Town`);
     }
     for (const area of inAct) {
+      // A Side Area is a Combat Area off the Main Path; the Town has no such
+      // position to hold a Waypoint to, and has its own check above.
+      if (area.name === TOWN) continue;
       if (area.mainPath !== null && !area.waypoint) {
         throw new Error(
           `Area "${area.name}" is on the Main Path but has no Waypoint`,

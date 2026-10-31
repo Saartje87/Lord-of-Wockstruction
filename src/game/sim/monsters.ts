@@ -739,6 +739,7 @@ function loose(
     direction: { x: Math.cos(monster.facing), y: Math.sin(monster.facing) },
     from: monster.id,
     ...monsterAttack(monster),
+    ...(ranged.damageTypes && { damageTypes: ranged.damageTypes }),
   };
   if (ranged.lob) {
     // Lobbed at the spot the target stands on now, not along a line.

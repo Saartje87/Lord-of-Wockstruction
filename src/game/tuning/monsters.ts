@@ -114,6 +114,12 @@ export type RangedTuning = {
   projectile: ProjectileKind;
   /** How near its target must be, and in sight, to start an attack (tiles). */
   range: number;
+  /**
+   * How its Projectile's damage splits over Damage Types, instead of the
+   * Monster type's `damageTypes`, so a blow of the same Monster stays
+   * Physical (Grave Wockington). A burn's ticks carry them too.
+   */
+  damageTypes?: DamageShares;
   /** How fast its Projectile flies (tiles per second). */
   projectileSpeed: number;
   /** How far its Projectile flies before it vanishes (tiles). */
@@ -499,6 +505,8 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
     attack: {
       kind: "ranged",
       projectile: "gravefire",
+      // Fire: the Hero's Fire Resistance pays off against the burn.
+      damageTypes: { fire: 1 },
       range: 8,
       projectileSpeed: 5,
       projectileRange: 8,

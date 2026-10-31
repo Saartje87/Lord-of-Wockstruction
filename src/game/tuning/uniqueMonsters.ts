@@ -1,3 +1,4 @@
+import type { Resistances } from "./damage";
 import type { Rarity } from "./items";
 
 /** How much tougher a Unique Monster is than its Monster type, and what it drops. */
@@ -12,6 +13,11 @@ export const uniqueTuning = {
   experience: 5,
   /** Times its type's scale in the 3D World, on top of that scale. */
   scale: 1.2,
+  /**
+   * A Unique Monster's own Resistances by its name, instead of its Monster
+   * type's; one missing here uses its type's.
+   */
+  resistances: {} as Record<string, Resistances>,
   /**
    * The Items it always drops on its death instead of an ordinary Monster's
    * single Item chance, in turn: each lists the Rarities it may roll, from

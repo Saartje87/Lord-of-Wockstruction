@@ -114,8 +114,8 @@ const SKELETONS = {
     {
       from: "Skeleton_Mage",
       to: "Skeleton_Mage",
-      // Besides theirs: the clip he raises a wave with.
-      extraClips: ["Spellcast_Raise"],
+      // Besides theirs: the clips he raises a wave and casts Gravefire with.
+      extraClips: ["Spellcast_Raise", "Spellcast_Shoot"],
     },
   ],
   /** Weapons, written as glbs beside the characters. */

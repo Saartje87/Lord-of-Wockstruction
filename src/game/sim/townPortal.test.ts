@@ -252,8 +252,14 @@ function leave(
   clearOf(world, target);
   step(world, [{ type: "MoveTo", target }]);
   for (let i = 0; i < 600 && !world.areaChange; i++) step(world, []);
-  const { monsters, corpses, groundItems, projectiles } = world;
-  const left = structuredClone({ monsters, corpses, groundItems, projectiles });
+  const { monsters, corpses, groundItems, projectiles, burns } = world;
+  const left = structuredClone({
+    monsters,
+    corpses,
+    groundItems,
+    projectiles,
+    burns,
+  });
   while (world.areaChange) step(world, []);
   return left;
 }

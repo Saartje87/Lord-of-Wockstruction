@@ -18,7 +18,7 @@ import type { FloorEffectsView } from "./view";
  * How many of each effect can show at once. The meshes are made once and
  * only shown, moved and faded, so no shader ever recompiles.
  */
-const POOL = { telegraphs: 10, curses: 4, bursts: 6, marks: 8 };
+const POOL = { telegraphs: 10, curses: 4, bursts: 6, marks: 8, burns: 6 };
 
 /** The mark of Muck on the ground: a murky green, filling as the Muck nears. */
 const MUCK_MARK = {
@@ -27,6 +27,12 @@ const MUCK_MARK = {
   filledAlpha: 0.4,
   edgeAlpha: 0.8,
 };
+
+/** The colour of a landing mark by what was lobbed: Gravefire's is fire. */
+const MARK_COLOURS: Partial<Record<string, number>> = { gravefire: 0xff6a1a };
+
+/** A burning circle on the ground: a fire disc, brightest at its rim. */
+const BURN = { colour: 0xff6a1a, fillAlpha: 0.35, edgeAlpha: 0.9 };
 
 /** How high the effects lie, over the Exit pool's glow (0.12) on the floor. */
 const LIFT = 0.14;
@@ -138,6 +144,14 @@ export function floorEffectMeshesOf(): FloorEffectMeshes {
     return { area, filled, edge };
   });
 
+  const burns = Array.from({ length: POOL.burns }, () => {
+    const fill = disc(glow(BURN.colour));
+    const edge = ring(glow(BURN.colour));
+    fill.renderOrder = edge.renderOrder = 4;
+    group.add(fill, edge);
+    return { fill, edge };
+  });
+
   const bursts = Array.from({ length: POOL.bursts }, () => {
     const flash = disc(glow(CORPSE_BURST.flashColour));
     const edge = ring(glow(CORPSE_BURST.ringColour));
@@ -189,12 +203,27 @@ export function floorEffectMeshesOf(): FloorEffectMeshes {
         const shown = effects.marks[i];
         area.visible = filled.visible = edge.visible = shown !== undefined;
         if (!shown) return;
+        const colour = MARK_COLOURS[shown.kind] ?? MUCK_MARK.colour;
+        for (const mesh of [area, filled, edge]) {
+          (mesh.material as MeshBasicMaterial).color.setHex(colour);
+        }
         place(area, shown.pos, shown.radius);
         place(edge, shown.pos, shown.radius);
         place(filled, shown.pos, Math.max(shown.radius * shown.progress, 1e-3));
         opacity(area, MUCK_MARK.fillAlpha);
         opacity(edge, MUCK_MARK.edgeAlpha);
         opacity(filled, MUCK_MARK.filledAlpha);
+      });
+      burns.forEach(({ fill, edge }, i) => {
+        const shown = effects.burns[i];
+        fill.visible = edge.visible = shown !== undefined;
+        if (!shown) return;
+        place(fill, shown.pos, shown.radius);
+        place(edge, shown.pos, shown.radius);
+        // Fades out over the last of its burn.
+        const fade = Math.min(1, shown.left / 0.25);
+        opacity(fill, BURN.fillAlpha * fade);
+        opacity(edge, BURN.edgeAlpha * fade);
       });
       bursts.forEach(({ flash, edge }, i) => {
         const shown = effects.bursts[i];

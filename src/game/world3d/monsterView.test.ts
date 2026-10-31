@@ -105,6 +105,19 @@ describe("the 3D World view of the Monsters", () => {
     ).toBe("idle");
   });
 
+  it("plays Grave Wockington's Spellcast clip while he casts Gravefire, and his melee clip for his swing", () => {
+    const { world, monster } = withSkeleton();
+    monster.type = "grave_wockington";
+    monster.state = "windup";
+
+    expect(MONSTER_LOOKS.grave_wockington.clips.lob).toMatch(/^Spellcast_/);
+    expect(firstMonster(world).animation.clip).toBe("lob");
+    monster.state = "recover";
+    expect(firstMonster(world).animation.clip).toBe("lob");
+    monster.swinging = true;
+    expect(firstMonster(world).animation.clip).toBe("attack");
+  });
+
   it("draws a Wockwolf as the Werewolf, scaled down, with the clip of its state", () => {
     const { world, monster } = withSkeleton();
     monster.type = "wockwolf";

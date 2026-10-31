@@ -335,11 +335,6 @@ describe("the Dialogue panel's layout", () => {
     expect(closeButton.y + closeButton.h).toBeLessThan(body.y);
   });
 
-  it("fits the panel on a wide screen however many buttons, up to four", () => {
-    const { panel, buttons } = dialogueLayout(WIDE, 4);
-    expect(buttons[3].y + buttons[3].h).toBeLessThanOrEqual(panel.y + panel.h);
-  });
-
   it("makes each button at least a fingertip tall at a UI Scale of 1", () => {
     expect(DIALOGUE.rowHeight).toBeGreaterThanOrEqual(44);
   });

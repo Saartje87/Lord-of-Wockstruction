@@ -122,7 +122,7 @@ describe("the Inventory panel's layout", () => {
 
   it("shrinks its cells to fit a narrow screen", () => {
     expect(inventoryPanelLayout(WIDE, ONE_ROW).cell).toBe(36);
-    expect(inventoryPanelLayout(NARROW, ONE_ROW).cell).toBe(29);
+    expect(inventoryPanelLayout(NARROW, ONE_ROW).cell).toBe(26);
   });
 
   it("draws an Item over the cells it covers", () => {
@@ -272,14 +272,15 @@ describe("what a point on the Inventory panel hits", () => {
   // layout they test. The slots' area is 7 cells tall and 9 wide, centred
   // over the grid's 10. Wide: 36 px cells, the grid's top-left at (886, 398)
   // and the slots' area at (904, 74). Narrow: the Skill Bar's slots start at
-  // y 514, which the panel stops above, so 29 px cells, the grid at
-  // (476, 342) and the slots' area at (490.5, 74). One row of Belt Columns
-  // sits between them: wide at (994, 344), narrow at (563, 295).
+  // y 514 and the Town Portal button above the Panel buttons at y 470, which
+  // the panel stops above, so 26 px cells, the grid at (506, 318) and the
+  // slots' area at (519, 74). One row of Belt Columns sits between them:
+  // wide at (994, 344), narrow at (584, 274).
   it.each([
     ["wide", WIDE, { x: 900, y: 416 }, { column: 0, row: 0 }],
     ["wide", WIDE, { x: 1148, y: 475 }, { column: 7, row: 2 }],
-    ["narrow", NARROW, { x: 480, y: 345 }, { column: 0, row: 0 }],
-    ["narrow", NARROW, { x: 742, y: 434 }, { column: 9, row: 3 }],
+    ["narrow", NARROW, { x: 509, y: 321 }, { column: 0, row: 0 }],
+    ["narrow", NARROW, { x: 753, y: 409 }, { column: 9, row: 3 }],
   ])("maps a %s screen's point %o to its cell", (_, screen, point, cell) => {
     expect(inventoryHitAt(screen, point, true, false, ONE_ROW)).toEqual({
       inventory: cell,
@@ -292,9 +293,9 @@ describe("what a point on the Inventory panel hits", () => {
     ["wide", WIDE, { x: 1050, y: 100 }, "helm"],
     ["wide", WIDE, { x: 950, y: 280 }, "gloves"],
     ["wide", WIDE, { x: 1180, y: 280 }, "boots"],
-    ["narrow", NARROW, { x: 670, y: 95 }, "amulet"],
-    ["narrow", NARROW, { x: 600, y: 200 }, "armour"],
-    ["narrow", NARROW, { x: 700, y: 150 }, "offHand"],
+    ["narrow", NARROW, { x: 680, y: 95 }, "amulet"],
+    ["narrow", NARROW, { x: 630, y: 200 }, "armour"],
+    ["narrow", NARROW, { x: 720, y: 150 }, "offHand"],
   ] as const)("maps a %s screen's point %o to its slot", (_, screen, point, slot) => {
     expect(inventoryHitAt(screen, point, true, false, ONE_ROW)).toEqual({
       inventory: slot,
@@ -304,7 +305,7 @@ describe("what a point on the Inventory panel hits", () => {
   it.each([
     ["wide", WIDE, { x: 1000, y: 360 }, { beltColumn: 0, row: 0 }],
     ["wide", WIDE, { x: 1120, y: 360 }, { beltColumn: 3, row: 0 }],
-    ["narrow", NARROW, { x: 630, y: 310 }, { beltColumn: 2, row: 0 }],
+    ["narrow", NARROW, { x: 645, y: 285 }, { beltColumn: 2, row: 0 }],
   ])("maps a %s screen's point %o to its Belt Column cell", (_, screen, point, spot) => {
     expect(inventoryHitAt(screen, point, true, false, ONE_ROW)).toEqual({
       inventory: spot,

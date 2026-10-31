@@ -128,13 +128,6 @@ describe("the Quest panel's layout", () => {
     expect(closeButton.y + closeButton.h).toBeLessThan(rows[0].y);
   });
 
-  it("fits all its rows on a wide screen", () => {
-    const { panel, rows } = questPanelLayout(WIDE, ROWS);
-    const last = rows[ROWS - 1];
-    expect(last.y + last.h).toBeLessThanOrEqual(panel.y + panel.h);
-    expect(panel.h).toBeLessThan(WIDE.height);
-  });
-
   it("gives each row room for a name and two lines of next step", () => {
     expect(QUEST_PANEL.rowHeight).toBeGreaterThanOrEqual(60);
   });

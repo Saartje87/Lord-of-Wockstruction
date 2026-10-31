@@ -14,6 +14,7 @@ const NO_POINTER: PointerState = {
 const NO_EFFECTS: Effects = {
   flashes: new Map(),
   deadForMs: new Map(),
+  casts: new Map(),
   portals: [],
   bursts: [],
   curses: [],
@@ -78,6 +79,30 @@ describe("the 3D World view of the Monsters", () => {
 
     monster.flinch = 5;
     expect(firstMonster(world).animation.clip).toBe("flinch");
+  });
+
+  it("draws Grave Wockington as the Skeleton_Mage with a staff, a fire tint and a Spellcast clip for a wave", () => {
+    const { world, monster } = withSkeleton();
+    monster.type = "grave_wockington";
+
+    const look = MONSTER_LOOKS.grave_wockington;
+    expect(look.model).toBe("Skeleton_Mage");
+    expect(look.weapons).toEqual([
+      { slot: "handslot.r", model: "Skeleton_Staff" },
+    ]);
+    expect(look.look).toBe("fire");
+    expect(look.scale).toBeGreaterThan(MONSTER_LOOKS.skeleton.scale);
+    expect(look.clips.cast).toMatch(/^Spellcast_/);
+    expect(firstMonster(world).animation.clip).toBe("idle");
+
+    const casts = new Map([[monster.id, 200]]);
+    const cast = firstMonster(world, { ...NO_EFFECTS, casts }).animation;
+    expect(cast.clip).toBe("cast");
+    // Over once the cast has played.
+    const done = new Map([[monster.id, 60_000]]);
+    expect(
+      firstMonster(world, { ...NO_EFFECTS, casts: done }).animation.clip,
+    ).toBe("idle");
   });
 
   it("draws a Wockwolf as the Werewolf, scaled down, with the clip of its state", () => {

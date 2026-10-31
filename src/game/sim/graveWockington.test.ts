@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { graveWockingtonTuning } from "../tuning/graveWockington";
 import { heroTuning } from "../tuning/hero";
+import { isPotion } from "../tuning/items";
 import { monsterTuning } from "../tuning/monsters";
 import { loadArea } from "./area";
 import { monsterMaxLife } from "./monsters";
@@ -63,10 +64,14 @@ function ossuary(gap: number) {
   );
 }
 
-function inOssuary(gap: number, progress: Progress = FRESH_PROGRESS): World {
+function inOssuary(
+  gap: number,
+  progress: Progress = FRESH_PROGRESS,
+  seed = 1,
+): World {
   return createWorld({
     areas: { town, ossuary: ossuary(gap) },
-    seed: 1,
+    seed,
     progress,
     start: { area: "ossuary", entry: "start" },
   });
@@ -204,6 +209,38 @@ describe("killing Grave Wockington", () => {
     expect(events.some((event) => event.type === "MonsterDied")).toBe(true);
     expect(events.some((event) => event.type === "ActCompleted")).toBe(false);
     expect(questOf(world, "act-boss").state).toBe("done");
+  });
+
+  it("always drops two Rare Items and a Magic or Rare one, with Affixes", () => {
+    const second = new Set<string>();
+    for (let seed = 1; seed <= 60; seed++) {
+      const items = kill(inOssuary(3, FRESH_PROGRESS, seed))
+        .filter((event) => event.type === "ItemDropped")
+        .map((event) => event.item)
+        .filter((item) => !isPotion(item.type));
+
+      expect(items).toHaveLength(3);
+      expect(items[0].rarity).toBe("rare");
+      expect(items[1].rarity).toBe("rare");
+      expect(["magic", "rare"]).toContain(items[2].rarity);
+      second.add(items[2].rarity);
+      for (const item of items) {
+        expect(item.affixes.length).toBeGreaterThanOrEqual(
+          item.rarity === "rare" ? 3 : 1,
+        );
+      }
+    }
+    expect([...second].sort()).toEqual(["magic", "rare"]);
+  });
+
+  it("still rolls the usual Potion drop", () => {
+    let potions = 0;
+    for (let seed = 1; seed <= 60; seed++) {
+      potions += kill(inOssuary(3, FRESH_PROGRESS, seed)).filter(
+        (event) => event.type === "ItemDropped" && isPotion(event.item.type),
+      ).length;
+    }
+    expect(potions).toBeGreaterThan(0);
   });
 
   it("leaves play going on in the Area", () => {

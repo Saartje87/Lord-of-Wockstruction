@@ -331,6 +331,105 @@ describe("A", () => {
   });
 });
 
+describe("the Item in Reach", () => {
+  const reachOf = (
+    world: World,
+    snapshot: PadSnapshot = restAt,
+    menus?: Menus,
+  ) =>
+    pollPad(createPadInput(), snapshot, 0, tilesOver(world, menus)).itemInReach;
+
+  it("is the nearest Ground Item within reach with no Target, A pressed or not", () => {
+    inputTuning.groundItemReach = 1.5;
+    const world = facingEast([{ x: 3, y: 10 }]);
+    lay(world, 7, { x: 10.5, y: 10 });
+
+    expect(reachOf(world)).toBe(7);
+    expect(reachOf(world, press("a"))).toBe(7);
+  });
+
+  it("is none when no Ground Item is within reach", () => {
+    inputTuning.groundItemReach = 1.5;
+    const world = facingEast([]);
+    lay(world, 1, { x: 11.6, y: 10 });
+
+    expect(reachOf(world)).toBeNull();
+  });
+
+  it("is none while a Monster is the Target, even with an Item at the Hero's feet", () => {
+    const world = facingEast([{ x: 8, y: 10 }]);
+    lay(world, 1, { x: 10, y: 10 });
+
+    expect(reachOf(world)).toBeNull();
+  });
+
+  it("is the nearest of several Ground Items within reach", () => {
+    inputTuning.groundItemReach = 1.5;
+    const world = facingEast([]);
+    lay(world, 1, { x: 11.2, y: 10 });
+    lay(world, 2, { x: 10, y: 9 });
+    lay(world, 3, { x: 9.5, y: 10 });
+
+    expect(reachOf(world)).toBe(3);
+  });
+
+  it("is never a Gold Pile", () => {
+    inputTuning.groundItemReach = 1.5;
+    const world = facingEast([]);
+    world.goldPiles.push({ id: 1, amount: 9, pos: { x: 10.1, y: 10 } });
+
+    expect(reachOf(world)).toBeNull();
+  });
+
+  it("is none with a panel open", () => {
+    const world = facingEast([]);
+    lay(world, 1, { x: 10, y: 10 });
+
+    expect(reachOf(world, restAt, inventoryOpen())).toBeNull();
+  });
+
+  it("is none during Death", () => {
+    const world = facingEast([]);
+    lay(world, 1, { x: 10, y: 10 });
+    world.death = { elapsed: 0 };
+
+    expect(reachOf(world)).toBeNull();
+  });
+
+  it("is none where A would talk to an NPC instead of picking up", () => {
+    inputTuning.npcReach = 2;
+    const world = facingEast([]);
+    const { npcs } = world.areas[world.areaName];
+    world.standing.push(
+      npcs.push({
+        name: "Smith",
+        pos: { x: 11, y: 10 },
+        stands: null,
+        vendor: false,
+      }) - 1,
+    );
+    lay(world, 1, { x: 10, y: 10 });
+
+    expect(reachOf(world)).toBeNull();
+  });
+
+  it("is the very Item the PickUp order names when A is pressed", () => {
+    inputTuning.groundItemReach = 1.5;
+    const world = facingEast([]);
+    lay(world, 1, { x: 11.2, y: 10 });
+    lay(world, 2, { x: 9.5, y: 10 });
+
+    const { orders, itemInReach } = pollPad(
+      createPadInput(),
+      press("a"),
+      0,
+      tilesOver(world),
+    );
+
+    expect(orders).toEqual([{ type: "PickUp", groundItem: itemInReach }]);
+  });
+});
+
 describe("A near an NPC", () => {
   /** Stands NPC `name` at `pos` in the Area. */
   function stand(world: World, name: string, pos: Vec) {

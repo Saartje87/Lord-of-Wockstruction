@@ -724,6 +724,12 @@ export default function GameCanvas() {
         const pointing = activeInput.way === "touch" ? touched : input.screen;
         const pointer = pause.paused ? null : (focus?.at ?? pointing);
         drawnTarget = pause.paused ? null : polled.target;
+        // Unlike the Target, the Item in Reach shows only to a controller or
+        // touch screen: the pad itself doesn't know the Active Input.
+        const itemInReach =
+          pause.paused || activeInput.way === "mouseAndKeyboard"
+            ? null
+            : polled.itemInReach;
         // Before the HUD draws, which places the labels through it.
         const { hero } = world;
         worldCamera = worldCameraOn(viewport, {
@@ -740,6 +746,7 @@ export default function GameCanvas() {
           cursor.heldSkillSlot,
           drawnTarget,
           focus?.rect ?? null,
+          itemInReach,
         );
         // The tile to outline: on the floor, under no panel or Monster.
         const under =

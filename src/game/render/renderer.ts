@@ -1181,7 +1181,8 @@ export function createRenderer(
      * up from, drawn dimmed. `target` is the Target auto-aim picked, if any,
      * named as a hovered Monster is when the pointer is over no one. `focus`
      * is where the Focus rests in an open panel, if it shows, ringed as the
-     * pause menu's focused button is.
+     * pause menu's focused button is. `itemInReach` is the Item in Reach, if
+     * any, named in gold as a hovered Item is when the pointer is over none.
      */
     draw(
       world: World,
@@ -1193,6 +1194,7 @@ export function createRenderer(
       heldSkillSlot: SkillBarSlot | null = null,
       target: MonsterId | null = null,
       focus: Rect | null = null,
+      itemInReach: ItemId | null = null,
     ) {
       if (hudHidden) {
         // Play after the Start Screen: each view sets its own layer's
@@ -1357,7 +1359,8 @@ export function createRenderer(
         (overWorld && typeof hoveredId !== "number"
           ? groundItemAt(overWorld)
           : null);
-      drawGroundItems(world, hoveredItem, uiScale);
+      // With the pointer over no Item, the Item in Reach is shown as if hovered.
+      drawGroundItems(world, hoveredItem ?? itemInReach, uiScale);
       // With the pointer over no one, the Target is shown as if hovered.
       const pointed =
         typeof hoveredId === "number" || typeof hoveredId === "object"

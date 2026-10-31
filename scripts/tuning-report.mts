@@ -24,7 +24,7 @@ const load = async <T,>(path: string) =>
   (await runnerImport<T>(path, { configFile: false, logLevel: "error" }))
     .module;
 const { loadArea } = await load<typeof AreaModule>("./src/game/sim/area.ts");
-const { tuningReport } = await load<typeof ReportModule>(
+const { bossReport, tuningReport } = await load<typeof ReportModule>(
   "./src/game/sim/tuningReport.ts",
 );
 const { skillReport } = await load<typeof SkillReportModule>(
@@ -109,6 +109,60 @@ for (const [type, { name }] of Object.entries(monsterTuning)) {
         row.attackRating,
         row.defense,
         grouped(row.experience),
+      ]),
+    ),
+  );
+  console.log();
+}
+
+const bossArea = areas.find((area) => area.actBoss !== null);
+if (bossArea?.actBoss && bossArea.areaLevel !== null) {
+  const boss = bossReport(
+    bossArea.actBoss.monster as MonsterType,
+    bossArea.areaLevel,
+  );
+  const { gravefire: fire } = boss;
+  console.log(
+    `# Act Boss ${bossArea.actBoss.name} (${bossArea.name}, Area Level ${bossArea.areaLevel}), as a Unique Monster\n`,
+  );
+  console.log(
+    table(
+      ["Max Life", "Blow", "Attack Rating", "Defense", "Experience"],
+      [
+        [
+          grouped(boss.maxLife),
+          `${boss.damage[0]}–${boss.damage[1]}`,
+          boss.attackRating,
+          boss.defense,
+          grouped(boss.experience),
+        ],
+      ],
+    ),
+  );
+  console.log(
+    `\nGravefire: range ${fire.range}, wind-up ${fire.windUpMs} ms, recovery ${fire.recoveryMs.join(" / ")} ms (first half / past half), radius ${fire.radius}, burns ${fire.burnMs} ms in ${fire.ticks} ticks of ${fire.tick[0]}–${fire.tick[1]} (${fire.tickMs} ms apart), ${fire.burn[0]}–${fire.burn[1]} if stood in throughout\n`,
+  );
+  console.log(
+    table(
+      [
+        "Stage",
+        "First wave s",
+        "Every s",
+        "Size",
+        "Archers",
+        "Limit",
+        "Raised a min",
+        "Gravefire every s",
+      ],
+      boss.stages.map((stage) => [
+        stage.stage,
+        stage.firstWaveS ?? "–",
+        stage.everyS,
+        stage.size,
+        stage.archers,
+        stage.limit,
+        stage.perMinute.toFixed(1),
+        stage.gravefireEveryS.toFixed(1),
       ]),
     ),
   );

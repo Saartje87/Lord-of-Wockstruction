@@ -11,7 +11,7 @@
  "infinite": false,
  "compressionlevel": -1,
  "nextlayerid": 5,
- "nextobjectid": 18,
+ "nextobjectid": 19,
  "properties": [
   {
    "name": "areaLevel",
@@ -8305,6 +8305,18 @@
      "type": "entry",
      "x": 5328,
      "y": 912,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true
+    },
+    {
+     "id": 18,
+     "name": "fight",
+     "type": "entry",
+     "x": 1488,
+     "y": 4656,
      "width": 0,
      "height": 0,
      "rotation": 0,

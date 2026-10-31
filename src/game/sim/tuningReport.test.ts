@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { goldTuning } from "../tuning/gold";
 import type { MonsterType } from "../tuning/monsters";
-import { tuningReport } from "./tuningReport";
+import { bossReport, tuningReport } from "./tuningReport";
 
 /** A Combat Area's name, Area Level and a Spawn of each of `monsters`. */
 function area(name: string, areaLevel: number | null, monsters: MonsterType[]) {
@@ -246,5 +246,25 @@ describe("tuningReport", () => {
 
       expect(levels[0].gold).toBeNull();
     });
+  });
+});
+
+describe("bossReport", () => {
+  it("gives the Act Boss's Unique numbers, Gravefire's and his waves per stage at an Area Level", () => {
+    const report = bossReport("grave_wockington", 11);
+
+    // 150 grown 25% a Level to Level 11 (525), times the Unique 4.
+    expect(report.maxLife).toBe(2_100);
+    expect(report.damage[0]).toBeGreaterThan(0);
+    expect(report.gravefire.recoveryMs).toHaveLength(2);
+    expect(report.gravefire.ticks).toBe(
+      Math.floor(report.gravefire.burnMs / report.gravefire.tickMs),
+    );
+    expect(report.stages.map((stage) => stage.stage)).toEqual([
+      "first half",
+      "past half",
+    ]);
+    expect(report.stages[0].archers).toBe(0);
+    expect(report.stages[1].archers).toBeGreaterThan(0);
   });
 });

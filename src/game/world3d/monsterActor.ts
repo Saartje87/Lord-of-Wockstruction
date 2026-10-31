@@ -136,7 +136,7 @@ export function poseMonster(actor: MonsterActor, monster: Posed, dt: number) {
     for (const hull of actor.hulls) hull.material = ink;
   }
 
-  const name = actor.clips[monster.animation.clip];
+  const name = actor.clips[monster.animation.clip] ?? actor.clips.idle;
   blendClips(actor.actions, name, dt, first);
   const action = actor.actions.get(name);
   if (action) {

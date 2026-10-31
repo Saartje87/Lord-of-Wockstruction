@@ -138,6 +138,8 @@ export type Effects = {
   flashes: ReadonlyMap<MonsterId, number>;
   /** How long ago (ms) each Monster just killed died; others lie still. */
   deadForMs: ReadonlyMap<MonsterId, number>;
+  /** How long ago (ms) each Monster just raised a wave; others have not. */
+  casts: ReadonlyMap<MonsterId, number>;
   /** The Town Portal ends of the Area, bursting open, standing or closing. */
   portals: ShownTownPortal[];
   /** The Corpse bursts so far, with how long ago each began. */
@@ -346,6 +348,7 @@ export function worldViewOf(
   effects: Effects = {
     flashes: new Map(),
     deadForMs: new Map(),
+    casts: new Map(),
     portals: [],
     bursts: [],
     curses: [],
@@ -539,6 +542,9 @@ function corpseAnimationOf(ms: number | undefined): MonsterAnimation {
   return { clip: "death", progress };
 }
 
+/** How long (ms) a Monster's cast clip plays when it raises a wave. */
+const CAST_MS = 1200;
+
 /** A living Monster as shown: its animation chosen by its state. */
 function monsterViewOf(
   world: World,
@@ -548,6 +554,7 @@ function monsterViewOf(
   highlight: CharacterId | null,
 ): MonsterView {
   const { contact } = MONSTER_LOOKS[monster.type];
+  const castAgo = effects.casts.get(monster.id);
   const moving =
     monster.pos.x !== monster.prevPos.x || monster.pos.y !== monster.prevPos.y;
   let animation: MonsterAnimation;
@@ -569,6 +576,8 @@ function monsterViewOf(
       clip: "attack",
       progress: contact + recoveryProgress(monster) * (1 - contact),
     };
+  } else if (castAgo !== undefined && castAgo < CAST_MS) {
+    animation = { clip: "cast", progress: castAgo / CAST_MS };
   } else {
     const seconds = (world.tick * STEP_MS) / 1000;
     const clip = !moving

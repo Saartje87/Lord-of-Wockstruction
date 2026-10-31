@@ -151,6 +151,7 @@ describe("the 3D World view of crumbling Minions", () => {
   const NO_EFFECTS: Effects = {
     flashes: new Map(),
     deadForMs: new Map(),
+    casts: new Map(),
     portals: [],
     bursts: [],
     curses: [],

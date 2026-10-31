@@ -43,6 +43,8 @@ export const LOOKS = {
   character: { saturation: 0.85, tint: 0xffffff },
   /** Raised Skeletons: paler and tinged with the green of raised bone. */
   raised: { saturation: 0.6, tint: 0xa8f0b8 },
+  /** Grave Wockington: bone washed in the orange of his fire. */
+  fire: { saturation: 1, tint: 0xff9a5a },
   /** Fire, magic, loot and danger keep their warmth. */
   warm: { saturation: 1, tint: 0xffffff },
 } satisfies Record<string, Look>;

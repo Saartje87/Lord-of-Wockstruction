@@ -17,6 +17,7 @@ const NO_POINTER: PointerState = {
 const NO_EFFECTS: Effects = {
   flashes: new Map(),
   deadForMs: new Map(),
+  casts: new Map(),
   portals: [],
   bursts: [],
   curses: [],

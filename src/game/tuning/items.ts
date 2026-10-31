@@ -29,7 +29,10 @@ export type Bonus =
   | "coldResistance"
   | "lightningResistance"
   | "allResistances"
-  | "block";
+  | "block"
+  | "fireDamage"
+  | "coldDamage"
+  | "lightningDamage";
 
 /** Every Bonus there is. */
 export const BONUSES: readonly Bonus[] = [
@@ -49,6 +52,9 @@ export const BONUSES: readonly Bonus[] = [
   "lightningResistance",
   "allResistances",
   "block",
+  "fireDamage",
+  "coldDamage",
+  "lightningDamage",
 ];
 
 /** What a Potion gives back. */
@@ -469,6 +475,16 @@ const RESISTANCE_RANGES: [Range, Range, Range] = [
   [21, 30],
 ];
 
+/** The Item kinds the Weapon Affixes roll on. */
+const WEAPON_KINDS: readonly ItemKind[] = ["weapon"];
+
+/** Flat Element damage added to each of the Hero's attacks; to be tuned. */
+const ELEMENTAL_DAMAGE_RANGES: [Range, Range, Range] = [
+  [1, 3],
+  [4, 8],
+  [9, 15],
+];
+
 const ATTRIBUTE_RANGES: [Range, Range, Range] = [
   [1, 3],
   [4, 6],
@@ -519,7 +535,7 @@ export const affixTuning = {
   brutality: {
     side: "prefix",
     bonus: "weaponDamage",
-    rollsOn: ["weapon"],
+    rollsOn: WEAPON_KINDS,
     grades: threeGrades(
       ["Brutal", "Savage", "Wrecking"],
       [
@@ -582,7 +598,7 @@ export const affixTuning = {
   enhancedDamage: {
     side: "prefix",
     bonus: "enhancedDamage",
-    rollsOn: ["weapon"],
+    rollsOn: WEAPON_KINDS,
     grades: threeGrades(
       ["Jagged", "Vicious", "Ruinous"],
       [
@@ -650,6 +666,34 @@ export const affixTuning = {
         [6, 9],
         [10, 15],
       ],
+    ),
+  },
+  // Weapon Suffixes: flat Element damage on the Hero's attacks, never Skills.
+  fireDamage: {
+    side: "suffix",
+    bonus: "fireDamage",
+    rollsOn: WEAPON_KINDS,
+    grades: threeGrades(
+      ["of Embers", "of Flames", "of the Furnace"],
+      ELEMENTAL_DAMAGE_RANGES,
+    ),
+  },
+  coldDamage: {
+    side: "suffix",
+    bonus: "coldDamage",
+    rollsOn: WEAPON_KINDS,
+    grades: threeGrades(
+      ["of Frost", "of Ice", "of the Glacier"],
+      ELEMENTAL_DAMAGE_RANGES,
+    ),
+  },
+  lightningDamage: {
+    side: "suffix",
+    bonus: "lightningDamage",
+    rollsOn: WEAPON_KINDS,
+    grades: threeGrades(
+      ["of Sparks", "of Storms", "of Thunder"],
+      ELEMENTAL_DAMAGE_RANGES,
     ),
   },
 } satisfies Record<string, AffixTuning>;

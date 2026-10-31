@@ -1256,12 +1256,19 @@ export function isRegenerating(world: World): boolean {
   return !world.death && !isInCombat(world) && world.hero.life < maxLife(world);
 }
 
+/** The Bonus that adds flat damage of each Element to the Hero's attacks. */
+const ELEMENT_DAMAGE_BONUSES = {
+  fire: "fireDamage",
+  cold: "coldDamage",
+  lightning: "lightningDamage",
+} as const satisfies Record<Element, Bonus>;
+
 /**
- * The least and most damage one of the Hero's hits deals: the Equipped
- * Weapon's, or a punch's with none, 1% more for each point of Strength.
- * Left unrounded, so every point counts: each hit rounds its own damage.
+ * The least and most Physical damage one of the Hero's hits deals: the
+ * Equipped Weapon's, or a punch's with none, 1% more for each point of
+ * Strength. Left unrounded, so every point counts.
  */
-export function damageRange(world: World): [number, number] {
+function physicalDamageRange(world: World): [number, number] {
   const weapon = world.hero.equipment.weapon;
   const scale = 1 + attributesOf(world).strength / 100;
   const [ownMin, ownMax] =
@@ -1273,13 +1280,46 @@ export function damageRange(world: World): [number, number] {
   return [(min + flat) * scale, (max + flat) * scale];
 }
 
+/** The flat damage of `element` the Equipped Items add to the Hero's hits. */
+function elementalDamage(world: World, element: Element): number {
+  return bonusOf(world, ELEMENT_DAMAGE_BONUSES[element]);
+}
+
 /**
- * The damage one of the Hero's hits deals for a `roll` in [0, 1): that far
- * through the damage range, rounded to a whole number.
+ * The least and most damage one of the Hero's hits deals before any
+ * Resistance: the Physical range plus each Element's flat damage, which
+ * neither Strength nor enhanced damage scales. Left unrounded.
+ */
+export function damageRange(world: World): [number, number] {
+  const [min, max] = physicalDamageRange(world);
+  const elemental = ELEMENTS.reduce(
+    (sum, element) => sum + elementalDamage(world, element),
+    0,
+  );
+  return [min + elemental, max + elemental];
+}
+
+/**
+ * The damage one of the Hero's attacks deals for a `roll` in [0, 1): that
+ * far through the Physical range, rounded, plus each Element's flat damage.
+ * Skills never add the Elements.
+ */
+export function heroAttackDamage(world: World, roll: number): Damage {
+  const [min, max] = physicalDamageRange(world);
+  const damage: Damage = { physical: Math.round(min + roll * (max - min)) };
+  for (const element of ELEMENTS) {
+    const amount = elementalDamage(world, element);
+    if (amount > 0) damage[element] = amount;
+  }
+  return damage;
+}
+
+/**
+ * The whole damage one of the Hero's hits deals for a `roll` in [0, 1),
+ * before any Resistance.
  */
 export function heroDamage(world: World, roll: number): number {
-  const [min, max] = damageRange(world);
-  return Math.round(min + roll * (max - min));
+  return totalOf(heroAttackDamage(world, roll));
 }
 
 /**
@@ -3177,7 +3217,7 @@ function miss(world: World, monster: Monster, events: SimEvent[]) {
 }
 
 function hit(world: World, target: Monster | BoneAltar, events: SimEvent[]) {
-  const damage = splitDamage(heroDamage(world, random(world.rng)));
+  const damage = heroAttackDamage(world, random(world.rng));
   heroHurts(world, target, damage, "hero", events);
 }
 

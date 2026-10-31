@@ -35,6 +35,8 @@ export type Bonus =
   | "fireDamage"
   | "coldDamage"
   | "lightningDamage"
+  | "attackSpeed"
+  | "walkSpeed"
   | "skillLevel";
 
 /**
@@ -61,6 +63,8 @@ export const BONUSES: readonly Bonus[] = [
   "fireDamage",
   "coldDamage",
   "lightningDamage",
+  "attackSpeed",
+  "walkSpeed",
 ];
 
 /** What a Potion gives back. */
@@ -755,6 +759,33 @@ export const affixTuning = {
     grades: threeGrades(
       ["of Sparks", "of Storms", "of Thunder"],
       ELEMENTAL_DAMAGE_RANGES,
+    ),
+  },
+  // Speed Suffixes: the Hero's swing and walk, never casting.
+  attackSpeed: {
+    side: "suffix",
+    bonus: "attackSpeed",
+    rollsOn: ["gloves"],
+    grades: threeGrades(
+      ["of Alacrity", "of Haste", "of the Whirlwind"],
+      [
+        [5, 8],
+        [9, 14],
+        [15, 22],
+      ],
+    ),
+  },
+  walkSpeed: {
+    side: "suffix",
+    bonus: "walkSpeed",
+    rollsOn: ["boots"],
+    grades: threeGrades(
+      ["of the Wanderer", "of the Courier", "of the Gale"],
+      [
+        [5, 8],
+        [9, 14],
+        [15, 22],
+      ],
     ),
   },
 } satisfies Record<string, AffixTuning>;

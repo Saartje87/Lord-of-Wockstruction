@@ -12,10 +12,12 @@ import {
   attackRating,
   attributesOf,
   damageRange,
+  heroAttackSpeed,
   heroBlockChance,
   heroChanceToHit,
   heroDefense,
   heroResistance,
+  heroWalkSpeed,
   maxLife,
   maxMana,
   monsterLevelIn,
@@ -36,7 +38,8 @@ import { orbsLayout } from "./orbs";
  * Attribute's + button `plus` square at the right of its row, its − button
  * the same size `buttonGap` to the left. Accept spans both on the unspent
  * points' row. Its close hint sits `hintHeight` tall at its bottom, inside
- * its padding.
+ * its padding. On the desktop panel the gaps between its sections are only
+ * `gapHeight` tall, to leave room for the conditional speed lines.
  */
 export const HERO_PANEL = {
   left: 16,
@@ -47,6 +50,7 @@ export const HERO_PANEL = {
   firstRow: 56,
   rowHeight: 28,
   derivedRowHeight: 18,
+  gapHeight: 8,
   plus: 22,
   buttonGap: 6,
   hintHeight: 20,
@@ -200,6 +204,13 @@ function sheetValues(world: World): {
         element,
       })),
       { name: "Block", value: `${heroBlockChance(world)}%` },
+      // Shown only when Gloves or Boots give some, to spare the panel's rows.
+      ...(heroAttackSpeed(world) !== 0
+        ? [{ name: "Attack Speed", value: `+${heroAttackSpeed(world)}%` }]
+        : []),
+      ...(heroWalkSpeed(world) !== 0
+        ? [{ name: "Walk Speed", value: `+${heroWalkSpeed(world)}%` }]
+        : []),
       { name: "Attack Rating", value: String(attackRating(world)) },
       {
         name: "Chance to hit a Skeleton",
@@ -308,21 +319,23 @@ function heroPanelRect(screen: Viewport): Rect {
  * clear of the close hint at the bottom on a screen as short as 320 px.
  */
 export function heroPanelRow(screen: Viewport, row: number): Rect {
-  const { width, padding, firstRow, rowHeight, derivedRowHeight } = atUiScale(
-    HERO_PANEL,
-    screen.uiScale,
-  );
+  const { width, padding, firstRow, rowHeight, derivedRowHeight, gapHeight } =
+    atUiScale(HERO_PANEL, screen.uiScale);
   const panel = heroPanelRect(screen);
   const top = (at: number) => panel.y + firstRow + at * rowHeight;
   if (!screen.compact) {
-    // What the Attributes add up to is set closer, to fit its many lines.
+    // What the Attributes add up to is set closer, to fit its many lines,
+    // and the two gaps between the sections are narrow.
     const derived = row >= PANEL_ROWS.derived;
+    const gapsAbove = (row >= 3 ? 1 : 0) + (row >= PANEL_ROWS.derived ? 1 : 0);
     return {
       x: panel.x + padding,
-      y: derived
-        ? top(PANEL_ROWS.derived) +
-          (row - PANEL_ROWS.derived) * derivedRowHeight
-        : top(row),
+      y:
+        (derived
+          ? top(PANEL_ROWS.derived) +
+            (row - PANEL_ROWS.derived) * derivedRowHeight
+          : top(row)) -
+        gapsAbove * (rowHeight - gapHeight),
       w: width - 2 * padding,
       h: derived ? derivedRowHeight : rowHeight,
     };

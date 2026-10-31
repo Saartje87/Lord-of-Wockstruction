@@ -180,7 +180,7 @@ describe("orders during a swing", () => {
 
     step(world, []);
 
-    expect(world.hero.swing).toEqual({
+    expect(world.hero.swing).toMatchObject({
       elapsed: 0,
       landed: false,
       monster: 2,
@@ -252,7 +252,11 @@ describe("hitstop", () => {
 
     step(world, [moveTo(1.5, 5.5)]);
     stepTimes(world, 3);
-    expect(world.hero.swing).toEqual({ elapsed: 8, landed: true, monster: 1 });
+    expect(world.hero.swing).toMatchObject({
+      elapsed: 8,
+      landed: true,
+      monster: 1,
+    });
     expect(world.hero.pos).toEqual({ x: 1.5, y: 1.5 });
     expect(skeleton.flinch).toBe(flinch);
 

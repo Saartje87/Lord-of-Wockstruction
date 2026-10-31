@@ -477,6 +477,8 @@ const BONUS_NAMES: Record<Bonus, string> = {
   fireDamage: "Fire Damage",
   coldDamage: "Cold Damage",
   lightningDamage: "Lightning Damage",
+  attackSpeed: "attack speed",
+  walkSpeed: "walk speed",
   skillLevel: "Skill Level",
 };
 
@@ -506,6 +508,8 @@ const PERCENT_BONUSES: readonly Bonus[] = [
   "lightningResistance",
   "allResistances",
   "block",
+  "attackSpeed",
+  "walkSpeed",
 ];
 
 /** A tooltip line giving `amount` of `bonus`. */

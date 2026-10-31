@@ -84,6 +84,8 @@ describe("the 3D World view of the Hero", () => {
     const world = arenaWith([], { combat: true });
     world.hero.swing = {
       elapsed: SWING_STEPS - 1,
+      steps: SWING_STEPS,
+      hitStep: HIT_STEP,
       landed: true,
       monster: null,
     };

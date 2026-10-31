@@ -35,6 +35,7 @@ import {
   type World,
 } from "./sim/world";
 import { heroTuning } from "./tuning/hero";
+import { AFFIX_KINDS, type AffixKind, affixOf } from "./tuning/items";
 import { questTuning } from "./tuning/quests";
 import { isPassive } from "./tuning/skills";
 
@@ -44,7 +45,7 @@ import { isPassive } from "./tuning/skills";
  * fresh instead of loading something misread; text of the versions between
  * loads through `ADDED_FIELDS`.
  */
-export const SAVE_VERSION = 13;
+export const SAVE_VERSION = 14;
 
 /** The oldest version whose text still loads (the one before the Belt). */
 const OLDEST_LOADABLE_VERSION = 6;
@@ -92,6 +93,20 @@ const AFFIXES_SINCE_VERSION = 11;
  * text loads with them empty, and must not hold them.
  */
 const NEW_SLOTS_SINCE_VERSION = 13;
+
+/**
+ * The version that gave an elemental damage Affix a low and a high value:
+ * older text names one value, which loads as the range from it to itself.
+ */
+const DAMAGE_RANGE_SINCE_VERSION = 14;
+
+/** Whether `kind` is an Affix kind that adds a damage range. */
+function isDamageKind(kind: unknown): boolean {
+  return (
+    AFFIX_KINDS.includes(kind as AffixKind) &&
+    !!affixOf(kind as AffixKind).grades[0].highRange
+  );
+}
 
 /** The Equipment slots that version `NEW_SLOTS_SINCE_VERSION` added. */
 const NEW_SLOTS: readonly string[] = ["offHand", "helm", "gloves", "boots"];
@@ -299,6 +314,7 @@ export function parseSave(text: string | null): HeroSave | null {
     fields.smithBonuses,
     version < AFFIXES_SINCE_VERSION,
     version < NEW_SLOTS_SINCE_VERSION,
+    version < DAMAGE_RANGE_SINCE_VERSION,
   );
   return belongings && { progress, belongings };
 }
@@ -316,6 +332,7 @@ function parseBelongings(
   smithBonuses: unknown,
   older: boolean,
   withoutNewSlots: boolean,
+  singleValued: boolean,
 ): Belongings | null {
   // How many rows the Belt Columns have is checked with the Equipment.
   if (!isValidBelt(belt, Number.POSITIVE_INFINITY)) return null;
@@ -344,7 +361,7 @@ function parseBelongings(
     if (typeof entry !== "object" || entry === null) return null;
     const { cell } = entry;
     if (typeof cell !== "object" || cell === null) return null;
-    const stored = parseStoredItem(entry, older);
+    const stored = parseStoredItem(entry, older, singleValued);
     if (!stored) return null;
     placed.push({
       ...stored,
@@ -355,7 +372,7 @@ function parseBelongings(
   for (const [slot, entry] of Object.entries(equipment)) {
     const stored = older
       ? parseOlderEquipped(entry, bonuses[slot])
-      : parseStoredItem(entry, false);
+      : parseStoredItem(entry, false, singleValued);
     if (!stored) return null;
     worn[slot as keyof typeof worn] = stored;
   }
@@ -412,7 +429,11 @@ const NAMED_JEWELLERY: Record<
  * null when it isn't an object. Text of this version names the Rarity and
  * the Affixes; older text names neither and its Items are Normal.
  */
-function parseStoredItem(entry: unknown, older: boolean): StoredItem | null {
+function parseStoredItem(
+  entry: unknown,
+  older: boolean,
+  singleValued: boolean,
+): StoredItem | null {
   if (typeof entry !== "object" || entry === null) return null;
   const { type, rarity, affixes, rareName, smithBonus } = entry as Record<
     string,
@@ -435,11 +456,15 @@ function parseStoredItem(entry: unknown, older: boolean): StoredItem | null {
     affixes: named
       ? [{ ...named.affix }]
       : rolled.map((affix) => {
-          const { kind, grade, value } = (affix ?? {}) as Record<
+          const { kind, grade, value, high } = (affix ?? {}) as Record<
             string,
             unknown
           >;
-          return { kind, grade, value };
+          // Older text has one value; an elemental damage Affix's is its range.
+          if (singleValued && isDamageKind(kind)) {
+            return { kind, grade, value, high: value };
+          }
+          return { kind, grade, value, ...(high !== undefined && { high }) };
         }),
     ...(rareName !== undefined && { rareName }),
     ...(smithBonus !== undefined && { smithBonus: copyBonus(smithBonus) }),
@@ -456,6 +481,7 @@ function parseOlderEquipped(
   return parseStoredItem(
     { type, ...(smithBonus !== undefined && { smithBonus }) },
     true,
+    false,
   );
 }
 

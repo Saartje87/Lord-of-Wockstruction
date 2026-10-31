@@ -900,17 +900,17 @@ describe("the elemental damage Suffix lines", () => {
   const shown = {
     type: "axe" as const,
     affixes: [
-      { kind: "fireDamage" as const, grade: 0, value: 3 },
-      { kind: "coldDamage" as const, grade: 1, value: 6 },
-      { kind: "lightningDamage" as const, grade: 2, value: 12 },
+      { kind: "fireDamage" as const, grade: 0, value: 2, high: 5 },
+      { kind: "coldDamage" as const, grade: 1, value: 6, high: 9 },
+      { kind: "lightningDamage" as const, grade: 2, value: 12, high: 20 },
     ],
   };
 
   it("add their damage in a line each, in their Element's colour", () => {
     expect(itemTooltip(shown).slice(-3)).toEqual([
-      "+3 Fire Damage",
-      "+6 Cold Damage",
-      "+12 Lightning Damage",
+      "+2–5 Fire Damage",
+      "+6–9 Cold Damage",
+      "+12–20 Lightning Damage",
     ]);
     expect(itemTooltipElements(shown).slice(-3)).toEqual([
       "fire",

@@ -170,7 +170,7 @@ const touch = (type, id, x, y) => canvas.dispatchEvent(new PointerEvent(type, {
 - **The stick**: `pointerdown` in the stick zone, `pointermove` by up to the stick's reach (about 60 px) in the walk direction, `pointerup` to let go.
 - **Buttons**: `pointerdown` on the button holds it until `pointerup`.
 - **Run timed sequences in one `javascript_tool`** (await a timeout between events), then screenshot. A tool round trip lasts seconds, and Monsters keep hitting meanwhile.
-- **A `setPointerCapture` error in the dev overlay** comes from dispatched touches outside the controls, which have no real pointer. It is no game bug.
+- **A `setPointerCapture` error in the dev overlay** comes from dispatched touches outside the controls, which have no real pointer. It is no game bug, but it throws before the pointer records the press, so a dispatched tap on the World walks nothing and raises no Click Marker. To test World taps, first stub both: `canvas.setPointerCapture = canvas.releasePointerCapture = () => {}`.
 - **From Town to Monsters**: start beside a pack with a `fight` Entry (see Start in an Area).
 
 ## Deploys

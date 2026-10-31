@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   acceptPendingPoints,
   addPendingPoint,
@@ -728,6 +728,10 @@ describe("Pending Attribute Points and the Save", () => {
 });
 
 describe("heroSheet's Resistance lines", () => {
+  afterEach(() => {
+    delete RESISTANCE_PENALTIES[2];
+  });
+
   const wearingIn = (map: object, ...values: number[]) =>
     createWorld({
       areas: { town: map },
@@ -799,16 +803,10 @@ describe("heroSheet's Resistance lines", () => {
       properties: [{ name: "act", type: "int", value: 2 }],
     };
     RESISTANCE_PENALTIES[2] = 30;
-    try {
-      expect(lines(wearingIn(actTwo, 30, 30, 30))[1].value).toBe("60%");
-      expect(lines(wearingIn(actTwo, 20))[1].value).toBe("-10%");
-      expect(lines(wearingIn(actTwo, 50, 50, 10))[1].value).toBe(
-        "75% (capped)",
-      );
-      expect(lines(wearingIn(actTwo, 50, 30, 25))[1].value).toBe("75%");
-    } finally {
-      delete RESISTANCE_PENALTIES[2];
-    }
+    expect(lines(wearingIn(actTwo, 30, 30, 30))[1].value).toBe("60%");
+    expect(lines(wearingIn(actTwo, 20))[1].value).toBe("-10%");
+    expect(lines(wearingIn(actTwo, 50, 50, 10))[1].value).toBe("75% (capped)");
+    expect(lines(wearingIn(actTwo, 50, 30, 25))[1].value).toBe("75%");
   });
 
   it("fit the desktop panel and the Compact Layout", () => {

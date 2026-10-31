@@ -62,7 +62,7 @@ export function landDamage(
 }
 
 /** A hit's whole damage with no Resistance, for what has none to give. */
-export function totalOf(damage: Damage): number {
+export function unresistedTotal(damage: Damage): number {
   return landDamage(damage).total;
 }
 

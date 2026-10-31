@@ -339,6 +339,33 @@ describe("the panels in the Compact Layout", () => {
     );
   });
 
+  it.each(
+    PHONES,
+  )("keep every Inventory cell, Equipment slot and Belt cell at least 20 px square on $width×$height", (size) => {
+    // Neighbouring cells meet on one line by the halfway rule, so a cell's
+    // Touch hit area is the cell as drawn: this is the floor.
+    const viewport = viewportOf(size);
+    for (const rows of BELT_ROWS) {
+      const layout = inventoryPanelLayout(viewport, rows);
+      const targets: [string, Rect][] = [
+        ["cell", { x: 0, y: 0, w: layout.cell, h: layout.cell }],
+        ...EQUIPMENT_SLOTS.map(
+          (slot) => [slot, layout.slots[slot]] as [string, Rect],
+        ),
+        ...layout.belt.flatMap((cells, column) =>
+          cells.map(
+            (rect, row) => [`Belt ${column},${row}`, rect] as [string, Rect],
+          ),
+        ),
+      ];
+      for (const [name, rect] of targets) {
+        const label = `${name}, ${rows} Belt rows`;
+        expect(rect.w, label).toBeGreaterThanOrEqual(20);
+        expect(rect.h, label).toBeGreaterThanOrEqual(20);
+      }
+    }
+  });
+
   it("draws the Inventory's cells no bigger than native size on a roomy phone", () => {
     const viewport = viewportOf({ width: 844, height: 390 });
 

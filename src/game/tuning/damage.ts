@@ -1,3 +1,5 @@
+import type { Bonus } from "./items";
+
 /** Every Damage Type: Physical and the three Elements. */
 export const DAMAGE_TYPES = ["physical", "fire", "cold", "lightning"] as const;
 
@@ -7,7 +9,33 @@ export type DamageType = (typeof DAMAGE_TYPES)[number];
 /** The Elements: every Damage Type but Physical. */
 export const ELEMENTS = ["fire", "cold", "lightning"] as const;
 
+/** One of the Elements. */
 export type Element = (typeof ELEMENTS)[number];
+
+/**
+ * Per Element: its display name and the Bonuses that guard against it
+ * (`resistanceBonus`) and add flat damage of it (`damageBonus`).
+ */
+export const ELEMENT_INFO = {
+  fire: {
+    name: "Fire",
+    resistanceBonus: "fireResistance",
+    damageBonus: "fireDamage",
+  },
+  cold: {
+    name: "Cold",
+    resistanceBonus: "coldResistance",
+    damageBonus: "coldDamage",
+  },
+  lightning: {
+    name: "Lightning",
+    resistanceBonus: "lightningResistance",
+    damageBonus: "lightningDamage",
+  },
+} as const satisfies Record<
+  Element,
+  { name: string; resistanceBonus: Bonus; damageBonus: Bonus }
+>;
 
 /**
  * How a hit's damage splits over Damage Types, each a share of the whole;

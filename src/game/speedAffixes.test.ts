@@ -26,8 +26,8 @@ describe("the speed Affixes", () => {
   it("read +N% attack speed and +N% walk speed in a tooltip", () => {
     const lines = (slot: "gloves" | "boots") =>
       itemTooltip(BELONGINGS.equipment[slot] ?? { type: "ring" }).slice(1);
-    expect(lines("gloves")).toContain("+10% attack speed");
-    expect(lines("boots")).toContain("+17% walk speed");
+    expect(lines("gloves")).toContain("+10% Attack Speed");
+    expect(lines("boots")).toContain("+17% Walk Speed");
   });
 
   it("survive a Save round trip", () => {

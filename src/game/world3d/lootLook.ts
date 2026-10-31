@@ -58,6 +58,8 @@ export const LOOT_LOOKS: Record<ItemType, Look> = {
   chainBoots: { model: GEM, scale: 1.2, lay: [0, 0, 0], tint: null },
   buckler: { model: GEM, scale: 1.2, lay: [0, 0, 0], tint: null },
   towerShield: { model: GEM, scale: 1.2, lay: [0, 0, 0], tint: null },
+  boneWand: { model: GEM, scale: 1.2, lay: [0, 0, 0], tint: null },
+  yewWand: { model: GEM, scale: 1.2, lay: [0, 0, 0], tint: null },
   ring: { model: GEM, scale: 1, lay: [0, 0, 0], tint: null },
   amulet: { model: GEM, scale: 1.3, lay: [0, 0, 0], tint: null },
   sash: { model: GEM, scale: 1.1, lay: [0, 0, 0], tint: null },

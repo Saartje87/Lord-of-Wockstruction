@@ -42,6 +42,8 @@ export const valueTuning: {
     chainBoots: 80,
     buckler: 70,
     towerShield: 130,
+    boneWand: 60,
+    yewWand: 110,
     ring: 60,
     amulet: 80,
     sash: 30,

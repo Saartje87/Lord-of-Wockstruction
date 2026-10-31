@@ -13,7 +13,7 @@ import { castButton } from "../input/pad";
 import { buttonsHeld, stickHeld, type TouchControls } from "../input/touch";
 import {
   type FullscreenChoice,
-  type HeroState,
+  type HeroPoints,
   type MenuChoice,
   type Menus,
   noPendingPoints,
@@ -484,19 +484,11 @@ const INVENTORY_STYLE = {
  * lower, and all are `dimmed` opaque (0..1) during Death. `icon` is each
  * icon's shape about the button's centre, its lines `iconStroke` wide.
  * `pointsMark` is the Points mark: a gold disc of `radius` centred `inset`
- * in from the button's top-right corner, with a "+" `plus` across, its
- * lines `stroke` wide.
+ * in from the button's top-right corner, `fill`ed and rimmed in `rim`
+ * `rimWidth` wide, with a "+" `plus` across in `sign`, its lines `stroke`
+ * wide.
  */
 const PANEL_BUTTON_STYLE = {
-  pointsMark: {
-    radius: 8,
-    inset: 2,
-    plus: 8,
-    stroke: 2.5,
-    fill: 0xe8b830,
-    rim: 0x3a2a08,
-    sign: 0x2a1a04,
-  },
   frame: 1.5,
   bevel: 3,
   litBevel: 4,
@@ -532,6 +524,16 @@ const PANEL_BUTTON_STYLE = {
     colour: townPortalLook.colours.glow,
     coreColour: 0xb8ffc8,
     greyed: 0x8a8070,
+  },
+  pointsMark: {
+    radius: 8,
+    inset: 2,
+    rimWidth: 1,
+    plus: 8,
+    stroke: 2.5,
+    fill: 0xe8b830,
+    rim: 0x3a2a08,
+    sign: 0x2a1a04,
   },
 };
 /**
@@ -2171,17 +2173,15 @@ function panelButtonsView(activeInput: Readonly<ActiveInput>) {
     layer,
     tooltipLayer,
     /**
-     * `hovered` is the Panel button or Town Portal button under the cursor,
-     * if any.
+     * `hero` says whether the Hero lies dead or is in Town, and holds the
+     * unspent Attribute Points (the Hero button's Points mark counts those
+     * not yet placed as Pending) and Skill Points. `hovered` is the Panel
+     * button or Town Portal button under the cursor, if any.
      */
     draw(
       screen: Viewport,
       menus: Menus,
-      hero: HeroState & {
-        inTown: boolean;
-        attributePoints: number;
-        skillPoints: number;
-      },
+      hero: HeroPoints & { inTown: boolean },
       hovered: Panel | "townPortal" | null,
     ) {
       const { buttons, townPortal } = panelButtonsLayout(screen);
@@ -2189,7 +2189,8 @@ function panelButtonsView(activeInput: Readonly<ActiveInput>) {
       graphics.clear();
       tooltipBox.clear();
       tooltipText.visible = false;
-      for (const shown of panelButtonsSheet(menus, hero)) {
+      const sheet = panelButtonsSheet(menus, hero);
+      for (const shown of sheet) {
         const rect = buttons[shown.panel];
         const alpha = shown.dimmed ? look.dimmed : 1;
         const edge = shown.lit ? style.skillEdge : style.edge;
@@ -2216,22 +2217,6 @@ function panelButtonsView(activeInput: Readonly<ActiveInput>) {
           alpha,
           scale,
         );
-        if (shown.points) {
-          const mark = atUiScale(look.pointsMark, scale);
-          const cx = rect.x + rect.w - mark.inset;
-          const cy = rect.y + mark.inset;
-          const half = mark.plus / 2;
-          graphics
-            .circle(cx, cy, mark.radius)
-            .fill({ color: look.pointsMark.fill, alpha })
-            .stroke({ color: look.pointsMark.rim, width: 1, alpha });
-          graphics
-            .moveTo(cx - half, cy)
-            .lineTo(cx + half, cy)
-            .moveTo(cx, cy - half)
-            .lineTo(cx, cy + half)
-            .stroke({ color: look.pointsMark.sign, width: mark.stroke, alpha });
-        }
         if (shown.panel === hovered) {
           tooltipText.text = shown.tooltip;
           tooltipText.visible = true;
@@ -2240,6 +2225,33 @@ function panelButtonsView(activeInput: Readonly<ActiveInput>) {
             panelButtonTooltipRect(screen, shown.panel, size, gap),
           );
         }
+      }
+      // After all the buttons, so that no later button's fill covers a mark
+      // overhanging the edge of its own.
+      const mark = atUiScale(look.pointsMark, scale);
+      for (const shown of sheet) {
+        if (!shown.points) continue;
+        const rect = buttons[shown.panel];
+        const alpha = shown.dimmed ? look.dimmed : 1;
+        const centre = {
+          x: rect.x + rect.w - mark.inset,
+          y: rect.y + mark.inset,
+        };
+        const reach = mark.plus / 2;
+        graphics
+          .circle(centre.x, centre.y, mark.radius)
+          .fill({ color: look.pointsMark.fill, alpha })
+          .stroke({
+            color: look.pointsMark.rim,
+            width: mark.rimWidth,
+            alpha,
+          });
+        graphics
+          .moveTo(centre.x - reach, centre.y)
+          .lineTo(centre.x + reach, centre.y)
+          .moveTo(centre.x, centre.y - reach)
+          .lineTo(centre.x, centre.y + reach)
+          .stroke({ color: look.pointsMark.sign, width: mark.stroke, alpha });
       }
       const portal = townPortalButtonSheet(hero, activeInput.way);
       const alpha = portal.greyed ? look.dimmed : 1;

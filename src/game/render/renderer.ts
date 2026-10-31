@@ -2010,7 +2010,7 @@ function touchControlsView(
 
   return {
     layer,
-    draw(screen: Viewport, world: World, menus: Menus, itemInReach: boolean) {
+    draw(screen: Viewport, world: World, menus: Menus, pickUpReady: boolean) {
       layer.visible = touchControlsShown(
         activeInput.way,
         menus,
@@ -2050,7 +2050,7 @@ function touchControlsView(
           )
           .fill({ color: style.edge, alpha: style.edgeAlpha });
       }
-      attackLabel.text = itemInReach ? "Pick up" : "Attack";
+      attackLabel.text = pickUpReady ? "Pick up" : "Attack";
       attackLabel.visible = !layout.pauseOnly;
       for (const label of skillLabels.values()) {
         label.visible = !layout.pauseOnly;

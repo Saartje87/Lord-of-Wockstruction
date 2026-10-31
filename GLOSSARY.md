@@ -529,7 +529,7 @@ The Monster that auto-aim has picked for the Hero when there is no cursor, with 
 _Avoid_: Lock-on, focus (that's in panels), aim
 
 **Item in Reach**:
-The nearest Ground Item close enough to the Hero for a controller's A or the attack button to pick up, when there is no Target; a Target always comes first. There is none while a panel is open, during Death, or with mouse and keyboard as the Active Input. It is shown as a hovered Item is, and stays the Item in Reach even when it won't fit, the pickup then leaving it lying as a click on it would.
+The nearest Ground Item close enough to the Hero for a controller's A or the attack button to pick up, when there is no Target; a Target always comes first, and so does an NPC within talking reach, which A talks to instead. There is none while a panel is open, during Death, or with mouse and keyboard as the Active Input. It is shown as a hovered Item is, and stays the Item in Reach even when it won't fit, the pickup then leaving it lying as a click on it would.
 _Avoid_: Target (that's a Monster), targeted Item, pickup target
 
 **Focus**:

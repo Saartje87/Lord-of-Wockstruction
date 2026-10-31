@@ -190,7 +190,7 @@ export function hideFocus(input: PadInput) {
 
 /**
  * Called once per frame, as `poll` is for the pointer. Returns the orders
- * for the sim and the Target, for the renderer to show.
+ * for the sim, the Target and the Item in Reach, for the renderer to show.
  *
  * The stick walks the Hero in the direction it points on screen, in tiles,
  * for as long as it is pushed past the dead zone; nothing once let go, which
@@ -261,9 +261,10 @@ export function pollPad(
   };
   const target = pickTarget(world, walk);
   const talk = target === null ? talkNear(world) : null;
-  const pickUp = target === null && talk === null ? pickUpNear(world) : null;
+  const reachableItem =
+    target === null && talk === null ? pickUpNear(world) : null;
   const action =
-    target !== null ? attack(target) : (talk ?? pickUpOrder(pickUp));
+    target !== null ? attack(target) : (talk ?? pickUpOrder(reachableItem));
   // The walk goes first, so an Attack or Cast after it in the same step
   // isn't cancelled by it; while a swing or cast roots the Hero, the sim
   // holds the walk back until it ends, so the Hero kites between them.
@@ -288,7 +289,7 @@ export function pollPad(
   if (snapshot.pressed.includes(TOWN_PORTAL_PAD_BUTTON)) {
     orders.push({ type: "OpenTownPortal" });
   }
-  return { ...none, orders, target, itemInReach: pickUp, presses };
+  return { ...none, orders, target, itemInReach: reachableItem, presses };
 }
 
 /**
@@ -428,5 +429,5 @@ function pickUpNear(world: World): ItemId | null {
     if (nearest && away >= nearest.away) continue;
     nearest = { id: item.id, away };
   }
-  return nearest && nearest.id;
+  return nearest?.id ?? null;
 }

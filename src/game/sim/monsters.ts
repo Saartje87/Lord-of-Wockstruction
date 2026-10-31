@@ -1,3 +1,4 @@
+import { graveWockingtonTuning } from "../tuning/graveWockington";
 import {
   experienceDropOff,
   type MeleeTuning,
@@ -141,7 +142,11 @@ function grownStat(
 
 /** A Monster's max Life at its Monster Level. */
 export function monsterMaxLife(monster: MonsterOfLevel): number {
-  return uniquely(monster, grownStat(monster, "life"), uniqueTuning.life);
+  const factor =
+    monster.type === "grave_wockington"
+      ? graveWockingtonTuning.life
+      : uniqueTuning.life;
+  return uniquely(monster, grownStat(monster, "life"), factor);
 }
 
 /** The least and most damage a Monster's hit deals at its Monster Level. */

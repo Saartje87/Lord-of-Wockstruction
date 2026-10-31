@@ -254,7 +254,7 @@ describe("bossReport", () => {
   it("gives the Act Boss's Unique numbers, Gravefire's and his waves per stage at an Area Level", () => {
     const report = bossReport("grave_wockington", "Grave Wockington", 11);
 
-    // 150 grown 25% a Level to Level 11 (525), times the Unique 4.
+    // 150 grown 25% a Level to Level 11 (525), times his own 4.
     expect(report.maxLife).toBe(2_100);
     expect(report.damage[0]).toBeGreaterThan(0);
     expect(report.gravefire.recoveryMs).toHaveLength(2);
@@ -276,7 +276,9 @@ describe("uniqueReport", () => {
       .areas[0];
     const report = uniqueReport("wockbrute", "Bruckle", 2);
 
-    expect(report.maxLife).toBe(ordinary.maxLife * uniqueTuning.life);
+    expect(report.maxLife).toBe(
+      Math.round(ordinary.maxLife * uniqueTuning.life),
+    );
     expect(report.experience).toBe(
       ordinary.experience * uniqueTuning.experience,
     );

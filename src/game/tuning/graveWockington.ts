@@ -2,10 +2,16 @@ import type { Rarity } from "./items";
 import type { MonsterType } from "./monsters";
 
 /**
- * Grave Wockington's Skeleton waves, in human units. The sim converts it to
+ * Grave Wockington's own tuning beside his type's: his Life and Skeleton
+ * waves, in human units. The sim converts it to
  * steps once. First tuning pass (T513).
  */
 export type GraveWockingtonTuning = {
+  /**
+   * Times his type's max Life at the same Monster Level, in place of a
+   * Unique Monster's (`uniqueTuning.life`).
+   */
+  life: number;
   /** How long after he first goes after the Hero until his first wave (ms). */
   firstWaveMs: number;
   /** How long after a wave until the next (ms), counted while he is after the Hero. */
@@ -40,6 +46,7 @@ export type GraveWockingtonTuning = {
 };
 
 export const graveWockingtonTuning: GraveWockingtonTuning = {
+  life: 4,
   itemDrops: [["rare"], ["rare"], ["magic", "rare"]],
   firstWaveMs: 2000,
   waveEveryMs: 8000,

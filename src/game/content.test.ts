@@ -10,6 +10,7 @@ import { encodeSave, parseSave, saveOf } from "./save";
 import { type Area, type Exit, isWalkable, type Spawn } from "./sim/area";
 import { type MonsterOfLevel, monsterExperience } from "./sim/monsters";
 import { canReach, findPath } from "./sim/path";
+import { STEPS_PER_SECOND } from "./sim/units";
 import { validateActs, validateQuests } from "./sim/validate";
 import { distance, type Vec } from "./sim/vec";
 import {
@@ -1333,11 +1334,13 @@ describe('the shipped "Bog Off" Quest', () => {
 });
 
 /**
- * Ticks the Spa Day test gives a New Hero to kill Bruckle: his Life is a
- * Unique Wockbrute's, many times a Level 1 Hero's hit, which takes far longer
- * than the 6000 ticks that fell the Ossuary's boss.
+ * Ticks (80 s) the Spa Day tests give a Hero to kill Bruckle: past the 45–60 s
+ * his fight is tuned to, close to the 6000 ticks that fell the Ossuary's boss.
  */
-const UNIQUE_KILL_TICKS = 30_000;
+const UNIQUE_KILL_TICKS = 4_800;
+
+/** The reference Hero for Bruckle's fight: one just arrived at the Spa. */
+const SPA_ARRIVAL_PROGRESS = { ...FRESH_PROGRESS, level: 3, experience: 1_500 };
 
 describe('the shipped "Spa Day" Quest', () => {
   const inSpa = (progress = FRESH_PROGRESS) =>
@@ -1348,6 +1351,37 @@ describe('the shipped "Spa Day" Quest', () => {
       start: { area: "spa", entry: "start" },
       progress,
     });
+
+  /**
+   * Leaves Bruckle alone in the Spa with the Hero beside him, kept alive,
+   * Attacking him every 120 ticks until he dies or `UNIQUE_KILL_TICKS` pass:
+   * the ticks it took and the events on the way.
+   */
+  function fightBruckleAlone(world: World) {
+    const boss = world.monsters.find((monster) => monster.unique === "Bruckle");
+    if (!boss) throw new Error("no Bruckle");
+    expect(boss.type).toBe("wockbrute");
+    world.monsters = [boss];
+    world.hero.pos = { x: boss.pos.x - 1.2, y: boss.pos.y };
+    world.hero.prevPos = { ...world.hero.pos };
+    const events: SimEvent[] = [];
+    let ticks = 0;
+    while (ticks < UNIQUE_KILL_TICKS && world.monsters.includes(boss)) {
+      const orders: Order[] =
+        ticks % 120 === 0 ? [{ type: "Attack", monster: boss.id }] : [];
+      events.push(...step(world, orders));
+      world.hero.life = 1_000_000;
+      ticks++;
+    }
+    return { ticks, events };
+  }
+
+  it("takes a Hero just arrived at the Spa 45–60 s of steady melee to kill Bruckle", () => {
+    const { ticks } = fightBruckleAlone(inSpa(SPA_ARRIVAL_PROGRESS));
+
+    expect(ticks / STEPS_PER_SECOND).toBeGreaterThanOrEqual(45);
+    expect(ticks / STEPS_PER_SECOND).toBeLessThanOrEqual(60);
+  });
 
   /** Puts the Hero beside the NPC called `name`, in reach to talk. */
   function beside(world: World, name: string) {
@@ -1370,27 +1404,9 @@ describe('the shipped "Spa Day" Quest', () => {
 
   it("is Ready once the Hero kills Bruckle, then Done at the Smith", () => {
     const world = inSpa();
-    const boss = world.monsters.find((monster) => monster.unique === "Bruckle");
-    if (!boss) throw new Error("no Bruckle");
-    expect(boss.type).toBe("wockbrute");
-    world.monsters = [boss];
-    world.hero.pos = { x: boss.pos.x - 1.2, y: boss.pos.y };
-    world.hero.prevPos = { ...world.hero.pos };
-    let ready = false;
-    for (
-      let i = 0;
-      i < UNIQUE_KILL_TICKS && world.monsters.includes(boss);
-      i++
-    ) {
-      const orders: Order[] =
-        i % 120 === 0 ? [{ type: "Attack", monster: boss.id }] : [];
-      for (const event of step(world, orders)) {
-        if (event.type === "QuestReady") ready = true;
-      }
-      world.hero.life = 1_000_000;
-    }
+    const { events } = fightBruckleAlone(world);
 
-    expect(ready).toBe(true);
+    expect(events.some((event) => event.type === "QuestReady")).toBe(true);
     expect(questOf(world, "spa-day").state).toBe("ready");
 
     const town = createWorld({

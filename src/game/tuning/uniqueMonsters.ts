@@ -3,8 +3,12 @@ import type { Rarity } from "./items";
 
 /** How much tougher a Unique Monster is than its Monster type, and what it drops. */
 export const uniqueTuning = {
-  /** Times its type's max Life at the same Monster Level. */
-  life: 4,
+  /**
+   * Times its type's max Life at the same Monster Level; the Act Boss has his
+   * own (`graveWockingtonTuning.life`). Tuned so a Hero just arrived at the
+   * Spa kills Bruckle in 45–60 s of steady melee (T552).
+   */
+  life: 1.4,
   /** Times its type's damage range at the same Monster Level. */
   damage: 1.5,
   /** Times its type's Attack Rating at the same Monster Level. */

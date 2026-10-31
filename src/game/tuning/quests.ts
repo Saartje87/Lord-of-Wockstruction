@@ -91,12 +91,13 @@ export const questTuning: Record<QuestId, QuestDefinition> = {
     reward: { type: "smithService" },
     lines: {
       notGiven:
-        "Something nasty has taken over the Spa. Kill it, and I'll put my best work into your gear.",
-      given: "The Spa is still overrun. Come back when it is quiet.",
-      ready: "The Spa is yours again! Let me show you what my hands can do.",
+        "A Wockbrute calls himself Bruckle and has taken over the Spa. Mud baths, he says. Kill him, and I'll put my best work into your gear.",
+      given:
+        "Bruckle still lounges in the Spa. Mind his wolves, and mind that Slam.",
+      ready: "Bruckle's bathed his last! Let me show you what my hands can do.",
       done: "Steel never lies. Mind your gear.",
     },
-    nextStep: "Kill the Unique Monster that has taken over the Spa.",
+    nextStep: "Kill Bruckle in the Spa.",
   },
   "act-boss": {
     name: "Wock the Dead",

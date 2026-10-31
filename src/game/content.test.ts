@@ -26,6 +26,7 @@ import {
 } from "./sim/world";
 import { ITEM_TYPES, itemOf } from "./tuning/items";
 import { type MonsterType, monsterTuning } from "./tuning/monsters";
+import { questTuning } from "./tuning/quests";
 import { pondsOf } from "./world3d/waterMeshes";
 
 // Building the World runs the loader's validation: a `start` Entry, Exits to
@@ -1283,7 +1284,7 @@ describe('the shipped "Spa Day" Quest', () => {
     world.hero.pos = { x: boss.pos.x - 1.2, y: boss.pos.y };
     world.hero.prevPos = { ...world.hero.pos };
     let ready = false;
-    for (let i = 0; i < 6000 && world.monsters.includes(boss); i++) {
+    for (let i = 0; i < 120_000 && world.monsters.includes(boss); i++) {
       const orders: Order[] =
         i % 120 === 0 ? [{ type: "Attack", monster: boss.id }] : [];
       for (const event of step(world, orders)) {
@@ -1364,13 +1365,74 @@ describe("the shipped Act 1's Main Path", () => {
     ]);
   });
 
-  it("names the Spa's Unique Monster as its map does", () => {
-    const spa = Object.values(shippedWorld().areas).find(
-      (area) => area.name === "spa",
-    );
-    expect(spa?.uniques.map((unique) => unique.name)).toEqual([
-      "Sir Soaks-a-Lot",
+  it("names the Spa's Unique Monster Bruckle, a Wockbrute", () => {
+    const spa = shippedWorld().areas.spa;
+    expect(spa.uniques.map((unique) => [unique.name, unique.monster])).toEqual([
+      ["Bruckle", "wockbrute"],
     ]);
+  });
+
+  it("stands Bruckle at the far end of the Spa from the Cozy Plains entry", () => {
+    const spa = shippedWorld().areas.spa;
+    const bruckle = spa.uniques[0].pos;
+    const entry = spa.entries["from-cozy-plains"];
+    const far = Math.hypot(bruckle.x - entry.x, bruckle.y - entry.y);
+    const farthest = Math.max(
+      ...spa.spawns.map((s) =>
+        Math.hypot(s.pos.x - entry.x, s.pos.y - entry.y),
+      ),
+    );
+
+    expect(far).toBeGreaterThanOrEqual(0.8 * farthest);
+  });
+
+  it("stands 5 ordinary Wockwolves around Bruckle, beside the Spa's other Monsters", () => {
+    const spa = shippedWorld().areas.spa;
+    const bruckle = spa.uniques[0].pos;
+    const guards = spa.spawns.filter(
+      (s) =>
+        s.monster === "wockwolf" &&
+        Math.hypot(s.pos.x - bruckle.x, s.pos.y - bruckle.y) <= 3,
+    );
+
+    expect(guards.map((s) => s.count)).toEqual([5]);
+    expect(new Set(spa.spawns.map((s) => s.monster))).toEqual(
+      new Set(["skeleton", "zombie", "wockwolf", "bog_spitter"]),
+    );
+  });
+
+  it("spawns Bruckle as a Unique Wockbrute with ordinary Wockwolves near him", () => {
+    const world = createWorld({
+      areas,
+      tilesets,
+      seed: 1,
+      start: { area: "spa", entry: "start" },
+    });
+    const bruckle = world.monsters.find((m) => m.unique === "Bruckle");
+    if (!bruckle) throw new Error("no Bruckle");
+    const guards = world.monsters.filter(
+      (m) =>
+        m.type === "wockwolf" &&
+        Math.hypot(m.pos.x - bruckle.pos.x, m.pos.y - bruckle.pos.y) <= 6,
+    );
+
+    expect(bruckle.type).toBe("wockbrute");
+    expect(guards.length).toBeGreaterThanOrEqual(5);
+    expect(guards.every((m) => m.unique === null)).toBe(true);
+  });
+
+  it('names Bruckle in "Spa Day"\'s lines and next step, keeping its Done line', () => {
+    const quest = questTuning["spa-day"];
+
+    expect(quest.lines).toEqual({
+      notGiven:
+        "A Wockbrute calls himself Bruckle and has taken over the Spa. Mud baths, he says. Kill him, and I'll put my best work into your gear.",
+      given:
+        "Bruckle still lounges in the Spa. Mind his wolves, and mind that Slam.",
+      ready: "Bruckle's bathed his last! Let me show you what my hands can do.",
+      done: "Steel never lies. Mind your gear.",
+    });
+    expect(quest.nextStep).toBe("Kill Bruckle in the Spa.");
   });
 });
 
@@ -1476,7 +1538,7 @@ describe("Grave Wockington in the shipped Ossuary", () => {
     world.hero.pos = { x: boss.pos.x - 1.2, y: boss.pos.y };
     world.hero.prevPos = { ...world.hero.pos };
     const events: SimEvent[] = [];
-    for (let i = 0; i < 6000 && world.monsters.includes(boss); i++) {
+    for (let i = 0; i < 120_000 && world.monsters.includes(boss); i++) {
       const orders: Order[] =
         i % 120 === 0 ? [{ type: "Attack", monster: boss.id }] : [];
       events.push(...step(world, orders));

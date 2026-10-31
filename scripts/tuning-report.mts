@@ -4,7 +4,7 @@
  * Experience to the next, the kills of own-Level Monsters it takes and the
  * Gold they drop in the Areas played at that Level, and
  * per Combat Area in `content/areas/` that places it, its Area Level and the
- * Monster there. Then each cast Skill's numbers per Skill Level, with Synergies
+ * Monster there, and each Unique Monster's numbers. Then each cast Skill's numbers per Skill Level, with Synergies
  * and Passive Skills, and the casts it takes to kill each kind of Monster in
  * each Combat Area (`skillReport` in `src/game/sim/skillReport.ts`).
  *
@@ -24,9 +24,9 @@ const load = async <T,>(path: string) =>
   (await runnerImport<T>(path, { configFile: false, logLevel: "error" }))
     .module;
 const { loadArea } = await load<typeof AreaModule>("./src/game/sim/area.ts");
-const { bossReport, tuningReport } = await load<typeof ReportModule>(
-  "./src/game/sim/tuningReport.ts",
-);
+const { bossReport, tuningReport, uniqueReport } = await load<
+  typeof ReportModule
+>("./src/game/sim/tuningReport.ts");
 const { skillReport } = await load<typeof SkillReportModule>(
   "./src/game/sim/skillReport.ts",
 );
@@ -110,6 +110,49 @@ for (const [type, { name }] of Object.entries(monsterTuning)) {
         row.defense,
         grouped(row.experience),
       ]),
+    ),
+  );
+  console.log();
+}
+
+const uniqueRows = areas.flatMap((area) =>
+  area.areaLevel === null
+    ? []
+    : area.uniques.map((unique) => ({
+        area: area.name,
+        areaLevel: area.areaLevel as number,
+        unique,
+      })),
+);
+if (uniqueRows.length > 0) {
+  console.log("# Unique Monsters, with the Unique multipliers\n");
+  console.log(
+    table(
+      [
+        "Unique",
+        "Monster",
+        "Combat Area",
+        "Area Level",
+        "Max Life",
+        "Damage",
+        "Attack Rating",
+        "Defense",
+        "Experience",
+      ],
+      uniqueRows.map(({ area, areaLevel, unique }) => {
+        const row = uniqueReport(unique.monster as MonsterType, areaLevel);
+        return [
+          unique.name,
+          monsterTuning[unique.monster as MonsterType].name,
+          area,
+          areaLevel,
+          grouped(row.maxLife),
+          `${row.damage[0]}–${row.damage[1]}`,
+          row.attackRating,
+          row.defense,
+          grouped(row.experience),
+        ];
+      }),
     ),
   );
   console.log();

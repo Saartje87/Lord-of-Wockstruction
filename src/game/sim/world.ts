@@ -1157,6 +1157,16 @@ export function isInCombat(world: World): boolean {
   );
 }
 
+/** Whether `monster` is the Area's Act Boss. */
+function isActBoss(world: World, monster: Monster): boolean {
+  const { actBoss } = world.areas[world.areaName];
+  return (
+    !!actBoss &&
+    monster.unique === actBoss.name &&
+    monster.type === actBoss.monster
+  );
+}
+
 /** What the Boss bar shows: the Act Boss's name, Life and maximum Life. */
 export type BossBar = { name: string; life: number; maxLife: number };
 
@@ -1167,14 +1177,11 @@ export type BossBar = { name: string; life: number; maxLife: number };
  */
 export function bossBarOf(world: World): BossBar | null {
   const { actBoss } = world.areas[world.areaName];
-  if (!actBoss) return null;
   const boss = world.monsters.find(
     (monster) =>
-      monster.unique === actBoss.name &&
-      monster.type === actBoss.monster &&
-      AFTER_HERO.includes(monster.state),
+      isActBoss(world, monster) && AFTER_HERO.includes(monster.state),
   );
-  if (!boss) return null;
+  if (!actBoss || !boss) return null;
   return {
     name: actBoss.name,
     life: boss.life,
@@ -2852,6 +2859,8 @@ function curse(
     skillPower(skillLevelsOf(world), skill),
   );
   for (const monster of world.monsters) {
+    // Dread's Curse doesn't take hold on the Act Boss: he never flees.
+    if (effect.kind === "dread" && isActBoss(world, monster)) continue;
     if (distance(monster.pos, target) <= radius) {
       const was = monster.curse && skillTuning[monster.curse.skill].effect;
       monster.curse = { skill, left };
@@ -3517,24 +3526,21 @@ function hurt(world: World, monster: Monster, events: SimEvent[]) {
       killExperience(monster, world.hero.progress.level),
       events,
     );
-    const { actBoss, act } = world.areas[world.areaName];
-    const isActBoss =
-      !!actBoss &&
-      monster.unique === actBoss.name &&
-      monster.type === actBoss.monster;
+    const { act } = world.areas[world.areaName];
+    const isBoss = isActBoss(world, monster);
     rollDrop(
       world,
       monster.pos,
       events,
       monster.unique !== null,
       monster.monsterLevel,
-      isActBoss ? graveWockingtonTuning.itemDrops : uniqueTuning.itemDrops,
+      isBoss ? graveWockingtonTuning.itemDrops : uniqueTuning.itemDrops,
     );
     if (monster.unique !== null) {
       const { name } = world.areas[world.areaName];
       noteDeed(world, { type: "uniqueKilled", area: name }, events);
     }
-    if (isActBoss && act !== null) {
+    if (isBoss && act !== null) {
       const completes = actBossQuestOpen(world.hero.progress.quests, act);
       noteDeed(world, { type: "actBossKilled", act }, events);
       if (completes) events.push({ type: "ActCompleted", act });

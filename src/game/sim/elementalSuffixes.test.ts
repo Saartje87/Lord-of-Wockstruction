@@ -306,8 +306,8 @@ describe("the Save of the elemental damage Suffixes", () => {
         rareName: "Doom Edge",
         affixes: [
           { kind: "brutality", grade: 0, value: 2 },
-          { kind: "fireDamage", grade: 1, value: 6 },
-          { kind: "lightningDamage", grade: 2, value: 12 },
+          { kind: "fireDamage", grade: 1, value: 6, high: 10 },
+          { kind: "lightningDamage", grade: 2, value: 12, high: 20 },
         ],
       },
     },

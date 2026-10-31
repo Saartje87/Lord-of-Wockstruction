@@ -6,6 +6,7 @@ import {
   type AffixSide,
   affixOf,
   type Bonus,
+  hasDamageRange,
   type ItemType,
   isPotion,
   itemOf,
@@ -14,8 +15,17 @@ import {
 } from "../tuning/items";
 import { type Rng, random, randomInt } from "./random";
 
-/** One rolled Affix: its kind, the index of its grade and the value it rolled. */
-export type RolledAffix = { kind: AffixKind; grade: number; value: number };
+/**
+ * One rolled Affix: its kind, the index of its grade and the value it rolled.
+ * An Affix that adds a damage range rolls `value` as its low end and `high`
+ * as its high end; no other has a `high`.
+ */
+export type RolledAffix = {
+  kind: AffixKind;
+  grade: number;
+  value: number;
+  high?: number;
+};
 
 /** What sets an Item of a type apart from the rest of its type. */
 export type ItemRoll = {
@@ -50,7 +60,11 @@ function kindsFor(type: ItemType, side: AffixSide): AffixKind[] {
   });
 }
 
-/** Rolls one Affix of `kind` among the grades `monsterLevel` reaches. */
+/**
+ * Rolls one Affix of `kind` among the grades `monsterLevel` reaches. An
+ * Affix with a damage range takes one draw more, for its high end, so a drop
+ * with none rolls the seeded sequence it always did.
+ */
 function rollAffix(
   rng: Rng,
   kind: AffixKind,
@@ -68,11 +82,12 @@ function rollAffix(
         pool.map((p) => p.grade.weight),
       )
     ];
-  return {
-    kind,
-    grade: picked.index,
-    value: randomInt(rng, picked.grade.range),
-  };
+  const value = randomInt(rng, picked.grade.range);
+  if (!hasDamageRange(kind)) return { kind, grade: picked.index, value };
+  // The high end is never below the low end.
+  const [highMin, highMax] = picked.grade.highRange ?? picked.grade.range;
+  const high = randomInt(rng, [Math.max(highMin, value), highMax]);
+  return { kind, grade: picked.index, value, high };
 }
 
 /**
@@ -177,12 +192,20 @@ export function itemTitle(item: Titled): string {
     .join(" ");
 }
 
-/** What an Affix gives: the Bonus and how much. */
+/**
+ * What an Affix gives: the Bonus and how much, `high` being `amount` but
+ * for a damage range.
+ */
 export function affixBonus(affix: RolledAffix): {
   bonus: Bonus;
   amount: number;
+  high: number;
 } {
-  return { bonus: affixOf(affix.kind).bonus, amount: affix.value };
+  return {
+    bonus: affixOf(affix.kind).bonus,
+    amount: affix.value,
+    high: affix.high ?? affix.value,
+  };
 }
 
 /** The sum of the Affixes' value giving `bonus`. */
@@ -197,6 +220,23 @@ export function affixTotal(
   return total;
 }
 
+/**
+ * How much more the Affixes' high ends give of `bonus` than their low ends,
+ * summed: 0 for an Affix with one value.
+ */
+export function affixSpread(
+  affixes: readonly RolledAffix[] | undefined,
+  bonus: Bonus,
+): number {
+  let total = 0;
+  for (const affix of affixes ?? []) {
+    if (affixOf(affix.kind).bonus === bonus) {
+      total += (affix.high ?? affix.value) - affix.value;
+    }
+  }
+  return total;
+}
+
 /** Whether `rarity` is a Rarity there is. */
 export function isRarity(rarity: unknown): rarity is Rarity {
   return Object.hasOwn(rarityTuning.affixCounts, rarity as string);
@@ -205,8 +245,10 @@ export function isRarity(rarity: unknown): rarity is Rarity {
 /**
  * Whether `rarity` and `affixes` could be an Item of `type`'s: the count
  * fits the Rarity, with no Potion above Normal, a Rare name on a Rare Item
- * only, at most one Prefix and one Suffix (two of each on a Rare Item), no kind twice, every kind known and suiting the type, every grade
- * there and every value a whole number inside its grade's range.
+ * only, at most one Prefix and one Suffix (two of each on a Rare Item), no
+ * kind twice, every kind known and suiting the type, every grade there and
+ * every value a whole number inside its grade's range, a damage range's
+ * high end inside its own range and not below the low end.
  */
 export function isValidRoll(
   type: ItemType,
@@ -241,6 +283,17 @@ export function isValidRoll(
     if (!rolled || !Number.isInteger(value)) return false;
     const [min, max] = rolled.range;
     if ((value as number) < min || (value as number) > max) return false;
+    const { high } = affix as Record<string, unknown>;
+    if (!hasDamageRange(affixKind as AffixKind)) {
+      if (high !== undefined) return false;
+    } else {
+      const [highMin, highMax] = rolled.highRange ?? rolled.range;
+      if (!Number.isInteger(high)) return false;
+      if ((high as number) < highMin || (high as number) > highMax) {
+        return false;
+      }
+      if ((high as number) < (value as number)) return false;
+    }
   }
   return true;
 }

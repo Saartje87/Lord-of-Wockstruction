@@ -163,7 +163,7 @@ const ELEMENT_NAMES: Record<Element, string> = {
 /** A Resistance line's value: the effective Resistance, marked when the total is over the cap. */
 function resistanceText(world: World, element: Element): string {
   const { total, effective } = heroResistance(world, element);
-  return total > effective && effective >= MAXIMUM_RESISTANCE
+  return total > MAXIMUM_RESISTANCE
     ? `${effective}% (capped)`
     : `${effective}%`;
 }

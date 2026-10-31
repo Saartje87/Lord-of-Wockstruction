@@ -22,6 +22,7 @@ import {
   step,
   type World,
 } from "../sim/world";
+import { RESISTANCE_PENALTIES } from "../tuning/damage";
 import { viewportOf } from "../viewport";
 import {
   heroPanelHitAt,
@@ -700,9 +701,9 @@ describe("Pending Attribute Points and the Save", () => {
 });
 
 describe("heroSheet's Resistance lines", () => {
-  const wearing = (...values: number[]) =>
+  const wearingIn = (map: object, ...values: number[]) =>
     createWorld({
-      areas: { town },
+      areas: { town: map },
       seed: 1,
       belongings: {
         inventory: [],
@@ -738,6 +739,7 @@ describe("heroSheet's Resistance lines", () => {
         belt: emptyBelt(),
       },
     });
+  const wearing = (...values: number[]) => wearingIn(town, ...values);
   const lines = (w: World) =>
     heroSheet(w)
       .derived.filter((d) => d.element)
@@ -762,6 +764,24 @@ describe("heroSheet's Resistance lines", () => {
     expect(lines(wearing(20, 20))[1].value).toBe("40%");
     expect(lines(wearing(25, 25, 25))[1].value).toBe("75%");
     expect(lines(wearing(30, 30, 30))[1].value).toBe("75% (capped)");
+  });
+
+  it("show the Resistance after the Resistance Penalty, (capped) only when what is left is above 75%", () => {
+    const actTwo = {
+      ...town,
+      properties: [{ name: "act", type: "int", value: 2 }],
+    };
+    RESISTANCE_PENALTIES[2] = 30;
+    try {
+      expect(lines(wearingIn(actTwo, 30, 30, 30))[1].value).toBe("60%");
+      expect(lines(wearingIn(actTwo, 20))[1].value).toBe("-10%");
+      expect(lines(wearingIn(actTwo, 50, 50, 10))[1].value).toBe(
+        "75% (capped)",
+      );
+      expect(lines(wearingIn(actTwo, 50, 30, 25))[1].value).toBe("75%");
+    } finally {
+      delete RESISTANCE_PENALTIES[2];
+    }
   });
 
   it("fit the desktop panel and the Compact Layout", () => {

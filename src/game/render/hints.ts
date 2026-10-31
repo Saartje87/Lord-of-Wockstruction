@@ -179,7 +179,8 @@ const SKILL_ACTIONS: Record<
  * they add now, the Passive's lines, and what holds it back (its
  * Prerequisites and its Level). Then, but for touch, how to spend a Skill
  * Point on it while one can be, and how to put it on the Skill Bar once
- * learned: lines about the Skill Tree's tile, left out `onSkillBar`.
+ * learned. Those two lines are about the Skill Tree's tile, so a Skill Bar
+ * slot's tooltip (`onSkillBar`) leaves them out.
  */
 export function skillTooltip(
   sheet: SkillSheet,

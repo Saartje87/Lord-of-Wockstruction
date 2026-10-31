@@ -124,8 +124,8 @@ export function skillBarSkillAt(
   screen: Viewport,
   point: Vec,
 ): { skill: Skill; slot: Rect } | null {
-  const hit = skillBarHitAt(screen, point);
-  const skill = hit && world.hero.progress.skillBar[hit.button.slot];
-  if (!hit || !skill) return null;
-  return { skill, slot: skillBarLayout(screen).slots[hit.button.slot] };
+  const { slots } = skillBarLayout(screen);
+  const slot = SKILL_BAR_SLOTS.find((name) => inside(slots[name], point));
+  const skill = slot && world.hero.progress.skillBar[slot];
+  return slot && skill ? { skill, slot: slots[slot] } : null;
 }

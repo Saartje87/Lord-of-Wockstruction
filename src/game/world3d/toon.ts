@@ -31,6 +31,8 @@ export const LOOKS = {
   stone: { saturation: 0.18, tint: 0x7e8cba },
   /** Town's dirt and paths: dusk light on earth, with its colour left. */
   dusk: { saturation: 0.6, tint: 0xbcc0e4 },
+  /** Outdoor dirt: warm earthy brown in daylight, with no evening blue. */
+  daylightDirt: { saturation: 1.6, tint: 0xd8a670, gain: 2 },
   /** Green trees and bushes: green kept, only dimmed to the dusk. */
   green: { saturation: 0.9, tint: 0xf0f6ec },
   /** Grass underfoot: fully green and undimmed, so it reads as day grass. */
@@ -63,6 +65,14 @@ export function lookOf(piece: string): Look {
     return LOOKS.stone;
   }
   return LOOKS.prop;
+}
+
+/**
+ * The look of a KayKit piece under the open sky: Halloween dirt is daylight
+ * dirt rather than dusk-lit as in Wockville, the rest looks as `lookOf` says.
+ */
+export function outdoorLookOf(piece: string): Look {
+  return piece === "halloween/floor_dirt" ? LOOKS.daylightDirt : lookOf(piece);
 }
 
 /**

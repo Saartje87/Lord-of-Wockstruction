@@ -27,6 +27,7 @@ import {
 import { ITEM_TYPES, itemOf } from "./tuning/items";
 import { type MonsterType, monsterTuning } from "./tuning/monsters";
 import { questTuning } from "./tuning/quests";
+import { LOOKS, outdoorLookOf } from "./world3d/toon";
 import { pondsOf } from "./world3d/waterMeshes";
 
 // Building the World runs the loader's validation: a `start` Entry, Exits to
@@ -747,6 +748,55 @@ describe("the shipped Areas' pieces", () => {
   });
 });
 
+describe("the shipped Areas' trails", () => {
+  const STONE_PATH = /^halloween\/path_/;
+  const pathsIn = (area: Area) =>
+    area.floorPieces.filter((piece) => STONE_PATH.test(piece ?? "")).length;
+
+  it("are dirt in every outdoor Area, with no stone path piece", () => {
+    const outdoor = Object.values(shippedWorld().areas).filter(
+      (area) => area.outdoors,
+    );
+    expect(outdoor.length).toBe(5);
+    for (const area of outdoor) {
+      expect(pathsIn(area), area.name).toBe(0);
+      expect(
+        area.floorPieces.filter((piece) => piece === "halloween/floor_dirt")
+          .length,
+        area.name,
+      ).toBeGreaterThan(0);
+    }
+  });
+
+  it("never draw an outdoor floor with a piece that has the dusk look", () => {
+    const outdoor = Object.values(shippedWorld().areas).filter(
+      (area) => area.outdoors,
+    );
+    for (const area of outdoor) {
+      for (const piece of new Set(area.floorPieces)) {
+        if (piece === null || piece === "water") continue;
+        expect(outdoorLookOf(piece), `${area.name}: ${piece}`).not.toBe(
+          LOOKS.dusk,
+        );
+      }
+    }
+  });
+
+  it("run as dirt through the Soggy Bog's mud", () => {
+    const bog = shippedWorld().areas["soggy-bog"];
+    const count = (piece: string) =>
+      bog.floorPieces.filter((p) => p === piece).length;
+    expect(count("dungeon/floor_dirt_large")).toBeGreaterThan(0);
+    expect(count("halloween/floor_dirt")).toBeGreaterThan(0);
+    expect(outdoorLookOf("halloween/floor_dirt")).toBe(LOOKS.daylightDirt);
+    expect(outdoorLookOf("dungeon/floor_dirt_large")).toBe(LOOKS.mud);
+  });
+
+  it("stay stone paths in Wockville", () => {
+    expect(pathsIn(shippedWorld().areas.town)).toBeGreaterThan(50);
+  });
+});
+
 describe("Water in the shipped Areas", () => {
   const shipped = () => shippedWorld().areas;
   const hasWater = (area: Area) => area.water.some(Boolean);
@@ -884,6 +934,12 @@ describe("the Cozy Plains' grass", () => {
 describe("the Old Mill's grass and millpond", () => {
   const mill = () => shippedWorld().areas["old-mill"];
   const MILL_BUILDINGS = /^hexagon\/building_/;
+  /** How many tiles from a millpond tile a building still stands beside it. */
+  const BESIDE_THE_MILLPOND = 3;
+  const pondTilesOf = (area: Area): Vec[] =>
+    area.water.flatMap((isWater, i) =>
+      isWater ? [{ x: i % area.width, y: Math.floor(i / area.width) }] : [],
+    );
 
   it("is mostly grass, with dirt around the mill", () => {
     const area = mill();
@@ -913,6 +969,27 @@ describe("the Old Mill's grass and millpond", () => {
     expect(pieces.some((p) => /tree_dead|grave/.test(p))).toBe(false);
   });
 
+  it("has the watermill beside its millpond, blocking its tile, and no blacksmith", () => {
+    const area = mill();
+    expect(area.props.some((p) => /blacksmith/.test(p.piece))).toBe(false);
+    const watermills = area.props.filter(
+      (p) => p.piece === "hexagon/building_watermill_red",
+    );
+    expect(watermills).toHaveLength(1);
+    const [watermill] = watermills;
+    const besidePond = pondTilesOf(area).some(
+      (tile) =>
+        Math.abs(watermill.x - tile.x) <= BESIDE_THE_MILLPOND &&
+        Math.abs(watermill.y - tile.y) <= BESIDE_THE_MILLPOND,
+    );
+    expect(besidePond).toBe(true);
+    // A building's footprint in the sim is the tile it stands on.
+    expect(watermill.blocks).toBe(true);
+    expect(
+      isWalkable(area, { x: watermill.x + 0.5, y: watermill.y + 0.5 }),
+    ).toBe(false);
+  });
+
   it("has a small millpond beside the mill", () => {
     const area = mill();
     const pond: Vec[] = [];
@@ -926,7 +1003,9 @@ describe("the Old Mill's grass and millpond", () => {
     const buildings = area.props.filter((p) => MILL_BUILDINGS.test(p.piece));
     const beside = pond.some((tile) =>
       buildings.some(
-        (b) => Math.abs(b.x - tile.x) <= 3 && Math.abs(b.y - tile.y) <= 3,
+        (b) =>
+          Math.abs(b.x - tile.x) <= BESIDE_THE_MILLPOND &&
+          Math.abs(b.y - tile.y) <= BESIDE_THE_MILLPOND,
       ),
     );
     expect(beside).toBe(true);
@@ -1662,6 +1741,27 @@ describe("the Spa's hot springs", () => {
       pieces.filter((piece) => /^city\/tree/.test(piece)).length,
     ).toBeGreaterThan(30);
     expect(pieces.some((piece) => /tree_dead|grave/.test(piece))).toBe(false);
+  });
+
+  it("has a `pools` Entry beside its pools, which no Exit leads to", () => {
+    const world = shippedWorld();
+    const area = world.areas.spa;
+    const pools = area.entries.pools;
+
+    expect(pools).toBeDefined();
+    const nearest = Math.min(
+      ...pondsOf(area)
+        .flatMap((pool) => pool.tiles)
+        .map((tile) => distance({ x: tile.x + 0.5, y: tile.y + 0.5 }, pools)),
+    );
+    expect(nearest).toBeLessThanOrEqual(3);
+    expect(canReach(area, area.entries.start, pools)).toBe(true);
+    const leadingHere = Object.values(world.areas).flatMap((other) =>
+      other.exits.filter(
+        (exit) => exit.area === "spa" && exit.entry === "pools",
+      ),
+    );
+    expect(leadingHere).toEqual([]);
   });
 
   it("keeps its Entries, Exits, spawns and Unique Monster reachable, and dry", () => {

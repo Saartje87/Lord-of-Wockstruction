@@ -1,4 +1,10 @@
-import type { BufferGeometry, Mesh, MeshBasicMaterial, Points } from "three";
+import type {
+  BufferGeometry,
+  Color,
+  Mesh,
+  Points,
+  ShaderMaterial,
+} from "three";
 import { describe, expect, it } from "vitest";
 import { arenaWith } from "../input/testArena";
 import type { Area } from "../sim/area";
@@ -59,16 +65,47 @@ describe("the 3D World's ponds", () => {
     expect(sizes).toEqual([4, 8]);
   });
 
-  it("shimmers: its colour changes with time", () => {
+  it("is not tone-mapped, so ponds keep their colour", () => {
+    const { group } = waterMeshesOf(areaWithWater([[2, 2]]));
+    const material = (group.children[0] as Mesh).material as ShaderMaterial;
+
+    expect(material.toneMapped).toBe(false);
+  });
+
+  it("is a deep, dark blue-green", () => {
+    const { group } = waterMeshesOf(areaWithWater([[2, 2]]));
+    const material = (group.children[0] as Mesh).material as ShaderMaterial;
+    const colour = material.uniforms.uColour.value as Color;
+
+    expect(colour.getHex()).toBe(WATER_LOOK.plain.colour);
+    expect(colour.b).toBeGreaterThan(colour.r);
+    expect(colour.g).toBeGreaterThan(colour.r);
+    expect(colour.r + colour.g + colour.b).toBeLessThan(1.5);
+  });
+
+  it("drifts its light as the game goes on, leaving the base colour alone", () => {
     const { group, update } = waterMeshesOf(areaWithWater([[2, 2]]));
-    const material = (group.children[0] as Mesh).material as MeshBasicMaterial;
+    const material = (group.children[0] as Mesh).material as ShaderMaterial;
 
     update(0);
-    const a = material.color.getHex();
-    update(WATER_LOOK.shimmerSeconds / 4);
-    const b = material.color.getHex();
+    const a = material.uniforms.uTime.value;
+    update(5);
+    expect(material.uniforms.uTime.value).not.toBe(a);
+    const colour = (material.uniforms.uColour.value as Color).getHex();
+    update(7);
+    expect((material.uniforms.uColour.value as Color).getHex()).toBe(colour);
+  });
 
-    expect(a).not.toBe(b);
+  it("shares one material between all ponds of an Area", () => {
+    const { group } = waterMeshesOf(
+      areaWithWater([
+        [2, 2],
+        [10, 10],
+      ]),
+    );
+    const [a, b] = group.children as Mesh[];
+
+    expect(a.material).toBe(b.material);
   });
 });
 
@@ -82,7 +119,8 @@ describe("the 3D World's hot springs", () => {
   const steam = (group: { children: unknown[] }) =>
     group.children.filter((child) => (child as Points).isPoints) as Points[];
   const colourOf = (meshes: ReturnType<typeof waterMeshesOf>) =>
-    (planes(meshes.group)[0].material as MeshBasicMaterial).color;
+    (planes(meshes.group)[0].material as ShaderMaterial).uniforms.uColour
+      .value as Color;
 
   it("tint the Water warm turquoise, unlike plain Water", () => {
     const plain = waterMeshesOf(areaWithWater([[2, 2]]));
@@ -92,6 +130,9 @@ describe("the 3D World's hot springs", () => {
 
     expect(colourOf(springs).getHex()).not.toBe(colourOf(plain).getHex());
     expect(colourOf(springs).g).toBeGreaterThan(colourOf(plain).g);
+    expect(
+      (planes(springs.group)[0].material as ShaderMaterial).toneMapped,
+    ).toBe(false);
     expect(WATER_LOOK.hotSprings.colour).not.toBe(WATER_LOOK.plain.colour);
   });
 

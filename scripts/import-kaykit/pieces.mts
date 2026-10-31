@@ -1,7 +1,8 @@
 /**
  * The KayKit pieces Areas are painted with: one tile each in the KayKit
- * tileset (`content/tilesets/kaykit.tsj`), in this order. Only ever append,
- * as the tile ids are the order and the Areas refer to them.
+ * tileset (`content/tilesets/kaykit.tsj`). A piece's tile number is kept in
+ * `tile-numbers.json`, which the import extends, so order doesn't matter and
+ * a new piece takes the next free number; the Areas refer to the numbers.
  *
  * `model` is the file's path in the pack's `Assets/gltf/` without extension
  * (Dungeon Remastered's glbs end `.gltf.glb`, but not all of them). The
@@ -72,7 +73,10 @@ export const PIECES: PieceSource[] = [
   building("tavern", "red"),
   building("church", "blue"),
   building("well", "red"),
+  // Kept though no Area uses it now: a tile number is never reused.
   building("blacksmith", "red"),
+  // The Old Mill's watermill, static: no turning wheel.
+  building("watermill", "red"),
   // Joints for the dungeon Wall: the 3D World picks them where Walls meet.
   wall("dungeon", "wall_corner"),
   wall("dungeon", "wall_Tsplit"),

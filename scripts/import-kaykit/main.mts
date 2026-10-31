@@ -30,7 +30,12 @@ import { importCharacter, rotTexture } from "./characters.mts";
 import { checkout } from "./git.mts";
 import { PIECES, type PieceSource, pieceName } from "./pieces.mts";
 import { importRiggedCharacter } from "./retarget.mts";
-import { tilesetOf } from "./tileset.mts";
+import {
+  numberTiles,
+  type TileNumbers,
+  tileNumbersJson,
+  tilesetOf,
+} from "./tileset.mts";
 
 const ORG = "https://github.com/KayKit-Game-Assets";
 
@@ -550,9 +555,15 @@ for (const name of FANTASY_WEAPONS.models) {
     console.log(`No ${FANTASY_WEAPONS.dir}: keeping the committed ${to}`);
   }
 }
+const TILE_NUMBERS_PATH = "scripts/import-kaykit/tile-numbers.json";
+const tileNumbers = numberTiles(
+  PIECES,
+  JSON.parse(readFileSync(TILE_NUMBERS_PATH, "utf8")) as TileNumbers,
+);
+writeFileSync(TILE_NUMBERS_PATH, tileNumbersJson(tileNumbers));
 writeFileSync(
   `${out.tilesets}/kaykit.tsj`,
-  `${JSON.stringify(tilesetOf(PIECES), null, 1)}\n`,
+  `${JSON.stringify(tilesetOf(PIECES, tileNumbers), null, 1)}\n`,
 );
 
 const imported = [

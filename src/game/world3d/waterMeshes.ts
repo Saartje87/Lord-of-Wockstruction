@@ -5,26 +5,32 @@ import {
   DoubleSide,
   Group,
   Mesh,
-  MeshBasicMaterial,
   Points,
   PointsMaterial,
+  ShaderMaterial,
+  UniformsLib,
+  UniformsUtils,
 } from "three";
 import { type Area, isWater } from "../sim/area";
 import { cornersOf, type Vec } from "../sim/vec";
 
 /**
  * How Water looks: the plane sits `depth` below the floor's top, so the
- * ground around a pond reads as a bank, and swings between a look's `colour`
- * and `glint` once every `shimmerSeconds`. Both are the same for plain Water
- * and hot springs; only the colours differ.
+ * ground around a pond reads as a bank. Soft lighter bands in the look's
+ * `glint` drift across it in World space: `bandSize` tiles from one band to
+ * the next, travelling `bandSpeed` tiles a second, at `bandStrength` (0 to 1)
+ * of the way from `colour` to `glint`. Plain Water and hot springs differ only
+ * in colour.
  */
 export const WATER_LOOK = {
   depth: 0.08,
-  shimmerSeconds: 3.5,
-  /** Plain blue-green. */
-  plain: { colour: 0x2f8fb0, glint: 0x4fb3c4 },
+  bandSize: 2.4,
+  bandSpeed: 0.12,
+  bandStrength: 0.9,
+  /** A deep, dark blue-green. */
+  plain: { colour: 0x1a6b82, glint: 0x4fb5c0 },
   /** A warm turquoise. */
-  hotSprings: { colour: 0x35b8a4, glint: 0x6fd6bd },
+  hotSprings: { colour: 0x2fc2a6, glint: 0x9ff0d8 },
 };
 
 /**
@@ -84,25 +90,22 @@ export function pondsOf(area: Area): Pond[] {
   return ponds;
 }
 
-/** The Area's ponds in the scene, and how they shimmer. */
+/** The Area's ponds in the scene, and how their light drifts. */
 export type WaterMeshes = {
   group: Group;
-  /** Shimmers the Water for `seconds` into the game. */
+  /** Drifts the Water's light and steam for `seconds` into the game. */
   update(seconds: number): void;
 };
 
 /**
  * The Area's Water: one flat plane per pond, a square for each of its tiles,
- * all sharing one plain material. No KayKit model: the planes are made in
- * code.
+ * all sharing one unlit, tone-mapping-free shader material. No KayKit model:
+ * the planes are made in code.
  */
 export function waterMeshesOf(area: Area): WaterMeshes {
   const group = new Group();
   const look = area.hotSprings ? WATER_LOOK.hotSprings : WATER_LOOK.plain;
-  const material = new MeshBasicMaterial({
-    color: look.colour,
-    side: DoubleSide,
-  });
+  const material = waterMaterialOf(look);
   for (const pond of pondsOf(area)) {
     const positions: number[] = [];
     const indices: number[] = [];
@@ -122,20 +125,76 @@ export function waterMeshesOf(area: Area): WaterMeshes {
     const plane = new Mesh(geometry, material);
     group.add(plane);
   }
-  const base = new Color(look.colour);
-  const glint = new Color(look.glint);
   const steam = area.hotSprings ? steamOf(pondsOf(area)) : null;
   if (steam) group.add(steam.points);
   return {
     group,
     update(seconds) {
       steam?.rise(seconds);
-      const wave =
-        0.5 +
-        0.5 * Math.sin((seconds / WATER_LOOK.shimmerSeconds) * 2 * Math.PI);
-      material.color.copy(base).lerp(glint, wave);
+      material.uniforms.uTime.value = seconds;
     },
   };
+}
+
+const VERTEX = `
+varying vec2 vWorld;
+#include <fog_pars_vertex>
+void main() {
+  vec4 world = modelMatrix * vec4(position, 1.0);
+  vWorld = world.xz;
+  vec4 mvPosition = viewMatrix * world;
+  gl_Position = projectionMatrix * mvPosition;
+  #include <fog_vertex>
+}
+`;
+
+// No tonemapping_fragment: Water keeps its colours. Two sine waves crossing
+// at an angle make soft bands, drifting along World x and z. The numbers:
+// each wave runs along its own direction (0.8, 0.6) and (-0.4, 0.9), so the
+// bands cross rather than line up; the second travels at 0.7 of the first's
+// speed and spreads 1.7 times wider, so the pattern never visibly repeats; the
+// sum of the waves sits in 0..1 around 0.5 (each adds up to 0.25), and the
+// smoothstep from 0.35 to 0.95 keeps the bands soft-edged, lit only on peaks.
+const FRAGMENT = `
+uniform vec3 uColour;
+uniform vec3 uGlint;
+uniform float uTime;
+uniform float uBandSize;
+uniform float uBandSpeed;
+uniform float uBandStrength;
+varying vec2 vWorld;
+#include <fog_pars_fragment>
+void main() {
+  float t = uTime * uBandSpeed;
+  float a = sin((vWorld.x * 0.8 + vWorld.y * 0.6 - t) * 6.2831853 / uBandSize);
+  float b = sin((vWorld.x * -0.4 + vWorld.y * 0.9 - t * 0.7) * 6.2831853 / (uBandSize * 1.7));
+  float band = smoothstep(0.35, 0.95, 0.5 + 0.25 * a + 0.25 * b);
+  gl_FragColor = vec4(mix(uColour, uGlint, band * uBandStrength), 1.0);
+  #include <colorspace_fragment>
+  #include <fog_fragment>
+}
+`;
+
+/** Builds the Water material (colour, drifting glint bands), shared by all an Area's ponds. */
+function waterMaterialOf(look: { colour: number; glint: number }) {
+  return new ShaderMaterial({
+    uniforms: UniformsUtils.merge([
+      UniformsLib.fog,
+      {
+        uColour: { value: new Color(look.colour) },
+        uGlint: { value: new Color(look.glint) },
+        uTime: { value: 0 },
+        uBandSize: { value: WATER_LOOK.bandSize },
+        uBandSpeed: { value: WATER_LOOK.bandSpeed },
+        uBandStrength: { value: WATER_LOOK.bandStrength },
+      },
+    ]),
+    vertexShader: VERTEX,
+    fragmentShader: FRAGMENT,
+    side: DoubleSide,
+    fog: true,
+    toneMapped: false,
+  });
 }
 
 /**

@@ -22,10 +22,24 @@ import {
   wardAmount,
 } from "./world";
 
+/** What a line of a cast Skill's numbers is about. */
+export type SkillLineLabel =
+  | "Count"
+  | "Life"
+  | "Damage"
+  | "Effect"
+  | "Radius"
+  | "Duration"
+  | "Soak"
+  | "Length"
+  | "Piece Life"
+  | "Shards"
+  | "Mana";
+
 /** One line of what a cast Skill does at a Skill Level. */
 export type SkillLine = {
   /** What the line is about, such as "Damage", "Radius" or "Mana". */
-  label: string;
+  label: SkillLineLabel;
   /** The number as shown, with its unit and Damage Types. */
   text: string;
   /** The main number: a range's mean, a share as a fraction, seconds, tiles. */
@@ -55,6 +69,7 @@ function change(factor: number): string {
   return `${by >= 0 ? "+" : "-"}${Math.abs(by)}%`;
 }
 
+/** The middle of a range. */
 function mean([least, most]: [number, number]): number {
   return (least + most) / 2;
 }
@@ -69,7 +84,15 @@ function typesText(shares?: DamageShares): string {
     .join(", ");
 }
 
-function line(label: string, value: number, text = shown(value)): SkillLine {
+/**
+ * A line about `label` with `value` as its main number, shown as `text`, or as
+ * the value itself when no text is given.
+ */
+function line(
+  label: SkillLineLabel,
+  value: number,
+  text = shown(value),
+): SkillLine {
   return { label, text, value };
 }
 
@@ -121,10 +144,10 @@ export function skillNumbers(
         lines.push(line("Count", raiseCount(effect, skillLevel)));
       }
       const minion = { type: effect.minion, skillLevel, synergy: power };
-      const [least, most] = minionDamageRange(minion);
+      const range = minionDamageRange(minion);
       lines.push(
         line("Life", minionMaxLife(minion)),
-        line("Damage", (least + most) / 2, `${least}-${most}`),
+        line("Damage", mean(range), `${range[0]}-${range[1]}`),
       );
       break;
     }
@@ -169,7 +192,7 @@ export function skillNumbers(
       lines.push(
         line(
           "Damage",
-          (least + most) / 2,
+          mean([least, most]),
           `${percent(least)}%-${percent(most)}% of Corpse Life (${typesText(effect.damageTypes)})`,
         ),
         line("Radius", radius, `${shown(radius)} tiles`),

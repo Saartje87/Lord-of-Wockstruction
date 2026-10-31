@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createMenus, PANELS } from "../menus";
 import { overlaps, type Rect } from "../sim/rect";
 import { SKILL_BAR_SLOTS } from "../sim/skillBar";
+import { DEFAULT_BRANCH } from "../tuning/skills";
 import { viewportOf } from "../viewport";
 import { beltStripLayout } from "./beltStrip";
 import { experienceBarLayout } from "./experienceBar";
@@ -162,7 +163,10 @@ describe("the touch controls with a panel open", () => {
     return [
       ["Hero panel", heroPanelLayout(viewport).panel],
       ["Inventory panel", inventoryPanelLayout(viewport, 1).panel],
-      ["Skill Tree panel", skillTreePanelLayout(viewport).panel],
+      [
+        "Skill Tree panel",
+        skillTreePanelLayout(viewport, DEFAULT_BRANCH).panel,
+      ],
       ["Quest panel", questPanelLayout(viewport, 4).panel],
     ] as [string, Rect][];
   }

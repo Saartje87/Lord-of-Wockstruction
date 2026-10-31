@@ -7,6 +7,7 @@ import {
   pressKey,
 } from "../menus";
 import { overlaps } from "../sim/rect";
+import { DEFAULT_BRANCH } from "../tuning/skills";
 import { viewportOf } from "../viewport";
 import { beltStripLayout } from "./beltStrip";
 import { heroPanelLayout } from "./heroPanel";
@@ -146,7 +147,7 @@ describe("a Panel button's or the Town Portal button's tooltip", () => {
     const { buttons, townPortal } = panelButtonsLayout(screen);
     const closes = [
       heroPanelLayout(screen).closeButton,
-      skillTreePanelLayout(screen).closeButton,
+      skillTreePanelLayout(screen, DEFAULT_BRANCH).closeButton,
       inventoryPanelLayout(screen, 4).closeButton,
     ];
 

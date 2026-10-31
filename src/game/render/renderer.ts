@@ -72,7 +72,12 @@ import {
 } from "../tuning/items";
 import type { MinionType } from "../tuning/minions";
 import type { MonsterType } from "../tuning/monsters";
-import { type Branch, type Skill, skillTuning } from "../tuning/skills";
+import {
+  type Branch,
+  DEFAULT_BRANCH,
+  type Skill,
+  skillTuning,
+} from "../tuning/skills";
 import { townPortalLook } from "../tuning/townPortalLook";
 import { vendorTuning } from "../tuning/vendor";
 import { atUiScale, type Viewport, viewportOf } from "../viewport";
@@ -315,6 +320,13 @@ const LIFE_BACK = { colour: 0x2a0606, alpha: 0.85 };
  * `skillBarLayout`. A Skill the Hero lacks the Mana for shows `dimmed`
  * opaque (0..1).
  */
+/**
+ * Where a Skill's icon is drawn in its Skill Tree tile, as fractions of the
+ * tile: a square box left of the + on the top right corner (which takes up to
+ * 0.45 of the tile) and above the Skill Level at the bottom left.
+ */
+const ICON_BOX = { x: 0.05, y: 0.25, size: 0.5 };
+
 const SKILL_BAR_STYLE = {
   fill: 0x17130e,
   edge: 0x5a4a2e,
@@ -777,7 +789,7 @@ export function createRenderer(
     vendorOpen: false,
     dialogueNpc: 0,
     dialoguePage: 0,
-    skillTreeBranch: "bone",
+    skillTreeBranch: DEFAULT_BRANCH,
     pendingPoints: noPendingPoints(),
   };
 
@@ -3288,8 +3300,8 @@ function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
       screen: Viewport,
       world: World,
       open: boolean,
-      tooltipAt: Vec | null = null,
-      branch: Branch = "bone",
+      tooltipAt: Vec | null,
+      branch: Branch,
     ) {
       layer.visible = open;
       if (!open) return;
@@ -3405,17 +3417,16 @@ function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
             )
             .stroke({ color: style.edge, width: 1, alpha: dim });
         }
-        // The icon in its Branch's colour, clear of the corners the Skill
-        // Level and the + sit in.
-        const inset = tile.w * 0.2;
+        // The icon in its Branch's colour, in the box left of the + corner
+        // and above the Skill Level.
         drawSkillIcon(
           graphics,
           skill,
           {
-            x: tile.x + inset,
-            y: tile.y + inset * 0.75,
-            w: tile.w - 2 * inset,
-            h: tile.h - 2 * inset,
+            x: tile.x + tile.w * ICON_BOX.x,
+            y: tile.y + tile.h * ICON_BOX.y,
+            w: tile.w * ICON_BOX.size,
+            h: tile.h * ICON_BOX.size,
           },
           scale * squeeze,
           dim,

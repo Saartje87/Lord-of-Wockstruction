@@ -112,7 +112,6 @@ describe("the Inventory panel's layout", () => {
   });
 
   it("grows to fit more rows of Belt Columns, on a narrow screen too", () => {
-    const one = inventoryPanelLayout(NARROW, 1);
     const four = inventoryPanelLayout(NARROW, 4);
 
     // The cells shrink so that the taller panel still stays on the screen.

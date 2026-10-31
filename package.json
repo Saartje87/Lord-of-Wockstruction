@@ -14,6 +14,7 @@
     "import:kaykit": "node scripts/import-kaykit/main.mts",
     "thumbnails:kaykit": "node scripts/import-kaykit/thumbnails.mts",
     "tuning:report": "node scripts/tuning-report.mts",
+    "tuning:fight": "node scripts/tuning-fight.mts",
     "area:map": "node scripts/area-map.mts"
   },
   "dependencies": {

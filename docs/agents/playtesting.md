@@ -16,7 +16,8 @@ How to see the game running, for acceptance criteria that only show on screen (H
 
 Parallel agents share one Chrome and often one machine.
 
-- **Port**: `31NN`, from your ticket number (T174 → 3174). It also keeps your Save apart, since a Save belongs to its port.
+- **Port**: in a worktree, `31NN` from your ticket number (T174 → 3174). It also keeps your Save apart, since a Save belongs to its port.
+- **Shared server**: in the main checkout you use its one server (often port 3000), whose Save is the user's. Copy `localStorage["wockstruction.save"]` before your first `loadSave` and write it back when done.
 - **Tab**: open your own with `tabs_create_mcp`, and close only that tab when done.
 - **Branch**: a new worktree may start on another agent's branch. Check `git log` and reset it onto your base branch before working.
 - **`vendor/`**: the KayKit import (`scripts/import-kaykit/main.mts`) reads the gitignored `vendor/kaykit/` from the folder it runs in and skips what isn't there. In a worktree, clone the main checkout's like `node_modules`: `cp -cR <main checkout>/vendor vendor` (about 1 s).
@@ -114,7 +115,7 @@ window.__wockstruction.state();
 - **`boneWard`** is what's left of the Bone Ward and its full amount, or `null` while the Hero has none.
 - **`corpses`** are the Corpses in the active Area, each with the id, type and Monster Level of the Monster it was and its `pos`. Those left behind through a Town Portal don't show until the Hero is back. A Corpse-using Skill fails without one near its cast point, as it does without the Mana for its cost (`mana`).
 - **`minions`** are the Hero's living Minions, oldest first, with the `skill` that brought each one.
-- **`monsters`** each carry `unique`, the Unique Monster's name (`"Bruckle"`), or `null` for an ordinary Monster.
+- **`monsters`** are every Monster in the active Area, each carrying `unique`, the Unique Monster's name (`"Bruckle"`), or `null` for an ordinary Monster. To count a pack, filter by distance: `distance(m.pos, bruckle.pos) < 4`.
 - **`quests`** is each Quest's progress, in the shape `loadSave` takes, so a kill that makes a Quest Ready shows here without opening the Quest panel.
 - **`facing`** is in radians in tile space, `atan2(dy, dx)`: 0 is +x, π/2 is +y.
 - **Each call is a fresh copy.** Changing it changes nothing in the game, so call again after each step you take.

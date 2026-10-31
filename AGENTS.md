@@ -32,7 +32,7 @@ Before finishing a ticket that changes a panel's layout, a model's look or any o
 
 ### Tuning
 
-On tuning tickets, `npm run tuning:report` prints Experience, kills per Level and each Combat Area's Monster numbers from live tuning. See `docs/agents/tuning.md`.
+On tuning tickets, `npm run tuning:report` prints Experience, kills per Level and each Combat Area's Monster numbers from live tuning. `npm run tuning:fight` times a Unique Monster's fight against a Hero of a given Level. See `docs/agents/tuning.md`.
 
 ### Area maps
 

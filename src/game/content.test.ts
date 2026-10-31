@@ -692,6 +692,8 @@ describe("the Item types", () => {
       "Chain Boots": "Chain",
       Buckler: "Buckler",
       "Tower Shield": "Tower",
+      "Bone Wand": "Bone",
+      "Yew Wand": "Yew",
       Ring: "Ring",
       Amulet: "Amulet",
       Sash: "Sash",

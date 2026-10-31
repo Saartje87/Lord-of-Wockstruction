@@ -10,6 +10,7 @@ export type ItemKind =
   | "gloves"
   | "boots"
   | "shield"
+  | "wand"
   | "ring"
   | "amulet"
   | "belt"
@@ -203,6 +204,23 @@ export const itemTuning = {
     defense: 28,
     block: 25,
     bonuses: {},
+  },
+  // Little damage and + Mana; a Wand fits the Weapon slot and the Off-hand.
+  boneWand: {
+    name: "Bone Wand",
+    shortName: "Bone",
+    kind: "wand",
+    size: { columns: 1, rows: 2 },
+    damage: [3, 6],
+    bonuses: { mana: 15 },
+  },
+  yewWand: {
+    name: "Yew Wand",
+    shortName: "Yew",
+    kind: "wand",
+    size: { columns: 1, rows: 2 },
+    damage: [4, 8],
+    bonuses: { mana: 30 },
   },
   ring: {
     name: "Ring",
@@ -438,6 +456,7 @@ const ARMOUR_KINDS: readonly ItemKind[] = [
 
 const NOT_POTION: readonly ItemKind[] = [
   "weapon",
+  "wand",
   ...ARMOUR_KINDS,
   "ring",
   "amulet",
@@ -476,7 +495,7 @@ const RESISTANCE_RANGES: [Range, Range, Range] = [
 ];
 
 /** The Item kinds the Weapon Affixes roll on. */
-const WEAPON_KINDS: readonly ItemKind[] = ["weapon"];
+const WEAPON_KINDS: readonly ItemKind[] = ["weapon", "wand"];
 
 /** Flat Element damage added to each of the Hero's attacks; to be tuned. */
 const ELEMENTAL_DAMAGE_RANGES: [Range, Range, Range] = [
@@ -509,7 +528,7 @@ export const affixTuning = {
   accuracy: {
     side: "prefix",
     bonus: "attackRating",
-    rollsOn: ["weapon", "ring", "amulet"],
+    rollsOn: [...WEAPON_KINDS, "ring", "amulet"],
     grades: threeGrades(
       ["Keen", "Sharp", "Unerring"],
       [

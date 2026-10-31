@@ -31,7 +31,7 @@ const SUFFIXES = [
 ] as const satisfies readonly (readonly [AffixKind, readonly string[]])[];
 
 /** The Item kinds the Weapon Affixes roll on; a later ticket adds Wands. */
-const WEAPONS: ItemKind[] = ["weapon"];
+const WEAPONS: ItemKind[] = ["weapon", "wand"];
 
 describe("the elemental damage Suffix kinds", () => {
   it("are Suffixes with three graded names each, gated at Monster Level 1, 5 and 9", () => {

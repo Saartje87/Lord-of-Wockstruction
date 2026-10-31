@@ -174,8 +174,8 @@ export type Equipment = Record<EquipmentSlot, Item | null>;
 
 /** The set of Item kinds each slot takes. */
 export const SLOT_KINDS: Record<EquipmentSlot, readonly ItemKind[]> = {
-  weapon: ["weapon"],
-  offHand: ["shield"],
+  weapon: ["weapon", "wand"],
+  offHand: ["shield", "wand"],
   helm: ["helm"],
   armour: ["armour"],
   gloves: ["gloves"],

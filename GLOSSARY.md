@@ -245,7 +245,7 @@ The tab on the Skill Tree panel that shows one Branch; it is never the Branch it
 _Avoid_: Page, tree tab
 
 **Skill tooltip**:
-What a Skill shows when hovered, Focused or Long Pressed: its name, Skill Level and what it does at that Skill Level, as final numbers with its Synergies and Passive Skills already counted: damage with its Damage Types, Mana cost, radius, duration, a Minion's Life and damage and how many, and the like. While a Skill Point can be spent on it, the same numbers follow for the next Skill Level; a Skill not yet learned shows Skill Level 1's. Its Synergies, Prerequisites and needed Level are listed after.
+What a Skill shows when hovered, Focused or Long Pressed: its name, Skill Level and what it does at that Skill Level, as final numbers with its Synergies and Passive Skills already counted: damage with its Damage Types, Mana cost, radius, duration, a Minion's Life and damage and how many, and the like. While a Skill Point can be spent on it, the same numbers follow for the next Skill Level; a Skill not yet learned shows Skill Level 1's. Its Synergies, Prerequisites and needed Level are listed after. On the Skill Tree panel it ends with how to spend a Skill Point on it and how to put it on the Skill Bar. A Skill Bar slot holding a Skill shows the same tooltip without those two lines: hovered with the mouse, panel open or not; Focused while the Skill Tree panel is open; or Long Pressed on a touch screen. The round touch Skill buttons show none, since holding one casts. No tooltip shows while a Held Skill follows the pointer.
 _Avoid_: Skill description, spell info
 
 **Skill Point**:

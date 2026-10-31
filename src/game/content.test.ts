@@ -1454,9 +1454,77 @@ describe("loading the shipped content into a World", () => {
 
 /**
  * How far from Bruckle (tiles) a Wockwolf counts as his guard: his pack stands
- * about 2 tiles off, the Spa's other Wockwolves 8.
+ * about 2 tiles off, the Spa's other Wockwolves 15.
  */
 const GUARD_RADIUS = 3;
+
+/**
+ * How far from Bruckle's spawn (tiles) the Hero may fight him without another
+ * Spa pack noticing.
+ */
+const BRUCKLE_FIGHT_RADIUS = 5;
+
+/** The Spa's row that the fence south of Bruckle's yard runs along. */
+const FENCE_ROW = 9;
+
+/**
+ * The tiles of a walk from `from` to `to` over walkable tiles, joined in 8
+ * directions without cutting a blocked corner, that never steps on a tile
+ * whose centre lies within notice range of one of `packs`; null if none.
+ */
+function unnoticedPath(
+  area: Area,
+  from: Vec,
+  to: Vec,
+  packs: readonly Spawn[],
+): Vec[] | null {
+  const centre = (x: number, y: number) => ({ x: x + 0.5, y: y + 0.5 });
+  const open = (x: number, y: number) =>
+    isWalkable(area, centre(x, y)) &&
+    packs.every(
+      (pack) =>
+        distance(centre(x, y), pack.pos) >
+        monsterTuning[pack.monster].aggroRadius,
+    );
+  const start = { x: Math.floor(from.x), y: Math.floor(from.y) };
+  const goal = { x: Math.floor(to.x), y: Math.floor(to.y) };
+  const key = (x: number, y: number) => y * area.width + x;
+  const cameFrom = new Map<number, number | null>([
+    [key(start.x, start.y), null],
+  ]);
+  const queue = [start];
+  while (queue.length > 0) {
+    const at = queue.shift() as Vec;
+    if (at.x === goal.x && at.y === goal.y) {
+      const tiles: Vec[] = [];
+      for (
+        let k: number | null | undefined = key(at.x, at.y);
+        k != null;
+        k = cameFrom.get(k)
+      ) {
+        tiles.unshift({ x: k % area.width, y: Math.floor(k / area.width) });
+      }
+      return tiles;
+    }
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const x = at.x + dx;
+        const y = at.y + dy;
+        if ((dx === 0 && dy === 0) || cameFrom.has(key(x, y))) continue;
+        if (!open(x, y)) continue;
+        if (
+          dx !== 0 &&
+          dy !== 0 &&
+          !(open(at.x + dx, at.y) && open(at.x, at.y + dy))
+        )
+          continue;
+        cameFrom.set(key(x, y), key(at.x, at.y));
+        queue.push({ x, y });
+      }
+    }
+  }
+  return null;
+}
 
 describe("the shipped Act 1's Main Path", () => {
   it("lists the Waypoints from Wockville out to the Ossuary", () => {
@@ -1504,6 +1572,48 @@ describe("the shipped Act 1's Main Path", () => {
     expect(new Set(spa.spawns.map((s) => s.monster))).toEqual(
       new Set(["skeleton", "zombie", "wockwolf", "bog_spitter"]),
     );
+  });
+
+  it("stands every other Spa pack too far off to notice a Hero fighting within 5 tiles of Bruckle", () => {
+    const spa = shippedWorld().areas.spa;
+    const bruckle = spa.uniques[0].pos;
+    const others = spa.spawns.filter(
+      (s) =>
+        !(s.monster === "wockwolf" && distance(s.pos, bruckle) <= GUARD_RADIUS),
+    );
+
+    expect(others.length).toBeGreaterThan(0);
+    for (const spawn of others) {
+      expect(
+        distance(spawn.pos, bruckle),
+        `${spawn.count} ${spawn.monster} at (${spawn.pos.x}, ${spawn.pos.y})`,
+      ).toBeGreaterThan(
+        BRUCKLE_FIGHT_RADIUS + monsterTuning[spawn.monster].aggroRadius,
+      );
+    }
+  });
+
+  it("leads a path from the Cozy Plains entry through the fence's south gap to Bruckle, out of every other pack's notice", () => {
+    const spa = shippedWorld().areas.spa;
+    const bruckle = spa.uniques[0].pos;
+    const others = spa.spawns.filter(
+      (s) =>
+        !(s.monster === "wockwolf" && distance(s.pos, bruckle) <= GUARD_RADIUS),
+    );
+    const path = unnoticedPath(
+      spa,
+      spa.entries["from-cozy-plains"],
+      bruckle,
+      others,
+    );
+    if (!path) throw new Error("no unnoticed path to Bruckle");
+
+    // It crosses the fence's row straight south of him, not by the side routes.
+    const crossings = path.filter((tile) => tile.y === FENCE_ROW);
+    expect(crossings.length).toBeGreaterThan(0);
+    for (const tile of crossings) {
+      expect(Math.abs(tile.x + 0.5 - bruckle.x)).toBeLessThanOrEqual(2);
+    }
   });
 
   it("spawns Bruckle as a Unique Wockbrute with exactly 5 ordinary Wockwolves around him", () => {

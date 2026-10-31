@@ -213,6 +213,83 @@ describe("killing Grave Wockington", () => {
   });
 });
 
+/** A world with a first wave raised around Grave Wockington. */
+function withWave(gap: number) {
+  const world = inOssuary(gap);
+  wait(world, msToSteps(graveWockingtonTuning.firstWaveMs) + 5);
+  const boss = world.monsters.find((m) => m.type === "grave_wockington");
+  if (!boss) throw new Error("no Grave Wockington");
+  const raised = world.monsters.filter((m) => m !== boss).map((m) => m.id);
+  expect(raised.length).toBeGreaterThan(0);
+  return { world, boss, raised };
+}
+
+/** Has the Hero attack `id` until it is gone; the events. */
+function attackUntilGone(world: World, id: number): SimEvent[] {
+  heroTuning.flinchChance = 0;
+  const events: SimEvent[] = [];
+  for (let i = 0; i < 3000 && world.monsters.some((m) => m.id === id); i++) {
+    events.push(
+      ...step(world, i % 120 === 0 ? [{ type: "Attack", monster: id }] : []),
+    );
+    world.hero.life = 1_000_000;
+  }
+  return events;
+}
+
+describe("his raised Monsters falling with him", () => {
+  it("die at once with him, each leaving a Corpse, for no Experience or drops", () => {
+    const { world, boss, raised } = withWave(3);
+    boss.life = 1;
+    const others = world.monsters.filter((m) => m !== boss);
+    for (const other of others) other.life = 1_000_000;
+
+    const events = attackUntilGone(world, boss.id);
+
+    expect(world.monsters).toHaveLength(0);
+    const corpses = world.corpses.map((corpse) => corpse.id);
+    for (const id of raised) {
+      expect(corpses).toContain(id);
+      expect(events).toContainEqual({ type: "MonsterDied", id });
+    }
+    // Only his own kill gave Experience.
+    expect(events.filter((e) => e.type === "ExperienceGained")).toHaveLength(1);
+    const dropped = events.filter((e) => e.type === "ItemDropped");
+    const bossDrops = events.filter(
+      (e) => e.type === "ItemDropped" && e.pos.x === boss.pos.x,
+    );
+    expect(dropped).toEqual(bossDrops);
+  });
+
+  it("die when he starts Returning, for no Experience or drops", () => {
+    const { world, boss, raised } = withWave(6);
+    boss.pos = { x: boss.home.x + 25, y: boss.home.y };
+
+    const events = wait(world, 2);
+
+    expect(boss.state).toBe("return");
+    expect(world.monsters).toEqual([boss]);
+    for (const id of raised) {
+      expect(world.corpses.map((corpse) => corpse.id)).toContain(id);
+      expect(events).toContainEqual({ type: "MonsterDied", id });
+    }
+    expect(events.some((e) => e.type === "ExperienceGained")).toBe(false);
+    expect(events.some((e) => e.type === "ItemDropped")).toBe(false);
+  });
+
+  it("leave a Corpse and give Experience when the Hero kills them", () => {
+    const { world, raised } = withWave(3);
+    const skeleton = world.monsters.find((m) => m.id === raised[0]);
+    if (!skeleton) throw new Error("no raised Skeleton");
+    skeleton.life = 1;
+
+    const events = attackUntilGone(world, skeleton.id);
+
+    expect(world.corpses.map((corpse) => corpse.id)).toContain(skeleton.id);
+    expect(events.some((e) => e.type === "ExperienceGained")).toBe(true);
+  });
+});
+
 describe("an Act Boss object", () => {
   it("must not appear twice in one Area", () => {
     expect(() =>

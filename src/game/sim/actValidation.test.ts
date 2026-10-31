@@ -36,11 +36,16 @@ const boss = {
 const start = point("entry", "start", 1, 1);
 const act = { name: "act", type: "int", value: 1 };
 
-const mainPathStart = { name: "mainPath", type: "int", value: 0 };
+/** The `mainPath` property for Main Path position `position`. */
+const mainPath = (position: number) => ({
+  name: "mainPath",
+  type: "int",
+  value: position,
+});
 
 /** A Town of Act `1`, first on the Main Path, with `objects` besides its start. */
 const townWith = (...objects: object[]) =>
-  loadArea("town", map([start, ...objects], [act, mainPathStart]));
+  loadArea("town", map([start, ...objects], [act, mainPath(0)]));
 const waypoint = point("waypoint", "waypoint", 3, 1);
 const ossuary = (...objects: object[]) =>
   loadArea("ossuary", combatArea(map([start, ...objects])));
@@ -50,10 +55,7 @@ const onMainPath = (name: string, position: number, ...objects: object[]) => {
   const plain = combatArea(map([start, ...objects]));
   return loadArea(name, {
     ...plain,
-    properties: [
-      ...plain.properties,
-      { name: "mainPath", type: "int", value: position },
-    ],
+    properties: [...plain.properties, mainPath(position)],
   });
 };
 
@@ -74,10 +76,17 @@ describe("validateActs", () => {
         areas(
           townWith(waypoint),
           onMainPath("plains", 1, waypoint),
-          ossuary(boss),
+          onMainPath("crypt", 2, waypoint, boss),
+          ossuary(),
         ),
       ),
     ).not.toThrow();
+  });
+
+  it("does not call a Town without a Main Path position a Side Area", () => {
+    const town = loadArea("town", map([start, waypoint], [act]));
+
+    expect(() => validateActs(areas(town, ossuary(boss)))).not.toThrow();
   });
 
   it("rejects a Main Path Area without a Waypoint", () => {

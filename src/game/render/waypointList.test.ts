@@ -52,13 +52,21 @@ function area(properties: object[] = []) {
 
 const NAMES = { town: "Wockville", bog: "Soggy Bog", cave: "Catacombs" };
 
+const mainPath = (value: number) => ({ name: "mainPath", type: "int", value });
+
+/** A Combat Area of Area Level `level` at Main Path position `position`. */
+function onMainPath(level: number, position: number) {
+  const plain = combatArea(area(), level);
+  return { ...plain, properties: [...plain.properties, mainPath(position)] };
+}
+
 /** Wockville, then the Bog and the Catacombs, with `touched` Waypoints touched. */
 function world(touched: string[]): World {
   return createWorld({
     areas: {
-      town: area(),
-      bog: combatArea(area(), 3),
-      cave: combatArea(area(), 7),
+      town: area([mainPath(0)]),
+      bog: onMainPath(3, 1),
+      cave: onMainPath(7, 2),
     },
     seed: 1,
     progress: { ...FRESH_PROGRESS, touchedWaypoints: touched },

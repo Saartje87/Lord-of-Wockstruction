@@ -16,7 +16,7 @@ import {
 import { inside, middleOf, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
 import type { Order, World } from "../sim/world";
-import type { Element } from "../tuning/damage";
+import { ELEMENT_INFO, ELEMENTS, type Element } from "../tuning/damage";
 import {
   affixOf,
   type Bonus,
@@ -477,27 +477,23 @@ const BONUS_NAMES: Record<Bonus, string> = {
   fireDamage: "Fire Damage",
   coldDamage: "Cold Damage",
   lightningDamage: "Lightning Damage",
-  attackSpeed: "attack speed",
-  walkSpeed: "walk speed",
+  attackSpeed: "Attack Speed",
+  walkSpeed: "Walk Speed",
   skillLevel: "Skill Level",
 };
 
 /** The Element a single-Element Resistance Bonus guards against. */
-const BONUS_ELEMENT: Partial<Record<Bonus, Element>> = {
-  fireResistance: "fire",
-  coldResistance: "cold",
-  lightningResistance: "lightning",
-  fireDamage: "fire",
-  coldDamage: "cold",
-  lightningDamage: "lightning",
-};
+const BONUS_ELEMENT: Partial<Record<Bonus, Element>> = Object.fromEntries(
+  ELEMENTS.flatMap((element) => [
+    [ELEMENT_INFO[element].resistanceBonus, element],
+    [ELEMENT_INFO[element].damageBonus, element],
+  ]),
+);
 
 /** The Bonuses that add an Element's damage, a line each: "+3 Fire Damage". */
-const ELEMENTAL_DAMAGE_BONUSES: readonly Bonus[] = [
-  "fireDamage",
-  "coldDamage",
-  "lightningDamage",
-];
+const ELEMENTAL_DAMAGE_BONUSES: readonly Bonus[] = ELEMENTS.map(
+  (element) => ELEMENT_INFO[element].damageBonus,
+);
 
 /** The Bonuses that are percentages, not flat amounts. */
 const PERCENT_BONUSES: readonly Bonus[] = [
@@ -570,6 +566,7 @@ type Shown = {
 /** A tooltip line, and the Element it is drawn in when it has one. */
 type TooltipLine = { text: string; element?: Element };
 
+/** The lines of an Item's tooltip, name first. */
 function tooltipLines(shown: Shown): TooltipLine[] {
   const { smithBonus } = shown;
   const item = itemOf(shown.type);

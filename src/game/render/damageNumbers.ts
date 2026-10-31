@@ -37,9 +37,10 @@ export type DamageNumber =
   | { on: "hero"; kind: "castFailed"; reason: CastFailure };
 
 /**
- * White for the Hero's hits, gold for a killing blow, red for damage taken
- * grey for a Miss, pale gold for No room and blue for a failed cast: the
- * look of Physical damage.
+ * The colour of each kind of damage number, which is also the look of
+ * Physical damage: white for the Hero's hits, gold for a killing blow, red
+ * for damage taken, grey for a Miss or a Block, pale gold for No room and
+ * blue for a failed cast.
  */
 const NUMBER_COLOUR: Record<DamageNumber["kind"], number> = {
   hit: 0xffffff,

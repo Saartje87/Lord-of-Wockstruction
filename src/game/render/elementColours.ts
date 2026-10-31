@@ -11,9 +11,8 @@ export const ELEMENT_COLOUR: Record<Element, number> = {
   lightning: 0xffee3a,
 };
 
-/** The Hero panel's Resistance line colours: Fire red, Cold blue, Lightning yellow. */
+/** The Hero panel's Resistance line colours: the Element colours, but Fire red. */
 export const RESISTANCE_LINE_COLOUR: Record<Element, number> = {
+  ...ELEMENT_COLOUR,
   fire: 0xff5a4a,
-  cold: 0x4aa8ff,
-  lightning: 0xffee3a,
 };

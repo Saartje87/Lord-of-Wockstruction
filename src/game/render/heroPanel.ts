@@ -24,7 +24,12 @@ import {
   type World,
   withAttributePointsSpent,
 } from "../sim/world";
-import { ELEMENTS, type Element, MAXIMUM_RESISTANCE } from "../tuning/damage";
+import {
+  ELEMENT_INFO,
+  ELEMENTS,
+  type Element,
+  MAXIMUM_RESISTANCE,
+} from "../tuning/damage";
 import { atUiScale, type Viewport } from "../viewport";
 import { type CloseButton, closeButtonRect, closeHitAt } from "./closeButton";
 import { compactPanelRect } from "./compactLayout";
@@ -158,12 +163,6 @@ export function heroSheet(
   };
 }
 
-const ELEMENT_NAMES: Record<Element, string> = {
-  fire: "Fire",
-  cold: "Cold",
-  lightning: "Lightning",
-};
-
 /** A Resistance line's value: the effective Resistance, marked when the total is over the cap. */
 function resistanceText(world: World, element: Element): string {
   const { total, effective } = heroResistance(world, element);
@@ -199,7 +198,7 @@ function sheetValues(world: World): {
       { name: "Damage", value: `${Math.round(min)}–${Math.round(max)}` },
       { name: "Defense", value: String(heroDefense(world)) },
       ...ELEMENTS.map((element) => ({
-        name: `${ELEMENT_NAMES[element]} Resistance`,
+        name: `${ELEMENT_INFO[element].name} Resistance`,
         value: resistanceText(world, element),
         element,
       })),

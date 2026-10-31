@@ -440,6 +440,14 @@ _Avoid_: Buckler (that's one Shield)
 A hit on the Hero that their Shield stops: any Monster's blow, arrow or spell, Physical or Element. Like a Miss it is not a hit: it does no damage, never flinches the Hero and leaves Bone Ward untouched, though it keeps them In Combat, and it is shown as a Miss is.
 _Avoid_: Parry, guard
 
+**Attack Speed**:
+How much faster than the base the Hero swings, in percent, from the Attack Speed Affixes on their Equipped Items (Gloves roll it). The swing and the moment its hit lands both come sooner; the Hero panel shows the line only while it is above 0%.
+_Avoid_: Attack rate, swing speed, haste
+
+**Walk Speed**:
+How much faster than the base the Hero walks, in percent, from the Walk Speed Affixes on their Equipped Items (Boots roll it). The Hero panel shows the line only while it is above 0%.
+_Avoid_: Move speed, run speed, movement speed
+
 **Wand**:
 A Weapon that also fits the Off-hand. It gives little attack damage but maximum Mana, and each of some of its Affixes raises the Skill Level of one Skill, cast or Passive, picked when it dropped; all of that counts in either slot, so a Hero can hold two.
 _Avoid_: Staff, rod, focus

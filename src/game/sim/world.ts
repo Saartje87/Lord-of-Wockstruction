@@ -3,6 +3,7 @@ import { boneAltarTuning } from "../tuning/boneAltars";
 import {
   type DamageShares,
   type DamageType,
+  ELEMENT_INFO,
   ELEMENTS,
   type Element,
   MAXIMUM_RESISTANCE,
@@ -77,7 +78,7 @@ import {
   minionResistances,
   monsterResistances,
   splitDamage,
-  totalOf,
+  unresistedTotal,
 } from "./damage";
 import {
   type Belongings,
@@ -1287,10 +1288,11 @@ export function heroDefense(world: World): number {
  */
 export function heroBlockChance(world: World): number {
   const shield = world.hero.equipment.offHand;
-  if (!shield || itemOf(shield.type).kind !== "shield") return 0;
+  const tuning = shield && itemOf(shield.type);
+  if (!shield || tuning?.kind !== "shield") return 0;
   return Math.min(
     blockTuning.cap,
-    (itemOf(shield.type).block ?? 0) + itemBonus(shield, "block"),
+    (tuning.block ?? 0) + itemBonus(shield, "block"),
   );
 }
 
@@ -1304,15 +1306,19 @@ export function heroWalkSpeed(world: World): number {
   return bonusOf(world, "walkSpeed");
 }
 
+/** How many times faster than the base the Hero swings: 1 + attack speed %. */
+function swingSpeedFactor(world: World): number {
+  return 1 + heroAttackSpeed(world) / 100;
+}
+
 /** How many whole steps the Hero's swing takes: the base swing over (1 + attack speed %). */
 function heroSwingSteps(world: World): number {
-  const faster = 1 + heroAttackSpeed(world) / 100;
-  return Math.max(2, msToSteps(heroTuning.swingMs / faster));
+  return Math.max(2, msToSteps(heroTuning.swingMs / swingSpeedFactor(world)));
 }
 
 /** The step of the Hero's swing on which its hit lands, at the base swing's fraction through it. */
 function heroHitStep(world: World): number {
-  const faster = 1 + heroAttackSpeed(world) / 100;
+  const faster = swingSpeedFactor(world);
   const steps = msToSteps((heroTuning.swingMs * heroTuning.hitAt) / faster);
   return Math.min(Math.max(1, steps), heroSwingSteps(world) - 1);
 }
@@ -1326,13 +1332,6 @@ function heroWalkPerStep(world: World): number {
 export function isRegenerating(world: World): boolean {
   return !world.death && !isInCombat(world) && world.hero.life < maxLife(world);
 }
-
-/** The Bonus that adds flat damage of each Element to the Hero's attacks. */
-const ELEMENT_DAMAGE_BONUSES = {
-  fire: "fireDamage",
-  cold: "coldDamage",
-  lightning: "lightningDamage",
-} as const satisfies Record<Element, Bonus>;
 
 /**
  * The least and most Physical damage one of the Hero's hits deals: the
@@ -1353,7 +1352,7 @@ function physicalDamageRange(world: World): [number, number] {
 
 /** The flat damage of `element` the Equipped Items add to the Hero's hits. */
 function elementalDamage(world: World, element: Element): number {
-  return bonusOf(world, ELEMENT_DAMAGE_BONUSES[element]);
+  return bonusOf(world, ELEMENT_INFO[element].damageBonus);
 }
 
 /**
@@ -1390,7 +1389,7 @@ export function heroAttackDamage(world: World, roll: number): Damage {
  * before any Resistance.
  */
 export function heroDamage(world: World, roll: number): number {
-  return totalOf(heroAttackDamage(world, roll));
+  return unresistedTotal(heroAttackDamage(world, roll));
 }
 
 /**
@@ -2228,7 +2227,7 @@ function landProjectiles(world: World, events: SimEvent[]) {
       hurtWall(
         world,
         piece,
-        totalOf(splitDamage(randomInt(world.rng, projectile.damage))),
+        unresistedTotal(splitDamage(randomInt(world.rng, projectile.damage))),
         events,
       ),
     (projectile, target) =>
@@ -2919,7 +2918,7 @@ function removeWallPiece(
 
 /** Rolls a Monster's attack on a Bone Wall piece, which has no Resistance. */
 function rollWallHit(world: World, attack: AttackNumbers): number {
-  return totalOf(
+  return unresistedTotal(
     splitDamage(randomInt(world.rng, attack.damage), attack.damageTypes),
   );
 }
@@ -3319,7 +3318,8 @@ function heroHurts(
   events: SimEvent[],
 ) {
   world.hero.combat = COMBAT_STEPS;
-  if (isBoneAltar(target)) hurtAltar(world, target, totalOf(rolled), events);
+  if (isBoneAltar(target))
+    hurtAltar(world, target, unresistedTotal(rolled), events);
   else takeDamage(world, target, rolled, attacker, events);
 }
 
@@ -3481,7 +3481,9 @@ function minionStrike(
     hurtAltar(
       world,
       monster,
-      totalOf(splitDamage(randomInt(world.rng, minionDamageRange(minion)))),
+      unresistedTotal(
+        splitDamage(randomInt(world.rng, minionDamageRange(minion))),
+      ),
       events,
     );
     return;

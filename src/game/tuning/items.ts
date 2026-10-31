@@ -499,6 +499,7 @@ const RESISTANCE_KINDS: readonly ItemKind[] = [
   "amulet",
 ];
 
+/** The rolled range of each grade of a Resistance Affix, weakest first. */
 const RESISTANCE_RANGES: [Range, Range, Range] = [
   [5, 10],
   [11, 20],

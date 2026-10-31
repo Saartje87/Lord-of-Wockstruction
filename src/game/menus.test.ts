@@ -2228,6 +2228,22 @@ describe("the Vendor panel", () => {
     expect(menus.skillTreeOpen).toBe(true);
   });
 
+  it("is never open with the Hero panel: each opening shuts the other", () => {
+    const menus = opened();
+    pressKey(menus, "c", 1000, alive);
+    expect(menus.vendorOpen).toBe(false);
+    expect(menus.heroPanelOpen).toBe(true);
+
+    reactMenus(menus, [talked]);
+    clickTrade(menus);
+    expect(menus.vendorOpen).toBe(true);
+    expect(menus.heroPanelOpen).toBe(false);
+
+    clickLevelUp(menus, { ...alive, attributePoints: 1, skillPoints: 0 });
+    expect(menus.vendorOpen).toBe(false);
+    expect(menus.heroPanelOpen).toBe(true);
+  });
+
   it("shuts as the Hero walks away from the Vendor, and not before", () => {
     const menus = opened();
     const standing = { standingOnWaypoint: false };

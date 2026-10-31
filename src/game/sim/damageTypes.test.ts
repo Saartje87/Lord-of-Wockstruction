@@ -93,11 +93,20 @@ function inField(rows: string[], progress?: Progress): World {
 const original = {
   skeleton: structuredClone(monsterTuning.skeleton),
   explosion: structuredClone(skillTuning.corpseExplosion),
+  golemResistances: (minionTuning.golem as { resistances?: unknown })
+    .resistances,
 };
 
 afterEach(() => {
-  Object.assign(monsterTuning.skeleton, original.skeleton);
-  Object.assign(skillTuning.corpseExplosion, original.explosion);
+  // A test may add keys the original lacks, so drop them first.
+  delete (monsterTuning.skeleton as { damageTypes?: unknown }).damageTypes;
+  Object.assign(monsterTuning.skeleton, structuredClone(original.skeleton));
+  Object.assign(
+    skillTuning.corpseExplosion,
+    structuredClone(original.explosion),
+  );
+  (minionTuning.golem as { resistances?: unknown }).resistances =
+    original.golemResistances;
 });
 
 /** A Skeleton that hits for exactly `damage`, with the Damage Types given. */
@@ -210,13 +219,8 @@ describe("a Monster's hit on a Minion", () => {
     monsterTuning.skeleton.damageTypes = { fire: 1 };
     // Golem and Raised Skeletons have no Fire Resistance, so give the Golem some.
     const golem = minionTuning.golem as { resistances?: unknown };
-    const was = golem.resistances;
     golem.resistances = { fire: -50 };
-    try {
-      expect(until(minionFight("golem"), isMinionHit).damage).toBe(30);
-    } finally {
-      golem.resistances = was;
-    }
+    expect(until(minionFight("golem"), isMinionHit).damage).toBe(30);
   });
 
   it("takes the Weakened share of every Damage Type in the hit", () => {

@@ -4,6 +4,20 @@ import type { Rect } from "../sim/rect";
 /** A point in a slot's own box: 0 to 1 across and down. */
 type Unit = [number, number];
 
+/** A band: the hint of both Ring slots. */
+const RING: readonly Unit[][] = [
+  [
+    [0.3, 0.4],
+    [0.4, 0.3],
+    [0.6, 0.3],
+    [0.7, 0.4],
+    [0.7, 0.6],
+    [0.6, 0.7],
+    [0.4, 0.7],
+    [0.3, 0.6],
+  ],
+];
+
 /**
  * The faint outline an empty Equipment slot draws to hint at its kind, as
  * closed polygons in the slot's own box (0 to 1 across and down), drawn
@@ -126,31 +140,8 @@ export const SLOT_HINTS: Record<EquipmentSlot, readonly Unit[][]> = {
       [0.34, 0.12],
     ],
   ],
-  // A band with a stone.
-  ring1: [
-    [
-      [0.3, 0.4],
-      [0.4, 0.3],
-      [0.6, 0.3],
-      [0.7, 0.4],
-      [0.7, 0.6],
-      [0.6, 0.7],
-      [0.4, 0.7],
-      [0.3, 0.6],
-    ],
-  ],
-  ring2: [
-    [
-      [0.3, 0.4],
-      [0.4, 0.3],
-      [0.6, 0.3],
-      [0.7, 0.4],
-      [0.7, 0.6],
-      [0.6, 0.7],
-      [0.4, 0.7],
-      [0.3, 0.6],
-    ],
-  ],
+  ring1: RING,
+  ring2: RING,
 };
 
 /**

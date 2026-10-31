@@ -140,7 +140,10 @@ function grownStat(
   return grown(tuning[stat], tuning.growth[stat], monsterLevel);
 }
 
-/** A Monster's max Life at its Monster Level. */
+/**
+ * A Monster's max Life at its Monster Level: a Unique Monster's times
+ * `uniqueTuning.life`, the Act Boss's times his own `graveWockingtonTuning.life`.
+ */
 export function monsterMaxLife(monster: MonsterOfLevel): number {
   const factor =
     monster.type === "grave_wockington"

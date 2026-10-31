@@ -99,12 +99,12 @@ describe("Unique Monsters", () => {
     expect(monster.pos).toEqual({ x: 4.5, y: 1.5 });
   });
 
-  it("have 1.4x the Life, 1.5x the damage and 5x the Experience of their type at the same Monster Level", () => {
+  it("have the Unique Life multiplier, 1.5x the damage and 5x the Experience of their type at the same Monster Level", () => {
     const ordinary = { type: "zombie", monsterLevel: 3 } as const;
     const special = { ...ordinary, unique: "Sir Soaks-a-Lot" };
 
     expect(monsterMaxLife(special)).toBe(
-      Math.round(monsterMaxLife(ordinary) * 1.4),
+      Math.round(monsterMaxLife(ordinary) * uniqueTuning.life),
     );
     const [low, high] = monsterDamageRange(ordinary);
     expect(monsterDamageRange(special)[0]).toBe(Math.round(low * 1.5));

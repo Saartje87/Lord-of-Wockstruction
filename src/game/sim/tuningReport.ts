@@ -161,7 +161,8 @@ export function uniqueReport(
 }
 
 /**
- * The Act Boss's numbers at an Area Level, Unique multipliers included; the
+ * The Act Boss's numbers at an Area Level, Unique multipliers included (his
+ * Life with his own, `graveWockingtonTuning.life`); the
  * `damage` is his melee blow.
  */
 export type BossReport = UniqueRow & {

@@ -2,9 +2,9 @@ import type { Rarity } from "./items";
 import type { MonsterType } from "./monsters";
 
 /**
- * Grave Wockington's own tuning beside his type's: his Life and Skeleton
- * waves, in human units. The sim converts it to
- * steps once. First tuning pass (T513).
+ * Grave Wockington's own tuning beside his type's: his Life and his Skeleton
+ * waves, in human units. The sim converts it to steps once. First tuning pass
+ * (T513); his Life setting since T552.
  */
 export type GraveWockingtonTuning = {
   /**

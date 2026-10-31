@@ -1337,7 +1337,7 @@ describe('the shipped "Bog Off" Quest', () => {
  * Ticks (80 s) the Spa Day tests give a Hero to kill Bruckle: past the 45–60 s
  * his fight is tuned to, close to the 6000 ticks that fell the Ossuary's boss.
  */
-const UNIQUE_KILL_TICKS = 4_800;
+const UNIQUE_KILL_TICKS = 80 * STEPS_PER_SECOND;
 
 /** The reference Hero for Bruckle's fight: one just arrived at the Spa. */
 const SPA_ARRIVAL_PROGRESS = { ...FRESH_PROGRESS, level: 3, experience: 1_500 };

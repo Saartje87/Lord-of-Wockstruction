@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { type CursorHit, clickCursor, createCursor } from "../cursor";
 import { inventoryPanelLayout } from "../render/inventoryPanel";
 import { emptyBelt } from "../sim/belt";
@@ -44,11 +44,6 @@ const ON_AXE = {
   hit: { inventory: { column: 4, row: 1 } } as CursorHit,
 };
 const ON_WORLD = { x: 640, y: 300 };
-
-const tuned = { ...inputTuning };
-afterEach(() => {
-  Object.assign(inputTuning, tuned);
-});
 
 /** What a tap lifting off `world` at `nowMs` does there, as GameCanvas runs it. */
 function liftOff(tap: ReturnType<typeof createTapInput>, nowMs: number) {

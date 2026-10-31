@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { smithTuning } from "../tuning/smith";
 import { equipmentOf, FRESH_BELONGINGS, inventoryOf } from "./inventory";
 import {
@@ -109,13 +109,6 @@ function tunePool(pool: keyof typeof pools, only: (typeof pools)["wand"]) {
 }
 
 describe("The Smith bonus", () => {
-  afterEach(() => {
-    for (const [name, pool] of Object.entries(pools)) {
-      const live = smithTuning[name as keyof typeof pools];
-      live.splice(0, live.length, ...pool);
-    }
-  });
-
   it("gives a Weapon one bonus from the Weapon pool", () => {
     const world = newWorld();
     const sword = equipmentOf(world).weapon;

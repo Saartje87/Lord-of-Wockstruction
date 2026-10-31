@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { heroTuning } from "../tuning/hero";
 import { skillTuning } from "../tuning/skills";
 import { monsterDamageRange } from "./monsters";
@@ -131,11 +131,6 @@ const weaken = skillTuning.weaken.effect;
 if (weaken.type !== "curse" || weaken.kind !== "weaken") {
   throw new Error("Weaken is not a weaken Curse");
 }
-const tuned = { ...weaken };
-afterEach(() => {
-  Object.assign(weaken, tuned);
-});
-
 describe("casting Weaken", () => {
   it("Curses the Monsters in its circle and spends Mana", () => {
     const w = inCrypt("skeleton");

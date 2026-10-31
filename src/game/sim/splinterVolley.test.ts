@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { heroTuning } from "../tuning/hero";
 import { branchSkills, type Skill, skillTuning } from "../tuning/skills";
 import type { HeroProjectile } from "./projectiles";
@@ -188,13 +188,6 @@ function hitsOn(events: SimEvent[]): Map<Monster["id"], number[]> {
   }
   return hits;
 }
-
-const originalVolley = structuredClone(skillTuning.splinterVolley);
-const originalSpear = structuredClone(skillTuning.boneSpear);
-afterEach(() => {
-  skillTuning.splinterVolley = structuredClone(originalVolley);
-  skillTuning.boneSpear = structuredClone(originalSpear);
-});
 
 /** Splinter Volley's effect, failing if it is not a volley. */
 function volley() {

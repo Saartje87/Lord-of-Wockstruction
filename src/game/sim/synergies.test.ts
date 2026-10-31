@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { type CastSkill, type Skill, skillTuning } from "../tuning/skills";
 import { minionDamageRange, minionMaxLife } from "./minions";
 import { emptySkillBar } from "./skillBar";
@@ -114,14 +114,6 @@ function corpseAt(w: World, pos: Vec): Corpse {
   w.corpses.push(corpse);
   return corpse;
 }
-
-const originals = structuredClone(skillTuning);
-afterEach(() => {
-  for (const skill of Object.keys(skillTuning) as Skill[]) {
-    skillTuning[skill].synergies = originals[skill].synergies;
-    skillTuning[skill].effect = originals[skill].effect;
-  }
-});
 
 /** The first Synergy a Skill has in tuning. */
 function firstSynergy(skill: Skill) {

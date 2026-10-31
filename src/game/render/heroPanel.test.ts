@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   acceptPendingPoints,
   addPendingPoint,
@@ -728,10 +728,6 @@ describe("Pending Attribute Points and the Save", () => {
 });
 
 describe("heroSheet's Resistance lines", () => {
-  afterEach(() => {
-    delete RESISTANCE_PENALTIES[2];
-  });
-
   const wearingIn = (map: object, ...values: number[]) =>
     createWorld({
       areas: { town: map },

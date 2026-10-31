@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { encodeSave, parseSave, saveOf } from "../save";
 import { heroTuning } from "../tuning/hero";
 import { monsterTuning } from "../tuning/monsters";
@@ -301,11 +301,6 @@ describe("Bone Spear's flight", () => {
 });
 
 describe("Bone Spear's damage", () => {
-  const { defense } = monsterTuning.skeleton;
-  afterEach(() => {
-    monsterTuning.skeleton.defense = defense;
-  });
-
   /** Every hit a spear at `skillLevel` lands on a Skeleton in 10 casts. */
   function hits(skillLevel: number): number[] {
     const damage: number[] = [];

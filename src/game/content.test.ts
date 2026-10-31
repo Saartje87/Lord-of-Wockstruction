@@ -747,6 +747,31 @@ describe("the shipped Areas' pieces", () => {
   });
 });
 
+describe("the shipped Areas' trails", () => {
+  const STONE_PATH = /^halloween\/path_/;
+  const pathsIn = (area: Area) =>
+    area.floorPieces.filter((piece) => STONE_PATH.test(piece ?? "")).length;
+
+  it("are dirt in every outdoor Area, with no stone path piece", () => {
+    const outdoor = Object.values(shippedWorld().areas).filter(
+      (area) => area.outdoors,
+    );
+    expect(outdoor.length).toBe(5);
+    for (const area of outdoor) {
+      expect(pathsIn(area), area.name).toBe(0);
+      expect(
+        area.floorPieces.filter((piece) => piece === "halloween/floor_dirt")
+          .length,
+        area.name,
+      ).toBeGreaterThan(0);
+    }
+  });
+
+  it("stay stone paths in Wockville", () => {
+    expect(pathsIn(shippedWorld().areas.town)).toBeGreaterThan(50);
+  });
+});
+
 describe("Water in the shipped Areas", () => {
   const shipped = () => shippedWorld().areas;
   const hasWater = (area: Area) => area.water.some(Boolean);

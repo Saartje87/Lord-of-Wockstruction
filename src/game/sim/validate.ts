@@ -114,8 +114,9 @@ export function validateAreas(areas: Record<string, Area>) {
 
 /**
  * Checks that each Act is whole, throwing with a message naming it: exactly
- * one Act Boss spawn in its Areas and a Waypoint in its Town, and every
- * Waypoint's Area in an Act. Apart from `validateAreas` because small test
+ * one Act Boss spawn in its Areas and a Waypoint in its Town, a Waypoint in
+ * every Area on the Main Path and none in a Side Area, and every Waypoint's
+ * Area in an Act. Apart from `validateAreas` because small test
  * maps make Acts that are not whole; `createShippedWorld` runs it on the
  * shipped Areas.
  */
@@ -138,6 +139,21 @@ export function validateActs(areas: Record<string, Area>) {
     const town = inAct.find((area) => area.name === TOWN);
     if (!town?.waypoint) {
       throw new Error(`Act ${act} has no Waypoint in its Town`);
+    }
+    for (const area of inAct) {
+      // A Side Area is a Combat Area off the Main Path; the Town has no such
+      // position to hold a Waypoint to, and has its own check above.
+      if (area.name === TOWN) continue;
+      if (area.mainPath !== null && !area.waypoint) {
+        throw new Error(
+          `Area "${area.name}" is on the Main Path but has no Waypoint`,
+        );
+      }
+      if (area.mainPath === null && area.waypoint) {
+        throw new Error(
+          `Area "${area.name}" is a Side Area but has a Waypoint`,
+        );
+      }
     }
   }
 }

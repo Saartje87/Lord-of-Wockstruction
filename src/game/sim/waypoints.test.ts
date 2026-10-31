@@ -73,7 +73,10 @@ function map(rows: string[], objects: object[] = []) {
       ),
       { type: "objectgroup", name: "objects", objects: all },
     ],
-    properties: [{ name: "act", type: "int", value: 1 }],
+    properties: [
+      { name: "act", type: "int", value: 1 },
+      { name: "mainPath", type: "int", value: 0 },
+    ],
   };
 }
 
@@ -116,7 +119,7 @@ const town = map(
   [exit(7, 0, "cave", "from-town"), entry("from-cave", 6, 0)],
 );
 // The cave has a Waypoint and a Skeleton far from it.
-const cave = combatArea(
+const plainCave = combatArea(
   map(
     [
       "..........", //
@@ -129,6 +132,13 @@ const cave = combatArea(
   ),
   2,
 );
+const cave = {
+  ...plainCave,
+  properties: [
+    ...plainCave.properties,
+    { name: "mainPath", type: "int", value: 1 },
+  ],
+};
 // Another Act: its Waypoint is never on the list.
 const otherAct = {
   ...combatArea(map(["....", ".HW.", "...."]), 5),

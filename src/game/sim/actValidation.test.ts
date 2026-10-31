@@ -36,12 +36,28 @@ const boss = {
 const start = point("entry", "start", 1, 1);
 const act = { name: "act", type: "int", value: 1 };
 
-/** A Town of Act `1` with `objects` besides its start. */
+/** The `mainPath` property for Main Path position `position`. */
+const mainPath = (position: number) => ({
+  name: "mainPath",
+  type: "int",
+  value: position,
+});
+
+/** A Town of Act `1`, first on the Main Path, with `objects` besides its start. */
 const townWith = (...objects: object[]) =>
-  loadArea("town", map([start, ...objects], [act]));
+  loadArea("town", map([start, ...objects], [act, mainPath(0)]));
 const waypoint = point("waypoint", "waypoint", 3, 1);
 const ossuary = (...objects: object[]) =>
   loadArea("ossuary", combatArea(map([start, ...objects])));
+
+/** A Combat Area of Act `1` at Main Path position `position`. */
+const onMainPath = (name: string, position: number, ...objects: object[]) => {
+  const plain = combatArea(map([start, ...objects]));
+  return loadArea(name, {
+    ...plain,
+    properties: [...plain.properties, mainPath(position)],
+  });
+};
 
 function areas(...list: Area[]): Record<string, Area> {
   return Object.fromEntries(list.map((area) => [area.name, area]));
@@ -52,6 +68,39 @@ describe("validateActs", () => {
     expect(() =>
       validateActs(areas(townWith(waypoint), ossuary(boss))),
     ).not.toThrow();
+  });
+
+  it("accepts a Main Path with a Waypoint in every Area and a Side Area with none", () => {
+    expect(() =>
+      validateActs(
+        areas(
+          townWith(waypoint),
+          onMainPath("plains", 1, waypoint),
+          onMainPath("crypt", 2, waypoint, boss),
+          ossuary(),
+        ),
+      ),
+    ).not.toThrow();
+  });
+
+  it("does not call a Town without a Main Path position a Side Area", () => {
+    const town = loadArea("town", map([start, waypoint], [act]));
+
+    expect(() => validateActs(areas(town, ossuary(boss)))).not.toThrow();
+  });
+
+  it("rejects a Main Path Area without a Waypoint", () => {
+    expect(() =>
+      validateActs(
+        areas(townWith(waypoint), onMainPath("plains", 1), ossuary(boss)),
+      ),
+    ).toThrow(/Area "plains" is on the Main Path but has no Waypoint/);
+  });
+
+  it("rejects a Side Area with a Waypoint", () => {
+    expect(() =>
+      validateActs(areas(townWith(waypoint), ossuary(boss, waypoint))),
+    ).toThrow(/Area "ossuary" is a Side Area but has a Waypoint/);
   });
 
   it("rejects an Act without an Act Boss spawn", () => {

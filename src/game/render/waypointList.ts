@@ -31,8 +31,8 @@ export type WaypointSheet = {
 };
 
 /**
- * What the Waypoint list shows: Act 1's Waypoints in Main Path order, each
- * named by its Area's display name from `displayNames`.
+ * What the Waypoint list shows: the Waypoints of the active Area's Act in
+ * Main Path order, each named by its Area's display name from `displayNames`.
  */
 export function waypointListSheet(
   world: World,
@@ -69,26 +69,32 @@ export function waypointListPanelRect(screen: Viewport, rows: number): Rect {
  * Where the panel, its × close button and each Waypoint's row (CSS px) go,
  * at the UI Scale. The rows run down the panel from under its title, inside
  * its padding; in the Compact Layout, where the panel fills the screen, as
- * wide as on a desktop and centred.
+ * wide as on a desktop and centred, and no taller than the room above the
+ * hint leaves for them.
  */
 export function waypointListLayout(
   screen: Viewport,
   rows: number,
 ): { panel: Rect; closeButton: Rect; rows: Rect[] } {
-  const { width, padding, firstRow, rowHeight } = atUiScale(
+  const { width, padding, firstRow, rowHeight, hintHeight } = atUiScale(
     WAYPOINT_LIST,
     screen.uiScale,
   );
   const panel = waypointListPanelRect(screen, rows);
   const w = width - 2 * padding;
+  // A short screen's panel is too short for every row at full height.
+  const roomForRows = panel.h - firstRow - hintHeight - padding;
+  const height = screen.compact
+    ? Math.min(rowHeight, roomForRows / rows)
+    : rowHeight;
   return {
     panel,
     closeButton: closeButtonRect(panel, screen.uiScale),
     rows: Array.from({ length: rows }, (_, index) => ({
       x: panel.x + (panel.w - w) / 2,
-      y: panel.y + firstRow + index * rowHeight,
+      y: panel.y + firstRow + index * height,
       w,
-      h: rowHeight,
+      h: height,
     })),
   };
 }

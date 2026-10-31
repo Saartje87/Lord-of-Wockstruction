@@ -38,6 +38,10 @@ Multi-context repo (presence of `GLOSSARY-MAP.md` at the root):
         └── docs/adr/
 ```
 
+## Committing glossary and ADR edits
+
+Glossary and ADR edits made during triage or grilling are committed straight to `main`, as `T<N> triage: …` or `Glossary: …`.
+
 ## Use the glossary's vocabulary
 
 When your output names a domain concept (in an issue title, a refactor proposal, a hypothesis, a test name), use the term as defined in `GLOSSARY.md`. Don't drift to synonyms the glossary explicitly avoids.

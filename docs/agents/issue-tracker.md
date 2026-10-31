@@ -33,6 +33,10 @@ Create a Tandembike ticket in Lord of Wockstruction.
 
 Use `get_ticket` and `list_comments`.
 
+## When a skill says "post an agent brief"
+
+Write its acceptance criteria to the ticket's `acceptanceCriteria` field, and have the brief point there instead of listing them.
+
 ## Wayfinding operations
 
 Used by `/wayfinder`. The **map** is a single Epic with **child** tickets.

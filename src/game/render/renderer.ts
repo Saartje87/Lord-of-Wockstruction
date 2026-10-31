@@ -601,6 +601,10 @@ type MonsterMark = {
  * arriving in an Area shows, by Area name. Hints name the buttons of
  * `activeInput`, read as it is each frame, and the touch controls show while
  * it is touch, held as `touch` is each frame.
+ *
+ * Each HUD piece and panel is drawn by a `<thing>View` function in this
+ * file (`skillBarView`, `skillTreePanelView`); its layout and what a click
+ * there hits live beside it in `render/<thing>.ts`.
  */
 export function createRenderer(
   app: Application,

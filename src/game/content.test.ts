@@ -11,7 +11,7 @@ import { type Area, type Exit, isWalkable, type Spawn } from "./sim/area";
 import { type MonsterOfLevel, monsterExperience } from "./sim/monsters";
 import { canReach, findPath } from "./sim/path";
 import { validateActs, validateQuests } from "./sim/validate";
-import type { Vec } from "./sim/vec";
+import { distance, type Vec } from "./sim/vec";
 import {
   createWorld,
   FRESH_PROGRESS,
@@ -26,6 +26,7 @@ import {
 } from "./sim/world";
 import { ITEM_TYPES, itemOf } from "./tuning/items";
 import { type MonsterType, monsterTuning } from "./tuning/monsters";
+import { questTuning } from "./tuning/quests";
 import { pondsOf } from "./world3d/waterMeshes";
 
 // Building the World runs the loader's validation: a `start` Entry, Exits to
@@ -1246,6 +1247,13 @@ describe('the shipped "Bog Off" Quest', () => {
   });
 });
 
+/**
+ * Ticks the Spa Day test gives a New Hero to kill Bruckle: his Life is a
+ * Unique Wockbrute's, many times a Level 1 Hero's hit, which takes far longer
+ * than the 6000 ticks that fell the Ossuary's boss.
+ */
+const UNIQUE_KILL_TICKS = 30_000;
+
 describe('the shipped "Spa Day" Quest', () => {
   const inSpa = (progress = FRESH_PROGRESS) =>
     createWorld({
@@ -1275,15 +1283,20 @@ describe('the shipped "Spa Day" Quest', () => {
     );
   });
 
-  it("is Ready once the Hero kills the Spa's Unique Monster, then Done at the Smith", () => {
+  it("is Ready once the Hero kills Bruckle, then Done at the Smith", () => {
     const world = inSpa();
-    const boss = world.monsters.find((monster) => monster.unique);
-    if (!boss) throw new Error("no Unique Monster");
+    const boss = world.monsters.find((monster) => monster.unique === "Bruckle");
+    if (!boss) throw new Error("no Bruckle");
+    expect(boss.type).toBe("wockbrute");
     world.monsters = [boss];
     world.hero.pos = { x: boss.pos.x - 1.2, y: boss.pos.y };
     world.hero.prevPos = { ...world.hero.pos };
     let ready = false;
-    for (let i = 0; i < 6000 && world.monsters.includes(boss); i++) {
+    for (
+      let i = 0;
+      i < UNIQUE_KILL_TICKS && world.monsters.includes(boss);
+      i++
+    ) {
       const orders: Order[] =
         i % 120 === 0 ? [{ type: "Attack", monster: boss.id }] : [];
       for (const event of step(world, orders)) {
@@ -1354,6 +1367,12 @@ describe("loading the shipped content into a World", () => {
   });
 });
 
+/**
+ * How far from Bruckle (tiles) a Wockwolf counts as his guard: his pack stands
+ * about 2 tiles off, the Spa's other Wockwolves 8.
+ */
+const GUARD_RADIUS = 3;
+
 describe("the shipped Act 1's Main Path", () => {
   it("lists the Waypoints from Wockville out to the Ossuary", () => {
     expect(waypointList(shippedWorld()).map((w) => w.area)).toEqual([
@@ -1364,13 +1383,72 @@ describe("the shipped Act 1's Main Path", () => {
     ]);
   });
 
-  it("names the Spa's Unique Monster as its map does", () => {
-    const spa = Object.values(shippedWorld().areas).find(
-      (area) => area.name === "spa",
-    );
-    expect(spa?.uniques.map((unique) => unique.name)).toEqual([
-      "Sir Soaks-a-Lot",
+  it("names the Spa's Unique Monster Bruckle, a Wockbrute", () => {
+    const spa = shippedWorld().areas.spa;
+    expect(spa.uniques.map((unique) => [unique.name, unique.monster])).toEqual([
+      ["Bruckle", "wockbrute"],
     ]);
+  });
+
+  it("stands Bruckle at the far end of the Spa from the Cozy Plains entry", () => {
+    const spa = shippedWorld().areas.spa;
+    const bruckle = spa.uniques[0].pos;
+    const entry = spa.entries["from-cozy-plains"];
+    const deepestSpawn = Math.max(
+      ...spa.spawns.map((s) => Math.abs(s.pos.y - entry.y)),
+    );
+
+    // The entry is at the Spa's south edge. He stands straight across from it,
+    // and no Spawn lies further along that axis.
+    expect(bruckle.x).toBe(entry.x);
+    expect(Math.abs(bruckle.y - entry.y)).toBeGreaterThanOrEqual(deepestSpawn);
+  });
+
+  it("stands 5 ordinary Wockwolves around Bruckle, beside the Spa's other Monsters", () => {
+    const spa = shippedWorld().areas.spa;
+    const bruckle = spa.uniques[0].pos;
+    const guards = spa.spawns.filter(
+      (s) =>
+        s.monster === "wockwolf" && distance(s.pos, bruckle) <= GUARD_RADIUS,
+    );
+
+    expect(guards.map((s) => s.count)).toEqual([5]);
+    expect(new Set(spa.spawns.map((s) => s.monster))).toEqual(
+      new Set(["skeleton", "zombie", "wockwolf", "bog_spitter"]),
+    );
+  });
+
+  it("spawns Bruckle as a Unique Wockbrute with exactly 5 ordinary Wockwolves around him", () => {
+    const world = createWorld({
+      areas,
+      tilesets,
+      seed: 1,
+      start: { area: "spa", entry: "start" },
+    });
+    const bruckle = world.monsters.find((m) => m.unique === "Bruckle");
+    if (!bruckle) throw new Error("no Bruckle");
+    const guards = world.monsters.filter(
+      (m) =>
+        m.type === "wockwolf" && distance(m.pos, bruckle.pos) <= GUARD_RADIUS,
+    );
+
+    expect(bruckle.type).toBe("wockbrute");
+    expect(guards).toHaveLength(5);
+    expect(guards.every((m) => m.unique === null)).toBe(true);
+  });
+
+  it('names Bruckle in "Spa Day"\'s lines and next step, keeping its Done line', () => {
+    const quest = questTuning["spa-day"];
+
+    expect(quest.lines).toEqual({
+      notGiven:
+        "A Wockbrute calls himself Bruckle and has taken over the Spa. Mud baths, he says. Kill him, and I'll put my best work into your gear.",
+      given:
+        "Bruckle still lounges in the Spa. Mind his wolves, and mind that Slam.",
+      ready: "Bruckle's bathed his last! Let me show you what my hands can do.",
+      done: "Steel never lies. Mind your gear.",
+    });
+    expect(quest.nextStep).toBe("Kill Bruckle in the Spa.");
   });
 });
 
@@ -1883,6 +1961,18 @@ describe("the dev-only `fight` Entries", () => {
     );
     expect(nearest).toBeLessThanOrEqual(FIGHT_ENTRY_MAX_DISTANCE);
     expect(nearest).toBeGreaterThanOrEqual(FIGHT_ENTRY_MIN_DISTANCE);
+  });
+
+  it("starts the Hero in the Spa within reach of Bruckle and his Wockwolves", () => {
+    const { spa } = shippedWorld().areas;
+    const fight = spa.entries.fight;
+    const bruckle = spa.uniques.find((unique) => unique.name === "Bruckle");
+
+    expect(fight).toBeDefined();
+    expect(bruckle).toBeDefined();
+    const away = distance(bruckle?.pos ?? { x: 0, y: 0 }, fight);
+    expect(away).toBeLessThanOrEqual(FIGHT_ENTRY_MAX_DISTANCE);
+    expect(away).toBeGreaterThanOrEqual(FIGHT_ENTRY_MIN_DISTANCE);
   });
 
   it("starts the Hero in the Ossuary within his Gravefire's range of Grave Wockington", () => {

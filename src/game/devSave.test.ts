@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { buildSave } from "./devSave";
+import { buildSave, type SaveOptions } from "./devSave";
 import { parseSave, pointsGained, SAVE_VERSION } from "./save";
 import type { BeltTypes } from "./sim/belt";
 import { FRESH_BELONGINGS, type StoredItem } from "./sim/inventory";
@@ -107,6 +107,40 @@ describe("the dev Save builder", () => {
     expect(() =>
       buildSave({ level: 2, skillLevels: { [SKILLS[0]]: have + 3 } }),
     ).toThrow(/Skill Points.*\b3\b/);
+  });
+
+  it("throws naming the Quest and the shape it takes for a Quest the game would refuse", () => {
+    const id = QUEST_IDS[0];
+    const shape =
+      /\{ state: "notGiven" \| "given" \| "ready" \| "done", count: /;
+    const refused = [
+      "given",
+      { state: "given", partsDone: 0 },
+      { state: "half", count: 0 },
+      { state: "given", count: -1 },
+    ];
+    for (const quest of refused) {
+      expect(() =>
+        buildSave({
+          quests: { [id]: quest } as unknown as SaveOptions["quests"],
+        }),
+      ).toThrow(new RegExp(`Quest ${id}`));
+      expect(() =>
+        buildSave({
+          quests: { [id]: quest } as unknown as SaveOptions["quests"],
+        }),
+      ).toThrow(shape);
+    }
+  });
+
+  it("throws naming an unknown Quest", () => {
+    expect(() =>
+      buildSave({
+        quests: {
+          nope: { state: "given", count: 0 },
+        } as unknown as SaveOptions["quests"],
+      }),
+    ).toThrow(/unknown Quest nope/);
   });
 
   it("throws invalid Save when the game would refuse the text", () => {
@@ -228,7 +262,7 @@ describe("the dev Save builder", () => {
   it("builds each example playtesting.md shows", () => {
     const doc = readFileSync("docs/agents/playtesting.md", "utf8");
     const calls = [...doc.matchAll(/loadSave\((\{[\s\S]*?\})\);/g)];
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(3);
     for (const [, source] of calls) {
       expect(() =>
         buildSave(new Function(`return (${source})`)()),

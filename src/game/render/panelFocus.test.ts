@@ -18,6 +18,7 @@ import { heroTuning } from "../tuning/hero";
 import { inventoryTuning } from "../tuning/items";
 import {
   BRANCHES,
+  type Branch,
   branchSkills,
   isPassive,
   skillTuning,
@@ -304,6 +305,7 @@ describe("the Hero panel's Focus spots", () => {
     vendorOpen: false,
     dialogueNpc: 0,
     dialoguePage: 0,
+    skillTreeBranch: "bone" as const,
     pendingPoints,
   });
 
@@ -368,6 +370,11 @@ describe("the Skill Tree panel's Focus spots", () => {
     dialoguePage: 0,
     pendingPoints: noPendingPoints(),
   };
+  /** The Skill Tree's Focus spots with `branch` open. */
+  const spotsOf = (w: World, screen: Viewport, branch: Branch = "bone") =>
+    panelFocusSpots("skillTree", w, screen, undefined, 0, 0, branch);
+  const tab = (branch: Branch) =>
+    ({ button: { type: "branchTab", branch } }) as const;
   const learnedSkills = Object.fromEntries(SKILLS.map((s) => [s, 1])) as Record<
     (typeof SKILLS)[number],
     number
@@ -391,65 +398,91 @@ describe("the Skill Tree panel's Focus spots", () => {
     ["learned Skills", () => world(undefined, { skillLevels: learnedSkills })],
   ];
   const cases = SCREENS.flatMap(([name, screen]) =>
-    worlds.map(([with_, made]) => [name, with_, screen, made] as const),
+    worlds.flatMap(([with_, made]) =>
+      BRANCHES.map((branch) => [name, with_, screen, made, branch] as const),
+    ),
   );
 
   it.each(
     cases,
-  )("are every Skill, Skill Bar slot and the × (%s, %s)", (_, __, screen, made) => {
-    const spots = panelFocusSpots("skillTree", made(), screen);
+  )("are the Branch tabs, the open Branch's Skills, the Skill Bar slots and the × (%s, %s, %s)", (_, __, screen, made, branch) => {
+    const spots = spotsOf(made(), screen, branch);
 
-    expect(spots).toHaveLength(SKILLS.length + SKILL_BAR_SLOTS.length + 1);
+    expect(spots).toHaveLength(
+      BRANCHES.length +
+        branchSkills[branch].length +
+        SKILL_BAR_SLOTS.length +
+        1,
+    );
+    for (const other of BRANCHES) spotOf(spots, tab(other));
     for (const slot of SKILL_BAR_SLOTS) spotOf(spots, barSlot(slot));
     spotOf(spots, treeClose);
   });
 
   it("puts each Skill's spot on its +, spending a point, while it can", () => {
-    const spots = panelFocusSpots("skillTree", worlds[0][1](), WIDE);
-    for (const skill of SKILLS) spotOf(spots, learn(skill));
+    for (const branch of BRANCHES) {
+      const spots = spotsOf(worlds[0][1](), WIDE, branch);
+      for (const skill of branchSkills[branch]) spotOf(spots, learn(skill));
+    }
   });
 
   it("picks a learned Skill up with the second face button", () => {
-    const spots = panelFocusSpots("skillTree", worlds[1][1](), WIDE);
-    for (const skill of SKILLS.filter((one) => !isPassive(one))) {
-      expect(spotOf(spots, pickUp(skill)).secondHit).toEqual(pickUp(skill));
+    for (const branch of BRANCHES) {
+      const spots = spotsOf(worlds[1][1](), WIDE, branch);
+      for (const skill of branchSkills[branch].filter(
+        (one) => !isPassive(one),
+      )) {
+        expect(spotOf(spots, pickUp(skill)).secondHit).toEqual(pickUp(skill));
+      }
     }
   });
 
   it("is a Skill not yet learned, with nothing to press, while no point can be spent", () => {
-    const spots = panelFocusSpots("skillTree", world(), WIDE);
+    const spots = spotsOf(world(), WIDE);
+    const skill = spots[BRANCHES.length];
 
-    expect(spots).toHaveLength(SKILLS.length + SKILL_BAR_SLOTS.length + 1);
-    expect(spots[0].hit).toEqual({ button: null });
-    expect(spots[0].secondHit).toBeUndefined();
+    expect(spots).toHaveLength(
+      BRANCHES.length + branchSkills.bone.length + SKILL_BAR_SLOTS.length + 1,
+    );
+    expect(skill.hit).toEqual({ button: null });
+    expect(skill.secondHit).toBeUndefined();
   });
 
   it.each(
     cases,
-  )("each point where a click hits it (%s, %s)", (_, __, screen, made) => {
+  )("each point where a click hits it (%s, %s, %s)", (_, __, screen, made, branch) => {
     const w = made();
-    for (const spot of panelFocusSpots("skillTree", w, screen)) {
-      expect(cursorHitAt(screen, spot.at, w, shown)).toEqual(spot.hit);
+    const open = { ...shown, skillTreeBranch: branch };
+    for (const spot of spotsOf(w, screen, branch)) {
+      expect(cursorHitAt(screen, spot.at, w, open)).toEqual(spot.hit);
     }
   });
 
   it.each(
     cases,
-  )("are each reachable from any other (%s, %s)", (_, __, screen, made) => {
-    expectAllReachable(panelFocusSpots("skillTree", made(), screen));
+  )("are each reachable from any other (%s, %s, %s)", (_, __, screen, made, branch) => {
+    expectAllReachable(spotsOf(made(), screen, branch));
+  });
+
+  it("goes from the tabs down to the first Skills, and across between tabs", () => {
+    const spots = spotsOf(worlds[1][1](), WIDE);
+
+    expect(move(spots, tab("bone"), "right")).toEqual(tab("summoning"));
+    expect(move(spots, tab("curses"), "left")).toEqual(tab("summoning"));
+    expect(
+      moveFocus(spots, spotOf(spots, tab("bone")), "down").hit,
+    ).toMatchObject({ button: { type: "pickUpSkill" } });
   });
 
   it("goes down from the last Skill to the Skill Bar, and up to the ×", () => {
-    const spots = panelFocusSpots("skillTree", worlds[1][1](), WIDE);
-    const inOrder = BRANCHES.flatMap((branch) => branchSkills[branch]);
+    const spots = spotsOf(worlds[1][1](), WIDE);
+    const inOrder = branchSkills.bone;
     // The last Skill is a Passive Skill, whose spot has no hit of its own.
-    const last = spots[inOrder.length - 1];
-    const first = pickUp(inOrder[0]);
+    const last = spots[BRANCHES.length + inOrder.length - 1];
 
     expect(SKILL_BAR_SLOTS.map(barSlot)).toContainEqual(
       moveFocus(spots, last, "down").hit,
     );
-    expect(move(spots, first, "up")).toEqual(treeClose);
     expect(move(spots, barSlot("key1"), "right")).toEqual(barSlot("key2"));
   });
 });

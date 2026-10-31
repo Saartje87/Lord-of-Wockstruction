@@ -222,11 +222,7 @@ import {
 import { SKILL_BAR, skillBarLayout, skillBarSheet } from "./skillBar";
 import {
   SKILL_TREE_PANEL,
-  SKILL_TREE_ROWS,
-  skillTreeBranchRow,
-  skillTreeColumns,
   skillTreePanelLayout,
-  skillTreeRow,
   skillTreeSheet,
 } from "./skillTreePanel";
 import { slotHintPolygons } from "./slotHints";
@@ -780,6 +776,7 @@ export function createRenderer(
     vendorOpen: false,
     dialogueNpc: 0,
     dialoguePage: 0,
+    skillTreeBranch: "bone",
     pendingPoints: noPendingPoints(),
   };
 
@@ -1225,6 +1222,7 @@ export function createRenderer(
         vendorOpen: menus.vendorOpen,
         dialogueNpc: menus.dialogueNpc,
         dialoguePage: menus.dialoguePage,
+        skillTreeBranch: menus.skillTreeBranch,
         pendingPoints: { ...menus.pendingPoints },
       };
       if (world !== drawnWorld) {
@@ -1474,11 +1472,16 @@ export function createRenderer(
       levelUp.draw(viewport, world, nowMs);
       touchControls.draw(viewport, world, menus, itemInReach !== null);
       heroPanel.draw(viewport, world, menus.heroPanelOpen, menus.pendingPoints);
-      // The focused or long-pressed Skill shows its tooltip; the mouse's
-      // pointer, as before, none, and nor does a Held Skill.
-      const touching = activeInput.way === "touch";
-      const skillTooltipAt = (focus || touching) && !heldSkill ? pointer : null;
-      skillTreePanel.draw(viewport, world, menus.skillTreeOpen, skillTooltipAt);
+      // The hovered, focused or long-pressed Skill shows its tooltip, but
+      // not while a Held Skill follows the pointer.
+      const skillTooltipAt = !heldSkill ? pointer : null;
+      skillTreePanel.draw(
+        viewport,
+        world,
+        menus.skillTreeOpen,
+        skillTooltipAt,
+        menus.skillTreeBranch,
+      );
       questPanel.draw(viewport, world, menus.questOpen);
       waypointList.draw(viewport, world, menus.waypointsOpen);
       dialoguePanel.draw(
@@ -3246,11 +3249,15 @@ function dialoguePanelView(activeInput: Readonly<ActiveInput>) {
 }
 
 /**
- * The Skill Tree panel, in the Hero panel's look: the unspent Skill Points,
- * then a row for each Skill under its columns' headings: its name, its
- * required Level greyed-out until the Hero reaches it, its Skill Level and
- * Mana cost at the next Skill Level, with a + button while a Skill Point
- * can be spent on it; and the tooltip of the Skill at `tooltipAt`, if any.
+ * The Skill Tree panel, in the Hero panel's look: the unspent Skill Points
+ * at the top right, a Branch tab for each Branch (the open one lit, each
+ * giving the Skill Points spent in it) and the open Branch's Skills as
+ * tiles in its 3 × 6 grid, joined by arrows down to their Prerequisites
+ * (lit once the Prerequisite has a Skill Level). A tile shows its name for
+ * now, its Skill Level in one corner and a + in the other while a Skill
+ * Point can be spent on it; it is dimmed until learned, lit while a point
+ * can go in, and a Passive Skill's has a double frame. The tooltip of the
+ * Skill at `tooltipAt`, if any, is drawn over it all.
  */
 function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
   const style = HERO_PANEL_STYLE;
@@ -3258,47 +3265,21 @@ function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
 
   const title = text(style.title, style.titleSize);
   title.text = "Skill Tree";
-  title.anchor.set(0.5, 0);
+  title.anchor.set(0, 0);
   const hint = text(style.hint, style.hintSize);
   hint.anchor.set(0.5, 1);
-  /** A row's name at its left and value at its right. */
-  const row = (nameFill: number = style.name) => {
-    const name = text(nameFill);
-    name.anchor.set(0, 0.5);
-    const value = text(style.value);
-    value.anchor.set(1, 0.5);
-    return { name, value };
-  };
-  const points = row();
-  /** A column's heading, its right edge where the column's values end. */
-  const heading = (label: string) => {
-    const t = text(style.hint, style.hintSize);
-    t.text = label;
-    t.anchor.set(1, 0.5);
-    return t;
-  };
-  /** Each Branch's heading row: its name at the left, its columns' headings. */
-  const branchHeadings: Partial<
-    Record<Branch, { name: Text; skillLevel: Text; manaCost: Text }>
-  > = {};
-  /** A Skill row's cell, at its left (`anchorX` 0) or right (1) edge. */
-  const cell = (fill: number, anchorX: 0 | 1) => {
-    const t = text(fill);
-    t.anchor.set(anchorX, 0.5);
-    return t;
-  };
+  const points = text(style.value);
+  points.anchor.set(1, 0.5);
+  /** A Branch tab's label, made as the sheet first lists the Branches. */
+  const tabLabels: Partial<Record<Branch, Text>> = {};
   const tooltipBox = new Graphics();
   layer.addChild(tooltipBox);
   /** Tooltip lines, made as more are needed, over its box. */
   const tooltipLines: Text[] = [];
-  /** Made as the sheet first lists them. */
-  const skills: {
-    name: Text;
-    requiredLevel: Text;
-    skillLevel: Text;
-    manaCost: Text;
-    plus: Text;
-  }[] = [];
+  /** Made as a Skill is first drawn. */
+  const tiles = new Map<Skill, { name: Text; level: Text; plus: Text }>();
+  /** The text sizes of a tile, at native scale, before squeezing to its tile. */
+  const tileText = { name: 11, level: 12, plus: 16 };
 
   return {
     layer,
@@ -3307,121 +3288,157 @@ function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
       world: World,
       open: boolean,
       tooltipAt: Vec | null = null,
+      branch: Branch = "bone",
     ) {
       layer.visible = open;
       if (!open) return;
       hint.text = panelCloseHint("skillTree", activeInput.way);
       const sheet = skillTreeSheet(world);
-      const layout = skillTreePanelLayout(screen);
+      const layout = skillTreePanelLayout(screen, branch);
       const { panel } = layout;
       const scale = screen.uiScale;
-      const { padding, rowHeight } = atUiScale(SKILL_TREE_PANEL, scale);
+      const { padding } = atUiScale(SKILL_TREE_PANEL, scale);
 
       graphics.clear();
       panelFrame(graphics, panel);
       closeButton(graphics, layout.closeButton, scale);
-      title.position.set(panel.x + panel.w / 2, panel.y + padding);
+      title.position.set(panel.x + padding, panel.y + padding);
       hint.position.set(panel.x + panel.w / 2, panel.y + panel.h - padding);
-
-      const middle = (row: Rect) => row.y + rowHeight / 2;
       const anyRaisable = sheet.skills.some((skill) => skill.canRaise);
-      const pointsRow = skillTreeRow(screen, SKILL_TREE_ROWS.skillPoints);
-      points.name.text = "Skill Points";
-      points.name.position.set(pointsRow.x, middle(pointsRow));
-      points.value.text = sheet.skillPoints;
-      points.value.position.set(pointsRow.x + pointsRow.w, middle(pointsRow));
-      points.value.style.fill = anyRaisable ? style.title : style.value;
+      points.text = `Skill Points  ${sheet.skillPoints}`;
+      points.style.fill = anyRaisable ? style.title : style.value;
+      points.position.set(
+        layout.points.x + layout.points.w,
+        layout.points.y + layout.points.h / 2,
+      );
 
-      for (const { branch, name } of sheet.branches) {
-        if (!branchHeadings[branch]) {
-          const nameText = text(style.hint, style.hintSize);
-          nameText.anchor.set(0, 0.5);
-          branchHeadings[branch] = {
-            name: nameText,
-            skillLevel: heading("Skill Level"),
-            manaCost: heading("Mana"),
-          };
+      for (const { branch: other, name, spent } of sheet.branches) {
+        let label = tabLabels[other];
+        if (!label) {
+          label = text(style.value, style.hintSize);
+          label.anchor.set(0.5);
+          tabLabels[other] = label;
         }
-        const shown = branchHeadings[branch];
-        const headingsRow = skillTreeBranchRow(screen, branch);
-        const headingAt = skillTreeColumns(screen, headingsRow);
-        shown.name.text = name;
-        shown.name.position.set(headingsRow.x, middle(headingsRow));
-        shown.skillLevel.visible = !screen.compact;
-        shown.manaCost.visible = !screen.compact;
-        shown.skillLevel.position.set(
-          headingAt.skillLevel,
-          middle(headingsRow),
-        );
-        shown.manaCost.position.set(headingAt.manaCost, middle(headingsRow));
-        const ruleY = headingsRow.y + rowHeight - style.ruleGap * scale;
-        graphics.rect(headingsRow.x, ruleY, headingsRow.w, 1).fill(style.edge);
+        const tab = layout.tabs[other];
+        const current = other === branch;
+        graphics
+          .rect(tab.x, tab.y, tab.w, tab.h)
+          .fill({ color: HUD_BUTTON.fill, alpha: current ? 1 : 0.5 })
+          .stroke({
+            color: current ? HUD_BUTTON.edge : style.edge,
+            width: current ? 1.5 : 1,
+          });
+        label.text = `${name} ${spent}`;
+        label.style.fill = current ? style.title : style.name;
+        label.position.set(tab.x + tab.w / 2, tab.y + tab.h / 2);
       }
 
-      sheet.skills.forEach((skill, index) => {
-        if (!skills[index]) {
-          const plusText = text(style.title, style.plusSize);
+      const sheetOf = new Map(
+        sheet.skills.map((skill) => [skill.skill, skill]),
+      );
+      for (const arrow of layout.arrows) {
+        const lit = sheetOf
+          .get(arrow.to)
+          ?.arrows.find((other) => other.from === arrow.from)?.lit;
+        const color = lit ? style.title : style.edge;
+        const line = arrow.points;
+        graphics.moveTo(line[0].x, line[0].y);
+        for (const point of line.slice(1)) graphics.lineTo(point.x, point.y);
+        graphics.stroke({ color, width: 2 * scale, alpha: lit ? 1 : 0.6 });
+        // The head, pointing down into the Skill hanging from it.
+        const tip = line[line.length - 1];
+        const head = 4 * scale;
+        graphics
+          .poly([
+            tip.x,
+            tip.y,
+            tip.x - head,
+            tip.y - 1.6 * head,
+            tip.x + head,
+            tip.y - 1.6 * head,
+          ])
+          .fill({ color, alpha: lit ? 1 : 0.6 });
+      }
+
+      for (const [skill, shown] of tiles) {
+        const here = layout.skills.some((other) => other.skill === skill);
+        shown.name.visible = here;
+        shown.level.visible = here;
+        shown.plus.visible = here;
+      }
+      const squeeze = layout.skills[0]
+        ? layout.skills[0].tile.w / atUiScale(SKILL_TREE_PANEL, scale).tile
+        : 1;
+      for (const { skill, tile, raise } of layout.skills) {
+        const info = sheetOf.get(skill);
+        if (!info) continue;
+        let shown = tiles.get(skill);
+        if (!shown) {
+          const name = text(style.title, tileText.name);
+          name.anchor.set(0.5);
+          name.style.align = "center";
+          const level = text(style.value, tileText.level);
+          level.anchor.set(0, 1);
+          const plusText = text(style.title, tileText.plus);
           plusText.text = "+";
           plusText.anchor.set(0.5);
-          skills[index] = {
-            name: cell(style.title, 0),
-            requiredLevel: cell(style.hint, 0),
-            skillLevel: cell(style.value, 1),
-            manaCost: cell(style.value, 1),
-            plus: plusText,
-          };
+          shown = { name, level, plus: plusText };
+          tiles.set(skill, shown);
         }
-        const shown = skills[index];
-        const row = layout.skills[skill.skill];
-        const column = skillTreeColumns(screen, row);
-        const y = middle(row);
-        // What holds it back: its Prerequisite first, else its Level.
-        const heldBack = skill.prerequisites.length
-          ? "Locked"
-          : skill.requiredLevel !== null
-            ? `Level ${skill.requiredLevel}`
-            : null;
-        // A Passive Skill sits in its own frame: it's never cast, so it
-        // isn't looked for on the Skill Bar.
-        if (skill.passive) {
+        const learned = Number(info.skillLevel) > 0;
+        const dim = learned || info.canRaise ? 1 : 0.45;
+        graphics
+          .rect(tile.x, tile.y, tile.w, tile.h)
+          .fill({ color: HUD_BUTTON.fill, alpha: dim })
+          .stroke({
+            color: info.canRaise ? HUD_BUTTON.edge : style.edge,
+            width: info.canRaise ? 2 : 1,
+            alpha: dim,
+          });
+        // A Passive Skill sits in its own double frame: it's never cast, so
+        // it isn't looked for on the Skill Bar.
+        if (info.passive) {
+          const inset = 3 * scale;
           graphics
-            .rect(row.x - 3, row.y + 1, row.w + 6, row.h - 2)
-            .stroke({ width: 1, color: style.edge });
+            .rect(
+              tile.x + inset,
+              tile.y + inset,
+              tile.w - 2 * inset,
+              tile.h - 2 * inset,
+            )
+            .stroke({ color: style.edge, width: 1, alpha: dim });
         }
-        shown.name.text = skill.name;
-        shown.name.style.fill = heldBack ? style.hint : style.title;
-        shown.name.position.set(row.x, y);
-        shown.requiredLevel.visible = heldBack !== null && !screen.compact;
-        shown.requiredLevel.text = heldBack ?? "";
-        shown.requiredLevel.position.set(column.requiredLevel, y);
-        shown.skillLevel.text = skill.raised
-          ? `${skill.skillLevel} (+${skill.raised})`
-          : skill.skillLevel;
-        shown.skillLevel.position.set(column.skillLevel, y);
-        shown.manaCost.visible = !screen.compact;
-        shown.manaCost.text = skill.manaCost;
-        shown.manaCost.position.set(column.manaCost, y);
-        const rect = layout.raise[skill.skill];
-        shown.plus.visible = skill.canRaise;
-        if (skill.canRaise) {
-          button(graphics, rect);
-          shown.plus.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2);
+        shown.name.text = info.name.replace(" ", "\n");
+        shown.name.style.fill =
+          learned || info.canRaise ? style.title : style.hint;
+        shown.name.position.set(tile.x + tile.w / 2, tile.y + tile.h / 2);
+        shown.level.text = info.raised
+          ? `${info.skillLevel}+${info.raised}`
+          : info.skillLevel;
+        shown.level.position.set(tile.x + 2 * scale, tile.y + tile.h - 1);
+        shown.plus.visible = info.canRaise;
+        if (info.canRaise) {
+          button(graphics, raise);
+          shown.plus.position.set(raise.x + raise.w / 2, raise.y + raise.h / 2);
         }
-      });
-      // Rows made this draw too.
+      }
+      // Tiles made this draw too.
       texts.size(scale);
+      for (const shown of tiles.values()) {
+        sizeText(shown.name, tileText.name * scale * squeeze);
+        sizeText(shown.level, tileText.level * scale * Math.max(squeeze, 0.7));
+        sizeText(shown.plus, tileText.plus * scale * squeeze);
+      }
 
       tooltipBox.clear();
       for (const line of tooltipLines) line.visible = false;
       const under =
-        tooltipAt &&
-        sheet.skills.find((skill) =>
-          inside(layout.skills[skill.skill], tooltipAt),
-        );
-      if (tooltipAt && under) {
+        tooltipAt && layout.skills.find(({ tile }) => inside(tile, tooltipAt));
+      const underSheet = under && sheetOf.get(under.skill);
+      if (tooltipAt && under && underSheet) {
         const look = INVENTORY_STYLE;
-        const lines = skillTooltip(under, activeInput.way);
-        // Over the rows, some made after it.
+        const lines = skillTooltip(underSheet, activeInput.way);
+        // Over the tiles, some made after it.
         layer.setChildIndex(tooltipBox, layer.children.length - 1);
         lines.forEach((line, i) => {
           if (!tooltipLines[i]) {
@@ -3437,12 +3454,11 @@ function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
         });
         // Lines made this draw too, before the box is fitted to them.
         texts.size(scale);
-        const rect = layout.skills[under.skill];
         drawTooltip(
           tooltipBox,
           tooltipLines.slice(0, lines.length),
           screen,
-          (size, gap) => tooltipRect(rect, size, screen, gap),
+          (size, gap) => tooltipRect(under.tile, size, screen, gap),
         );
       }
     },

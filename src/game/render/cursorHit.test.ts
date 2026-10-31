@@ -8,7 +8,6 @@ import {
   type Attribute,
   createWorld,
   FRESH_PROGRESS,
-  SKILLS,
   step,
 } from "../sim/world";
 import type { ItemType } from "../tuning/items";
@@ -526,28 +525,32 @@ describe.each([
   { width: 1280, height: 720 },
 ])("with the Skill Tree open at $width×$height", (size) => {
   const screen = viewportOf(size);
-  const treeOpen = { ...createMenus(), skillTreeOpen: true };
-  const { raise, skills, closeButton } = skillTreePanelLayout(screen);
-  const plus = raise.golem;
+  const treeOpen = {
+    ...createMenus(),
+    skillTreeOpen: true,
+    skillTreeBranch: "summoning",
+  } as const;
+  const { skills, closeButton, tabs } = skillTreePanelLayout(
+    screen,
+    "summoning",
+  );
+  const golemShown = skills.find((shown) => shown.skill === "golem");
+  if (!golemShown) throw new Error("No Golem");
+  const plus = golemShown.raise;
+  const row = golemShown.tile;
   const learn = { button: { type: "learn", skill: "golem" } };
   const pickUp = { button: { type: "pickUpSkill", skill: "golem" } };
   const close = { button: { type: "close", panel: "skillTree" } };
   const isEqual = (a: unknown, b: unknown) =>
     JSON.stringify(a) === JSON.stringify(b);
-  /**
-   * Points just off each side of the +, by its middle: 3 px out along its
-   * row, and above and below it halfway to the rows beside.
-   */
+  /** Points just off each side of the +, by its middle: 3 px out. */
   const nearMisses = () => {
     const { x, y } = middleOf(plus);
-    const row = skills.golem;
-    const above = (plus.y - row.y) / 2;
-    const below = (row.y + row.h - (plus.y + plus.h)) / 2;
     return [
       { x: plus.x - 3, y },
       { x: plus.x + plus.w + 3, y },
-      { x, y: plus.y - above },
-      { x, y: plus.y + plus.h + below },
+      { x, y: plus.y - 3 },
+      { x, y: plus.y + plus.h + 3 },
     ];
   };
 
@@ -572,25 +575,46 @@ describe.each([
     const { x, y } = middleOf(plus);
     const left = { x: plus.x - reach - 1, y };
     // Under the last Skill's one row, on the panel.
-    const lastPlus = raise[SKILLS[SKILLS.length - 1]];
+    const lastPlus = skills[skills.length - 1].raise;
     const below = { x, y: lastPlus.y + lastPlus.h + reach + 1 };
-    expect(cursorHitAt(screen, left, w, treeOpen, true)).toEqual(pickUp);
+    expect(cursorHitAt(screen, left, w, treeOpen, true)).toEqual(
+      inside(row, left) ? pickUp : { button: null },
+    );
     expect(cursorHitAt(screen, below, w, treeOpen, true)).toEqual({
       button: null,
     });
   });
 
-  it("a touch on a learned Skill's row away from the + picks it up", () => {
+  it("a touch on a learned Skill's tile away from the + picks it up", () => {
     const w = withGolem(1, 1);
-    const row = skills.golem;
-    const reach = (44 - plus.w) / 2;
-    for (const point of [
+    const away = [
       { x: row.x + 1, y: row.y + 1 },
       middleOf(row),
       { x: row.x + 1, y: row.y + row.h - 1 },
-      { x: plus.x - reach - 1, y: row.y + row.h - 1 },
-    ]) {
+      { x: row.x + row.w - 1, y: row.y + row.h - 1 },
+    ].filter(
+      (point) =>
+        Math.abs(point.x - middleOf(plus).x) > 22 ||
+        Math.abs(point.y - middleOf(plus).y) > 22,
+    );
+
+    // On a phone's small tile the + takes the whole of it.
+    if (!screen.compact) expect(away.length).toBeGreaterThan(0);
+    for (const point of away) {
       expect(cursorHitAt(screen, point, w, treeOpen, true)).toEqual(pickUp);
+    }
+  });
+
+  it("a touch on a Branch tab switches to its Branch", () => {
+    for (const branch of ["bone", "summoning", "curses"] as const) {
+      const hit = cursorHitAt(
+        screen,
+        middleOf(tabs[branch]),
+        withGolem(1, 1),
+        treeOpen,
+        true,
+      );
+      expect(hit).toEqual({ button: { type: "branchTab", branch } });
     }
   });
 
@@ -635,9 +659,15 @@ describe.each([
 ])("with touch on the Skill Tree at $at", ({ screen }) => {
   it("a + hit area never reaches off its panel", () => {
     const w = withGolem(1, 1);
-    const { panel, raise } = skillTreePanelLayout(screen);
-    const treeOpen = { ...createMenus(), skillTreeOpen: true };
-    const { x: midX, y: midY } = middleOf(raise.golem);
+    const { panel, skills } = skillTreePanelLayout(screen, "summoning");
+    const treeOpen = {
+      ...createMenus(),
+      skillTreeOpen: true,
+      skillTreeBranch: "summoning",
+    } as const;
+    const golem = skills.find((shown) => shown.skill === "golem");
+    if (!golem) throw new Error("No Golem");
+    const { x: midX, y: midY } = middleOf(golem.raise);
     // Every point its 44 px square hit area could reach.
     for (let x = midX - 22.5; x < midX + 23; x += 1) {
       for (let y = midY - 22.5; y < midY + 23; y += 1) {

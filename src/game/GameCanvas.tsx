@@ -532,6 +532,7 @@ export default function GameCanvas() {
             menus.pendingPoints,
             menus.dialogueNpc,
             menus.dialoguePage,
+            menus.skillTreeBranch,
           ),
         });
         for (const button of polled.presses) {

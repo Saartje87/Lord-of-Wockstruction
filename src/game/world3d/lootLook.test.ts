@@ -1,8 +1,17 @@
 // @vitest-environment node
+
+import { existsSync } from "node:fs";
 import { NodeIO } from "@gltf-transform/core";
 import { Euler, Quaternion, Vector3 } from "three";
 import { describe, expect, it } from "vitest";
-import { PROJECTILE_LOOKS, projectilePlacements } from "./lootLook";
+import { ITEM_TYPES } from "../tuning/items";
+import {
+  GEM,
+  LOOT_LOOKS,
+  LOOT_MODELS,
+  PROJECTILE_LOOKS,
+  projectilePlacements,
+} from "./lootLook";
 
 /**
  * The end of the arrow model that comes to a point: the extreme vertex on its
@@ -76,6 +85,38 @@ describe("which way a laid Projectile points", () => {
       const bone = pointing("boneSpear", new Vector3(1, 0, 0), facing);
       expect(bone.x).toBeCloseTo(Math.cos(facing), 5);
       expect(bone.z).toBeCloseTo(Math.sin(facing), 5);
+    }
+  });
+});
+
+describe("how Shields, Wands and Armour lie on the ground", () => {
+  it("lays each Shield type down as a Fantasy Weapons Bits shield", () => {
+    for (const type of ["buckler", "towerShield"] as const) {
+      expect(LOOT_LOOKS[type].model).toMatch(/^loot\/shield_[A-D]$/);
+    }
+    expect(LOOT_LOOKS.buckler.model).not.toBe(LOOT_LOOKS.towerShield.model);
+  });
+
+  it("lays each Wand type down as a Fantasy Weapons Bits wand", () => {
+    for (const type of ["boneWand", "yewWand"] as const) {
+      expect(LOOT_LOOKS[type].model).toMatch(/^loot\/wand_[AB]$/);
+    }
+    expect(LOOT_LOOKS.boneWand.model).not.toBe(LOOT_LOOKS.yewWand.model);
+  });
+
+  it("no longer lays Armour down as a shield", () => {
+    for (const type of ["leatherArmour", "chainMail"] as const) {
+      expect(LOOT_LOOKS[type].model).toBe(GEM);
+    }
+    const shields = ITEM_TYPES.filter((type) =>
+      LOOT_LOOKS[type].model.includes("shield"),
+    );
+    expect(shields.sort()).toEqual(["buckler", "towerShield"]);
+  });
+
+  it("has a model file for every model the loot loads", () => {
+    for (const model of LOOT_MODELS) {
+      expect(existsSync(`public/assets/models/${model}.glb`), model).toBe(true);
     }
   });
 });

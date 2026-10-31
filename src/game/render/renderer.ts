@@ -220,6 +220,7 @@ import {
   rotateNoticeText,
 } from "./rotateNotice";
 import { SKILL_BAR, skillBarLayout, skillBarSheet } from "./skillBar";
+import { drawSkillIcon } from "./skillIcons";
 import {
   SKILL_TREE_PANEL,
   skillTreePanelLayout,
@@ -3253,8 +3254,8 @@ function dialoguePanelView(activeInput: Readonly<ActiveInput>) {
  * at the top right, a Branch tab for each Branch (the open one lit, each
  * giving the Skill Points spent in it) and the open Branch's Skills as
  * tiles in its 3 × 6 grid, joined by arrows down to their Prerequisites
- * (lit once the Prerequisite has a Skill Level). A tile shows its name for
- * now, its Skill Level in one corner and a + in the other while a Skill
+ * (lit once the Prerequisite has a Skill Level). A tile shows its Skill's
+ * icon, its Skill Level in one corner and a + in the other while a Skill
  * Point can be spent on it; it is dimmed until learned, lit while a point
  * can go in, and a Passive Skill's has a double frame. The tooltip of the
  * Skill at `tooltipAt`, if any, is drawn over it all.
@@ -3277,9 +3278,9 @@ function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
   /** Tooltip lines, made as more are needed, over its box. */
   const tooltipLines: Text[] = [];
   /** Made as a Skill is first drawn. */
-  const tiles = new Map<Skill, { name: Text; level: Text; plus: Text }>();
+  const tiles = new Map<Skill, { level: Text; plus: Text }>();
   /** The text sizes of a tile, at native scale, before squeezing to its tile. */
-  const tileText = { name: 11, level: 12, plus: 16 };
+  const tileText = { level: 12, plus: 16 };
 
   return {
     layer,
@@ -3362,7 +3363,6 @@ function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
 
       for (const [skill, shown] of tiles) {
         const here = layout.skills.some((other) => other.skill === skill);
-        shown.name.visible = here;
         shown.level.visible = here;
         shown.plus.visible = here;
       }
@@ -3374,15 +3374,12 @@ function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
         if (!info) continue;
         let shown = tiles.get(skill);
         if (!shown) {
-          const name = text(style.title, tileText.name);
-          name.anchor.set(0.5);
-          name.style.align = "center";
           const level = text(style.value, tileText.level);
           level.anchor.set(0, 1);
           const plusText = text(style.title, tileText.plus);
           plusText.text = "+";
           plusText.anchor.set(0.5);
-          shown = { name, level, plus: plusText };
+          shown = { level, plus: plusText };
           tiles.set(skill, shown);
         }
         const learned = Number(info.skillLevel) > 0;
@@ -3408,10 +3405,21 @@ function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
             )
             .stroke({ color: style.edge, width: 1, alpha: dim });
         }
-        shown.name.text = info.name.replace(" ", "\n");
-        shown.name.style.fill =
-          learned || info.canRaise ? style.title : style.hint;
-        shown.name.position.set(tile.x + tile.w / 2, tile.y + tile.h / 2);
+        // The icon in its Branch's colour, clear of the corners the Skill
+        // Level and the + sit in.
+        const inset = tile.w * 0.2;
+        drawSkillIcon(
+          graphics,
+          skill,
+          {
+            x: tile.x + inset,
+            y: tile.y + inset * 0.75,
+            w: tile.w - 2 * inset,
+            h: tile.h - 2 * inset,
+          },
+          scale * squeeze,
+          dim,
+        );
         shown.level.text = info.raised
           ? `${info.skillLevel}+${info.raised}`
           : info.skillLevel;
@@ -3425,7 +3433,6 @@ function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
       // Tiles made this draw too.
       texts.size(scale);
       for (const shown of tiles.values()) {
-        sizeText(shown.name, tileText.name * scale * squeeze);
         sizeText(shown.level, tileText.level * scale * Math.max(squeeze, 0.7));
         sizeText(shown.plus, tileText.plus * scale * squeeze);
       }

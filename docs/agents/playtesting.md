@@ -150,11 +150,22 @@ mouse("pointerup", w.screenOf(bruckle.pos)); // …and let go.
 
 **Shift-hold attacks in place**: a press with Shift held swings toward the pointer without walking, and keeps swinging while held, even at nothing. Use it for a click meant as an attack, so a miss doesn't walk the Hero into the pack. The game reads Shift from the press itself, so pass `shiftKey: true` in the `pointerdown`: `mouse("pointerdown", at, { shiftKey: true })`.
 
+## Screen sizes
+
+`resize_window` doesn't change the viewport. For any screen size, load the game in an `<iframe>` of the same URL at that size: 844×390 for the Compact Layout. For one bigger than the window (a 1280×720 or 2560×1440 desktop), scale the iframe down. The game still sees its full size:
+
+```js
+document.body.innerHTML = '<iframe id="f" src="/" style="width:2560px;height:1440px;border:0;position:fixed;left:0;top:0;transform:scale(0.27);transform-origin:0 0"></iframe>';
+// Continue, once loaded: the game reads keys from the iframe's document.
+const d = document.getElementById("f").contentWindow;
+d.document.dispatchEvent(new KeyboardEvent("keydown", { key: "c", code: "KeyC", bubbles: true }));
+```
+
+Real mouse hovers and screenshots work through the scale. Dispatch events on `d.document.querySelector("canvas")` with the iframe's own `d.PointerEvent`.
+
 ## Touch screen
 
-Chrome stands in for a phone: touch controls read `PointerEvent`s with `pointerType: "touch"` on the canvas (`src/game/input/touch.ts`), so dispatched events drive them.
-
-The Compact Layout needs a short screen, and `resize_window` doesn't change the viewport: load the game in an 844×390 `<iframe>` of the same URL instead.
+Chrome stands in for a phone: touch controls read `PointerEvent`s with `pointerType: "touch"` on the canvas (`src/game/input/touch.ts`), so dispatched events drive them. Use an 844×390 iframe (see Screen sizes).
 
 ```js
 const canvas = document.querySelector("canvas");
@@ -171,7 +182,23 @@ const touch = (type, id, x, y) => canvas.dispatchEvent(new PointerEvent(type, {
 - **Buttons**: `pointerdown` on the button holds it until `pointerup`.
 - **Run timed sequences in one `javascript_tool`** (await a timeout between events), then screenshot. A tool round trip lasts seconds, and Monsters keep hitting meanwhile.
 - **A `setPointerCapture` error in the dev overlay** comes from dispatched touches outside the controls, which have no real pointer. It is no game bug, but it throws before the pointer records the press, so a dispatched tap on the World walks nothing and raises no Click Marker. To test World taps, first stub both: `canvas.setPointerCapture = canvas.releasePointerCapture = () => {}`.
+- **A long press** is a `pointerdown` held past `longPressMs` (450 ms) before its `pointerup`. A real finger lift also fires `pointerleave`, which clears the touch point. Dispatch it after the `pointerup`, or the long press's tooltip stays up as if the finger never left.
 - **From Town to Monsters**: start beside a pack with a `fight` Entry (see Start in an Area).
+
+## Controller
+
+The game reads the first `navigator.getGamepads()` entry with `mapping: "standard"` (`src/game/input/gamepad.ts`), so a fake pad drives it. Stub it in the iframe's window (see Screen sizes); a reload drops the stub:
+
+```js
+const d = document.getElementById("f").contentWindow;
+const pad = { connected: true, mapping: "standard", axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })) };
+d.navigator.getGamepads = () => [pad];
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+// Held across a few frames, then let go: one press.
+const tap = async (i) => { pad.buttons[i] = { pressed: true, value: 1 }; await wait(120); pad.buttons[i] = { pressed: false, value: 0 }; await wait(120); };
+```
+
+Indices: 0 A, 1 B, 2 X, 3 Y, 4 LB, 5 RB, 6 LT, 7 RT, 8 View, 9 Menu, 12–15 D-pad up, down, left, right; `axes[0]`/`axes[1]` the left stick. The Focus shows only while a panel is open: open one with View (the Inventory), or with its key, then move with the D-pad. LB and RB move between panels, and B shuts one. With no panel open, the D-pad drinks from the Belt.
 
 ## Deploys
 

@@ -46,7 +46,7 @@ export type InputTuning = {
     reach: number;
     /** How high a mote rises at most (tiles). */
     rise: number;
-    /** A mote's size at the start (tiles across). */
+    /** How big a mote is at most (tiles across). */
     size: number;
     /** The motes' colour, the same in every Area. */
     colour: number;

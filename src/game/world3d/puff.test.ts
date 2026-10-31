@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { inputTuning } from "../tuning/input";
-import { puffOf } from "./puff";
+import { puffOf as pose, puffOpacity, scatterOf } from "./puff";
 
 const { clickPuff } = inputTuning;
 const PROGRESSES = [0, 0.1, 0.25, 0.5, 0.75, 0.9, 1];
+/** A fresh puff, copied so later poses of the same scatter don't change it. */
+const puffOf = (at: { x: number; y: number }, progress: number) =>
+  structuredClone(pose(scatterOf(at), progress));
 const reachOf = (m: { offset: { x: number; y: number } }) =>
   Math.hypot(m.offset.x, m.offset.y);
 
@@ -20,8 +23,9 @@ describe("the click marker's puff of bone-ash", () => {
     for (const p of PROGRESSES) {
       for (const m of puffOf(at, p)) {
         expect(reachOf(m)).toBeLessThanOrEqual(clickPuff.reach + 1e-9);
-        expect(m.height).toBeGreaterThanOrEqual(0);
-        expect(m.height).toBeLessThanOrEqual(clickPuff.rise + 1e-9);
+        expect(m.height).toBeLessThanOrEqual(
+          clickPuff.rise + clickPuff.size + 0.1,
+        );
       }
     }
   });
@@ -44,9 +48,22 @@ describe("the click marker's puff of bone-ash", () => {
     });
   });
 
+  it("lies fully above the floor, even at the start", () => {
+    for (const p of PROGRESSES) {
+      for (const m of puffOf(at, p)) {
+        expect(m.height - m.size / 2).toBeGreaterThan(0);
+      }
+    }
+  });
+
   it("is fully transparent at the end and visible at the start", () => {
-    for (const m of puffOf(at, 1)) expect(m.opacity).toBe(0);
-    for (const m of puffOf(at, 0)) expect(m.opacity).toBeGreaterThan(0);
+    expect(puffOpacity(1)).toBe(0);
+    expect(puffOpacity(0)).toBeGreaterThan(0);
+  });
+
+  it("poses the same scatter again without allocating new motes", () => {
+    const scatter = scatterOf(at);
+    expect(pose(scatter, 0.8)).toBe(pose(scatter, 0.2));
   });
 
   it("gives the same puff for the same point", () => {

@@ -272,4 +272,27 @@ describe("the hints and labels that name buttons", () => {
   ] as const)("give a Skill's tooltip, %s, with %s", (_, sheet, way, lines) => {
     expect(skillTooltip(sheet, way)).toEqual(lines);
   });
+
+  it.each([
+    "mouseAndKeyboard",
+    "controller",
+    "touch",
+  ] as const)("give a Skill Bar slot's Skill tooltip without the Skill Tree's lines, with %s", (way) => {
+    const sheet = {
+      ...golem,
+      skillLevel: "2",
+      canRaise: true,
+      stats: ["Minion Life: 100"],
+      nextStats: ["Minion Life: 120"],
+      requiredLevel: "9",
+    };
+    expect(skillTooltip(sheet, way, { onSkillBar: true })).toEqual([
+      "Golem",
+      "Skill Level 2",
+      "Minion Life: 100",
+      "Next Skill Level",
+      "Minion Life: 120",
+      "Needs Level 9",
+    ]);
+  });
 });

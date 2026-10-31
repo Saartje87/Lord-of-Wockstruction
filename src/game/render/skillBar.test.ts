@@ -88,11 +88,11 @@ describe("the Skill Bar's layout", () => {
 describe("the Skill Bar's sheet", () => {
   it("shows each slot's key and Skill, empty slots without one", () => {
     expect(skillBarSheet(world(GOLEM_IN_KEY2))).toEqual([
-      { slot: "key1", key: "Q", name: null, dimmed: false },
-      { slot: "key2", key: "W", name: "Golem", dimmed: false },
-      { slot: "key3", key: "E", name: null, dimmed: false },
-      { slot: "key4", key: "R", name: null, dimmed: false },
-      { slot: "right", key: "RMB", name: null, dimmed: false },
+      { slot: "key1", key: "Q", skill: null, dimmed: false },
+      { slot: "key2", key: "W", skill: "golem", dimmed: false },
+      { slot: "key3", key: "E", skill: null, dimmed: false },
+      { slot: "key4", key: "R", skill: null, dimmed: false },
+      { slot: "right", key: "RMB", skill: null, dimmed: false },
     ]);
   });
 
@@ -117,7 +117,7 @@ describe("the Skill Bar's sheet", () => {
     expect(sheet[1]).toEqual({
       slot: "key2",
       key: "W",
-      name: "Golem",
+      skill: "golem",
       dimmed: true,
     });
     expect(sheet.filter((shown) => shown.dimmed)).toHaveLength(1);

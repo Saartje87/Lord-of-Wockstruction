@@ -8,7 +8,7 @@ import {
 import type { Vec } from "../sim/vec";
 import { skillLevelOf, skillManaCost, type World } from "../sim/world";
 import { beltTuning } from "../tuning/items";
-import { skillTuning } from "../tuning/skills";
+import type { Skill } from "../tuning/skills";
 import { atUiScale, type Viewport } from "../viewport";
 import { skillBarSlotButton } from "./hints";
 
@@ -62,14 +62,14 @@ export function skillBarLayout(screen: Viewport): {
 }
 
 /**
- * What a Skill Bar slot shows: its key or button, its Skill's name or null when
- * empty, and whether it's dimmed because the Hero lacks the Mana for it or
+ * What a Skill Bar slot shows: its key or button, its Skill (drawn as its
+ * icon) or null when empty, and whether it's dimmed because the Hero lacks the Mana for it or
  * its Skill is the Held Skill.
  */
 export type SkillBarSlotSheet = {
   slot: SkillBarSlot;
   key: string;
-  name: string | null;
+  skill: Skill | null;
   dimmed: boolean;
 };
 
@@ -94,7 +94,7 @@ export function skillBarSheet(
     return {
       slot,
       key: skillBarSlotButton(slot, way),
-      name: skill && skillTuning[skill].name,
+      skill,
       dimmed: !castable || (cost !== null && mana < cost) || slot === heldFrom,
     };
   });

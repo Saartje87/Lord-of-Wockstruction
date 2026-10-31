@@ -72,12 +72,7 @@ import {
 } from "../tuning/items";
 import type { MinionType } from "../tuning/minions";
 import type { MonsterType } from "../tuning/monsters";
-import {
-  type Branch,
-  DEFAULT_BRANCH,
-  type Skill,
-  skillTuning,
-} from "../tuning/skills";
+import { type Branch, DEFAULT_BRANCH, type Skill } from "../tuning/skills";
 import { townPortalLook } from "../tuning/townPortalLook";
 import { vendorTuning } from "../tuning/vendor";
 import { atUiScale, type Viewport, viewportOf } from "../viewport";
@@ -337,7 +332,29 @@ const SKILL_BAR_STYLE = {
   key: 0xd8c890,
   keySize: 10,
   dimmed: 0.35,
+  /**
+   * A Skill's icon in a slot, as fractions of the slot: a square `size`
+   * wide, centred, then moved `down` to clear the key in the top corner.
+   */
+  icon: { size: 0.62, down: 0.08 },
+  /** A Skill's icon in a round touch Skill button, as a fraction of its width. */
+  touchIcon: 0.56,
 };
+
+/**
+ * A square box `size` of `rect`'s width, centred in it and moved `down` of
+ * its height: where a Skill's icon is drawn in a slot or button.
+ */
+function iconBoxIn(rect: Rect, size: number, down = 0): Rect {
+  const side = rect.w * size;
+  const { x, y } = middleOf(rect);
+  return {
+    x: x - side / 2,
+    y: y - side / 2 + rect.h * down,
+    w: side,
+    h: side,
+  };
+}
 
 /**
  * The Area Banner's look: pale gold with a black outline; where it goes is
@@ -1867,7 +1884,7 @@ function orbsView() {
 
 /**
  * The Skill Bar between the orbs: each slot's key in its corner and its
- * Skill's name, dimmed while the Hero lacks the Mana for it or while it's
+ * Skill's icon, dimmed while the Hero lacks the Mana for it or while it's
  * the Held Skill.
  */
 function skillBarView(activeInput: Readonly<ActiveInput>) {
@@ -1881,7 +1898,7 @@ function skillBarView(activeInput: Readonly<ActiveInput>) {
     return t;
   };
   /** Made as the sheet first lists them. */
-  const labels: { key: Text; name: Text }[] = [];
+  const keys: Text[] = [];
 
   return {
     layer,
@@ -1891,14 +1908,11 @@ function skillBarView(activeInput: Readonly<ActiveInput>) {
       graphics.clear();
       const sheet = skillBarSheet(world, heldFrom, activeInput.way);
       sheet.forEach((shown, index) => {
-        if (!labels[index]) {
-          const key = text(style.key);
-          key.anchor.set(1, 0);
-          const name = text(style.name);
-          name.anchor.set(0.5);
-          labels[index] = { key, name };
+        if (!keys[index]) {
+          keys[index] = text(style.key);
+          keys[index].anchor.set(1, 0);
         }
-        const { key, name } = labels[index];
+        const key = keys[index];
         const rect = slots[shown.slot];
         const alpha = shown.dimmed ? style.dimmed : 1;
         const inset = 3 * scale;
@@ -1906,7 +1920,7 @@ function skillBarView(activeInput: Readonly<ActiveInput>) {
           .rect(rect.x, rect.y, rect.w, rect.h)
           .fill(style.fill)
           .stroke({ color: style.edge, width: 1.5 });
-        if (shown.name !== null) {
+        if (shown.skill !== null) {
           graphics
             .rect(
               rect.x + inset,
@@ -1916,12 +1930,14 @@ function skillBarView(activeInput: Readonly<ActiveInput>) {
             )
             .fill({ color: style.skill, alpha })
             .stroke({ color: style.skillEdge, width: 1, alpha });
+          drawSkillIcon(
+            graphics,
+            shown.skill,
+            iconBoxIn(rect, style.icon.size, style.icon.down),
+            scale,
+            alpha,
+          );
         }
-        name.visible = shown.name !== null;
-        name.text = shown.name ?? "";
-        name.alpha = alpha;
-        sizeText(name, style.nameSize * scale);
-        name.position.set(rect.x + rect.w / 2, rect.y + rect.h / 2 + 4 * scale);
         key.text = shown.key;
         sizeText(key, style.keySize * scale);
         key.position.set(rect.x + rect.w - inset, rect.y + 2 * scale);
@@ -2025,8 +2041,8 @@ const TOUCH_STYLE = {
  * The touch controls, while touch is the Active Input and the World runs
  * (with a panel open, the pause button alone): the Virtual Stick's ring where it rests or where the
  * thumb landed, its knob following the thumb, and the round attack and
- * Skill buttons, each Skill button naming its slot's Skill, dimmed when it
- * has none or lacks the Mana, and the pause button's two bars. A held
+ * Skill buttons, each Skill button showing its slot's Skill's icon, dimmed
+ * when it lacks the Mana or can't be cast, and the pause button's two bars. A held
  * button shows pressed in.
  */
 function touchControlsView(
@@ -2048,7 +2064,6 @@ function touchControlsView(
   };
   const attackLabel = text();
   attackLabel.text = "Attack";
-  const skillLabels = new Map<SkillBarSlot, Text>();
 
   return {
     layer,
@@ -2094,9 +2109,6 @@ function touchControlsView(
       }
       attackLabel.text = pickUpReady ? "Pick up" : "Attack";
       attackLabel.visible = !layout.pauseOnly;
-      for (const label of skillLabels.values()) {
-        label.visible = !layout.pauseOnly;
-      }
       if (layout.pauseOnly) return;
 
       const { reach, rest } = layout.stick;
@@ -2116,16 +2128,16 @@ function touchControlsView(
       for (const shown of skillBarSheet(world, null, "touch")) {
         const rect = layout.skills[shown.slot];
         const down = held.includes(castButton(shown.slot));
-        const skillMiddle = button(rect, down);
-        let label = skillLabels.get(shown.slot);
-        if (!label) {
-          label = text();
-          skillLabels.set(shown.slot, label);
+        button(rect, down);
+        if (shown.skill !== null) {
+          drawSkillIcon(
+            graphics,
+            shown.skill,
+            iconBoxIn(rect, SKILL_BAR_STYLE.touchIcon),
+            scale,
+            shown.dimmed ? SKILL_BAR_STYLE.dimmed : 1,
+          );
         }
-        label.text = shown.name ?? "";
-        label.alpha = shown.dimmed ? SKILL_BAR_STYLE.dimmed : 1;
-        sizeText(label, SKILL_BAR_STYLE.nameSize * scale);
-        label.position.set(skillMiddle.x, skillMiddle.y);
       }
     },
   };
@@ -2406,19 +2418,14 @@ function panelIcon(
 }
 
 /**
- * The Held Skill, drawn as it shows in a Skill Bar slot, centred on the
- * pointer.
+ * The Held Skill, drawn as it shows in a Skill Bar slot, its icon in a
+ * Skill's box, centred on the pointer.
  */
 function createHeldSkillView() {
   const style = SKILL_BAR_STYLE;
   const layer = new Container();
   const graphics = new Graphics();
-  const name = new Text({
-    text: "",
-    style: { fill: style.name, fontFamily: SERIF },
-  });
-  name.anchor.set(0.5);
-  layer.addChild(graphics, name);
+  layer.addChild(graphics);
   layer.visible = false;
 
   return {
@@ -2428,13 +2435,18 @@ function createHeldSkillView() {
       layer.visible = skill !== null && pointer !== null;
       if (!skill || !pointer) return;
       const slot = SKILL_BAR.slot * uiScale;
-      sizeText(name, style.nameSize * uiScale);
+      const rect = { x: -slot / 2, y: -slot / 2, w: slot, h: slot };
       graphics.clear();
       graphics
-        .rect(-slot / 2, -slot / 2, slot, slot)
+        .rect(rect.x, rect.y, rect.w, rect.h)
         .fill({ color: style.skill, alpha: 0.85 })
         .stroke({ color: style.skillEdge, width: 1 });
-      name.text = skillTuning[skill].name;
+      drawSkillIcon(
+        graphics,
+        skill,
+        iconBoxIn(rect, style.icon.size, style.icon.down),
+        uiScale,
+      );
       layer.position.set(pointer.x, pointer.y);
     },
   };

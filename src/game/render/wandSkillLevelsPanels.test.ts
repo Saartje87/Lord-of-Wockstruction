@@ -117,9 +117,9 @@ describe("a Skill at Skill Level 0 on the Skill Bar", () => {
   it("stays, drawn as not castable, and works again once raised", () => {
     const bare = wanded(0, false, bar);
     bare.hero.mana = 100;
-    expect(key2(bare)).toMatchObject({ name: "Golem", dimmed: true });
+    expect(key2(bare)).toMatchObject({ skill: "golem", dimmed: true });
     const raised = wanded(0, true, bar);
     raised.hero.mana = 100;
-    expect(key2(raised)).toMatchObject({ name: "Golem", dimmed: false });
+    expect(key2(raised)).toMatchObject({ skill: "golem", dimmed: false });
   });
 });

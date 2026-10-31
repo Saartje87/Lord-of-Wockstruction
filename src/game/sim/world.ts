@@ -77,6 +77,7 @@ import {
   landDamage,
   minionResistances,
   monsterResistances,
+  resistancesOf,
   splitDamage,
   unresistedTotal,
 } from "./damage";
@@ -3450,7 +3451,7 @@ function takeDamage(
 ) {
   const { total: damage, main } = landDamage(
     rolled,
-    monsterResistances(monster.type),
+    resistancesOf(monster),
     damageTaken(monster),
   );
   monster.life = Math.max(0, monster.life - damage);

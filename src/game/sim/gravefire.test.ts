@@ -478,3 +478,49 @@ describe("his wind-up", () => {
     );
   });
 });
+
+describe("Gravefire's damage type", () => {
+  const saved = structuredClone(monsterTuning.grave_wockington.damage);
+  afterEach(() => {
+    monsterTuning.grave_wockington.damage = saved;
+  });
+
+  /** The damage of each burn tick on a Hero with `fireResistance`. */
+  function tickDamage(fireResistance: number) {
+    monsterTuning.grave_wockington.damage = [100, 100];
+    const w = fight(["H.....G...."]);
+    w.hero.equipment.ring1 = {
+      id: 901,
+      type: "ring",
+      rarity: "magic",
+      affixes: [{ kind: "fireResistance", grade: 0, value: fireResistance }],
+    };
+    untilCast(w);
+    const events = [...untilBurning(w), ...untilBurnt(w)];
+    return events.filter((e) => e.type === "HeroHit");
+  }
+
+  it("makes every burn tick Fire, cut by the Hero's Fire Resistance", () => {
+    const bare = tickDamage(0);
+    const resisting = tickDamage(40);
+
+    expect(bare.length).toBeGreaterThan(0);
+    expect(bare.every((e) => e.damageType === "fire")).toBe(true);
+    expect(resisting.every((e) => e.damageType === "fire")).toBe(true);
+    expect(resisting[0].damage).toBeLessThan(bare[0].damage);
+  });
+
+  it("leaves his melee blow Physical", () => {
+    const w = fight(["HG........."]);
+    const events: SimEvent[] = [];
+    for (let i = 0; i < 60 * 3; i++) events.push(...step(w, []));
+    const hits = events.filter((e) => e.type === "HeroHit");
+
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits.every((e) => e.damageType === "physical")).toBe(true);
+  });
+
+  it("gives Grave Wockington +50% Fire Resistance", () => {
+    expect(monsterTuning.grave_wockington.resistances?.fire).toBe(50);
+  });
+});

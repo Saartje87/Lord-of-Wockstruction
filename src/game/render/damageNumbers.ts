@@ -1,4 +1,5 @@
 import type { CastFailure, MonsterId, SimEvent } from "../sim/world";
+import type { DamageType } from "../tuning/damage";
 import type { CharacterId } from "./hover";
 
 /** How long a damage number floats (ms). */
@@ -25,10 +26,40 @@ export type DamageNumber =
       on: CharacterId | "hero";
       damage: number;
       kind: "hit" | "kill" | "taken";
+      /** The hit's main Damage Type, which tints the number. */
+      damageType: DamageType;
     }
   | { on: CharacterId | "hero"; kind: "miss" }
   | { on: "hero"; kind: "noRoom" }
   | { on: "hero"; kind: "castFailed"; reason: CastFailure };
+
+/**
+ * White for the Hero's hits, gold for a killing blow, red for damage taken
+ * grey for a Miss, pale gold for No room and blue for a failed cast: the
+ * look of Physical damage.
+ */
+const NUMBER_COLOUR: Record<DamageNumber["kind"], number> = {
+  hit: 0xffffff,
+  kill: 0xffd04a,
+  taken: 0xff4a4a,
+  miss: 0x9a9a9a,
+  noRoom: 0xe8e0c8,
+  castFailed: 0x8ab4ff,
+};
+/** What an Element tints a hit's damage number, whatever its kind. */
+const ELEMENT_NUMBER_COLOUR: Record<Exclude<DamageType, "physical">, number> = {
+  fire: 0xff8a2a,
+  cold: 0x4aa8ff,
+  lightning: 0xffee3a,
+};
+
+/** The colour a damage number is drawn in. */
+export function numberColour(number: DamageNumber): number {
+  if ("damageType" in number && number.damageType !== "physical") {
+    return ELEMENT_NUMBER_COLOUR[number.damageType];
+  }
+  return NUMBER_COLOUR[number.kind];
+}
 
 /** What a failed cast floats, by why it failed. */
 const CAST_FAILED_TEXT: Record<CastFailure, string> = {
@@ -50,20 +81,31 @@ export function damageNumbers(events: readonly SimEvent[]): DamageNumber[] {
   for (const event of events) {
     if (event.type === "HitLanded") {
       const kind = died.has(event.target) ? "kill" : "hit";
-      numbers.push({ on: event.target, damage: event.damage, kind });
+      numbers.push({
+        on: event.target,
+        damage: event.damage,
+        kind,
+        damageType: event.damageType,
+      });
     }
     if (event.type === "Missed") {
       numbers.push({ on: event.target, kind: "miss" });
     }
     // A hit the Bone Ward soaked whole leaves the Life orb untouched.
     if (event.type === "HeroHit" && event.damage > 0) {
-      numbers.push({ on: "hero", damage: event.damage, kind: "taken" });
+      numbers.push({
+        on: "hero",
+        damage: event.damage,
+        kind: "taken",
+        damageType: event.damageType,
+      });
     }
     if (event.type === "MinionHit") {
       numbers.push({
         on: { minion: event.minion },
         damage: event.damage,
         kind: "taken",
+        damageType: event.damageType,
       });
     }
     if (event.type === "MinionMissed") {

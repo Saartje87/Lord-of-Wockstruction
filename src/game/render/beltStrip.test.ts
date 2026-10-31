@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { FRESH_BELONGINGS } from "../sim/inventory";
 import { overlaps } from "../sim/rect";
 import { createWorld, step, type World } from "../sim/world";
@@ -29,11 +29,6 @@ function world(belt?: string[][]): World {
     : undefined;
   return createWorld({ areas: { town }, seed: 1, belongings });
 }
-
-const tunedBelt = { ...beltTuning };
-afterEach(() => {
-  Object.assign(beltTuning, tunedBelt);
-});
 
 describe("the Belt strip's layout", () => {
   it.each([

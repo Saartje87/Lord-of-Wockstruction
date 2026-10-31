@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { beltTuning, type ItemType } from "../tuning/items";
 import { beltOf, beltTypesOf } from "./belt";
 import {
@@ -51,11 +51,6 @@ const ofType = <T extends SimEvent["type"]>(events: SimEvent[], type: T) =>
   events.filter(
     (event): event is Extract<SimEvent, { type: T }> => event.type === type,
   );
-
-const tunedBelt = { ...beltTuning };
-afterEach(() => {
-  Object.assign(beltTuning, tunedBelt);
-});
 
 describe("lifting a Potion out of a Belt Column", () => {
   it("makes it the Held Item, the Potions above dropping down a row", () => {

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { graveWockingtonTuning } from "../tuning/graveWockington";
 import { heroTuning } from "../tuning/hero";
 import { isPotion } from "../tuning/items";
@@ -84,11 +84,6 @@ function actBossIs(state: "notGiven" | "given" | "ready" | "done"): Progress {
     quests: { ...FRESH_PROGRESS.quests, "act-boss": { state, count: 0 } },
   };
 }
-
-const flinch = heroTuning.flinchChance;
-afterEach(() => {
-  heroTuning.flinchChance = flinch;
-});
 
 /** Steps `world` `steps` times, with nobody hurting the Hero; the events. */
 function wait(world: World, steps: number): SimEvent[] {

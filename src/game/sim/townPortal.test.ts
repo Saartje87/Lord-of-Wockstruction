@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { heroTuning } from "../tuning/hero";
 import { townPortalTuning } from "../tuning/townPortal";
 import { emptySkillBar } from "./skillBar";
@@ -17,11 +17,6 @@ import {
   townPortalIn,
   type World,
 } from "./world";
-
-const { flinchChance } = heroTuning;
-afterEach(() => {
-  heroTuning.flinchChance = flinchChance;
-});
 
 /**
  * An orthogonal Area drawn row by row: `.` floor, `#` wall, `H` the Hero's

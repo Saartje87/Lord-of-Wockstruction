@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   beltTuning,
   dropTuning,
@@ -201,15 +201,6 @@ describe("Drops", () => {
 });
 
 /** The tuning tests change, put back after each. */
-const tuned = { ...dropTuning };
-const tunedPotions = { ...potionDropTuning };
-const tunedBelt = { ...beltTuning };
-afterEach(() => {
-  Object.assign(dropTuning, tuned);
-  Object.assign(potionDropTuning, tunedPotions);
-  Object.assign(beltTuning, tunedBelt);
-});
-
 /** A Town where every kill drops just one Item, of `type`. */
 function dropping(type: ItemType = "ring", belongings?: Belongings, pack = 1) {
   const potion = isPotion(type);

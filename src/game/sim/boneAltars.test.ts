@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { boneAltarTuning } from "../tuning/boneAltars";
 import { heroTuning } from "../tuning/hero";
 import { monsterTuning } from "../tuning/monsters";
@@ -89,12 +89,6 @@ function isWalkableForHero(world: World, at: { x: number; y: number }) {
   return isWalkable(world.areas[world.areaName], at);
 }
 
-const tuned = { ...boneAltarTuning };
-
-afterEach(() => {
-  Object.assign(boneAltarTuning, tuned);
-});
-
 function inBog(progress: Progress = FRESH_PROGRESS): World {
   return createWorld({
     areas: { town, "soggy-bog": bog },
@@ -115,11 +109,6 @@ function tough(world: World) {
   heroTuning.flinchChance = 0;
   world.hero.life = 1_000_000;
 }
-
-const flinch = heroTuning.flinchChance;
-afterEach(() => {
-  heroTuning.flinchChance = flinch;
-});
 
 /** Walks the Hero beside altar `index` and has them attack it until it falls. */
 function destroy(world: World, index: number): SimEvent[] {

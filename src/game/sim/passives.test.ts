@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   isPassive,
   PASSIVE_SKILLS,
@@ -137,11 +137,6 @@ function share(skill: Skill): number {
   if (!passive) throw new Error(`${skill} is not Passive`);
   return passive.percentPerSkillLevel / 100;
 }
-
-const burstShare = skillTuning.corpseExplosion.effect;
-afterEach(() => {
-  skillTuning.corpseExplosion.effect = burstShare;
-});
 
 describe("Passive Skills in the Skill Tree's Branches", () => {
   it.each([

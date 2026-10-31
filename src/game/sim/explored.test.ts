@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { saveOf } from "../save";
 import { mapTuning } from "../tuning/map";
 import { combatArea } from "./testAreas";
@@ -11,11 +11,6 @@ import {
   townPortalIn,
   type World,
 } from "./world";
-
-const { exploredRadius } = mapTuning;
-afterEach(() => {
-  mapTuning.exploredRadius = exploredRadius;
-});
 
 /**
  * An orthogonal Area drawn row by row: `.` floor, `#` wall, `H` the Hero's

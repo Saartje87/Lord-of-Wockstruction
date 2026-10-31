@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { encodeSave, parseSave, saveOf } from "../save";
 import { heroTuning } from "../tuning/hero";
 import { monsterTuning } from "../tuning/monsters";
@@ -309,11 +309,6 @@ describe("Corpse Explosion's burst", () => {
 });
 
 describe("Skill damage", () => {
-  const { defense } = monsterTuning.skeleton;
-  afterEach(() => {
-    monsterTuning.skeleton.defense = defense;
-  });
-
   it("never Misses, whatever the Monster's Defense", () => {
     monsterTuning.skeleton.defense = 1_000_000;
     for (let i = 0; i < 10; i++) {

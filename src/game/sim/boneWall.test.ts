@@ -1,10 +1,6 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { heroTuning } from "../tuning/hero";
-import {
-  skillTuning,
-  type WallEffect,
-  type WardEffect,
-} from "../tuning/skills";
+import { skillTuning, type WallEffect } from "../tuning/skills";
 import { emptySkillBar } from "./skillBar";
 import { combatArea } from "./testAreas";
 import type { Vec } from "./vec";
@@ -213,14 +209,6 @@ function place(w: World, index: number, pos: Vec) {
 }
 
 const wallTuned = { ...(skillTuning.boneWall.effect as WallEffect) };
-const spearTuned = { ...skillTuning.boneSpear };
-const wardTuned = { ...(skillTuning.boneWard.effect as WardEffect) };
-afterEach(() => {
-  skillTuning.boneWall.effect = { ...wallTuned };
-  skillTuning.boneSpear = { ...spearTuned };
-  skillTuning.boneWard.effect = { ...wardTuned };
-});
-
 /** The wall effect's tuned length of a Wall, in tiles. */
 function wallOf(events: SimEvent[]): Vec[] {
   const raised = events.find((event) => event.type === "BoneWallRaised");

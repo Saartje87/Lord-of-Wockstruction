@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   createWorld,
   FRESH_PROGRESS,
@@ -83,11 +83,6 @@ function kill(w: World) {
     step(w, []);
   }
 }
-
-const golemRequiredLevel = skillTuning.golem.requiredLevel;
-afterEach(() => {
-  skillTuning.golem.requiredLevel = golemRequiredLevel;
-});
 
 /** The rows of a Belt Column with no Belt Equipped. */
 const ONE_ROW = 1;

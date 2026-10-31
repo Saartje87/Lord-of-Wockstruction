@@ -7,6 +7,7 @@ import {
 } from "../tuning/damage";
 import { type MinionType, minionTuning } from "../tuning/minions";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
+import { uniqueTuning } from "../tuning/uniqueMonsters";
 
 /**
  * A hit's damage as an amount per Damage Type, a missing one being 0. Left
@@ -69,6 +70,20 @@ export function unresistedTotal(damage: Damage): number {
 /** What a Monster of `type` shrugs off. */
 export function monsterResistances(type: MonsterType): Resistances {
   return monsterTuning[type].resistances ?? {};
+}
+
+/**
+ * What a Monster shrugs off: a Unique's own Resistances if its tuning gives
+ * any, else its type's.
+ */
+export function resistancesOf(monster: {
+  type: MonsterType;
+  unique: string | null;
+}): Resistances {
+  return (
+    (monster.unique !== null && uniqueTuning.resistances[monster.unique]) ||
+    monsterResistances(monster.type)
+  );
 }
 
 /** What a Minion of `type` shrugs off: its Monster's, for a Raised one. */

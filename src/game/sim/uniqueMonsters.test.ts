@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { heroTuning } from "../tuning/hero";
 import { isPotion } from "../tuning/items";
+import { uniqueTuning } from "../tuning/uniqueMonsters";
 import { loadArea } from "./area";
+import { monsterResistances, resistancesOf } from "./damage";
 import {
   killExperience,
   monsterAttackRating,
@@ -192,5 +194,22 @@ describe("a Unique Monster object", () => {
 
   it("must have a name", () => {
     expect(() => load([unique("", "zombie", 4)])).toThrow(/without a name/);
+  });
+});
+
+describe("Unique Monster Resistances", () => {
+  afterEach(() => {
+    delete uniqueTuning.resistances["Sir Soaks-a-Lot"];
+  });
+
+  it("are its Monster type's unless its own tuning overrides them", () => {
+    const zombie = { type: "zombie", unique: "Sir Soaks-a-Lot" } as const;
+    expect(resistancesOf(zombie)).toEqual(monsterResistances("zombie"));
+
+    uniqueTuning.resistances["Sir Soaks-a-Lot"] = { fire: 75 };
+    expect(resistancesOf(zombie)).toEqual({ fire: 75 });
+    expect(resistancesOf({ type: "zombie", unique: null })).toEqual(
+      monsterResistances("zombie"),
+    );
   });
 });

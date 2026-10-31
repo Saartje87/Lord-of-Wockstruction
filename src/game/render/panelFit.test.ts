@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { areaDisplayNames, createShippedWorld } from "../content";
+import { canShareScreen, PANELS, type Panel } from "../menus";
 import { emptyBelt } from "../sim/belt";
 import { EQUIPMENT_SLOTS } from "../sim/inventory";
 import { overlaps, type Rect } from "../sim/rect";
@@ -21,6 +22,7 @@ import {
   PANEL_ROWS,
 } from "./heroPanel";
 import { INVENTORY_PANEL, inventoryPanelLayout } from "./inventoryPanel";
+import { miniMapLayout } from "./miniMap";
 import { orbsLayout } from "./orbs";
 import { panelButtonsLayout } from "./panelButtons";
 import { QUEST_PANEL, questPanelLayout, questPanelSheet } from "./questPanel";
@@ -30,6 +32,8 @@ import {
   SKILL_TREE_PANEL,
   skillTreePanelLayout,
 } from "./skillTreePanel";
+import { touchControlsLayout } from "./touchControls";
+import { MIN_CELL_HIT, TOUCH_HIT_AREA, touchHitRect } from "./touchHitArea";
 import { VENDOR_PANEL, vendorPanelLayout } from "./vendorPanel";
 import {
   WAYPOINT_LIST,
@@ -54,14 +58,19 @@ type PanelRects = {
   parts: [string, Rect][];
   /**
    * Its buttons inside rows (+, −, Accept): inside the panel, clear of the
-   * × and the close hint.
+   * × and the close hint. A button's touch hit area stays inside the third
+   * rect, if given.
    */
-  buttons: [string, Rect][];
+  buttons: [string, Rect, Rect?][];
+  /** Its grid cells, one per size: the Inventory's, Equipment slots, Belt cells and Vendor's. */
+  cells: [string, Rect][];
 };
 
 /** A panel the test covers: add a new panel to `PANELS_UNDER_TEST` to cover it. */
 type PanelUnderTest = {
   name: string;
+  /** The panel as the menus know it, if it may share the screen with another. */
+  panel?: Panel;
   rects: (viewport: Viewport) => PanelRects;
 };
 
@@ -123,6 +132,7 @@ const DIALOGUE_BUTTONS = Math.max(
 const PANELS_UNDER_TEST: PanelUnderTest[] = [
   {
     name: "Hero panel",
+    panel: "hero",
     rects(viewport) {
       const layout = heroPanelLayout(viewport);
       const derived = heroSheet(speedyWorld).derived.length;
@@ -133,24 +143,41 @@ const PANELS_UNDER_TEST: PanelUnderTest[] = [
         PANEL_ROWS.attributePoints,
         ...Array.from({ length: derived }, (_, i) => PANEL_ROWS.derived + i),
       ];
+      /** Row `row`'s band across the panel, which a button's touch hit area stays in. */
+      const bandOf = (row: number): Rect => {
+        const { y, h } = heroPanelRow(viewport, row);
+        return { x: layout.panel.x, y, w: layout.panel.w, h };
+      };
+      const attributeBand = (attribute: (typeof ATTRIBUTES)[number]) =>
+        bandOf(PANEL_ROWS.attributes + ATTRIBUTES.indexOf(attribute));
       return {
         panel: layout.panel,
         closeHint: layout.closeHint,
         closeButton: layout.closeButton,
         parts: rows.map((row) => [`row ${row}`, heroPanelRow(viewport, row)]),
         buttons: [
-          ...ATTRIBUTES.flatMap((attribute): [string, Rect][] => [
-            [`${attribute} +`, layout.raise[attribute]],
-            [`${attribute} −`, layout.lower[attribute]],
+          ...ATTRIBUTES.flatMap((attribute): [string, Rect, Rect][] => [
+            [
+              `${attribute} +`,
+              layout.raise[attribute],
+              attributeBand(attribute),
+            ],
+            [
+              `${attribute} −`,
+              layout.lower[attribute],
+              attributeBand(attribute),
+            ],
           ]),
-          ["Accept", layout.accept],
+          ["Accept", layout.accept, bandOf(PANEL_ROWS.attributePoints)],
         ],
+        cells: [],
       };
     },
   },
   ...BELT_ROWS.map(
     (beltRows): PanelUnderTest => ({
       name: `Inventory panel, ${beltRows} Belt rows`,
+      panel: "inventory",
       rects(viewport) {
         const layout = inventoryPanelLayout(viewport, beltRows);
         return {
@@ -171,12 +198,34 @@ const PANELS_UNDER_TEST: PanelUnderTest[] = [
             ),
           ],
           buttons: [],
+          cells: [
+            [
+              "grid cell",
+              {
+                x: layout.grid.x,
+                y: layout.grid.y,
+                w: layout.cell,
+                h: layout.cell,
+              },
+            ],
+            ...EQUIPMENT_SLOTS.map((slot): [string, Rect] => [
+              slot,
+              layout.slots[slot],
+            ]),
+            ...layout.belt.flatMap((cells, column) =>
+              cells.map((rect, row): [string, Rect] => [
+                `Belt ${column},${row}`,
+                rect,
+              ]),
+            ),
+          ],
         };
       },
     }),
   ),
   {
     name: "Skill Tree",
+    panel: "skillTree",
     rects(viewport) {
       const layout = skillTreePanelLayout(viewport, fullRooms());
       return {
@@ -192,13 +241,19 @@ const PANELS_UNDER_TEST: PanelUnderTest[] = [
           ),
         ],
         buttons: Object.entries(layout.raise).map(
-          ([skill, rect]): [string, Rect] => [`${skill} +`, rect],
+          ([skill, rect]): [string, Rect, Rect] => [
+            `${skill} +`,
+            rect,
+            layout.panel,
+          ],
         ),
+        cells: [],
       };
     },
   },
   {
     name: "Quest panel",
+    panel: "quest",
     rects(viewport) {
       const layout = questPanelLayout(viewport, questPanelSheet(world).length);
       return {
@@ -207,6 +262,7 @@ const PANELS_UNDER_TEST: PanelUnderTest[] = [
         closeButton: layout.closeButton,
         parts: layout.rows.map((rect, i): [string, Rect] => [`row ${i}`, rect]),
         buttons: [],
+        cells: [],
       };
     },
   },
@@ -223,6 +279,17 @@ const PANELS_UNDER_TEST: PanelUnderTest[] = [
           ["inventory grid", layout.inventory],
         ],
         buttons: [],
+        cells: [
+          [
+            "cell",
+            {
+              x: layout.goods.x,
+              y: layout.goods.y,
+              w: layout.cell,
+              h: layout.cell,
+            },
+          ],
+        ],
       };
     },
   },
@@ -237,6 +304,7 @@ const PANELS_UNDER_TEST: PanelUnderTest[] = [
         closeButton: layout.closeButton,
         parts: layout.rows.map((rect, i): [string, Rect] => [`row ${i}`, rect]),
         buttons: [],
+        cells: [],
       };
     },
   },
@@ -256,6 +324,7 @@ const PANELS_UNDER_TEST: PanelUnderTest[] = [
           ]),
         ],
         buttons: [],
+        cells: [],
       };
     },
   },
@@ -351,6 +420,75 @@ function expectInside(rect: Rect, outer: Rect, name: string) {
   );
 }
 
+/** `rect` grown about its middle to at least `TOUCH_HIT_AREA` each way. */
+function grownToTouch(rect: Rect): Rect {
+  const w = Math.max(rect.w, TOUCH_HIT_AREA);
+  const h = Math.max(rect.h, TOUCH_HIT_AREA);
+  return {
+    x: rect.x - (w - rect.w) / 2,
+    y: rect.y - (h - rect.h) / 2,
+    w,
+    h,
+  };
+}
+
+/**
+ * Expects the Touch hit area of a button drawn at `rect` to be
+ * `TOUCH_HIT_AREA` each way, and wherever it is less, to be so because the
+ * halfway rule stops it at a neighbour in `neighbours` or the area it must
+ * stay `within` ends.
+ */
+function expectTouchHitArea(
+  name: string,
+  rect: Rect,
+  neighbours: Rect[],
+  within?: Rect,
+) {
+  const hit = touchHitRect(rect, neighbours, within);
+  expect(hit.x, `${name} hit area keeps the button`).toBeLessThanOrEqual(
+    rect.x + EPSILON,
+  );
+  expect(hit.y, `${name} hit area keeps the button`).toBeLessThanOrEqual(
+    rect.y + EPSILON,
+  );
+  expect(hit.x + hit.w, `${name} hit area keeps the button`).toBeGreaterThan(
+    rect.x + rect.w - EPSILON,
+  );
+  expect(hit.y + hit.h, `${name} hit area keeps the button`).toBeGreaterThan(
+    rect.y + rect.h - EPSILON,
+  );
+  const grown = grownToTouch(rect);
+  const axes = [
+    { pos: "x", size: "w", other: "y", otherSize: "h" },
+    { pos: "y", size: "h", other: "x", otherSize: "w" },
+  ] as const;
+  for (const { pos, size, other, otherSize } of axes) {
+    if (hit[size] >= TOUCH_HIT_AREA - EPSILON) continue;
+    const need = TOUCH_HIT_AREA - rect[size];
+    const gapOf = (a: Rect, b: Rect, axis: "x" | "y", length: "w" | "h") =>
+      Math.max(
+        b[axis] - (a[axis] + a[length]),
+        a[axis] - (b[axis] + b[length]),
+      );
+    const cutByWithin =
+      within !== undefined &&
+      (grown[pos] < within[pos] - EPSILON ||
+        grown[pos] + grown[size] > within[pos] + within[size] + EPSILON);
+    const cutByNeighbour = neighbours.some(
+      (n) =>
+        !overlaps(rect, n) &&
+        (!within || overlaps(within, n)) &&
+        gapOf(rect, n, other, otherSize) < TOUCH_HIT_AREA - rect[otherSize] &&
+        gapOf(rect, n, pos, size) < need - EPSILON &&
+        gapOf(rect, n, pos, size) >= gapOf(rect, n, other, otherSize),
+    );
+    expect(
+      cutByWithin || cutByNeighbour,
+      `${name} hit area is ${hit[size]} px ${size === "w" ? "wide" : "tall"} with nothing to stop it`,
+    ).toBe(true);
+  }
+}
+
 function expectApart(parts: [string, Rect][]) {
   for (const [i, [name, rect]] of parts.entries()) {
     for (const [other, otherRect] of parts.slice(i + 1)) {
@@ -399,6 +537,103 @@ describe.each(LAYOUTS)("every panel at $label", ({ compact, viewport }) => {
 
     for (const [name, rect] of hudToClear(viewport)) {
       expect(overlapsForReal(panel, rect), name).toBe(false);
+    }
+  });
+
+  it.each(
+    PANELS_UNDER_TEST,
+  )("keeps the $name's grid cells at least MIN_CELL_HIT", ({ rects }) => {
+    for (const [name, cell] of rects(viewport).cells) {
+      expect(cell.w, `${name} width`).toBeGreaterThanOrEqual(MIN_CELL_HIT);
+      expect(cell.h, `${name} height`).toBeGreaterThanOrEqual(MIN_CELL_HIT);
+    }
+  });
+
+  it.each(
+    PANELS_UNDER_TEST,
+  )("keeps the $name's buttons' Touch hit area, as far as the halfway rule allows", ({
+    rects,
+  }) => {
+    const { closeButton, parts, buttons, cells } = rects(viewport);
+    const targets: [string, Rect, Rect?][] = [["×", closeButton], ...buttons];
+    for (const [name, rect, within] of targets) {
+      const neighbours = [
+        ...parts.map(([, other]) => other),
+        ...cells.map(([, other]) => other),
+        ...targets.map(([, other]) => other),
+        ...hudToClear(viewport).map(([, other]) => other),
+      ].filter((other) => other !== rect);
+      expectTouchHitArea(name, rect, neighbours, within);
+    }
+  });
+});
+
+describe.each(LAYOUTS)("the HUD's buttons at $label", ({ viewport }) => {
+  it("keep their Touch hit area, as far as the halfway rule allows", () => {
+    const { buttons, townPortal } = panelButtonsLayout(viewport);
+    const controls = touchControlsLayout(viewport);
+    const { life, mana } = orbsLayout(viewport);
+    const targets: [string, Rect][] = [
+      ...Object.entries(buttons).map(([panel, rect]): [string, Rect] => [
+        `${panel} button`,
+        rect,
+      ]),
+      ["Town Portal button", townPortal],
+      ["pause button", controls.pause],
+    ];
+    const stops = [
+      ...Object.values(skillBarLayout(viewport).slots),
+      ...beltStripLayout(viewport).columns,
+      heroPanelLayout(viewport).levelUp,
+      squareOf(life),
+      squareOf(mana),
+      experienceBarLayout(viewport),
+      miniMapLayout(viewport),
+      controls.attack,
+      ...Object.values(controls.skills),
+    ];
+    for (const [name, rect] of targets) {
+      const neighbours = [
+        ...stops,
+        ...targets.map(([, other]) => other).filter((other) => other !== rect),
+      ];
+      expectTouchHitArea(name, rect, neighbours);
+    }
+  });
+});
+
+describe.each(
+  DESKTOP_SCREENS,
+)("panels open together at $width×$height", (screen) => {
+  const viewport = viewportOf(screen);
+  const pairs = PANELS.flatMap((panel, i) =>
+    PANELS.slice(i + 1).map((other) => [panel, other] as const),
+  ).filter(([panel, other]) =>
+    canShareScreen({ compact: false }, panel, other),
+  );
+
+  it("include the Hero panel with each other panel", () => {
+    for (const other of PANELS.filter((panel) => panel !== "hero")) {
+      expect(
+        pairs.some(([a, b]) => a === "hero" && b === other),
+        other,
+      ).toBe(true);
+    }
+  });
+
+  it.each(pairs)("keep the %s panel and the %s panel apart", (panel, other) => {
+    const under = (key: Panel) =>
+      PANELS_UNDER_TEST.filter((candidate) => candidate.panel === key);
+    for (const first of under(panel)) {
+      for (const second of under(other)) {
+        expect(
+          overlapsForReal(
+            first.rects(viewport).panel,
+            second.rects(viewport).panel,
+          ),
+          `${first.name} and ${second.name}`,
+        ).toBe(false);
+      }
     }
   });
 });

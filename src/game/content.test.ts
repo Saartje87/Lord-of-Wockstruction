@@ -1110,15 +1110,18 @@ describe("Town", () => {
 });
 
 describe("the shipped Waypoints", () => {
-  it("stand in Wockville, the Soggy Bog, the Catacombs and the Ossuary, and nowhere else", () => {
+  it("stand in Wockville and every Main Path Area, and nowhere else", () => {
     const withWaypoint = Object.values(shippedWorld().areas)
       .filter((area) => area.waypoint)
       .map((area) => area.name);
     expect(withWaypoint.sort()).toEqual([
       "catacombs",
+      "cozy-plains",
+      "crypt",
       "ossuary",
       "soggy-bog",
       "town",
+      "wockyard",
     ]);
   });
 
@@ -1126,8 +1129,11 @@ describe("the shipped Waypoints", () => {
     const world = shippedWorld();
     expect(waypointList(world)).toEqual([
       { area: "town", touched: true },
+      { area: "cozy-plains", touched: false },
       { area: "soggy-bog", touched: false },
+      { area: "wockyard", touched: false },
       { area: "catacombs", touched: false },
+      { area: "crypt", touched: false },
       { area: "ossuary", touched: false },
     ]);
   });
@@ -1456,8 +1462,11 @@ describe("the shipped Act 1's Main Path", () => {
   it("lists the Waypoints from Wockville out to the Ossuary", () => {
     expect(waypointList(shippedWorld()).map((w) => w.area)).toEqual([
       "town",
+      "cozy-plains",
       "soggy-bog",
+      "wockyard",
       "catacombs",
+      "crypt",
       "ossuary",
     ]);
   });

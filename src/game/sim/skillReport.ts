@@ -5,21 +5,12 @@ import {
   castTuning,
   isPassive,
   type Skill,
+  type SkillEffect,
 } from "../tuning/skills";
 import type { Area } from "./area";
-import { minionDamageRange, minionMaxLife } from "./minions";
 import { monsterMaxLife } from "./monsters";
-import { passiveMultiplier, synergyMultiplier } from "./synergies";
-import { STEP_MS } from "./units";
-import {
-  curseRadius,
-  curseSteps,
-  projectileDamage,
-  raiseCount,
-  SKILLS,
-  skillManaCost,
-  wardAmount,
-} from "./world";
+import { skillNumbers } from "./skillNumbers";
+import { SKILLS, skillManaCost } from "./world";
 
 /** One number of a Skill at a Skill Level, as Synergies and Passive Skills change it. */
 export type SkillNumber = {
@@ -62,13 +53,17 @@ const SHARDS_HIT = 2;
 /** The Skill Levels `skillReport` covers when none are asked for. */
 export const REPORT_SKILL_LEVELS = [1, 5, 10, 20];
 
-/** What multiplies a Skill's numbers: its Synergies, and its Passive Skills. */
-type Power = { synergy: number; passive: number };
-
-/** What a Power multiplies a Skill's main number by in all. */
-function strength(power: Power): number {
-  return power.synergy * power.passive;
-}
+/** The lines of `skillNumbers` the report shows, by kind of effect. */
+const REPORTED: Record<SkillEffect["type"], string[]> = {
+  summon: ["Life", "Damage"],
+  raise: ["Count", "Life", "Damage"],
+  curse: ["Duration", "Radius"],
+  ward: ["Soak"],
+  wall: ["Piece Life"],
+  projectile: ["Damage"],
+  volley: ["Damage"],
+  explode: [],
+};
 
 /** Skill Levels of `level` in each of `skills`, and 0 in every other Skill. */
 function levelsOf(skills: readonly Skill[], level: number) {
@@ -107,99 +102,50 @@ export function skillReport(
   return casts.flatMap((skill) =>
     skillLevels.map((skillLevel): SkillRow => {
       const tuning = castTuning(skill);
-      const synergy = synergyMultiplier(levelsOf(casts, skillLevel), skill);
-      const passive = passiveMultiplier(levelsOf(SKILLS, skillLevel), skill);
-      const scenarios: Power[] = [
-        { synergy: 1, passive: 1 },
-        { synergy, passive: 1 },
-        { synergy, passive },
-      ];
-      const numbers: SkillNumber[] = [];
-      /** A number worked out in each scenario. */
-      const add = (label: string, number: (power: Power) => number) => {
-        const [base, withSynergies, withPassive] = scenarios.map(number);
-        numbers.push({ label, base, withSynergies, withPassive });
-      };
-      /** A number that no Synergy or Passive Skill changes. */
-      const addConstant = (label: string, value: number) =>
-        add(label, () => value);
-      /** What one cast deals a Monster, as a fraction of its Life if `share`. */
-      let perCast: ((power: Power) => number) | null = null;
-      let share = false;
       const { effect } = tuning;
-      switch (effect.type) {
-        case "summon":
-        case "raise": {
-          const { minion } = effect;
-          if (effect.type === "raise") {
-            const count = raiseCount(effect, skillLevel);
-            addConstant("Count", count);
-          }
-          const minionAt = (power: Power) => ({
-            type: minion,
-            skillLevel,
-            synergy: strength(power),
-          });
-          add("Life", (power) => minionMaxLife(minionAt(power)));
-          add("Damage", (power) => {
-            const [least, most] = minionDamageRange(minionAt(power));
-            return (least + most) / 2;
-          });
-          break;
-        }
-        case "curse":
-          add(
-            "Duration",
-            (power) =>
-              (curseSteps(effect, skillLevel, strength(power)) * STEP_MS) /
-              1000,
-          );
-          add("Radius", (power) =>
-            curseRadius(effect, skillLevel, power.passive),
-          );
-          break;
-        case "ward":
-          add("Soak", (power) =>
-            wardAmount(effect, skillLevel, strength(power)),
-          );
-          break;
-        case "wall":
-          addConstant("Piece Life", effect.pieceLife);
-          break;
-        case "projectile":
-        case "volley": {
-          const hits = effect.type === "volley" ? SHARDS_HIT : 1;
-          const perHit = (power: Power) => {
-            const [least, most] = projectileDamage(
-              effect,
-              skillLevel,
-              strength(power),
-            );
-            return (least + most) / 2;
-          };
-          add("Damage", perHit);
-          perCast = (power) => perHit(power) * hits;
-          break;
-        }
-        case "explode":
-          // A burst is a share of the dead Monster's own Life.
-          share = true;
-          perCast = (power) =>
-            ((effect.share[0] + effect.share[1]) / 2) * strength(power);
-          break;
-      }
+      const scenarios = [
+        levelsOf([], 0),
+        levelsOf(casts, skillLevel),
+        levelsOf(SKILLS, skillLevel),
+      ].map((levels) => skillNumbers(skill, skillLevel, levels));
+      const numbers: SkillNumber[] = REPORTED[effect.type].flatMap((label) => {
+        const [base, withSynergies, withPassive] = scenarios.map(
+          (lines) => lines.find((one) => one.label === label)?.value,
+        );
+        return base === undefined ||
+          withSynergies === undefined ||
+          withPassive === undefined
+          ? []
+          : [{ label, base, withSynergies, withPassive }];
+      });
 
-      const damage = perCast as ((power: Power) => number) | null;
-      const kills: SkillKill[] = damage
-        ? monstersByArea.map(({ area, areaLevel, monster }) => {
-            const life = monsterMaxLife({
-              type: monster,
-              monsterLevel: areaLevel,
+      // What one cast deals a Monster, as a fraction of its Life if `share`.
+      const hurts =
+        effect.type === "projectile" ||
+        effect.type === "volley" ||
+        effect.type === "explode";
+      const damageLine = hurts
+        ? scenarios[1].find((one) => one.label === "Damage")
+        : undefined;
+      const share = effect.type === "explode";
+      const hits = effect.type === "volley" ? SHARDS_HIT : 1;
+      const dealtPerCast = damageLine ? damageLine.value * hits : null;
+      const kills: SkillKill[] =
+        dealtPerCast === null
+          ? []
+          : monstersByArea.map(({ area, areaLevel, monster }) => {
+              const life = monsterMaxLife({
+                type: monster,
+                monsterLevel: areaLevel,
+              });
+              const dealt = dealtPerCast * (share ? life : 1);
+              return {
+                area,
+                areaLevel,
+                monster,
+                casts: Math.ceil(life / dealt),
+              };
             });
-            const dealt = damage(scenarios[1]) * (share ? life : 1);
-            return { area, areaLevel, monster, casts: Math.ceil(life / dealt) };
-          })
-        : [];
       return {
         skill,
         name: tuning.name,

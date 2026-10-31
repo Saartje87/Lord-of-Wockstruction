@@ -1465,7 +1465,7 @@ export function createRenderer(
       minionFrame.draw(viewport, world, minionFlashedAtMs, nowMs);
       experience.draw(viewport, world);
       levelUp.draw(viewport, world, nowMs);
-      touchControls.draw(viewport, world, menus);
+      touchControls.draw(viewport, world, menus, itemInReach !== null);
       heroPanel.draw(viewport, world, menus.heroPanelOpen, menus.pendingPoints);
       // The focused or long-pressed Skill shows its tooltip; the mouse's
       // pointer, as before, none, and nor does a Held Skill.
@@ -2010,7 +2010,7 @@ function touchControlsView(
 
   return {
     layer,
-    draw(screen: Viewport, world: World, menus: Menus) {
+    draw(screen: Viewport, world: World, menus: Menus, itemInReach: boolean) {
       layer.visible = touchControlsShown(
         activeInput.way,
         menus,
@@ -2050,6 +2050,7 @@ function touchControlsView(
           )
           .fill({ color: style.edge, alpha: style.edgeAlpha });
       }
+      attackLabel.text = itemInReach ? "Pick up" : "Attack";
       attackLabel.visible = !layout.pauseOnly;
       for (const label of skillLabels.values()) {
         label.visible = !layout.pauseOnly;

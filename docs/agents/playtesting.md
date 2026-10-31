@@ -69,6 +69,7 @@ To start beside a fight, use the `fight` Entry, 3 to 4 tiles from a pack that no
 - `?area=old-mill&entry=fight`: Wockbrutes in the Old Mill.
 - `?area=soggy-bog&entry=fight`: Bog Spitters in the Soggy Bog.
 - `?area=spa&entry=fight`: Bruckle and his 5 Wockwolves in the Spa, about 3 tiles from him. Use a sturdy Save; his yard is fenced off from the south.
+- `?area=spa&entry=pools`: beside the Spa's pools, away from any pack, for looking at the hot springs' tint and steam.
 - `?area=ossuary&entry=fight`: Grave Wockington's room, about 6 tiles from him. Use a Level 11–12 Save; he notices the Hero on arrival.
 
 ### The 3D World

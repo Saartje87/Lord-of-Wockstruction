@@ -1664,6 +1664,27 @@ describe("the Spa's hot springs", () => {
     expect(pieces.some((piece) => /tree_dead|grave/.test(piece))).toBe(false);
   });
 
+  it("has a `pools` Entry beside its pools, which no Exit leads to", () => {
+    const world = shippedWorld();
+    const area = world.areas.spa;
+    const pools = area.entries.pools;
+
+    expect(pools).toBeDefined();
+    const nearest = Math.min(
+      ...pondsOf(area)
+        .flatMap((pool) => pool.tiles)
+        .map((tile) => distance({ x: tile.x + 0.5, y: tile.y + 0.5 }, pools)),
+    );
+    expect(nearest).toBeLessThanOrEqual(3);
+    expect(canReach(area, area.entries.start, pools)).toBe(true);
+    const leadingHere = Object.values(world.areas).flatMap((other) =>
+      other.exits.filter(
+        (exit) => exit.area === "spa" && exit.entry === "pools",
+      ),
+    );
+    expect(leadingHere).toEqual([]);
+  });
+
   it("keeps its Entries, Exits, spawns and Unique Monster reachable, and dry", () => {
     const area = spa();
     const wanted = [

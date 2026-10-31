@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { goldTuning } from "../tuning/gold";
 import type { MonsterType } from "../tuning/monsters";
-import { bossReport, tuningReport } from "./tuningReport";
+import { uniqueTuning } from "../tuning/uniqueMonsters";
+import { bossReport, tuningReport, uniqueReport } from "./tuningReport";
 
 /** A Combat Area's name, Area Level and a Spawn of each of `monsters`. */
 function area(name: string, areaLevel: number | null, monsters: MonsterType[]) {
@@ -266,5 +267,19 @@ describe("bossReport", () => {
     ]);
     expect(report.stages[0].archers).toBe(0);
     expect(report.stages[1].archers).toBeGreaterThan(0);
+  });
+});
+
+describe("uniqueReport", () => {
+  it("gives a Unique Wockbrute's numbers at an Area Level, the Unique multipliers included", () => {
+    const ordinary = tuningReport("wockbrute", [area("spa", 2, ["wockbrute"])])
+      .areas[0];
+    const report = uniqueReport("wockbrute", 2);
+
+    expect(report.maxLife).toBe(ordinary.maxLife * uniqueTuning.life);
+    expect(report.experience).toBe(
+      ordinary.experience * uniqueTuning.experience,
+    );
+    expect(report.damage[1]).toBeGreaterThan(ordinary.damage[1]);
   });
 });

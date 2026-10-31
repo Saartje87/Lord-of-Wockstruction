@@ -210,3 +210,24 @@ export function bossReport(type: MonsterType, areaLevel: number): BossReport {
     })),
   };
 }
+
+/** A Unique Monster's numbers at an Area Level, Unique multipliers included. */
+export type UniqueRow = {
+  maxLife: number;
+  damage: [number, number];
+  attackRating: number;
+  defense: number;
+  experience: number;
+};
+
+/** The Monster `type` as a Unique Monster at `areaLevel`, from the live tuning. */
+export function uniqueReport(type: MonsterType, areaLevel: number): UniqueRow {
+  const monster = { type, monsterLevel: areaLevel, unique: type as string };
+  return {
+    maxLife: monsterMaxLife(monster),
+    damage: monsterDamageRange(monster),
+    attackRating: monsterAttackRating(monster),
+    defense: monsterDefense(monster),
+    experience: monsterExperience(monster),
+  };
+}

@@ -25,6 +25,13 @@ export const DIALOGUE = {
   hintHeight: 28,
 };
 
+/**
+ * The least room the NPC's words get in the Compact Layout (CSS px at
+ * native scale, drawn at the UI Scale), room for a few lines, however many
+ * buttons share the panel.
+ */
+export const COMPACT_DIALOGUE = { minBody: 56 };
+
 /** What an NPC without a Quest says, by their name in the map: a line of their own. */
 export const NPC_LINES: Readonly<Record<string, string>> = {
   Wanderer:
@@ -176,17 +183,31 @@ export function dialoguePanelRect(screen: Viewport, buttons: number): Rect {
  * Where the panel, its × close button, the NPC's words and each button
  * (CSS px) go, at the UI Scale: inside the panel's padding, and in the
  * Compact Layout, where the panel fills the screen, as wide as on a desktop
- * and centred.
+ * and centred. There the words and the buttons share the room above the
+ * hint: the words keep up to `bodyHeight`, but no less than
+ * `COMPACT_DIALOGUE.minBody`, and the buttons give up height for it only
+ * when that is not enough.
  */
 export function dialogueLayout(
   screen: Viewport,
   buttons: number,
 ): { panel: Rect; closeButton: Rect; body: Rect; buttons: Rect[] } {
-  const { width, padding, firstLine, bodyHeight, rowHeight } = atUiScale(
+  const { width, padding, firstLine, rowHeight, hintHeight } = atUiScale(
     DIALOGUE,
     screen.uiScale,
   );
+  let { bodyHeight } = atUiScale(DIALOGUE, screen.uiScale);
+  let buttonHeight = rowHeight;
   const panel = dialoguePanelRect(screen, buttons);
+  if (screen.compact) {
+    const room = panel.h - firstLine - hintHeight - padding;
+    const minBody = COMPACT_DIALOGUE.minBody * screen.uiScale;
+    bodyHeight = Math.min(
+      bodyHeight,
+      Math.max(minBody, room - buttons * rowHeight),
+    );
+    buttonHeight = Math.min(rowHeight, (room - bodyHeight) / buttons);
+  }
   const w = width - 2 * padding;
   const x = panel.x + (panel.w - w) / 2;
   return {
@@ -195,9 +216,9 @@ export function dialogueLayout(
     body: { x, y: panel.y + firstLine, w, h: bodyHeight },
     buttons: Array.from({ length: buttons }, (_, index) => ({
       x,
-      y: panel.y + firstLine + bodyHeight + index * rowHeight,
+      y: panel.y + firstLine + bodyHeight + index * buttonHeight,
       w,
-      h: rowHeight,
+      h: buttonHeight,
     })),
   };
 }

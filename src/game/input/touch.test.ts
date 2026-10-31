@@ -10,6 +10,7 @@ import type { Rect } from "../sim/rect";
 import { SKILL_BAR_SLOTS, type SkillBarSlot } from "../sim/skillBar";
 import type { Vec } from "../sim/vec";
 import type { World } from "../sim/world";
+import { PHONES as SCREEN_PHONES } from "../testScreens";
 import { viewportOf } from "../viewport";
 import { createPadInput, type PadButton, pollPad } from "./pad";
 import { arenaWith } from "./testArena";
@@ -235,11 +236,16 @@ const CONTROLLER_BUTTON: Record<SkillBarSlot, PadButton> = {
   right: "rt",
 };
 
-/** The phones held sideways the touch hit areas are for: the Compact Layout at a UI Scale of 0.75. */
-const PHONES = [
-  viewportOf({ width: 640, height: 360 }),
-  viewportOf({ width: 915, height: 330 }),
-];
+/**
+ * The phones held sideways the touch hit areas are for, as viewports: the
+ * Compact Layout at a UI Scale of 0.75. Not the 320 px tall one, where the
+ * Skill buttons sit half a pixel under the pause button and the halfway
+ * rule leaves it only 3 px of reach; its hit areas are checked by the
+ * shared layout test.
+ */
+const PHONES = SCREEN_PHONES.filter(({ height }) => height > 320).map(
+  viewportOf,
+);
 
 /** Whether a lone finger coming down at `at` presses the pause button. */
 function pauses(at: Vec, on: TouchControlsLayout): boolean {

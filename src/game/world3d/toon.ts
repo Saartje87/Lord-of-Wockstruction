@@ -32,7 +32,7 @@ export const LOOKS = {
   /** Town's dirt and paths: dusk light on earth, with its colour left. */
   dusk: { saturation: 0.6, tint: 0xbcc0e4 },
   /** Outdoor dirt: warm earthy brown in daylight, with no evening blue. */
-  daylightDirt: { saturation: 0.85, tint: 0xffe6c4, gain: 1.9 },
+  daylightDirt: { saturation: 1.6, tint: 0xd8a670, gain: 2 },
   /** Green trees and bushes: green kept, only dimmed to the dusk. */
   green: { saturation: 0.9, tint: 0xf0f6ec },
   /** Grass underfoot: fully green and undimmed, so it reads as day grass. */

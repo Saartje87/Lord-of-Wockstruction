@@ -1458,6 +1458,10 @@ describe("loading the shipped content into a World", () => {
  */
 const GUARD_RADIUS = 3;
 
+/** Whether a Spa Spawn is Bruckle's own pack of guards. */
+const isBruckleGuard = (spawn: Spawn, bruckle: Vec) =>
+  spawn.monster === "wockwolf" && distance(spawn.pos, bruckle) <= GUARD_RADIUS;
+
 /**
  * How far from Bruckle's spawn (tiles) the Hero may fight him without another
  * Spa pack noticing.
@@ -1563,10 +1567,7 @@ describe("the shipped Act 1's Main Path", () => {
   it("stands 5 ordinary Wockwolves around Bruckle, beside the Spa's other Monsters", () => {
     const spa = shippedWorld().areas.spa;
     const bruckle = spa.uniques[0].pos;
-    const guards = spa.spawns.filter(
-      (s) =>
-        s.monster === "wockwolf" && distance(s.pos, bruckle) <= GUARD_RADIUS,
-    );
+    const guards = spa.spawns.filter((s) => isBruckleGuard(s, bruckle));
 
     expect(guards.map((s) => s.count)).toEqual([5]);
     expect(new Set(spa.spawns.map((s) => s.monster))).toEqual(
@@ -1577,10 +1578,7 @@ describe("the shipped Act 1's Main Path", () => {
   it("stands every other Spa pack too far off to notice a Hero fighting within 5 tiles of Bruckle", () => {
     const spa = shippedWorld().areas.spa;
     const bruckle = spa.uniques[0].pos;
-    const others = spa.spawns.filter(
-      (s) =>
-        !(s.monster === "wockwolf" && distance(s.pos, bruckle) <= GUARD_RADIUS),
-    );
+    const others = spa.spawns.filter((s) => !isBruckleGuard(s, bruckle));
 
     expect(others.length).toBeGreaterThan(0);
     for (const spawn of others) {
@@ -1593,13 +1591,10 @@ describe("the shipped Act 1's Main Path", () => {
     }
   });
 
-  it("leads a path from the Cozy Plains entry through the fence's south gap to Bruckle, out of every other pack's notice", () => {
+  it("leads a path from the Cozy Plains Entry through the fence's south gap to Bruckle, out of every other pack's notice", () => {
     const spa = shippedWorld().areas.spa;
     const bruckle = spa.uniques[0].pos;
-    const others = spa.spawns.filter(
-      (s) =>
-        !(s.monster === "wockwolf" && distance(s.pos, bruckle) <= GUARD_RADIUS),
-    );
+    const others = spa.spawns.filter((s) => !isBruckleGuard(s, bruckle));
     const path = unnoticedPath(
       spa,
       spa.entries["from-cozy-plains"],

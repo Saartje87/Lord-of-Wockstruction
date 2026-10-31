@@ -1963,6 +1963,18 @@ describe("the dev-only `fight` Entries", () => {
     expect(nearest).toBeGreaterThanOrEqual(FIGHT_ENTRY_MIN_DISTANCE);
   });
 
+  it("starts the Hero in the Spa within reach of Bruckle and his Wockwolves", () => {
+    const { spa } = shippedWorld().areas;
+    const fight = spa.entries.fight;
+    const bruckle = spa.uniques.find((unique) => unique.name === "Bruckle");
+
+    expect(fight).toBeDefined();
+    expect(bruckle).toBeDefined();
+    const away = distance(bruckle?.pos ?? { x: 0, y: 0 }, fight);
+    expect(away).toBeLessThanOrEqual(FIGHT_ENTRY_MAX_DISTANCE);
+    expect(away).toBeGreaterThanOrEqual(FIGHT_ENTRY_MIN_DISTANCE);
+  });
+
   it("starts the Hero in the Ossuary within his Gravefire's range of Grave Wockington", () => {
     const { ossuary } = shippedWorld().areas;
     const fight = ossuary.entries.fight;

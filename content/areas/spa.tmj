@@ -3283,6 +3283,18 @@
      "point": true
     },
     {
+     "id": 12,
+     "name": "fight",
+     "type": "entry",
+     "x": 2256,
+     "y": 528,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true
+    },
+    {
      "id": 4,
      "name": "",
      "type": "monsterSpawn",
@@ -3478,7 +3490,7 @@
   }
  ],
  "nextlayerid": 4,
- "nextobjectid": 12,
+ "nextobjectid": 13,
  "orientation": "isometric",
  "renderorder": "right-down",
  "tiledversion": "1.11.2",

@@ -1,5 +1,6 @@
 import type { SaveOptions } from "./devSave";
 import { type Cell, type ItemId, inventoryOf } from "./sim/inventory";
+import type { QuestStates } from "./sim/quests";
 import type { Vec } from "./sim/vec";
 import {
   type BoneWard,
@@ -39,7 +40,14 @@ export type DevState = {
   groundItems: { id: ItemId; type: ItemType; rarity: Rarity; pos: Vec }[];
   /** The Items in the Inventory, each with its top-left cell. */
   inventory: { id: ItemId; type: ItemType; rarity: Rarity; cell: Cell }[];
-  monsters: { id: MonsterId; type: MonsterType; pos: Vec; life: number }[];
+  /** The Monsters, each with its Unique Monster name or null. */
+  monsters: {
+    id: MonsterId;
+    type: MonsterType;
+    pos: Vec;
+    life: number;
+    unique: string | null;
+  }[];
   corpses: {
     id: MonsterId;
     type: MonsterType;
@@ -55,6 +63,8 @@ export type DevState = {
     life: number;
     maxLife: number;
   }[];
+  /** How far each Quest has got, as `loadSave` takes it. */
+  quests: QuestStates;
 };
 
 declare global {
@@ -70,8 +80,8 @@ declare global {
 
 /**
  * A plain copy of the World's Area, Hero, Monsters, Corpses, Minions, Ground
- * Items and Inventory, with the `target` and `itemInReach` picked in input
- * (ADR 0002), each none once gone, as the renderer highlights none then.
+ * Items, Inventory and Quests, with the `target` and `itemInReach` picked in
+ * input (ADR 0002), each none once gone, as the renderer highlights none then.
  * Nothing in it refers back into the World. Dev builds only: see `GameCanvas`.
  */
 export function devStateOf(
@@ -110,11 +120,12 @@ export function devStateOf(
       rarity: item.rarity,
       cell,
     })),
-    monsters: world.monsters.map(({ id, type, pos, life }) => ({
+    monsters: world.monsters.map(({ id, type, pos, life, unique }) => ({
       id,
       type,
       pos: { ...pos },
       life,
+      unique,
     })),
     corpses: world.corpses.map(({ id, type, monsterLevel, pos }) => ({
       id,
@@ -130,5 +141,6 @@ export function devStateOf(
       life: minion.life,
       maxLife: minionMaxLife(minion),
     })),
+    quests: structuredClone(hero.progress.quests),
   };
 }

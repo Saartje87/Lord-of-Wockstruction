@@ -14,6 +14,8 @@ import {
 import {
   freshQuests,
   QUEST_IDS,
+  type QuestId,
+  type QuestProgress,
   type QuestState,
   type QuestStates,
   questPartsOf,
@@ -110,7 +112,7 @@ const SMITH_SERVICES: readonly SmithService[] = ["locked", "unlocked", "used"];
 const SLOTS: readonly string[] = EQUIPMENT_SLOTS;
 
 /** The states a Quest goes through, in order. */
-const QUEST_STATES: readonly QuestState[] = [
+export const QUEST_STATES: readonly QuestState[] = [
   "notGiven",
   "given",
   "ready",
@@ -577,16 +579,29 @@ function parseQuests(stored: unknown): QuestStates | null {
   for (const id of QUEST_IDS) {
     const quest = log[id];
     if (quest === undefined) continue;
-    const entry = objectWithin(quest, ["state", "count"]);
-    if (!entry) return null;
-    const { state, count } = entry;
-    if (!QUEST_STATES.includes(state as QuestState)) return null;
-    const parts = questPartsOf(questTuning[id].trigger);
-    if (!Number.isInteger(count) || (count as number) < 0) return null;
-    if ((count as number) > parts) return null;
-    quests[id] = { state: state as QuestState, count: count as number };
+    const progress = parseQuestProgress(id, quest);
+    if (!progress) return null;
+    quests[id] = progress;
   }
   return quests;
+}
+
+/**
+ * One stored Quest's progress, or null unless it holds a known state and
+ * nothing else beside a count of parts done that the Quest has.
+ */
+export function parseQuestProgress(
+  id: QuestId,
+  stored: unknown,
+): QuestProgress | null {
+  const entry = objectWithin(stored, ["state", "count"]);
+  if (!entry) return null;
+  const { state, count } = entry;
+  if (!QUEST_STATES.includes(state as QuestState)) return null;
+  const parts = questPartsOf(questTuning[id].trigger);
+  if (!Number.isInteger(count) || (count as number) < 0) return null;
+  if ((count as number) > parts) return null;
+  return { state: state as QuestState, count: count as number };
 }
 
 /**

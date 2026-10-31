@@ -35,13 +35,20 @@ window.__wockstruction.loadSave({
   equipment: { belt: "heavyBelt" },
   belt: [["lifePotion", "manaPotion"], ["lifePotion"], [], []],
 });
+// A sturdy fighter for a Unique Monster's pack, with "Spa Day" Given.
+window.__wockstruction.loadSave({
+  level: 60, vitality: 250, strength: 85,
+  equipment: { weapon: "axe", armour: "chainMail", helm: "ironHelm", gloves: "chainGloves", boots: "chainBoots", offHand: "towerShield", belt: "platedBelt" },
+  belt: Array(4).fill(Array(4).fill("rejuvenationPotion")),
+  quests: { "spa-day": { state: "given", count: 0 } },
+});
 ```
 
-Options are `SaveOptions` in `src/game/devSave.ts`, which says what each means. Attributes are the values wanted, not points raised; an Item is a type name or a whole one; a Belt Column holds only as many Potions as the Equipped Belt allows. An Item that fits nowhere, is in a slot of another kind, or a Belt Column that is too full throws.
+Options are `SaveOptions` in `src/game/devSave.ts`, which says what each means. Attributes are the values wanted, not points raised; an Item is a type name or a whole one; a Belt Column holds only as many Potions as the Equipped Belt allows. An Item that fits nowhere, is in a slot of another kind, or a Belt Column that is too full throws. A Quest is `{ state, count }`, its state one of `"notGiven"`, `"given"`, `"ready"` or `"done"` and its count the parts done; another shape throws naming the Quest.
 
 Unspent Attribute and Skill Points are worked out from the Level, what you asked for and what Done Quests paid. Asking for more than the Level allows throws, naming Attribute Points or Skill Points and by how much. The Skill Bar starts empty and the Smith's service follows the Quests.
 
-A Save at 450 Experience levels up on the next Skeleton kill. For fights, use Level 30 or more with Vitality raised: Monster Level comes from the Combat Area, not the Hero, so a Level 1 to 10 Hero dies to the first Skeleton group while you take screenshots. **New Hero** on the Start Screen (Esc, then Quit to Start Screen), or `localStorage.removeItem("wockstruction.save")`, puts things back.
+A Save at 450 Experience levels up on the next Skeleton kill. For fights, use Level 30 or more with Vitality raised, and the sturdy fighter above for a Unique Monster and its pack: Monster Level comes from the Combat Area, not the Hero, so a Level 1 to 10 Hero dies to the first Skeleton group while you take screenshots. **New Hero** on the Start Screen (Esc, then Quit to Start Screen), or `localStorage.removeItem("wockstruction.save")`, puts things back.
 
 ### Start in an Area
 
@@ -78,9 +85,10 @@ window.__wockstruction.state();
 //   itemInReach: 12,
 //   groundItems: [{ id: 12, type: "axe", rarity: "magic", pos: { x: 12.9, y: 30.4 } }, …],
 //   inventory: [{ id: 3, type: "ring", rarity: "normal", cell: { column: 0, row: 0 } }, …],
-//   monsters: [{ id: 41, type: "skeleton", pos: { x: 14.2, y: 30.6 }, life: 9 }, …],
+//   monsters: [{ id: 41, type: "skeleton", pos: { x: 14.2, y: 30.6 }, life: 9, unique: null }, …],
 //   corpses: [{ id: 38, type: "zombie", monsterLevel: 4, pos: { x: 11.8, y: 28.3 } }, …],
 //   minions: [{ id: 2, type: "golem", skill: "golem", pos: { x: 11.6, y: 30.4 }, life: 150, maxLife: 180 }, …],
+//   quests: { "spa-day": { state: "ready", count: 0 }, … },
 // }
 ```
 
@@ -91,6 +99,8 @@ window.__wockstruction.state();
 - **`boneWard`** is what's left of the Bone Ward and its full amount, or `null` while the Hero has none.
 - **`corpses`** are the Corpses in the active Area, each with the id, type and Monster Level of the Monster it was and its `pos`. Those left behind through a Town Portal don't show until the Hero is back. A Corpse-using Skill fails without one near its cast point, as it does without the Mana for its cost (`mana`).
 - **`minions`** are the Hero's living Minions, oldest first, with the `skill` that brought each one.
+- **`monsters`** each carry `unique`, the Unique Monster's name (`"Bruckle"`), or `null` for an ordinary Monster.
+- **`quests`** is each Quest's progress, in the shape `loadSave` takes, so a kill that makes a Quest Ready shows here without opening the Quest panel.
 - **`facing`** is in radians in tile space, `atan2(dy, dx)`: 0 is +x, π/2 is +y.
 - **Each call is a fresh copy.** Changing it changes nothing in the game, so call again after each step you take.
 

@@ -1,60 +1,29 @@
-import {
-  DoubleSide,
-  Mesh,
-  MeshBasicMaterial,
-  Path,
-  Shape,
-  ShapeGeometry,
-} from "three";
+import { Group, IcosahedronGeometry, Mesh, MeshBasicMaterial } from "three";
+import { inputTuning } from "../tuning/input";
+import { puffOf } from "./puff";
 import type { ClickMarkerView } from "./view";
 
-/** The click marker's colour. */
-const MARKER_COLOUR = 0xe8d27a;
-/** How far above the floor the outlines lie, so they don't fight with it. */
-const LIFT = 0.07;
-
-/** A flat square frame, `size` across and `thickness` wide, in the x/z plane. */
-function frame(size: number, thickness: number): ShapeGeometry {
-  const half = size / 2;
-  const inner = half - thickness;
-  const shape = new Shape()
-    .moveTo(-half, -half)
-    .lineTo(half, -half)
-    .lineTo(half, half)
-    .lineTo(-half, half)
-    .closePath();
-  shape.holes.push(
-    new Path()
-      .moveTo(-inner, -inner)
-      .lineTo(-inner, inner)
-      .lineTo(inner, inner)
-      .lineTo(inner, -inner)
-      .closePath(),
-  );
-  return new ShapeGeometry(shape).rotateX(-Math.PI / 2);
-}
-
-function outline(colour: number): Mesh {
-  const mesh = new Mesh(
-    frame(1, 0.05),
-    new MeshBasicMaterial({
-      color: colour,
-      transparent: true,
-      side: DoubleSide,
-      depthWrite: false,
-    }),
-  );
-  mesh.visible = false;
-  mesh.renderOrder = 1;
-  return mesh;
-}
-
-/** The click marker outline on the floor. */
-export type Markers = { click: Mesh };
+/** The click marker: a pool of motes, made once. */
+export type Markers = { click: Group };
 
 /** Makes the markers, hidden. */
 export function createMarkers(): Markers {
-  return { click: outline(MARKER_COLOUR) };
+  const { motes, colour } = inputTuning.clickPuff;
+  const geometry = new IcosahedronGeometry(0.5, 0);
+  // Every mote is as opaque as the next, so they share one material.
+  const material = new MeshBasicMaterial({
+    color: colour,
+    transparent: true,
+    depthWrite: false,
+  });
+  const click = new Group();
+  for (let i = 0; i < motes; i++) {
+    const mote = new Mesh(geometry, material);
+    mote.renderOrder = 1;
+    click.add(mote);
+  }
+  click.visible = false;
+  return { click };
 }
 
 /** Shows the markers as the view says. */
@@ -65,9 +34,17 @@ export function showMarkers(
   const { click } = markers;
   const { clickMarker } = view;
   click.visible = clickMarker !== null;
-  if (clickMarker) {
-    click.position.set(clickMarker.at.x, LIFT, clickMarker.at.y);
-    click.scale.setScalar(1 - 0.6 * clickMarker.progress);
-    (click.material as MeshBasicMaterial).opacity = 1 - clickMarker.progress;
-  }
+  if (!clickMarker) return;
+  const puff = puffOf(clickMarker.at, clickMarker.progress);
+  click.children.forEach((child, i) => {
+    const mote = puff[i];
+    child.position.set(
+      clickMarker.at.x + mote.offset.x,
+      mote.height,
+      clickMarker.at.y + mote.offset.y,
+    );
+    child.scale.setScalar(mote.size);
+  });
+  const first = click.children[0] as Mesh;
+  (first.material as MeshBasicMaterial).opacity = puff[0].opacity;
 }

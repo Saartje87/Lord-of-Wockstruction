@@ -1,5 +1,6 @@
 import { areaTuning } from "../tuning/areas";
 import { boneAltarTuning } from "../tuning/boneAltars";
+import type { DamageShares, DamageType } from "../tuning/damage";
 import { goldTuning } from "../tuning/gold";
 import { graveWockingtonTuning } from "../tuning/graveWockington";
 import { heroTuning } from "../tuning/hero";
@@ -59,6 +60,14 @@ import {
   targetsOf,
 } from "./boneAltars";
 import { type BoneWallPiece, wallSpots } from "./boneWalls";
+import {
+  type Damage,
+  landDamage,
+  minionResistances,
+  monsterResistances,
+  splitDamage,
+  totalOf,
+} from "./damage";
 import {
   type Belongings,
   type Cell,
@@ -144,7 +153,7 @@ import {
 import { giveSmithBonus, SMITH } from "./smith";
 import { passiveMultiplier, skillPower } from "./synergies";
 import { msToSteps, perStep } from "./units";
-import { validateAreas } from "./validate";
+import { validateAreas, validateResistances } from "./validate";
 import { distance, type Vec } from "./vec";
 import { moveGood, newVendor, restockVendor, type Vendor } from "./vendor";
 import { holdBack, slideAround, stepInDirection } from "./walking";
@@ -681,7 +690,10 @@ export type SimEvent =
       type: "HitLanded";
       attacker: "hero" | "minion" | "skill";
       target: MonsterId;
+      /** The one total, after the target's Resistances and Curse. */
       damage: number;
+      /** What most of it was made of. */
+      damageType: DamageType;
     }
   /**
    * A swing of the Hero's or an attack of their Minion's failed its chance
@@ -690,9 +702,15 @@ export type SimEvent =
   | { type: "Missed"; target: MonsterId | "hero" }
   /**
    * A Monster's attack hit the Hero, `warded` of it soaked by their Bone
-   * Ward and `damage` reaching their Life.
+   * Ward and `damage` reaching their Life. `damageType` is what most of the
+   * hit was made of.
    */
-  | { type: "HeroHit"; damage: number; warded: number }
+  | {
+      type: "HeroHit";
+      damage: number;
+      warded: number;
+      damageType: DamageType;
+    }
   /** The Hero got within reach of NPC `npc`, called `name`, and talks to them. */
   | { type: "Talked"; npc: number; name: string }
   /** The Hero took on Quest `quest`. */
@@ -778,8 +796,16 @@ export type SimEvent =
    * Hero died.
    */
   | { type: "MinionCrumbled"; minion: MinionId; pos: Vec }
-  /** A Monster's attack hit Minion `minion` for `damage`. */
-  | { type: "MinionHit"; minion: MinionId; damage: number }
+  /**
+   * A Monster's attack hit Minion `minion` for `damage`, most of it
+   * `damageType`.
+   */
+  | {
+      type: "MinionHit";
+      minion: MinionId;
+      damage: number;
+      damageType: DamageType;
+    }
   /** A Monster's attack failed to hit Minion `minion`. */
   | { type: "MinionMissed"; minion: MinionId }
   /** Minion `minion` was killed at `pos`, leaving no Corpse. */
@@ -918,6 +944,8 @@ export function createWorld(options: {
   }
 
   validateAreas(areas);
+  validateResistances(monsterTuning);
+  validateResistances(minionTuning);
   const town = areas[TOWN];
   if (!town) throw new Error(`No Area named "${TOWN}"`);
   const start = town.entries.start;
@@ -1945,8 +1973,7 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   separateBodies(world);
   for (const { monster, target, wall } of strikes) {
     const attack = monsterAttack(monster);
-    if (wall)
-      hurtWall(world, wall, randomInt(world.rng, attack.damage), events);
+    if (wall) hurtWall(world, wall, rollWallHit(world, attack), events);
     else strike(world, target, attack, events);
   }
   stepBoneWalls(world, events);
@@ -2006,12 +2033,17 @@ function landProjectiles(world: World, events: SimEvent[]) {
       heroHurts(
         world,
         target,
-        randomInt(world.rng, projectile.damage),
+        splitDamage(randomInt(world.rng, projectile.damage)),
         "skill",
         events,
       ),
     (projectile, piece) =>
-      hurtWall(world, piece, randomInt(world.rng, projectile.damage), events),
+      hurtWall(
+        world,
+        piece,
+        totalOf(splitDamage(randomInt(world.rng, projectile.damage))),
+        events,
+      ),
     (projectile, target) =>
       minionStrike(world, projectile.minion, target, events),
   );
@@ -2453,7 +2485,14 @@ function explode(
   );
   // A Skill's damage always hits: no roll against Defense, and no hitstop.
   for (const target of victims) {
-    heroHurts(world, target, randomInt(world.rng, range), "skill", events);
+    const rolled = randomInt(world.rng, range);
+    heroHurts(
+      world,
+      target,
+      splitDamage(rolled, effect.damageTypes),
+      "skill",
+      events,
+    );
   }
 }
 
@@ -2681,6 +2720,13 @@ function removeWallPiece(
   area.lowWalled[piece.id] = false;
   world.boneWalls = world.boneWalls.filter((one) => one !== piece);
   events.push({ type: "BoneWallCrumbled", pos: { ...piece.pos }, broken });
+}
+
+/** Rolls a Monster's attack on a Bone Wall piece, which has no Resistance. */
+function rollWallHit(world: World, attack: AttackNumbers): number {
+  return totalOf(
+    splitDamage(randomInt(world.rng, attack.damage), attack.damageTypes),
+  );
 }
 
 /** Lands `damage` from a Monster's side on a Bone Wall piece. */
@@ -3055,23 +3101,23 @@ function miss(world: World, monster: Monster, events: SimEvent[]) {
 }
 
 function hit(world: World, target: Monster | BoneAltar, events: SimEvent[]) {
-  const damage = heroDamage(world, random(world.rng));
+  const damage = splitDamage(heroDamage(world, random(world.rng)));
   heroHurts(world, target, damage, "hero", events);
 }
 
 /**
  * Lands `rolled` damage from the Hero's swing or Skill on a Monster, keeping
- * the Hero In Combat.
+ * the Hero In Combat. A Bone Altar has no Resistances.
  */
 function heroHurts(
   world: World,
   target: Monster | BoneAltar,
-  rolled: number,
+  rolled: Damage,
   attacker: "hero" | "skill",
   events: SimEvent[],
 ) {
   world.hero.combat = COMBAT_STEPS;
-  if (isBoneAltar(target)) hurtAltar(world, target, rolled, events);
+  if (isBoneAltar(target)) hurtAltar(world, target, totalOf(rolled), events);
   else takeDamage(world, target, rolled, attacker, events);
 }
 
@@ -3103,19 +3149,29 @@ function hurtAltar(
 }
 
 /**
- * Lands `rolled` damage from the Hero's side on a Monster, more if a Curse
- * makes it take more.
+ * Lands `rolled` damage from the Hero's side on a Monster: each Element cut by
+ * its type's Resistance, then more if a Curse makes it take more.
  */
 function takeDamage(
   world: World,
   monster: Monster,
-  rolled: number,
+  rolled: Damage,
   attacker: "hero" | "minion" | "skill",
   events: SimEvent[],
 ) {
-  const damage = Math.round(rolled * damageTaken(monster));
+  const { total: damage, main } = landDamage(
+    rolled,
+    monsterResistances(monster.type),
+    damageTaken(monster),
+  );
   monster.life = Math.max(0, monster.life - damage);
-  events.push({ type: "HitLanded", attacker, target: monster.id, damage });
+  events.push({
+    type: "HitLanded",
+    attacker,
+    target: monster.id,
+    damage,
+    damageType: main,
+  });
   hurt(world, monster, events);
 }
 
@@ -3195,16 +3251,17 @@ function flinchMonster(monster: Monster) {
 
 /**
  * Rolls an attack with `chance` to hit: the damage it deals, from `range`
- * inclusive, or null for a Miss. A certain hit rolls only its damage, so the
- * rolls after it stay as they were.
+ * inclusive and split over Damage Types by `shares`, or null for a Miss. A
+ * certain hit rolls only its damage, so the rolls after it stay as they were.
  */
 function rollAttack(
   world: World,
   chance: number,
   range: [number, number],
-): number | null {
+  shares?: DamageShares,
+): Damage | null {
   if (chance < 1 && random(world.rng) >= chance) return null;
-  return randomInt(world.rng, range);
+  return splitDamage(randomInt(world.rng, range), shares);
 }
 
 /**
@@ -3222,7 +3279,7 @@ function minionStrike(
     hurtAltar(
       world,
       monster,
-      randomInt(world.rng, minionDamageRange(minion)),
+      totalOf(splitDamage(randomInt(world.rng, minionDamageRange(minion)))),
       events,
     );
     return;
@@ -3315,15 +3372,18 @@ function rollGold(
  */
 function hitHero(world: World, attack: AttackNumbers, events: SimEvent[]) {
   const { hero } = world;
-  const damage = rollAttack(
+  const rolled = rollAttack(
     world,
     heroChanceToBeHit(world, attack.attackRating),
     attack.damage,
+    attack.damageTypes,
   );
-  if (damage === null) {
+  if (rolled === null) {
     events.push({ type: "Missed", target: "hero" });
     return;
   }
+  // The Hero's Resistances come from Affixes, which no Item has yet.
+  const { total: damage, main: damageType } = landDamage(rolled);
   const warded = Math.min(damage, hero.boneWard?.left ?? 0);
   if (hero.boneWard) {
     hero.boneWard.left -= warded;
@@ -3331,7 +3391,12 @@ function hitHero(world: World, attack: AttackNumbers, events: SimEvent[]) {
   }
   hero.life = Math.max(0, hero.life - (damage - warded));
   hero.combat = COMBAT_STEPS;
-  events.push({ type: "HeroHit", damage: damage - warded, warded });
+  events.push({
+    type: "HeroHit",
+    damage: damage - warded,
+    warded,
+    damageType,
+  });
   if (hero.life === 0) {
     die(world, events);
     return;
@@ -3366,17 +3431,22 @@ function hitMinion(
 ) {
   const minion = world.minions.find((one) => one.id === id);
   if (!minion) return;
-  const damage = rollAttack(
+  const rolled = rollAttack(
     world,
     chanceToHit(attack.attackRating, minionDefense(minion)),
     attack.damage,
+    attack.damageTypes,
   );
-  if (damage === null) {
+  if (rolled === null) {
     events.push({ type: "MinionMissed", minion: minion.id });
     return;
   }
+  const { total: damage, main: damageType } = landDamage(
+    rolled,
+    minionResistances(minion.type),
+  );
   minion.life = Math.max(0, minion.life - damage);
-  events.push({ type: "MinionHit", minion: minion.id, damage });
+  events.push({ type: "MinionHit", minion: minion.id, damage, damageType });
   if (minion.life > 0) return;
   removeMinion(world, minion);
   events.push({

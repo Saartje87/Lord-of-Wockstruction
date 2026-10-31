@@ -1,3 +1,4 @@
+import type { DamageShares } from "./damage";
 import type { MinionType } from "./minions";
 import type { ProjectileKind } from "./projectiles";
 
@@ -102,13 +103,15 @@ export type RaiseEffect = {
  * Burst the Corpse nearest the cast point, using it up. Every Monster within
  * `radius` of it, and `radiusPerSkillLevel` more each Skill Level past the
  * first (tiles), takes a roll of `share` (least and most) of the dead
- * Monster's max Life at its Monster Level.
+ * Monster's max Life at its Monster Level. The roll splits over Damage Types
+ * as `damageTypes` says.
  */
 export type ExplodeEffect = {
   type: "explode";
   radius: number;
   radiusPerSkillLevel: number;
   share: [number, number];
+  damageTypes: DamageShares;
 };
 
 /**
@@ -454,6 +457,8 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
       radius: 2,
       radiusPerSkillLevel: 0.25,
       share: [0.4, 0.7],
+      // Burns as it bursts: Zombies and Bog Spitters take more of the Fire.
+      damageTypes: { physical: 0.5, fire: 0.5 },
     },
     // 7%: Corpse Explosion's own Skill Levels grow only its radius (a quarter
     // tile) and Mana, so its burst grows by Synergy and Passive alone.

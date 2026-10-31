@@ -159,6 +159,7 @@ describe("swinging", () => {
         attacker: "hero",
         target: 1,
         damage: expect.any(Number),
+        damageType: "physical",
       },
     ]);
   });

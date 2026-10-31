@@ -1,9 +1,18 @@
+import type { Resistances } from "./damage";
+import type { MonsterType } from "./monsters";
 import type { ProjectileKind } from "./projectiles";
 
 /** Minion tuning, in human units. The sim converts it to steps once. */
 export type MinionTuning = {
   /** Shown on the nameplate. */
   name: string;
+  /** What it shrugs off of each Element's damage (see `Resistances`). */
+  resistances?: Resistances;
+  /**
+   * A Minion named for a Monster takes that Monster type's `resistances` in
+   * place of its own.
+   */
+  resistancesOf?: MonsterType;
   /** Life when summoned at Skill Level 1; it never regains any. */
   life: number;
   /** Damage per hit at Skill Level 1, rolled from `[min, max]` inclusive. */
@@ -102,6 +111,7 @@ export const minionTuning: Record<MinionType, MinionTuning> = {
   // Diablo 2's Clay Golem: slow and tanky, with about three Skeletons' Life.
   golem: {
     name: "Golem",
+    resistances: { lightning: 50 },
     life: 180,
     // A Skeleton's.
     damage: [4, 8],
@@ -135,6 +145,7 @@ export const minionTuning: Record<MinionType, MinionTuning> = {
   // Starts from a Monster Level 1 Skeleton's numbers, and its swing.
   raisedSkeleton: {
     name: "Raised Skeleton",
+    resistancesOf: "skeleton",
     life: 60,
     damage: [4, 8],
     // Hits a Monster Level 1 Skeleton (Defense 135) about a quarter of the
@@ -167,6 +178,7 @@ export const minionTuning: Record<MinionType, MinionTuning> = {
   // Skeleton about a quarter of the time.
   raisedArcher: {
     name: "Raised Archer",
+    resistancesOf: "skeleton_archer",
     life: 36,
     damage: [3, 6],
     attackRating: 20,

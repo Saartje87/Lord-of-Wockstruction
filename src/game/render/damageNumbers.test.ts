@@ -5,8 +5,20 @@ describe("damageNumbers", () => {
   it("shows the Hero's hits on the Monsters hit", () => {
     expect(
       damageNumbers([
-        { type: "HitLanded", attacker: "hero", target: 1, damage: 22 },
-        { type: "HitLanded", attacker: "hero", target: 2, damage: 27 },
+        {
+          type: "HitLanded",
+          attacker: "hero",
+          target: 1,
+          damage: 22,
+          damageType: "physical",
+        },
+        {
+          type: "HitLanded",
+          attacker: "hero",
+          target: 2,
+          damage: 27,
+          damageType: "physical",
+        },
       ]),
     ).toEqual([
       { on: 1, damage: 22, kind: "hit" },
@@ -17,8 +29,20 @@ describe("damageNumbers", () => {
   it("shows a hit that kills as a killing blow", () => {
     expect(
       damageNumbers([
-        { type: "HitLanded", attacker: "hero", target: 1, damage: 22 },
-        { type: "HitLanded", attacker: "hero", target: 2, damage: 27 },
+        {
+          type: "HitLanded",
+          attacker: "hero",
+          target: 1,
+          damage: 22,
+          damageType: "physical",
+        },
+        {
+          type: "HitLanded",
+          attacker: "hero",
+          target: 2,
+          damage: 27,
+          damageType: "physical",
+        },
         { type: "MonsterDied", id: 2 },
       ]),
     ).toEqual([
@@ -28,22 +52,32 @@ describe("damageNumbers", () => {
   });
 
   it("shows damage the Hero takes on the Hero", () => {
-    expect(damageNumbers([{ type: "HeroHit", damage: 6, warded: 0 }])).toEqual([
-      { on: "hero", damage: 6, kind: "taken" },
-    ]);
+    expect(
+      damageNumbers([
+        { type: "HeroHit", damage: 6, warded: 0, damageType: "physical" },
+      ]),
+    ).toEqual([{ on: "hero", damage: 6, kind: "taken" }]);
   });
 
   it("shows nothing on the Hero for a hit their Bone Ward soaked whole", () => {
-    expect(damageNumbers([{ type: "HeroHit", damage: 0, warded: 6 }])).toEqual(
-      [],
-    );
+    expect(
+      damageNumbers([
+        { type: "HeroHit", damage: 0, warded: 6, damageType: "physical" },
+      ]),
+    ).toEqual([]);
   });
 
   it("shows a Miss on the Monster Missed, alongside the hits", () => {
     expect(
       damageNumbers([
         { type: "Missed", target: 1 },
-        { type: "HitLanded", attacker: "hero", target: 2, damage: 27 },
+        {
+          type: "HitLanded",
+          attacker: "hero",
+          target: 2,
+          damage: 27,
+          damageType: "physical",
+        },
       ]),
     ).toEqual([
       { on: 1, kind: "miss" },
@@ -54,7 +88,7 @@ describe("damageNumbers", () => {
   it("shows damage a Minion takes, and Misses on it, on that Minion", () => {
     expect(
       damageNumbers([
-        { type: "MinionHit", minion: 3, damage: 7 },
+        { type: "MinionHit", minion: 3, damage: 7, damageType: "physical" },
         { type: "MinionMissed", minion: 3 },
       ]),
     ).toEqual([

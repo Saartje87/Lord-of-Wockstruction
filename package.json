@@ -13,7 +13,8 @@
     "check": "npm run lint && npm run typecheck && npm test",
     "import:kaykit": "node scripts/import-kaykit/main.mts",
     "thumbnails:kaykit": "node scripts/import-kaykit/thumbnails.mts",
-    "tuning:report": "node scripts/tuning-report.mts"
+    "tuning:report": "node scripts/tuning-report.mts",
+    "area:map": "node scripts/area-map.mts"
   },
   "dependencies": {
     "next": "16.4.3",

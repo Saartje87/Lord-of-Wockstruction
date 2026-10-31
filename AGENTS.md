@@ -34,6 +34,10 @@ Before finishing a ticket that changes a panel's layout, a model's look or any o
 
 On tuning tickets, `npm run tuning:report` prints Experience, kills per Level and each Combat Area's Monster numbers from live tuning. See `docs/agents/tuning.md`.
 
+### Area maps
+
+On tickets that place spawns, Unique Monsters or Entries, and when reviewing them, `npm run area:map <area>` prints the Area as a numbered tile grid with a legend. See `docs/agents/area-map.md`.
+
 ### 3D models
 
 When suggesting models for something in the game, browse `vendor/kaykit/` (the paid KayKit Mystery Monthly packs, gitignored) alongside the KayKit packs already listed in `CREDITS.md`. Only the packs wired into `scripts/import-kaykit/main.mts` get imported, so a suggestion from another pack also means adding that pack to the import. See README's "Art and credits".

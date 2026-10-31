@@ -7,6 +7,7 @@ Issues and specs for this repo live as Tickets in the Tandembike project **Lord 
 - **Create a ticket**: `create_ticket` with `projectName: "Lord of Wockstruction"`. Put acceptance criteria in the `acceptanceCriteria` field, never as a checklist in the description.
 - **Create several related tickets**: `create_tickets`, listed in dependency order, with `blockedByPositions` for blockers.
 - **Read a ticket**: `get_ticket`, plus `list_comments` for discussion.
+- **A branch per ticket**: start each ticket on its own `t<N>-<slug>` branch from `main`. When the current branch already has a merged PR (`gh pr list --head <branch> --state merged`), branch again from `main` first.
 - **Code moves past tickets.** Before starting, check the code a ticket quotes against HEAD (`git log --since=<createdAt> -- <files>`). Where a criterion can't be met as written, build the closest honest version, leave the criterion unchecked and comment why.
 - **List tickets**: `list_tickets` filtered by `status`, labels, `blocked`, `claimed`, `cycleId`.
 - **Parent/child**: create an Epic (`type: "Epic"`) and attach children with `epicNumber` or `attach_to_epic`.

@@ -15,4 +15,6 @@ It prints, from the live tuning in `src/game/tuning/`:
 
 Read numbers from it instead of redoing the growth formulas or grepping `.tmj` files for `areaLevel` by hand. Run it again after changing tuning to see the effect.
 
-The numbers come from `tuningReport` in `src/game/sim/tuningReport.ts` and `skillReport` in `src/game/sim/skillReport.ts`, which calls the sim's own functions. A sim test can import it to check a tuning goal, such as kills per Level staying in a range.
+For a fight's length and danger, run `npm run tuning:fight -- <area> <unique> [--level N] [--seeds N]` (say `spa Bruckle --level 3`). It fights the Unique Monster alone with a just-levelled Hero in starting gear, once per seed, and prints the kill time, hits taken and that damage in Hero Lives, then the mean and range. Judge a low-Level Hero's fight with it rather than in the browser, where his pack decides the fight.
+
+The numbers come from `tuningReport` in `src/game/sim/tuningReport.ts`, `skillReport` in `src/game/sim/skillReport.ts` and `fightReport` in `src/game/sim/fightReport.ts`, which call the sim's own functions. A sim test can import them to check a tuning goal, such as kills per Level staying in a range.

@@ -301,7 +301,8 @@ describe("Equipped Magic Items", () => {
     expect(rolled).toContain("ring:mana");
     expect(rolled).not.toContain("chainMail:enhancedDamage");
     expect(rolled).not.toContain("axe:enhancedDefense");
-  });
+    // 1,200 Item drops: near the 5 s default when the whole suite runs.
+  }, 15_000);
 
   it("stop counting once taken off", () => {
     const world = wearing({

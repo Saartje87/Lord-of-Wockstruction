@@ -8,6 +8,7 @@ import {
 } from "./content";
 import { encodeSave, parseSave, saveOf } from "./save";
 import { type Area, type Exit, isWalkable, type Spawn } from "./sim/area";
+import { fightUniqueAlone } from "./sim/fightReport";
 import { type MonsterOfLevel, monsterExperience } from "./sim/monsters";
 import { canReach, findPath } from "./sim/path";
 import { STEPS_PER_SECOND } from "./sim/units";
@@ -16,6 +17,7 @@ import { distance, type Vec } from "./sim/vec";
 import {
   createWorld,
   FRESH_PROGRESS,
+  levelExperience,
   npcsIn,
   type Order,
   questOf,
@@ -1340,7 +1342,11 @@ describe('the shipped "Bog Off" Quest', () => {
 const UNIQUE_KILL_TICKS = 80 * STEPS_PER_SECOND;
 
 /** The reference Hero for Bruckle's fight: one just arrived at the Spa. */
-const SPA_ARRIVAL_PROGRESS = { ...FRESH_PROGRESS, level: 3, experience: 1_500 };
+const SPA_ARRIVAL_PROGRESS = {
+  ...FRESH_PROGRESS,
+  level: 3,
+  experience: levelExperience(3),
+};
 
 describe('the shipped "Spa Day" Quest', () => {
   const inSpa = (progress = FRESH_PROGRESS) =>
@@ -1352,28 +1358,11 @@ describe('the shipped "Spa Day" Quest', () => {
       progress,
     });
 
-  /**
-   * Leaves Bruckle alone in the Spa with the Hero beside him, kept alive,
-   * Attacking him every 120 ticks until he dies or `UNIQUE_KILL_TICKS` pass:
-   * the ticks it took and the events on the way.
-   */
+  /** Bruckle's fight alone with the Hero, as `fightUniqueAlone` runs it. */
   function fightBruckleAlone(world: World) {
-    const boss = world.monsters.find((monster) => monster.unique === "Bruckle");
-    if (!boss) throw new Error("no Bruckle");
-    expect(boss.type).toBe("wockbrute");
-    world.monsters = [boss];
-    world.hero.pos = { x: boss.pos.x - 1.2, y: boss.pos.y };
-    world.hero.prevPos = { ...world.hero.pos };
-    const events: SimEvent[] = [];
-    let ticks = 0;
-    while (ticks < UNIQUE_KILL_TICKS && world.monsters.includes(boss)) {
-      const orders: Order[] =
-        ticks % 120 === 0 ? [{ type: "Attack", monster: boss.id }] : [];
-      events.push(...step(world, orders));
-      world.hero.life = 1_000_000;
-      ticks++;
-    }
-    return { ticks, events };
+    const bruckle = world.monsters.find((one) => one.unique === "Bruckle");
+    expect(bruckle?.type).toBe("wockbrute");
+    return fightUniqueAlone(world, "Bruckle", UNIQUE_KILL_TICKS);
   }
 
   it("takes a Hero just arrived at the Spa 45–60 s of steady melee to kill Bruckle", () => {

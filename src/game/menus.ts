@@ -631,7 +631,11 @@ function openPanel(menus: Menus, panel: Panel) {
  * Whether `panel` may be open with `other`: only the Hero panel with
  * another, and never in the Compact Layout.
  */
-function canShareScreen(menus: Menus, panel: Panel, other: Panel): boolean {
+export function canShareScreen(
+  menus: Pick<Menus, "compact">,
+  panel: Panel,
+  other: Panel,
+): boolean {
   return !menus.compact && (panel === "hero" || other === "hero");
 }
 

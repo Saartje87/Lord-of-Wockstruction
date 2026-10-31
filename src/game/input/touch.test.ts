@@ -238,14 +238,9 @@ const CONTROLLER_BUTTON: Record<SkillBarSlot, PadButton> = {
 
 /**
  * The phones held sideways the touch hit areas are for, as viewports: the
- * Compact Layout at a UI Scale of 0.75. Not the 320 px tall one, where the
- * Skill buttons sit half a pixel under the pause button and the halfway
- * rule leaves it only 3 px of reach; its hit areas are checked by the
- * shared layout test.
+ * Compact Layout at a UI Scale of 0.75.
  */
-const PHONES = SCREEN_PHONES.filter(({ height }) => height > 320).map(
-  viewportOf,
-);
+const PHONES = SCREEN_PHONES.map(viewportOf);
 
 /** Whether a lone finger coming down at `at` presses the pause button. */
 function pauses(at: Vec, on: TouchControlsLayout): boolean {
@@ -268,13 +263,37 @@ describe("the pause button's touch hit area", () => {
 
   it.each(
     cases,
-  )("takes a touch just outside the drawn button at %s with %s open", (_, __, on) => {
+  )("takes a touch just outside the drawn button, as far as the halfway rule allows, at %s with %s open", (_, __, on) => {
     const { pause } = on;
     const middle = centre(pause);
-    // Drawn 33 px square: 5 px out is still within 44 px square.
+    // Drawn 33 px square: up to 5.5 px out is within 44 px square, but
+    // never past halfway to a button beside it, across the axis the two
+    // are furthest apart along.
     expect(pause.w).toBe(33);
-    expect(pauses({ x: pause.x - 5, y: middle.y }, on)).toBe(true);
-    expect(pauses({ x: middle.x, y: pause.y + pause.h + 5 }, on)).toBe(true);
+    const beside = [on.attack, ...SKILL_BAR_SLOTS.map((s) => on.skills[s])];
+    const pauseEnd = { x: pause.x + pause.w, y: pause.y + pause.h };
+    const reach = (gaps: number[]) =>
+      Math.min(5, ...gaps.map((gap) => gap / 2 - 0.01));
+    const gapsOf = (rect: Rect) => ({
+      x: Math.max(rect.x - pauseEnd.x, pause.x - (rect.x + rect.w)),
+      y: Math.max(rect.y - pauseEnd.y, pause.y - (rect.y + rect.h)),
+    });
+    const left = reach(
+      beside
+        .filter((rect) => rect.x + rect.w <= pause.x)
+        .map(gapsOf)
+        .filter((gap) => gap.x >= gap.y && gap.y < 5.5)
+        .map((gap) => gap.x),
+    );
+    const below = reach(
+      beside
+        .filter((rect) => rect.y >= pauseEnd.y)
+        .map(gapsOf)
+        .filter((gap) => gap.y > gap.x && gap.x < 5.5)
+        .map((gap) => gap.y),
+    );
+    expect(pauses({ x: pause.x - left, y: middle.y }, on)).toBe(true);
+    expect(pauses({ x: middle.x, y: pauseEnd.y + below }, on)).toBe(true);
     // Beyond 44 px square it takes nothing.
     expect(pauses({ x: pause.x - 6, y: middle.y }, on)).toBe(false);
   });

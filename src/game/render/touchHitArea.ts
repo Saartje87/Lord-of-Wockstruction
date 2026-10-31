@@ -6,6 +6,13 @@ import { overlaps, type Rect } from "../sim/rect";
  */
 export const TOUCH_HIT_AREA = 44;
 
+/**
+ * The least a grid cell (Inventory, Equipment slot, Belt, Vendor) is drawn
+ * (CSS px): its neighbours meet it halfway, so it can't grow a hit area and
+ * is never smaller than this instead.
+ */
+export const MIN_CELL_HIT = 20;
+
 /** `rect` grown about its middle to at least `TOUCH_HIT_AREA` each way. */
 function grown(rect: Rect): Rect {
   const growX = Math.max(0, (TOUCH_HIT_AREA - rect.w) / 2);

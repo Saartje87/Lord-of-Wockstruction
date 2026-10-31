@@ -158,9 +158,11 @@ describe("a Skill's Skill Level", () => {
   });
 
   it("is not what Prerequisites or spending Skill Points read", () => {
-    const after = SKILLS.find((skill) => skillTuning[skill].prerequisite);
+    const after = SKILLS.find(
+      (skill) => skillTuning[skill].prerequisites.length === 1,
+    );
     if (!after) throw new Error("No Skill has a Prerequisite");
-    const before = skillTuning[after].prerequisite as Skill;
+    const before = skillTuning[after].prerequisites[0];
     const w = wearing(
       { weapon: wand(before, 3) },
       { skillPoints: 5, level: 30 },

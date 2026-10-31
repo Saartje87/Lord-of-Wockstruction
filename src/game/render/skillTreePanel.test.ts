@@ -15,7 +15,6 @@ import {
 import { viewportOf } from "../viewport";
 import { inventoryPanelLayout } from "./inventoryPanel";
 import {
-  fullRooms,
   SKILL_TREE_PANEL,
   skillTreeBranchRow,
   skillTreeColumns,
@@ -25,6 +24,7 @@ import {
   skillTreePanelRect,
   skillTreeSheet,
   skillTreeSkillRow,
+  tunedRooms,
 } from "./skillTreePanel";
 
 /**
@@ -158,17 +158,39 @@ describe("skillTreeSheet", () => {
     });
 
     expect(rowOf(bare, "golem")).toMatchObject({
-      prerequisite: skillTuning.raiseSkeleton.name,
+      prerequisites: [skillTuning.raiseSkeleton.name],
       canRaise: false,
     });
     expect(rowOf(withGolem(0), "golem")).toMatchObject({
-      prerequisite: null,
+      prerequisites: [],
       canRaise: true,
     });
     // The first of a Branch has none.
     expect(rowOf(bare, "boneWard")).toMatchObject({
-      prerequisite: null,
+      prerequisites: [],
       canRaise: true,
+    });
+  });
+
+  it("names every Prerequisite still without a Skill Level, and drops each once learned", () => {
+    const progress = {
+      ...FRESH_PROGRESS,
+      level: 12,
+      experience: 100_000,
+      skillPoints: 2,
+    };
+
+    expect(rowOf(world(progress), "graveCommand").prerequisites).toEqual([
+      skillTuning.golem.name,
+      skillTuning.raiseArcher.name,
+    ]);
+    const learned = {
+      ...progress,
+      skillLevels: { ...progress.skillLevels, golem: 1 },
+    };
+    expect(rowOf(world(learned), "graveCommand")).toMatchObject({
+      prerequisites: [skillTuning.raiseArcher.name],
+      canRaise: false,
     });
   });
 
@@ -403,7 +425,7 @@ describe("skillTreeHitAt", () => {
     { width: 1920, height: 1080 },
   ])("fits 15 Skills in three Branches over its hint, on the screen, on $width×$height", (size) => {
     const viewport = viewportOf(size);
-    const rooms = fullRooms();
+    const rooms = tunedRooms();
     const panel = skillTreePanelRect(viewport, rooms);
     const hint =
       (SKILL_TREE_PANEL.hintHeight + SKILL_TREE_PANEL.padding) *

@@ -217,9 +217,9 @@ function wallOf(events: SimEvent[]): Vec[] {
 }
 
 describe("Bone Wall", () => {
-  it("sits after Bone Spear in the Bone Branch, with Bone Spear as its Prerequisite", () => {
+  it("hangs from Bone Ward in the Bone Branch", () => {
     expect(skillTuning.boneWall.branch).toBe("bone");
-    expect(skillTuning.boneWall.prerequisite).toBe("boneSpear");
+    expect(skillTuning.boneWall.prerequisites).toEqual(["boneWard"]);
   });
 
   it("raises a line of its tuned length across the cast direction, at the cast point", () => {

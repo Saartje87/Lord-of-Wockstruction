@@ -3376,7 +3376,7 @@ function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
         const column = skillTreeColumns(screen, row);
         const y = middle(row);
         // What holds it back: its Prerequisite first, else its Level.
-        const heldBack = skill.prerequisite
+        const heldBack = skill.prerequisites.length
           ? "Locked"
           : skill.requiredLevel !== null
             ? `Level ${skill.requiredLevel}`

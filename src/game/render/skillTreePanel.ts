@@ -73,13 +73,6 @@ export function tunedRooms(): BranchRooms {
   ) as BranchRooms;
 }
 
-/** The rooms the Skill Tree is built to hold: Bone 6, Summoning 4, Curses 5. */
-export function fullRooms(): BranchRooms {
-  return Object.fromEntries(
-    BRANCHES.map((branch) => [branch, branchTuning[branch].room]),
-  ) as BranchRooms;
-}
-
 /** What the Skill Tree panel shows of a Skill, as text. */
 export type SkillSheet = {
   skill: Skill;
@@ -89,10 +82,10 @@ export type SkillSheet = {
   raised: string;
   branch: Branch;
   /**
-   * The name of its Prerequisite while the Hero has no Skill Level in it,
-   * so no Skill Point can go into this Skill yet; else null.
+   * The names of its Prerequisites the Hero has no Skill Level in, so no
+   * Skill Point can go into this Skill yet; empty once all are learned.
    */
-  prerequisite: string | null;
+  prerequisites: readonly string[];
   /**
    * Its Synergies: each giving Skill's name, percent per Skill Level and the
    * percent that giver adds now.
@@ -126,7 +119,7 @@ export type SkillSheet = {
 /** What the Skill Tree panel shows of the Hero, as text. */
 export type SkillTreeSheet = {
   skillPoints: string;
-  /** The Skills grouped by Branch, each Branch in Prerequisite order. */
+  /** The Skills grouped by Branch, each Branch by grid place. */
   skills: SkillSheet[];
   /** The Branches' names, in the order the Skills are grouped. */
   branches: { branch: Branch; name: string }[];
@@ -147,16 +140,15 @@ export function skillTreeSheet(world: World): SkillTreeSheet {
     skills: BRANCHES.flatMap((branch) => branchSkills[branch]).map((skill) => {
       const skillLevel = levels[skill];
       const raised = skillLevel - progress.skillLevels[skill];
-      const { requiredLevel, prerequisite } = skillTuning[skill];
+      const { requiredLevel, prerequisites } = skillTuning[skill];
       const { passive } = skillTuning[skill];
       return {
         skill,
         name: skillTuning[skill].name,
         branch: skillTuning[skill].branch,
-        prerequisite:
-          prerequisite && progress.skillLevels[prerequisite] === 0
-            ? skillTuning[prerequisite].name
-            : null,
+        prerequisites: prerequisites
+          .filter((before) => progress.skillLevels[before] === 0)
+          .map((before) => skillTuning[before].name),
         skillLevel: String(skillLevel),
         raised: raised > 0 ? String(raised) : "",
         synergies: skillTuning[skill].synergies.map((synergy) => ({

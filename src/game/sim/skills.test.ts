@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  BRANCH_GRID,
   BRANCHES,
   branchSkills,
   type CastSkill,
+  type GridPlace,
   skillTuning,
 } from "../tuning/skills";
 import {
@@ -12,11 +14,13 @@ import {
   SKILL_BAR_SLOTS,
 } from "./skillBar";
 import {
+  canRaiseSkill,
   createWorld,
   FRESH_PROGRESS,
   type Progress,
   progressOf,
   type SimEvent,
+  SKILLS,
   type Skill,
   step,
   type World,
@@ -354,7 +358,7 @@ describe("putSkillOnBar", () => {
 });
 
 describe("Branches and Prerequisites", () => {
-  it("groups every Skill in one Branch, in Prerequisite order, the first having none", () => {
+  it("groups every Skill in one Branch, by grid place, the first having none", () => {
     expect(branchSkills).toEqual({
       bone: [
         "boneWard",
@@ -374,9 +378,98 @@ describe("Branches and Prerequisites", () => {
       ],
     });
     for (const branch of BRANCHES) {
-      branchSkills[branch].forEach((skill, index) => {
-        const before = branchSkills[branch][index - 1] ?? null;
-        expect(skillTuning[skill].prerequisite).toBe(before);
+      expect(skillTuning[branchSkills[branch][0]].prerequisites).toEqual([]);
+    }
+  });
+
+  it.each([
+    ["boneWard", []],
+    ["corpseExplosion", ["boneWard"]],
+    ["boneSpear", ["corpseExplosion"]],
+    ["boneWall", ["boneWard"]],
+    ["splinterVolley", ["boneSpear", "boneWall"]],
+    ["ossifiedWill", ["splinterVolley"]],
+    ["raiseSkeleton", []],
+    ["golem", ["raiseSkeleton"]],
+    ["raiseArcher", ["raiseSkeleton"]],
+    ["graveCommand", ["golem", "raiseArcher"]],
+    ["amplifyDamage", []],
+    ["weaken", ["amplifyDamage"]],
+    ["leadenLimbs", ["amplifyDamage"]],
+    ["dread", ["leadenLimbs"]],
+    ["lingeringMalice", ["weaken", "dread"]],
+  ] as const)("shapes %s to hang from %j", (skill, prerequisites) => {
+    expect(skillTuning[skill].prerequisites).toEqual(prerequisites);
+  });
+
+  it("keeps every Skill's required Level as it was", () => {
+    expect(
+      Object.fromEntries(
+        SKILLS.map((skill) => [skill, skillTuning[skill].requiredLevel]),
+      ),
+    ).toEqual({
+      raiseSkeleton: 1,
+      golem: 1,
+      amplifyDamage: 2,
+      weaken: 5,
+      leadenLimbs: 8,
+      dread: 10,
+      boneWard: 3,
+      corpseExplosion: 4,
+      boneSpear: 6,
+      boneWall: 8,
+      splinterVolley: 10,
+      raiseArcher: 6,
+      ossifiedWill: 12,
+      graveCommand: 12,
+      lingeringMalice: 12,
+    });
+  });
+
+  it("gives every Skill a place in its Branch's 3 x 6 grid, each Prerequisite above it, no two sharing one, and no loops", () => {
+    for (const branch of BRANCHES) {
+      const places = new Set<string>();
+      for (const skill of branchSkills[branch]) {
+        const { grid, prerequisites } = skillTuning[skill];
+        expect(Number.isInteger(grid.column)).toBe(true);
+        expect(Number.isInteger(grid.row)).toBe(true);
+        expect(grid.column).toBeGreaterThanOrEqual(0);
+        expect(grid.column).toBeLessThan(BRANCH_GRID.columns);
+        expect(grid.row).toBeGreaterThanOrEqual(0);
+        expect(grid.row).toBeLessThan(BRANCH_GRID.rows);
+        places.add(`${grid.column},${grid.row}`);
+        for (const before of prerequisites) {
+          expect(skillTuning[before].branch).toBe(branch);
+          expect(skillTuning[before].grid.row).toBeLessThan(grid.row);
+        }
+      }
+      expect(places.size).toBe(branchSkills[branch].length);
+    }
+  });
+
+  it("draws no two arrows across each other in a Branch's grid", () => {
+    // Arrows run centre to centre; two cross when their ends interleave.
+    const side = (a: GridPlace, b: GridPlace, p: GridPlace) =>
+      Math.sign(
+        (b.column - a.column) * (p.row - a.row) -
+          (b.row - a.row) * (p.column - a.column),
+      );
+    for (const branch of BRANCHES) {
+      const arrows = branchSkills[branch].flatMap((skill) =>
+        skillTuning[skill].prerequisites.map((before) => [
+          skillTuning[before].grid,
+          skillTuning[skill].grid,
+        ]),
+      );
+      arrows.forEach(([a, b], i) => {
+        for (const [c, d] of arrows.slice(i + 1)) {
+          const shared = [a, b].some((p) => p === c || p === d);
+          if (shared) continue;
+          const crossing =
+            side(a, b, c) * side(a, b, d) < 0 &&
+            side(c, d, a) * side(c, d, b) < 0;
+          expect(crossing).toBe(false);
+        }
       });
     }
   });
@@ -407,6 +500,28 @@ describe("Branches and Prerequisites", () => {
 
     expect(spend(w, "golem")).toEqual([
       { type: "SkillLevelRaised", skill: "golem", skillLevel: 1 },
+    ]);
+  });
+
+  it("spends nothing on a Skill with two Prerequisites while only one is learned", () => {
+    const w = level6({ boneWard: 1, corpseExplosion: 1, boneSpear: 1 });
+    w.hero.progress.level = 12;
+
+    expect(spend(w, "splinterVolley")).toEqual([]);
+    expect(canRaiseSkill(w, "splinterVolley")).toBe(false);
+  });
+
+  it("spends a Skill Point on a Skill with two Prerequisites once both are learned", () => {
+    const w = level6({
+      boneWard: 1,
+      corpseExplosion: 1,
+      boneSpear: 1,
+      boneWall: 1,
+    });
+    w.hero.progress.level = 12;
+
+    expect(spend(w, "splinterVolley")).toEqual([
+      { type: "SkillLevelRaised", skill: "splinterVolley", skillLevel: 1 },
     ]);
   });
 

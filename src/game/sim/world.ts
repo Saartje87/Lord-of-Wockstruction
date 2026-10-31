@@ -1503,6 +1503,7 @@ function startAreaChange(
       sendHome(monster);
     }
   }
+  fallWithReturning(world, events);
   // A hit landed on this step stops for the fade instead.
   world.hitstop = 0;
   stopHero(world.hero);
@@ -2156,6 +2157,7 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   // Before the Monsters, so an Arrow first shows where it is loosed.
   landProjectiles(world, events);
   const strikes = stepMonsters(world);
+  fallWithReturning(world, events);
   separateBodies(world);
   for (const { monster, target, wall } of strikes) {
     const attack = monsterAttack(monster);
@@ -3400,6 +3402,7 @@ function hurt(world: World, monster: Monster, events: SimEvent[]) {
       pos: monster.pos,
     });
     events.push({ type: "MonsterDied", id: monster.id });
+    fallRaised(world, monster, events);
     gainExperience(
       world,
       killExperience(monster, world.hero.progress.level),
@@ -3432,6 +3435,35 @@ function hurt(world: World, monster: Monster, events: SimEvent[]) {
   noticeHit(world, monster);
   if (random(world.rng) < monsterTuning[monster.type].flinchChance) {
     flinchMonster(monster);
+  }
+}
+
+/**
+ * Every living Monster `raiser` raised dies at once: each leaves its Corpse,
+ * but gives no Experience and drops nothing.
+ */
+function fallRaised(world: World, raiser: Monster, events: SimEvent[]) {
+  if (!raiser.waves) return;
+  const fallen = world.monsters.filter((m) =>
+    raiser.waves?.raised.includes(m.id),
+  );
+  raiser.waves.raised = [];
+  world.monsters = world.monsters.filter((m) => !fallen.includes(m));
+  for (const monster of fallen) {
+    world.corpses.push({
+      id: monster.id,
+      type: monster.type,
+      monsterLevel: monster.monsterLevel,
+      pos: monster.pos,
+    });
+    events.push({ type: "MonsterDied", id: monster.id });
+  }
+}
+
+/** Lets the raised Monsters of every raiser that is Returning fall dead. */
+function fallWithReturning(world: World, events: SimEvent[]) {
+  for (const monster of world.monsters) {
+    if (monster.state === "return") fallRaised(world, monster, events);
   }
 }
 
@@ -3698,6 +3730,7 @@ function die(world: World, events: SimEvent[]) {
   world.hero.boneWard = null;
   for (const minion of world.minions) crumbleMinion(world, minion, events);
   for (const monster of world.monsters) sendHome(monster);
+  fallWithReturning(world, events);
   stopHero(world.hero);
   returnCursorItem(world, events);
   events.push({ type: "HeroDied" });

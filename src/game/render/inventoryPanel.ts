@@ -16,6 +16,7 @@ import {
 import { inside, middleOf, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
 import type { Order, World } from "../sim/world";
+import type { Element } from "../tuning/damage";
 import {
   type Bonus,
   beltTuning,
@@ -466,10 +467,28 @@ const BONUS_NAMES: Record<Bonus, string> = {
   mana: "Mana",
   enhancedDamage: "Enhanced Damage",
   enhancedDefense: "Enhanced Defense",
+  fireResistance: "Fire Resistance",
+  coldResistance: "Cold Resistance",
+  lightningResistance: "Lightning Resistance",
+  allResistances: "All Resistances",
+};
+
+/** The Element a single-Element Resistance Bonus guards against. */
+const BONUS_ELEMENT: Partial<Record<Bonus, Element>> = {
+  fireResistance: "fire",
+  coldResistance: "cold",
+  lightningResistance: "lightning",
 };
 
 /** The Bonuses that are percentages, not flat amounts. */
-const PERCENT_BONUSES: readonly Bonus[] = ["enhancedDamage", "enhancedDefense"];
+const PERCENT_BONUSES: readonly Bonus[] = [
+  "enhancedDamage",
+  "enhancedDefense",
+  "fireResistance",
+  "coldResistance",
+  "lightningResistance",
+  "allResistances",
+];
 
 /** A tooltip line giving `amount` of `bonus`. */
 function bonusLine(bonus: Bonus, amount: number): string {
@@ -502,36 +521,63 @@ function potionLine(effect: PotionEffectTuning): string {
  * Affix, the Smith bonus, what a Potion gives back and a Belt's rows. A
  * Magic Item's name carries its Affixes' grade names.
  */
-export function itemTooltip(shown: {
+export function itemTooltip(shown: Shown): string[] {
+  return tooltipLines(shown).map((line) => line.text);
+}
+
+/**
+ * The Element each line of `itemTooltip(shown)` is drawn in, or null for a
+ * line with none: a single-Element Resistance Affix line takes its
+ * Element's colour.
+ */
+export function itemTooltipElements(shown: Shown): (Element | null)[] {
+  return tooltipLines(shown).map((line) => line.element ?? null);
+}
+
+/** What a tooltip needs of an Item. */
+type Shown = {
   type: ItemType;
   affixes?: readonly RolledAffix[];
   rareName?: string;
   smithBonus?: SmithBonus;
-}): string[] {
+};
+
+/** A tooltip line, and the Element it is drawn in when it has one. */
+type TooltipLine = { text: string; element?: Element };
+
+function tooltipLines(shown: Shown): TooltipLine[] {
   const { smithBonus } = shown;
   const item = itemOf(shown.type);
   // A Rare Item shows its Rare name, then its type's name.
-  const lines = shown.rareName
+  const names = shown.rareName
     ? [shown.rareName, item.name]
     : [itemTitle(shown)];
+  const lines: TooltipLine[] = names.map((text) => ({ text }));
   if (item.damage) {
     // Each hit rounds its own damage, so the range shows rounded too.
     const [min, max] = item.damage;
-    lines.push(`Damage: ${Math.round(min)}–${Math.round(max)}`);
+    lines.push({ text: `Damage: ${Math.round(min)}–${Math.round(max)}` });
   }
-  if (item.defense !== undefined) lines.push(`Defense: ${item.defense}`);
+  if (item.defense !== undefined)
+    lines.push({ text: `Defense: ${item.defense}` });
   for (const [bonus, amount] of Object.entries(item.bonuses)) {
-    lines.push(`+${amount} to ${BONUS_NAMES[bonus as Bonus]}`);
+    lines.push({ text: `+${amount} to ${BONUS_NAMES[bonus as Bonus]}` });
   }
   for (const affix of shown.affixes ?? []) {
     const { bonus, amount } = affixBonus(affix);
-    lines.push(bonusLine(bonus, amount));
+    lines.push({
+      text: bonusLine(bonus, amount),
+      element: BONUS_ELEMENT[bonus],
+    });
   }
   if (smithBonus) {
-    lines.push(`Smith: ${bonusLine(smithBonus.bonus, smithBonus.amount)}`);
+    lines.push({
+      text: `Smith: ${bonusLine(smithBonus.bonus, smithBonus.amount)}`,
+    });
   }
-  if (item.potion) lines.push(potionLine(item.potion));
-  if (item.beltRows !== undefined) lines.push(`Rows: ${item.beltRows}`);
+  if (item.potion) lines.push({ text: potionLine(item.potion) });
+  if (item.beltRows !== undefined)
+    lines.push({ text: `Rows: ${item.beltRows}` });
   return lines;
 }
 

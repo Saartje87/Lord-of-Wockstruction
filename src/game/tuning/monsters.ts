@@ -350,6 +350,8 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
   bog_spitter: {
     name: "Bog Spitter",
     resistances: { fire: -50, lightning: 25 },
+    // Muck is cold.
+    damageTypes: { cold: 1 },
     life: 45,
     experience: 120,
     speed: 1.2,

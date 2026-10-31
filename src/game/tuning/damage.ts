@@ -21,3 +21,12 @@ export type DamageShares = Partial<Record<DamageType, number>>;
  * negative adds to it. A missing one is 0; each must be below 100.
  */
 export type Resistances = Partial<Record<Element, number>>;
+
+/**
+ * The most Resistance takes off a hit (percent). The Hero's total can sit
+ * above it, to be eaten into by a Resistance Penalty first.
+ */
+export const MAXIMUM_RESISTANCE = 75;
+
+/** The least the Hero's effective Resistance goes (percent): hits take double. */
+export const MINIMUM_RESISTANCE = -100;

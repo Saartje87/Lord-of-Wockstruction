@@ -219,7 +219,12 @@ import {
   rotateNoticeLayout,
   rotateNoticeText,
 } from "./rotateNotice";
-import { SKILL_BAR, skillBarLayout, skillBarSheet } from "./skillBar";
+import {
+  SKILL_BAR,
+  skillBarLayout,
+  skillBarSheet,
+  skillBarSkillAt,
+} from "./skillBar";
 import { drawSkillIcon } from "./skillIcons";
 import {
   SKILL_TREE_PANEL,
@@ -701,6 +706,7 @@ export function createRenderer(
   app.stage.addChild(focusRing);
   // Over the panels, so a hovered Panel button's tooltip is never hidden.
   app.stage.addChild(panelButtons.tooltipLayer);
+  app.stage.addChild(skillBar.tooltipLayer);
   app.stage.addChild(miniMap.tooltipLayer);
   app.stage.addChild(inventoryPanel.heldLayer);
   const heldSkillView = createHeldSkillView();
@@ -1493,7 +1499,20 @@ export function createRenderer(
       };
       mapOverlay.draw(viewport, mapInputs, menus.mapOpen);
       orb.draw(viewport, world, nowMs);
-      skillBar.draw(viewport, world, heldSkillSlot);
+      // The hovered, focused or long-pressed Skill shows its tooltip, but
+      // not while a Held Skill follows the pointer; on the Skill Bar, only
+      // where no panel covers it.
+      const skillTooltipAt = !heldSkill ? pointer : null;
+      const onSkillBar =
+        onPanel !== null &&
+        "button" in onPanel &&
+        onPanel.button?.type === "skillBarSlot";
+      skillBar.draw(
+        viewport,
+        world,
+        heldSkillSlot,
+        onSkillBar ? skillTooltipAt : null,
+      );
       beltStrip.draw(viewport, world);
       panelButtons.draw(
         viewport,
@@ -1525,9 +1544,6 @@ export function createRenderer(
       levelUp.draw(viewport, world, nowMs);
       touchControls.draw(viewport, world, menus, itemInReach !== null);
       heroPanel.draw(viewport, world, menus.heroPanelOpen, menus.pendingPoints);
-      // The hovered, focused or long-pressed Skill shows its tooltip, but
-      // not while a Held Skill follows the pointer.
-      const skillTooltipAt = !heldSkill ? pointer : null;
       skillTreePanel.draw(
         viewport,
         world,
@@ -1889,13 +1905,17 @@ function orbsView() {
 /**
  * The Skill Bar between the orbs: each slot's key in its corner and its
  * Skill's icon, dimmed while the Hero lacks the Mana for it or while it's
- * the Held Skill.
+ * the Held Skill. The Skill in the slot under the tooltip point shows its
+ * Skill tooltip over the slot, without the Skill Tree's lines, on
+ * `tooltipLayer` over the panels.
  */
 function skillBarView(activeInput: Readonly<ActiveInput>) {
   const style = SKILL_BAR_STYLE;
   const layer = new Container();
   const graphics = new Graphics();
   layer.addChild(graphics);
+  const tooltipLayer = new Container();
+  const tooltip = linesTooltip(tooltipLayer);
   const text = (fill: number) => {
     const t = new Text({ text: "", style: { fill, fontFamily: SERIF } });
     layer.addChild(t);
@@ -1906,7 +1926,33 @@ function skillBarView(activeInput: Readonly<ActiveInput>) {
 
   return {
     layer,
-    draw(screen: Viewport, world: World, heldFrom: SkillBarSlot | null) {
+    tooltipLayer,
+    /**
+     * `heldFrom` is the slot the Held Skill was picked up from, if any, and
+     * `tooltipAt` where a tooltip shows, if anywhere: the pointer, Focus or
+     * long press over a Skill Bar slot.
+     */
+    draw(
+      screen: Viewport,
+      world: World,
+      heldFrom: SkillBarSlot | null,
+      tooltipAt: Vec | null,
+    ) {
+      const under = tooltipAt && skillBarSkillAt(world, screen, tooltipAt);
+      const underSheet =
+        under &&
+        skillTreeSheet(world).skills.find(({ skill }) => skill === under.skill);
+      tooltip.draw(
+        under && underSheet
+          ? {
+              lines: skillTooltip(underSheet, activeInput.way, {
+                onSkillBar: true,
+              }),
+              over: under.slot,
+            }
+          : null,
+        screen,
+      );
       const { slots } = skillBarLayout(screen);
       const scale = screen.uiScale;
       graphics.clear();
@@ -2349,6 +2395,55 @@ function drawTooltip(
   lines.forEach((line, i) => {
     line.position.set(x + w / 2, y + pad + i * sizes.lineHeight);
   });
+}
+
+/**
+ * A tooltip of many lines on `layer`, in the Item tooltip's look: its first
+ * line a name, then the rest, in a box fitted to them over what it's about.
+ * Each draw puts it over everything else on the layer.
+ */
+function linesTooltip(layer: Container) {
+  const look = INVENTORY_STYLE;
+  const box = new Graphics();
+  layer.addChild(box);
+  const texts = scaledTexts();
+  /** Made as more are needed, over the box. */
+  const shown: Text[] = [];
+  return {
+    /** Shows `lines` over the rect `over`, or nothing with null. */
+    draw(
+      tooltip: { lines: readonly string[]; over: Rect } | null,
+      screen: Viewport,
+    ) {
+      box.clear();
+      for (const line of shown) line.visible = false;
+      if (!tooltip) return;
+      const { lines, over } = tooltip;
+      layer.setChildIndex(box, layer.children.length - 1);
+      lines.forEach((words, i) => {
+        if (!shown[i]) {
+          shown[i] = new Text({
+            text: "",
+            style: { fill: look.tooltipLine, fontFamily: SERIF },
+          });
+          shown[i].anchor.set(0.5, 0);
+          texts.add(shown[i], look.tooltipSize);
+        }
+        const line = shown[i];
+        // Over the box.
+        if (line.parent !== layer) layer.addChild(line);
+        layer.setChildIndex(line, layer.children.length - 1);
+        line.visible = true;
+        line.text = words;
+        line.style.fill = i === 0 ? look.tooltipName : look.tooltipLine;
+      });
+      // Before the box is fitted to them.
+      texts.size(screen.uiScale);
+      drawTooltip(box, shown.slice(0, lines.length), screen, (size, gap) =>
+        tooltipRect(over, size, screen, gap),
+      );
+    },
+  };
 }
 
 /**
@@ -3350,10 +3445,7 @@ function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
   points.anchor.set(1, 0.5);
   /** A Branch tab's label, made as the sheet first lists the Branches. */
   const tabLabels: Partial<Record<Branch, Text>> = {};
-  const tooltipBox = new Graphics();
-  layer.addChild(tooltipBox);
-  /** Tooltip lines, made as more are needed, over its box. */
-  const tooltipLines: Text[] = [];
+  const tooltip = linesTooltip(layer);
   /** Made as a Skill is first drawn. */
   const tiles = new Map<Skill, { level: Text; plus: Text }>();
   /** The text sizes of a tile, at native scale, before squeezing to its tile. */
@@ -3513,37 +3605,18 @@ function skillTreePanelView(activeInput: Readonly<ActiveInput>) {
         sizeText(shown.plus, tileText.plus * scale * squeeze);
       }
 
-      tooltipBox.clear();
-      for (const line of tooltipLines) line.visible = false;
       const under =
         tooltipAt && layout.skills.find(({ tile }) => inside(tile, tooltipAt));
       const underSheet = under && sheetOf.get(under.skill);
-      if (tooltipAt && under && underSheet) {
-        const look = INVENTORY_STYLE;
-        const lines = skillTooltip(underSheet, activeInput.way);
-        // Over the tiles, some made after it.
-        layer.setChildIndex(tooltipBox, layer.children.length - 1);
-        lines.forEach((line, i) => {
-          if (!tooltipLines[i]) {
-            tooltipLines[i] = text(look.tooltipLine, look.tooltipSize);
-            tooltipLines[i].anchor.set(0.5, 0);
-          }
-          const shown = tooltipLines[i];
-          // Over the box, which is made before any line.
-          layer.setChildIndex(shown, layer.children.length - 1);
-          shown.visible = true;
-          shown.text = line;
-          shown.style.fill = i === 0 ? look.tooltipName : look.tooltipLine;
-        });
-        // Lines made this draw too, before the box is fitted to them.
-        texts.size(scale);
-        drawTooltip(
-          tooltipBox,
-          tooltipLines.slice(0, lines.length),
-          screen,
-          (size, gap) => tooltipRect(under.tile, size, screen, gap),
-        );
-      }
+      tooltip.draw(
+        under && underSheet
+          ? {
+              lines: skillTooltip(underSheet, activeInput.way),
+              over: under.tile,
+            }
+          : null,
+        screen,
+      );
     },
   };
 }

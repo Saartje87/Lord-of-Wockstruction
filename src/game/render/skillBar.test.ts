@@ -8,7 +8,12 @@ import {
   type World,
 } from "../sim/world";
 import { viewportOf } from "../viewport";
-import { skillBarHitAt, skillBarLayout, skillBarSheet } from "./skillBar";
+import {
+  skillBarHitAt,
+  skillBarLayout,
+  skillBarSheet,
+  skillBarSkillAt,
+} from "./skillBar";
 
 const town = {
   orientation: "orthogonal",
@@ -154,5 +159,36 @@ describe("a click on the Skill Bar", () => {
 
   it("is for the World off the slots", () => {
     expect(skillBarHitAt(screen, { x: 640, y: 300 })).toBeNull();
+  });
+});
+
+describe("the Skill Bar slot a tooltip is for", () => {
+  const centre = ({
+    x,
+    y,
+    w,
+    h,
+  }: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  }) => ({
+    x: x + w / 2,
+    y: y + h / 2,
+  });
+
+  it("is the slot under the point with its Skill", () => {
+    const { slots } = skillBarLayout(screen);
+    expect(
+      skillBarSkillAt(world(GOLEM_IN_KEY2), screen, centre(slots.key2)),
+    ).toEqual({ skill: "golem", slot: slots.key2 });
+  });
+
+  it("is none over an empty slot, or off the slots", () => {
+    const { slots } = skillBarLayout(screen);
+    const hero = world(GOLEM_IN_KEY2);
+    expect(skillBarSkillAt(hero, screen, centre(slots.key1))).toBeNull();
+    expect(skillBarSkillAt(hero, screen, { x: 5, y: 5 })).toBeNull();
   });
 });

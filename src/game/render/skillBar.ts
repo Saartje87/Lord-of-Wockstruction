@@ -114,3 +114,18 @@ export function skillBarHitAt(
   const slot = SKILL_BAR_SLOTS.find((name) => inside(slots[name], point));
   return slot ? { button: { type: "skillBarSlot", slot } } : null;
 }
+
+/**
+ * The Skill Bar slot under `point` and the Skill it holds, for that Skill's
+ * tooltip over the slot, or null off the slots or over an empty one.
+ */
+export function skillBarSkillAt(
+  world: World,
+  screen: Viewport,
+  point: Vec,
+): { skill: Skill; slot: Rect } | null {
+  const { slots } = skillBarLayout(screen);
+  const slot = SKILL_BAR_SLOTS.find((name) => inside(slots[name], point));
+  const skill = slot && world.hero.progress.skillBar[slot];
+  return slot && skill ? { skill, slot: slots[slot] } : null;
+}

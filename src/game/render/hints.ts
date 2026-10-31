@@ -179,9 +179,14 @@ const SKILL_ACTIONS: Record<
  * they add now, the Passive's lines, and what holds it back (its
  * Prerequisites and its Level). Then, but for touch, how to spend a Skill
  * Point on it while one can be, and how to put it on the Skill Bar once
- * learned.
+ * learned. Those two lines are about the Skill Tree's tile, so a Skill Bar
+ * slot's tooltip (`onSkillBar`) leaves them out.
  */
-export function skillTooltip(sheet: SkillSheet, way: InputWay): string[] {
+export function skillTooltip(
+  sheet: SkillSheet,
+  way: InputWay,
+  { onSkillBar = false }: { onSkillBar?: boolean } = {},
+): string[] {
   const raised = sheet.raised ? ` (+${sheet.raised})` : "";
   const lines = [sheet.name, `Skill Level ${sheet.skillLevel}${raised}`];
   lines.push(...sheet.stats);
@@ -208,7 +213,7 @@ export function skillTooltip(sheet: SkillSheet, way: InputWay): string[] {
   }
   if (sheet.requiredLevel) lines.push(`Needs Level ${sheet.requiredLevel}`);
   const actions = SKILL_ACTIONS[way];
-  if (!actions) return lines;
+  if (!actions || onSkillBar) return lines;
   const { learn, pickUp } = actions;
   if (sheet.canRaise) lines.push(`${learn} to spend a Skill Point`);
   // A Passive Skill can't be put on the Skill Bar.

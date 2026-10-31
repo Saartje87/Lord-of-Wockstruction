@@ -25,6 +25,9 @@ describe("devStateOf", () => {
       },
       exploredTiles: expect.any(Number),
       target: skeleton.id,
+      itemInReach: null,
+      groundItems: [],
+      inventory: expect.any(Array),
       monsters: [
         {
           id: skeleton.id,
@@ -89,6 +92,34 @@ describe("devStateOf", () => {
     world.monsters = [];
 
     expect(devStateOf(world, skeleton.id).target).toBeNull();
+  });
+
+  it("reads the Ground Items, the Item in Reach and the Inventory", () => {
+    const world = arenaWith([]);
+    world.groundItems.push({
+      item: { id: 7, type: "axe", rarity: "magic", affixes: [] },
+      pos: { x: 10.5, y: 10 },
+    });
+    world.hero.inventory = [
+      {
+        item: { id: 8, type: "ring", rarity: "normal", affixes: [] },
+        cell: { column: 2, row: 1 },
+      },
+    ];
+
+    const state = devStateOf(world, null, 7);
+
+    expect(state.itemInReach).toBe(7);
+    expect(state.groundItems).toEqual([
+      { id: 7, type: "axe", rarity: "magic", pos: { x: 10.5, y: 10 } },
+    ]);
+    expect(state.inventory).toEqual([
+      { id: 8, type: "ring", rarity: "normal", cell: { column: 2, row: 1 } },
+    ]);
+  });
+
+  it("has no Item in Reach once that Item is no longer lying there", () => {
+    expect(devStateOf(arenaWith([]), null, 7).itemInReach).toBeNull();
   });
 
   it("changes nothing in the World when changed", () => {

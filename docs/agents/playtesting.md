@@ -74,12 +74,17 @@ window.__wockstruction.state();
 //   },
 //   exploredTiles: 212,
 //   target: 41,
+//   itemInReach: 12,
+//   groundItems: [{ id: 12, type: "axe", rarity: "magic", pos: { x: 12.9, y: 30.4 } }, …],
+//   inventory: [{ id: 3, type: "ring", rarity: "normal", cell: { column: 0, row: 0 } }, …],
 //   monsters: [{ id: 41, type: "skeleton", pos: { x: 14.2, y: 30.6 }, life: 9 }, …],
 //   corpses: [{ id: 38, type: "zombie", monsterLevel: 4, pos: { x: 11.8, y: 28.3 } }, …],
 //   minions: [{ id: 2, type: "golem", skill: "golem", pos: { x: 11.6, y: 30.4 }, life: 150, maxLife: 180 }, …],
 // }
 ```
 
+- **`itemInReach`** is the Ground Item id that A or the attack button would pick up, the one whose label is outlined in gold, or `null`. Like its label, it is `null` with mouse and keyboard as the Active Input and while paused.
+- **`groundItems`** and **`inventory`** are the Items lying in the active Area and in the Inventory. To put an Item on the ground, load a Save holding it, then drop it: open the Inventory, click the Item, then click the World below the panel.
 - **`target`** is the Monster id of the Target that controller or touch auto-aim picked, the one shown highlighted, or `null` (also while paused). A Monster under the mouse pointer is highlighted too, but it isn't the Target.
 - **`exploredTiles`** is how many tiles of the active Area are Explored (all of Town from the start). It grows as the Hero walks, so compare it before and after.
 - **`boneWard`** is what's left of the Bone Ward and its full amount, or `null` while the Hero has none.

@@ -28,7 +28,7 @@ Single-context: one root `GLOSSARY.md` plus `docs/adr/`. See `docs/agents/domain
 
 ### Playtesting
 
-Seeing the game run (on-screen criteria, dev servers in worktrees, starting at a given Level, touch screens, the live deploy): see `docs/agents/playtesting.md`.
+A ticket's on-screen criteria are done once seen running: see `docs/agents/playtesting.md` (dev servers in worktrees, starting at a given Level or Area, touch screens, reading the game state, the live deploy).
 
 ### Tuning
 

@@ -21,3 +21,5 @@ Tests sit at the existing seams (`createWorld` + `step` → events, World querie
 ## Style
 
 Match the surrounding file: one JSDoc line on each export and each non-obvious function, short intent comments, full words over one-letter aliases.
+
+Comments stay true. When the diff changes what something does or draws, check the JSDoc of each function it touches and of the constants those use, and flag any that still describe the old behaviour. Specs are written from these comments, so a stale one becomes a wrong spec.

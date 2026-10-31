@@ -103,7 +103,7 @@ import {
   writeSaveText,
 } from "./save";
 import { isFloor, TOWN } from "./sim/area";
-import { cursorItemOf } from "./sim/inventory";
+import { cursorItemOf, type ItemId } from "./sim/inventory";
 import { tileOf, type Vec } from "./sim/vec";
 import {
   type MonsterId,
@@ -232,11 +232,12 @@ export default function GameCanvas() {
       const tap = createTapInput();
       /** The Target as last drawn. */
       let drawnTarget: MonsterId | null = null;
+      let drawnItemInReach: ItemId | null = null;
       // Playtests read the game from here instead of by eye. Production
       // builds don't have it.
       if (process.env.NODE_ENV === "development") {
         window.__wockstruction = {
-          state: () => devStateOf(world, drawnTarget),
+          state: () => devStateOf(world, drawnTarget, drawnItemInReach),
           loadSave: (options?: SaveOptions) => {
             writeSaveText(storage, buildSave(options));
             window.location.reload();
@@ -562,6 +563,7 @@ export default function GameCanvas() {
           });
           orders = [];
           drawnTarget = null;
+          drawnItemInReach = null;
           quitToStart(menus, saved !== null);
           last = gameTime(pause, realNow);
           frame = requestAnimationFrame(tick);
@@ -730,6 +732,7 @@ export default function GameCanvas() {
           pause.paused || activeInput.way === "mouseAndKeyboard"
             ? null
             : polled.itemInReach;
+        drawnItemInReach = itemInReach;
         // Before the HUD draws, which places the labels through it.
         const { hero } = world;
         worldCamera = worldCameraOn(viewport, {
@@ -827,6 +830,7 @@ export default function GameCanvas() {
         const focus = startFocusAt(world.hero.pos, realNow);
         worldCamera = worldCameraOn(viewport, focus);
         drawnTarget = null;
+        drawnItemInReach = null;
         renderer.drawStart(
           start,
           world.hero.progress.level,

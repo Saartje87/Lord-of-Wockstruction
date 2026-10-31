@@ -1,7 +1,9 @@
 import type { SaveOptions } from "./devSave";
+import { type Cell, type ItemId, inventoryOf } from "./sim/inventory";
 import type { Vec } from "./sim/vec";
 import {
   type BoneWard,
+  groundItemsOf,
   type MinionId,
   type MinionType,
   type MonsterId,
@@ -11,6 +13,7 @@ import {
   type Skill,
   type World,
 } from "./sim/world";
+import type { ItemType, Rarity } from "./tuning/items";
 import type { MonsterType } from "./tuning/monsters";
 
 /** What a playtest reads of the game: see `docs/agents/playtesting.md`. */
@@ -31,6 +34,11 @@ export type DevState = {
   exploredTiles: number;
   /** The Monster the game highlights as the Target, if any. */
   target: MonsterId | null;
+  /** The Ground Item the game shows as the Item in Reach, if any. */
+  itemInReach: ItemId | null;
+  groundItems: { id: ItemId; type: ItemType; rarity: Rarity; pos: Vec }[];
+  /** The Items in the Inventory, each with its top-left cell. */
+  inventory: { id: ItemId; type: ItemType; rarity: Rarity; cell: Cell }[];
   monsters: { id: MonsterId; type: MonsterType; pos: Vec; life: number }[];
   corpses: {
     id: MonsterId;
@@ -61,12 +69,17 @@ declare global {
 }
 
 /**
- * A plain copy of the World's Area, Hero, Monsters, Corpses and Minions,
- * with the `target` picked in input (ADR 0002), or none once it is dead, as
- * the renderer highlights none then. Nothing in it refers back into the World.
- * Dev builds only: see `GameCanvas`.
+ * A plain copy of the World's Area, Hero, Monsters, Corpses, Minions, Ground
+ * Items and Inventory, with the `target` and `itemInReach` picked in input
+ * (ADR 0002), each none once gone, as the renderer highlights none then.
+ * Nothing in it refers back into the World. Dev builds only: see `GameCanvas`.
  */
-export function devStateOf(world: World, target: MonsterId | null): DevState {
+export function devStateOf(
+  world: World,
+  target: MonsterId | null,
+  itemInReach: ItemId | null = null,
+): DevState {
+  const lying = groundItemsOf(world);
   const { hero } = world;
   return {
     area: world.areaName,
@@ -82,6 +95,21 @@ export function devStateOf(world: World, target: MonsterId | null): DevState {
     },
     exploredTiles: world.explored.filter(Boolean).length,
     target: world.monsters.some(({ id }) => id === target) ? target : null,
+    itemInReach: lying.some(({ item }) => item.id === itemInReach)
+      ? itemInReach
+      : null,
+    groundItems: lying.map(({ item, pos }) => ({
+      id: item.id,
+      type: item.type,
+      rarity: item.rarity,
+      pos,
+    })),
+    inventory: inventoryOf(world).map(({ item, cell }) => ({
+      id: item.id,
+      type: item.type,
+      rarity: item.rarity,
+      cell,
+    })),
     monsters: world.monsters.map(({ id, type, pos, life }) => ({
       id,
       type,

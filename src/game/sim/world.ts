@@ -1137,13 +1137,15 @@ function itemBonus(item: Item, bonus: Bonus): number {
   );
 }
 
-/** How many Skill Levels the Equipped Items' Affixes raise `skill` by. */
+/** How many Skill Levels the Equipped Items' Affixes and Smith bonuses raise `skill` by. */
 export function skillRaiseOf(world: World, skill: Skill): number {
   let total = 0;
   for (const slot of EQUIPMENT_SLOTS) {
-    for (const affix of world.hero.equipment[slot]?.affixes ?? []) {
+    const item = world.hero.equipment[slot];
+    for (const affix of item?.affixes ?? []) {
       if (affixOf(affix.kind).skill === skill) total += affix.value;
     }
+    if (item?.smithBonus?.skill === skill) total += item.smithBonus.amount;
   }
   return total;
 }

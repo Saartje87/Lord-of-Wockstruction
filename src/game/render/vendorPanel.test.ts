@@ -12,6 +12,7 @@ import { itemValue } from "../sim/value";
 import { goodsOf, valueSoldFor } from "../sim/vendor";
 import { createWorld, step, type World } from "../sim/world";
 import { isPotion } from "../tuning/items";
+import { vendorTuning } from "../tuning/vendor";
 import { type Viewport, viewportOf } from "../viewport";
 import { cursorHitAt, type ShownPanels } from "./cursorHit";
 import { panelFocusSpots } from "./panelFocus";
@@ -159,7 +160,12 @@ describe("the Vendor panel's hits", () => {
 
   it("tell the two grids apart", () => {
     expect(vendorHitAt(screen, middleOf(layout.goods), true, false)).toEqual({
-      vendor: { good: { column: 4, row: 3 } },
+      vendor: {
+        good: {
+          column: Math.floor(vendorTuning.grid.columns / 2),
+          row: Math.floor(vendorTuning.grid.rows / 2),
+        },
+      },
     });
     expect(
       vendorHitAt(screen, middleOf(layout.inventory), true, false),

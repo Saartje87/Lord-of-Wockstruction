@@ -601,7 +601,11 @@ function tooltipLines(shown: Shown): TooltipLine[] {
   }
   if (smithBonus) {
     lines.push({
-      text: `Smith: ${bonusLine(smithBonus.bonus, smithBonus.amount)}`,
+      text: `Smith: ${
+        smithBonus.skill
+          ? `+${smithBonus.amount} to ${skillTuning[smithBonus.skill].name}`
+          : bonusLine(smithBonus.bonus, smithBonus.amount)
+      }`,
     });
   }
   if (item.potion) lines.push({ text: potionLine(item.potion) });

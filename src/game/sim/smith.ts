@@ -4,7 +4,9 @@ import { smithPoolOf, smithTuning } from "../tuning/smith";
 import { EQUIPMENT_SLOTS, type Item, type ItemId } from "./inventory";
 import type { QuestStates } from "./quests";
 import { randomInt } from "./random";
-import type { SimEvent, World } from "./world";
+import { type SimEvent, SKILLS, type World } from "./world";
+
+type PoolName = keyof typeof smithTuning;
 
 /** The Smith's name in the maps. */
 export const SMITH = "Smith";
@@ -59,12 +61,14 @@ export function giveSmithBonus(
     ...world.hero.inventory.map((placed) => placed.item),
   ].find((candidate) => candidate?.id === itemId);
   if (!item || !canSmith(item)) return;
-  const pool =
-    smithTuning[smithPoolOf(itemOf(item.type).kind) as "weapon" | "armour"];
+  const pool = smithTuning[smithPoolOf(itemOf(item.type).kind) as PoolName];
   const entry = pool[randomInt(world.rng, [0, pool.length - 1])];
   item.smithBonus = {
     bonus: entry.bonus,
     amount: randomInt(world.rng, entry.amount),
+    ...(entry.bonus === "skillLevel" && {
+      skill: SKILLS[randomInt(world.rng, [0, SKILLS.length - 1])],
+    }),
   };
   progress.smithService = "used";
   events.push({

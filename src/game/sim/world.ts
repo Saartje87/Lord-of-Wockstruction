@@ -137,8 +137,11 @@ import {
 } from "./potions";
 import {
   type AttackNumbers,
+  type Burn,
+  isLobbed,
   type LobbedProjectile,
   type Projectile,
+  stepBurns,
   stepProjectiles,
 } from "./projectiles";
 import {
@@ -165,7 +168,7 @@ import {
 } from "./skillBar";
 import { giveSmithBonus, SMITH } from "./smith";
 import { passiveMultiplier, skillPower } from "./synergies";
-import { msToSteps, perStep } from "./units";
+import { msToSteps, perStep, STEP_MS } from "./units";
 import { validateAreas, validateResistances } from "./validate";
 import { distance, type Vec } from "./vec";
 import { moveGood, newVendor, restockVendor, type Vendor } from "./vendor";
@@ -377,6 +380,11 @@ export type Monster = {
    * because the Wall cuts it off from them; null when it isn't.
    */
   wall: number | null;
+  /**
+   * Whether the attack it is winding up or recovering from is its swing, not
+   * its ranged attack, for a Monster with both (Grave Wockington).
+   */
+  swinging: boolean;
 };
 
 /** A Curse on a Monster: the Skill that put it there, and steps left. */
@@ -447,7 +455,27 @@ export type KeptArea = Pick<
   | "goldPiles"
   | "explored"
   | "boneAltars"
+  | "burns"
 >;
+
+/** A burning circle: where it is, how big, and how long it has left. */
+export type BurningCircle = {
+  pos: Vec;
+  radius: number;
+  leftMs: number;
+  /** How long it burns in all (ms). */
+  lengthMs: number;
+};
+
+/** The burning circles in the active Area, for the view and tests. */
+export function burningCircles(world: World): BurningCircle[] {
+  return world.burns.map((burn) => ({
+    pos: { ...burn.pos },
+    radius: burn.radius,
+    leftMs: Math.round(burn.left * STEP_MS),
+    lengthMs: Math.round(burn.steps * STEP_MS),
+  }));
+}
 
 /**
  * What remains of a dead Monster: inert, not clickable, not blocking. It
@@ -496,6 +524,8 @@ export type World = {
   monsters: Monster[];
   /** The Bone Altars still standing in the active Area. */
   boneAltars: BoneAltar[];
+  /** The burning circles Gravefire left, which burn out in time. */
+  burns: Burn[];
   /** The Bone Wall pieces standing in the active Area. */
   boneWalls: BoneWallPiece[];
   /** The Projectiles in flight in the active Area. */
@@ -753,6 +783,12 @@ export type SimEvent =
   /** The Hero's side hit Bone Altar `altar` for `damage`. */
   /** Monster `boss` raised a wave of `monsters` around itself. */
   | { type: "WaveRaised"; boss: MonsterId; monsters: MonsterId[] }
+  /** A Monster cast Gravefire, which will land on `landing`. */
+  | { type: "GravefireCast"; monster: MonsterId; landing: Vec }
+  /** A Gravefire landed on `at` and began to burn there. */
+  | { type: "GravefireLanded"; at: Vec; radius: number }
+  /** The burning circle on `at` burnt out. */
+  | { type: "GravefireBurnEnded"; at: Vec }
   /** The Hero killed the Act Boss of Act `act` with its Quest not yet Done. */
   | { type: "ActCompleted"; act: number }
   /** The Hero raised a Bone Wall of pieces standing at `pieces`. */
@@ -1017,6 +1053,7 @@ export function createWorld(options: {
     },
     monsters: [],
     boneAltars: [],
+    burns: [],
     boneWalls: [],
     projectiles: [],
     corpses: [],
@@ -1599,7 +1636,7 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
     removeWallPiece(world, piece, false, events);
   }
   const { monsters, projectiles, corpses, groundItems, explored } = world;
-  const { boneAltars, goldPiles } = world;
+  const { boneAltars, goldPiles, burns } = world;
   world.keptAreas[world.areaName] = {
     monsters,
     projectiles,
@@ -1608,6 +1645,7 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
     goldPiles,
     explored,
     boneAltars,
+    burns,
   };
   world.areaName = area.name;
   const kept = world.keptAreas[area.name];
@@ -1618,6 +1656,7 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   world.groundItems = kept?.groundItems ?? [];
   world.goldPiles = kept?.goldPiles ?? [];
   world.boneAltars = kept?.boneAltars ?? [];
+  world.burns = kept?.burns ?? [];
   world.explored =
     kept?.explored ??
     new Array(area.width * area.height).fill(area.name === TOWN);
@@ -1924,6 +1963,7 @@ function placeMonster(
     pause: wanderPause(world, type),
     curse: null,
     wall: null,
+    swinging: false,
     waves:
       type === "grave_wockington"
         ? { cooldown: msToSteps(graveWockingtonTuning.firstWaveMs), raised: [] }
@@ -2181,7 +2221,7 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   reachNpc(world, events);
   // Before the Monsters, so an Arrow first shows where it is loosed.
   landProjectiles(world, events);
-  const strikes = stepMonsters(world);
+  const strikes = stepMonsters(world, events);
   fallWithReturning(world, events);
   separateBodies(world);
   for (const { monster, target, wall } of strikes) {
@@ -2227,7 +2267,7 @@ function stepDeath(
   }
   // Projectiles fly on, over the dead Hero.
   landProjectiles(world, events);
-  stepMonsters(world);
+  stepMonsters(world, events);
   separateBodies(world);
   stepBoneWalls(world, events);
 }
@@ -2238,6 +2278,25 @@ function stepDeath(
  * kills them flies on over them.
  */
 function landProjectiles(world: World, events: SimEvent[]) {
+  const burning = world.burns.length;
+  landFlyers(world, events);
+  // A Gravefire lands as a burning circle, newest last.
+  for (const burn of world.burns.slice(burning)) {
+    events.push({
+      type: "GravefireLanded",
+      at: { ...burn.pos },
+      radius: burn.radius,
+    });
+  }
+  stepBurns(
+    world,
+    (burn, target) => strike(world, target, burn, events, true),
+    (burn) => events.push({ type: "GravefireBurnEnded", at: { ...burn.pos } }),
+  );
+}
+
+/** Moves every Projectile one step and lands those that touch something. */
+function landFlyers(world: World, events: SimEvent[]) {
   stepProjectiles(
     world,
     (projectile, target) => strike(world, target, projectile, events),
@@ -2271,9 +2330,10 @@ function strike(
   target: MonsterTarget,
   attack: AttackNumbers,
   events: SimEvent[],
+  sure = false,
 ) {
-  if (target !== "hero") hitMinion(world, target, attack, events);
-  else if (!world.death) hitHero(world, attack, events);
+  if (target !== "hero") hitMinion(world, target, attack, events, sure);
+  else if (!world.death) hitHero(world, attack, events, sure);
 }
 
 /**
@@ -3634,18 +3694,25 @@ function rollGold(
  * rest off their Life. An attack that would hit can still be Blocked by an
  * Equipped Shield (see `heroBlockChance`): that too deals no damage, never
  * flinches the Hero and leaves their Bone Ward be, but keeps them In Combat.
+ * A `sure` hit (a burning circle's) is neither Missed nor Blocked, rolls
+ * nothing for either, and never flinches the Hero; the rest is as above.
  */
-function hitHero(world: World, attack: AttackNumbers, events: SimEvent[]) {
+function hitHero(
+  world: World,
+  attack: AttackNumbers,
+  events: SimEvent[],
+  sure = false,
+) {
   const { hero } = world;
   const chance = heroChanceToBeHit(world, attack.attackRating);
-  if (chance < 1 && random(world.rng) >= chance) {
+  if (!sure && chance < 1 && random(world.rng) >= chance) {
     events.push({ type: "Missed", target: "hero" });
     return;
   }
   // A Block is rolled once the attack would hit, before any damage. With no
   // Shield nothing is rolled, so the rolls after it stay as they were.
   const blockChance = heroBlockChance(world);
-  if (blockChance > 0 && random(world.rng) * 100 < blockChance) {
+  if (!sure && blockChance > 0 && random(world.rng) * 100 < blockChance) {
     hero.combat = COMBAT_STEPS;
     events.push({ type: "Blocked" });
     return;
@@ -3676,6 +3743,7 @@ function hitHero(world: World, attack: AttackNumbers, events: SimEvent[]) {
     return;
   }
 
+  if (sure) return;
   // A swing's follow-through carries on.
   if (hero.swing?.landed) return;
   if (random(world.rng) >= heroTuning.flinchChance) return;
@@ -3695,19 +3763,20 @@ function hitHero(world: World, attack: AttackNumbers, events: SimEvent[]) {
  * Lands a Monster's attack, a melee one or a Projectile, on the Hero's
  * Minion `id`, if it still lives: it rolls the attack's Attack Rating against
  * the Minion's Defense, and at 0 Life the Minion dies, leaving no Corpse.
- * Neither keeps the Hero In Combat.
+ * Neither keeps the Hero In Combat. A `sure` hit always hits.
  */
 function hitMinion(
   world: World,
   id: MinionId,
   attack: AttackNumbers,
   events: SimEvent[],
+  sure = false,
 ) {
   const minion = world.minions.find((one) => one.id === id);
   if (!minion) return;
   const rolled = rollAttack(
     world,
-    chanceToHit(attack.attackRating, minionDefense(minion)),
+    sure ? 1 : chanceToHit(attack.attackRating, minionDefense(minion)),
     attack.damage,
     attack.damageTypes,
   );

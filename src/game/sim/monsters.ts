@@ -23,7 +23,7 @@ import {
   stepInDirection,
   walkAlong,
 } from "./walking";
-import type { Monster, MonsterTarget, World } from "./world";
+import type { Monster, MonsterTarget, SimEvent, World } from "./world";
 
 /** Each Monster type's tuning converted to steps. */
 const STEPPED = Object.fromEntries(
@@ -72,11 +72,25 @@ type SteppedAttack =
       arc: number;
       slam?: { radius: number };
     }
-  | (Omit<RangedTuning, "projectileSpeed"> & { projectileSpeed: number });
+  | (Omit<RangedTuning, "projectileSpeed" | "melee" | "recoveryMs"> & {
+      projectileSpeed: number;
+      /** The swing it makes instead with its target within its reach. */
+      melee?: SteppedMelee;
+      /** Its recovery at each stage, in steps. */
+      recovery?: number[];
+    });
+
+type SteppedMelee = Extract<SteppedAttack, { kind: "melee" }>;
 
 function steppedAttack(attack: MeleeTuning | RangedTuning): SteppedAttack {
   if (attack.kind === "ranged") {
-    return { ...attack, projectileSpeed: perStep(attack.projectileSpeed) };
+    const { melee, recoveryMs, ...rest } = attack;
+    return {
+      ...rest,
+      projectileSpeed: perStep(attack.projectileSpeed),
+      melee: melee && steppedAttack({ kind: "melee", ...melee }),
+      recovery: recoveryMs?.map(msToSteps),
+    } as SteppedAttack;
   }
   const { reach, reachGrace, arcDegrees, slam } = attack;
   return {
@@ -244,7 +258,7 @@ export type Strike = {
  * and wearing its Curse down. Returns the attacks that land on the Hero or
  * their Minions this step.
  */
-export function stepMonsters(world: World): Strike[] {
+export function stepMonsters(world: World, events: SimEvent[]): Strike[] {
   const strikes: Strike[] = [];
   for (const monster of world.monsters) {
     if (monster.grace > 0) monster.grace -= 1;
@@ -258,7 +272,7 @@ export function stepMonsters(world: World): Strike[] {
       }
     }
     if (monster.state === "windup") {
-      strikes.push(...windUp(world, monster));
+      strikes.push(...windUp(world, monster, events));
       continue;
     }
     if (monster.state === "recover") {
@@ -460,6 +474,13 @@ function chase(world: World, monster: Monster) {
   const ranged = attack.kind === "ranged";
   const stopAt = ranged ? attack.range : attack.reach;
   const inSight = !ranged || canSee(area, monster.pos, chased.pos);
+  // One that also swings does so with its target within that reach instead.
+  const swing = ranged ? attack.melee : undefined;
+  if (swing && gap <= swing.reach + 1e-9) {
+    monster.path = [];
+    if (canWindUp(world, monster)) startWindUp(monster, chased.pos, true);
+    return;
+  }
   // A chase stops at reach only up to rounding.
   if (gap <= stopAt + 1e-9 && inSight) {
     monster.path = [];
@@ -602,9 +623,10 @@ export function recoveryProgress(monster: Monster): number {
   return 1 - monster.attack / STEPPED[monster.type].rootSteps;
 }
 
-/** Starts telegraphing an attack, facing its target at `at`. */
-function startWindUp(monster: Monster, at: Vec) {
+/** Starts telegraphing an attack, facing its target at `at`; a swing if `swinging`. */
+function startWindUp(monster: Monster, at: Vec, swinging = false) {
   monster.state = "windup";
+  monster.swinging = swinging;
   monster.attack = 0;
   faceToward(monster, at);
 }
@@ -618,17 +640,29 @@ function startWindUp(monster: Monster, at: Vec) {
  * at where its target is then. Then it recovers, rooted, and waits a while
  * longer, with some jitter, before it can attack again.
  */
-function windUp(world: World, monster: Monster): Strike[] {
+function windUp(world: World, monster: Monster, events: SimEvent[]): Strike[] {
   const stepped = STEPPED[monster.type];
   monster.attack += 1;
   if (monster.attack < stepped.windUpSteps) return [];
   monster.state = "recover";
   monster.attack = stepped.rootSteps;
+  const { attack } = stepped;
+  // One with a swing and a ranged attack resolves the one it wound up.
+  const swing =
+    attack.kind === "melee"
+      ? attack
+      : monster.swinging
+        ? (attack.melee ?? null)
+        : null;
+  const recoverySteps =
+    swing === null && attack.kind === "ranged" && attack.recovery
+      ? (attack.recovery[stageOf(monster)] ?? attack.recovery.at(-1) ?? 0)
+      : stepped.recoverySteps;
   // Leaden Limbs stretches the whole cycle (wind-up included) by waiting
   // longer here, so the telegraph and animation lengths stay as they are.
   const cooldown =
     stepped.rootSteps +
-    stepped.recoverySteps +
+    recoverySteps +
     randomInt(world.rng, [0, stepped.jitterSteps]);
   monster.cooldown = Math.max(
     0,
@@ -637,7 +671,6 @@ function windUp(world: World, monster: Monster): Strike[] {
         stepped.windUpSteps,
     ),
   );
-  const { attack } = stepped;
   const strikes: Strike[] = [];
   if (attack.kind === "melee" && attack.slam) {
     for (const target of targetsInCircle(
@@ -665,14 +698,28 @@ function windUp(world: World, monster: Monster): Strike[] {
     return strikes;
   }
   if (attack.kind === "melee" && attack.slam) return strikes;
-  const at = targetPos(world, monster.target);
+  // Gravefire lands where the Hero stands, whoever its caster is after.
+  const atHero =
+    swing === null && attack.kind === "ranged" && attack.lob?.atHero;
+  const at = atHero ? { ...world.hero.pos } : targetPos(world, monster.target);
   if (!at) return strikes;
-  if (attack.kind === "ranged") {
-    loose(world, monster, attack, at);
-  } else if (lands(monster, at, attack.reach + attack.reachGrace, attack.arc)) {
+  if (swing === null && attack.kind === "ranged") {
+    loose(world, monster, attack, at, events);
+  } else if (
+    swing &&
+    lands(monster, at, swing.reach + swing.reachGrace, swing.arc)
+  ) {
     strikes.push({ monster, target: monster.target, wall: null });
   }
   return strikes;
+}
+
+/**
+ * Which stage of its fight a Monster is in, from 0: the index into numbers
+ * tuned per stage. Every Monster is in its first for now.
+ */
+function stageOf(_monster: Monster): number {
+  return 0;
 }
 
 /** Looses a ranged Monster's Projectile from where it stands at `at`. */
@@ -681,6 +728,7 @@ function loose(
   monster: Monster,
   ranged: Extract<SteppedAttack, { kind: "ranged" }>,
   at: Vec,
+  events: SimEvent[],
 ) {
   faceToward(monster, at);
   const flying = {
@@ -694,15 +742,28 @@ function loose(
   if (ranged.lob) {
     // Lobbed at the spot the target stands on now, not along a line.
     const gap = distance(monster.pos, at);
+    const { burn } = ranged.lob;
     world.projectiles.push({
       ...flying,
+      // A burning circle hits for a share of the blow each time.
+      ...(burn && { damage: shared(flying.damage, burn.damage) }),
       lob: true,
       origin: { ...monster.pos },
       landing: { ...at },
       radius: ranged.lob.radius,
       progress: 0,
       rate: gap === 0 ? 1 : ranged.projectileSpeed / gap,
+      ...(burn && {
+        burn: { steps: msToSteps(burn.burnMs), every: msToSteps(burn.tickMs) },
+      }),
     });
+    if (burn) {
+      events.push({
+        type: "GravefireCast",
+        monster: monster.id,
+        landing: { ...at },
+      });
+    }
     return;
   }
   world.projectiles.push({
@@ -710,6 +771,14 @@ function loose(
     speed: ranged.projectileSpeed,
     rangeLeft: ranged.projectileRange,
   });
+}
+
+/** A damage range `share` of itself, each end at least 1. */
+function shared([min, max]: [number, number], share: number): [number, number] {
+  return [
+    Math.max(1, Math.round(min * share)),
+    Math.max(1, Math.round(max * share)),
+  ];
 }
 
 /**

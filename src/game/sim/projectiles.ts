@@ -83,7 +83,31 @@ export type LobbedProjectile = Airborne &
     progress: number;
     /** How much of its arc it flies each step. */
     rate: number;
+    /**
+     * Set when it lands as a burning circle (Gravefire), burning for `steps`
+     * steps and hitting every `every` steps, rather than as one blow.
+     */
+    burn?: { steps: number; every: number };
   };
+
+/**
+ * A burning circle, where a Gravefire landed: for the steps it has left it
+ * hits every living Hero and Minion within `radius` of `pos` each `every`
+ * steps, with the numbers the Gravefire was cast with. It outlives its
+ * Monster and hits no Monster.
+ */
+export type Burn = AttackNumbers & {
+  pos: Vec;
+  radius: number;
+  /** Steps left until it burns out. */
+  left: number;
+  /** Steps between hits. */
+  every: number;
+  /** Steps until its next hit. */
+  next: number;
+  /** Its burn length in steps, for how far through it is. */
+  steps: number;
+};
 
 /**
  * The Hero's Projectile: it hits every Monster and Bone Altar it touches,
@@ -114,6 +138,31 @@ export function isLobbed(
   projectile: Projectile,
 ): projectile is LobbedProjectile {
   return "lob" in projectile;
+}
+
+/**
+ * Burns every burning circle one step: it hits every Hero (not in Death) and
+ * Minion in its circle by calling `land` each time its tick comes, and is
+ * removed once burnt out, calling `burnt` on it. Returns nothing else.
+ */
+export function stepBurns(
+  world: World,
+  land: (burn: AttackNumbers, target: MonsterTarget) => void,
+  burnt: (burn: Burn) => void,
+) {
+  world.burns = world.burns.filter((burn) => {
+    burn.left -= 1;
+    burn.next -= 1;
+    if (burn.next <= 0) {
+      burn.next = burn.every;
+      for (const target of targetsInCircle(world, burn.pos, burn.radius)) {
+        land(burn, target);
+      }
+    }
+    if (burn.left > 0) return true;
+    burnt(burn);
+    return false;
+  });
 }
 
 /**
@@ -194,6 +243,20 @@ function stepLobbed(
     y: lobbed.origin.y + (lobbed.landing.y - lobbed.origin.y) * lobbed.progress,
   };
   if (lobbed.progress < 1) return true;
+  if (lobbed.burn) {
+    world.burns.push({
+      attackRating: lobbed.attackRating,
+      damage: lobbed.damage,
+      damageTypes: lobbed.damageTypes,
+      pos: { ...lobbed.landing },
+      radius: lobbed.radius,
+      left: lobbed.burn.steps,
+      every: lobbed.burn.every,
+      next: lobbed.burn.every,
+      steps: lobbed.burn.steps,
+    });
+    return false;
+  }
   for (const target of targetsInCircle(world, lobbed.landing, lobbed.radius)) {
     land(lobbed, target);
   }

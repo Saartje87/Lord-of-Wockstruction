@@ -137,6 +137,16 @@ export const PROJECTILE_LOOKS: Record<ProjectileKind, ProjectileLook> = {
     glow: 0x8fc22e,
     trail: 2,
   },
+  // Gravefire: a pumpkin left orange, glowing fire red, lobbed as Muck is.
+  gravefire: {
+    model: "halloween/pumpkin_orange_small",
+    scale: 1.1,
+    lay: [0, 0, 0],
+    tint: 0xff7a2a,
+    height: 0.8,
+    glow: 0xff6a1a,
+    trail: 3,
+  },
   // A small bone, as Bone Spear's but a third the size.
   splinter: {
     model: "halloween/bone_A",

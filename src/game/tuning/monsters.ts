@@ -124,7 +124,31 @@ export type RangedTuning = {
    * ground, and there hits every Hero and Minion within `radius` (tiles).
    * Its `projectileRange` is then unused.
    */
-  lob?: { radius: number };
+  lob?: {
+    radius: number;
+    /**
+     * Set when it lands where the Hero stood when it was loosed, whoever its
+     * Monster is after.
+     */
+    atHero?: boolean;
+    /**
+     * Set when it lands as a burning circle instead of a blow: for `burnMs`
+     * it hurts every Hero (not in Death) and Minion within `radius`, every
+     * `tickMs`, for the Monster's damage times `damage` (at least 1) each time.
+     */
+    burn?: { burnMs: number; tickMs: number; damage: number };
+  };
+  /**
+   * Set for a Monster that also swings: with its target within this reach it
+   * winds up a blow instead of loosing, as a melee attack would.
+   */
+  melee?: Omit<MeleeTuning, "kind" | "slam">;
+  /**
+   * How long it recovers, after loosing and before it can attack again, at
+   * each of its stages (ms): the first for its first stage. Missing, the
+   * type's `recoveryMs`.
+   */
+  recoveryMs?: number[];
 };
 
 /** A growth rate per Monster Level for each number that scales with it. */
@@ -470,7 +494,22 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
     replanMs: 400,
     needsSight: true,
     spreadRadius: 1.5,
-    attack: { kind: "melee", reach: 1.5, reachGrace: 0.25, arcDegrees: 70 },
+    // Gravefire, lobbed at where the Hero stands, from a standstill; a target
+    // within his reach gets his blow instead. Placeholder numbers until T510.
+    attack: {
+      kind: "ranged",
+      projectile: "gravefire",
+      range: 8,
+      projectileSpeed: 5,
+      projectileRange: 8,
+      lob: {
+        radius: 2.2,
+        atHero: true,
+        burn: { burnMs: 4000, tickMs: 500, damage: 0.25 },
+      },
+      melee: { reach: 1.5, reachGrace: 0.25, arcDegrees: 70 },
+      recoveryMs: [1800],
+    },
     windUpMs: 900,
     rootMs: 400,
     recoveryMs: 1500,

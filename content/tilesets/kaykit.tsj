@@ -4,7 +4,7 @@
  "name": "kaykit",
  "tilewidth": 128,
  "tileheight": 128,
- "tilecount": 49,
+ "tilecount": 50,
  "columns": 0,
  "margin": 0,
  "spacing": 0,
@@ -1138,6 +1138,29 @@
      "name": "piece",
      "type": "string",
      "value": "water"
+    }
+   ]
+  },
+  {
+   "id": 49,
+   "image": "kaykit/hexagon_building_watermill_red.png",
+   "imagewidth": 128,
+   "imageheight": 128,
+   "properties": [
+    {
+     "name": "blocks",
+     "type": "bool",
+     "value": true
+    },
+    {
+     "name": "kind",
+     "type": "string",
+     "value": "prop"
+    },
+    {
+     "name": "piece",
+     "type": "string",
+     "value": "hexagon/building_watermill_red"
     }
    ]
   }

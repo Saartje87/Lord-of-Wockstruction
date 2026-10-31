@@ -31,6 +31,8 @@ export const LOOKS = {
   stone: { saturation: 0.18, tint: 0x7e8cba },
   /** Town's dirt and paths: dusk light on earth, with its colour left. */
   dusk: { saturation: 0.6, tint: 0xbcc0e4 },
+  /** Outdoor dirt: warm earthy brown in daylight, with no evening blue. */
+  daylightDirt: { saturation: 0.85, tint: 0xffe6c4, gain: 1.9 },
   /** Green trees and bushes: green kept, only dimmed to the dusk. */
   green: { saturation: 0.9, tint: 0xf0f6ec },
   /** Grass underfoot: fully green and undimmed, so it reads as day grass. */
@@ -49,15 +51,18 @@ export const LOOKS = {
   warm: { saturation: 1, tint: 0xffffff },
 } satisfies Record<string, Look>;
 
-/** The look of a KayKit piece (`dungeon/wall`, `halloween/crypt`, ...). */
-export function lookOf(piece: string): Look {
+/**
+ * The look of a KayKit piece (`dungeon/wall`, `halloween/crypt`, ...) in an
+ * Area: Halloween dirt is daylight dirt outdoors and dusk-lit in Wockville.
+ */
+export function lookOf(piece: string, outdoors = false): Look {
   const name = piece.slice(piece.indexOf("/") + 1);
   if (piece === "city/park_base") return LOOKS.grass;
   if (piece.startsWith("city/")) return LOOKS.green;
   if (piece === "dungeon/floor_dirt_large") return LOOKS.mud;
   if (/torch|candle|lantern|pumpkin/.test(name)) return LOOKS.warm;
   if (piece.startsWith("halloween/") && /^(floor|path)/.test(name)) {
-    return LOOKS.dusk;
+    return outdoors && name === "floor_dirt" ? LOOKS.daylightDirt : LOOKS.dusk;
   }
   if (/^(floor|wall|pillar|column|path|fence|rubble)/.test(name)) {
     return LOOKS.stone;

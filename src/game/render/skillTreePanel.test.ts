@@ -268,6 +268,30 @@ describe("skillTreeSheet", () => {
     });
   });
 
+  it("carries a cast Skill's stat lines, Skill Level 1's while unlearned, and the next Skill Level's only while a point can be spent", () => {
+    const w = withGolem(0);
+    const mana = (lines: readonly string[]) =>
+      lines.find((one) => one.startsWith("Mana: "));
+
+    // Unlearned with a point to spend: Skill Level 1's lines, no next block.
+    expect(mana(rowOf(w, "golem").stats)).toBe("Mana: 15");
+    expect(rowOf(w, "golem").nextStats).toEqual([]);
+
+    step(w, [{ type: "SpendSkillPoint", skill: "golem" }]);
+    expect(mana(rowOf(w, "golem").stats)).toBe("Mana: 15");
+    expect(mana(rowOf(w, "golem").nextStats)).toBe("Mana: 17");
+
+    // No point left: only the current lines.
+    step(w, [{ type: "SpendSkillPoint", skill: "golem" }]);
+    expect(mana(rowOf(w, "golem").stats)).toBe("Mana: 17");
+    expect(rowOf(w, "golem").nextStats).toEqual([]);
+  });
+
+  it("carries no stat lines for a Passive Skill", () => {
+    expect(rowOf(world(), "graveCommand").stats).toEqual([]);
+    expect(rowOf(world(), "graveCommand").nextStats).toEqual([]);
+  });
+
   it("shows the required Level, and no +, until the Hero reaches it", () => {
     skillTuning.golem.requiredLevel = 6;
 

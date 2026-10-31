@@ -47,6 +47,12 @@ A Save at 450 Experience levels up on the next Skeleton kill. For fights, use Le
 
 In dev builds, `?area=<Area>&entry=<Entry>` starts at that Entry instead of in Town, with the Area's Monsters fresh: http://localhost:3000/?area=catacombs&entry=start. Areas are the `.tmj` files in `content/areas/`, and Entries their `entry` objects (the Catacombs' are `start`, `from-wockyard` and `from-crypt`). An unknown Area or Entry starts in Town. Production builds ignore the query. It applies on every load, so drop it to go back to Town.
 
+To start beside a fight, use the `fight` Entry, 3 to 4 tiles from a pack that notices the Hero on arrival. No Exit leads to it:
+
+- `?area=catacombs&entry=fight`: the Catacombs' 7 Skeletons.
+- `?area=old-mill&entry=fight`: Wockbrutes in the Old Mill.
+- `?area=soggy-bog&entry=fight`: Bog Spitters in the Soggy Bog.
+
 ### The 3D World
 
 The World is always drawn in 3D (three.js), with the HUD, panels, Mini Map and Map Overlay drawn over it by Pixi on the same canvas. There is nothing to switch on: the models load before the first frame.
@@ -104,8 +110,10 @@ const touch = (type, id, x, y) => canvas.dispatchEvent(new PointerEvent(type, {
 - **Buttons**: `pointerdown` on the button holds it until `pointerup`.
 - **Run timed sequences in one `javascript_tool`** (await a timeout between events), then screenshot. A tool round trip lasts seconds, and Monsters keep hitting meanwhile.
 - **A `setPointerCapture` error in the dev overlay** comes from dispatched touches outside the controls, which have no real pointer. It is no game bug.
-- **From Town to Monsters**: start there with `?area=catacombs&entry=start` (see Start in an Area). The nearest Skeletons (3) are about 23 tiles east of the Catacombs' `start` Entry.
+- **From Town to Monsters**: start beside a pack with a `fight` Entry (see Start in an Area).
 
 ## Deploys
 
 `main` deploys to https://lord-of-wockstruction.vercel.app through Vercel's GitHub integration. When something works locally but not there, check the deploy before the code: `gh api repos/Saartje87/Lord-of-Wockstruction/commits/<sha>/status` on `main`'s tip. No `Vercel` context means production never deployed; the user redeploys from the Vercel dashboard.
+
+A failed Vercel preview reading "rate limited" is Vercel's rate limit, not the code. `gh pr checks <n>` shows it, while `gh pr view` shows only `UNSTABLE`. Production may hit the same limit after merging; the user redeploys from the Vercel dashboard once it resets.

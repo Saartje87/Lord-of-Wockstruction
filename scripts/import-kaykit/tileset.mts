@@ -12,8 +12,9 @@ export function thumbnailOf(source: PieceSource): string {
 const WATER_KIND = "water";
 
 /**
- * The Water tile, after the last piece: it has no KayKit model, as the 3D
- * World draws each pond as a plane in code, and a hand-made thumbnail.
+ * The Water tile: it has no KayKit model, as the 3D World draws each pond as
+ * a plane in code, and a hand-made thumbnail. It is an entry in the record
+ * of tile numbers like any piece.
  */
 const WATER_TILE = {
   image: "kaykit/water.png",
@@ -26,35 +27,58 @@ const WATER_TILE = {
   ],
 };
 
+/** Each piece's tile number, by piece name (Water is "water"). */
+export type TileNumbers = Record<string, number>;
+
+/**
+ * The record of tile numbers, extended: a recorded piece keeps its number, a
+ * new one (Water included) takes the next free number, and a recorded piece
+ * that is no longer imported keeps its number, unused.
+ */
+export function numberTiles(
+  pieces: PieceSource[],
+  record: TileNumbers,
+): TileNumbers {
+  const numbers = { ...record };
+  let next = Math.max(-1, ...Object.values(record)) + 1;
+  for (const name of [...pieces.map(pieceName), WATER_KIND])
+    if (!(name in numbers)) numbers[name] = next++;
+  return numbers;
+}
+
 /**
  * The KayKit tileset as Tiled's `.tsj`: a collection of images, one tile per
- * piece in order, each with the properties `piece`, `blocks` and `kind`, then
- * the Water tile.
+ * piece and one for Water, each with the properties `piece`, `blocks` and
+ * `kind`. The tiles are numbered by the record of `numberTiles`, so a piece
+ * keeps its number forever and Areas never need repainting after an import.
  */
-export function tilesetOf(pieces: PieceSource[]) {
+export function tilesetOf(pieces: PieceSource[], record: TileNumbers) {
+  const numbers = numberTiles(pieces, record);
+  const tiles = [
+    ...pieces.map((source) => ({
+      id: numbers[pieceName(source)],
+      image: thumbnailOf(source),
+      imagewidth: THUMBNAIL_SIZE,
+      imageheight: THUMBNAIL_SIZE,
+      properties: [
+        { name: "blocks", type: "bool", value: source.blocks },
+        { name: "kind", type: "string", value: source.kind },
+        { name: "piece", type: "string", value: pieceName(source) },
+      ],
+    })),
+    { id: numbers[WATER_KIND], ...WATER_TILE },
+  ].sort((a, b) => a.id - b.id);
   return {
     type: "tileset",
     version: "1.10",
     name: "kaykit",
     tilewidth: THUMBNAIL_SIZE,
     tileheight: THUMBNAIL_SIZE,
-    tilecount: pieces.length + 1,
+    tilecount: Math.max(...tiles.map((tile) => tile.id)) + 1,
     columns: 0,
     margin: 0,
     spacing: 0,
     grid: { orientation: "isometric", width: 192, height: 96 },
-    tiles: pieces
-      .map((source, id) => ({
-        id,
-        image: thumbnailOf(source),
-        imagewidth: THUMBNAIL_SIZE,
-        imageheight: THUMBNAIL_SIZE,
-        properties: [
-          { name: "blocks", type: "bool", value: source.blocks },
-          { name: "kind", type: "string", value: source.kind },
-          { name: "piece", type: "string", value: pieceName(source) },
-        ],
-      }))
-      .concat([{ id: pieces.length, ...WATER_TILE }]),
+    tiles,
   };
 }

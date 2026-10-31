@@ -10,7 +10,8 @@ import { beltRows } from "../sim/belt";
 import { cursorItemOf } from "../sim/inventory";
 import { inside, overlaps, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
-import { ATTRIBUTES, canRaiseSkill, SKILLS, type World } from "../sim/world";
+import { ATTRIBUTES, canRaiseSkill, type World } from "../sim/world";
+import { BRANCHES } from "../tuning/skills";
 import type { Viewport } from "../viewport";
 import { beltStripHitAt, beltStripLayout } from "./beltStrip";
 import { dialogueHitAt, dialogueLayout, dialogueSheet } from "./dialoguePanel";
@@ -44,7 +45,14 @@ import {
 
 /** The panels as drawn: which are open, and the Hero panel's Pending Attribute Points. */
 export type ShownPanels = OpenPanels &
-  Pick<Menus, "pendingPoints" | "mapOpen" | "dialogueNpc" | "dialoguePage">;
+  Pick<
+    Menus,
+    | "pendingPoints"
+    | "mapOpen"
+    | "dialogueNpc"
+    | "dialoguePage"
+    | "skillTreeBranch"
+  >;
 
 /**
  * What a point on the screen hits of the panels and the HUD, or null when
@@ -85,7 +93,13 @@ export function cursorHitAt(
       shown.heroPanelOpen,
       shown.pendingPoints,
     ) ??
-    skillTreeHitAt(screen, point, world, shown.skillTreeOpen) ??
+    skillTreeHitAt(
+      screen,
+      point,
+      world,
+      shown.skillTreeOpen,
+      shown.skillTreeBranch,
+    ) ??
     questPanelHitAt(screen, point, world, shown.questOpen) ??
     // Only on the panel itself here: off it, the HUD comes before a drop.
     inventoryHitAt(screen, point, inventoryOpen, false, rows) ??
@@ -185,23 +199,28 @@ function touchTargets(
     grows.push(...heroButtonTargets(screen, world, shown, heroLayout));
   }
   if (shown.skillTreeOpen) {
-    const tree = skillTreePanelLayout(screen);
+    const tree = skillTreePanelLayout(screen, shown.skillTreeBranch);
     panels.push(tree.panel);
     close("skillTree", tree.closeButton, tree.panel);
-    stops.push(...Object.values(tree.skills));
-    // A Skill's +, while there, grows over its own rows: they're drawn over
-    // it. It grows only as far as its panel allows.
-    for (const skill of SKILLS) {
-      const rect = tree.raise[skill];
-      if (!canRaiseSkill(world, skill)) stops.push(rect);
-      else {
-        grows.push({
-          rect,
-          hit: { button: { type: "learn", skill } },
-          within: tree.panel,
-          panel: tree.panel,
-        });
-      }
+    for (const branch of BRANCHES) {
+      grows.push({
+        rect: tree.tabs[branch],
+        hit: { button: { type: "branchTab", branch } },
+        within: tree.panel,
+        panel: tree.panel,
+      });
+    }
+    // A Skill's +, while there, grows over its own tile: it's drawn over it.
+    // It grows only as far as its panel allows.
+    for (const { skill, tile, raise } of tree.skills) {
+      stops.push(tile);
+      if (!canRaiseSkill(world, skill)) continue;
+      grows.push({
+        rect: raise,
+        hit: { button: { type: "learn", skill } },
+        within: tree.panel,
+        panel: tree.panel,
+      });
     }
   }
   if (shown.questOpen) {

@@ -1044,7 +1044,7 @@ describe("a click at the Focus", () => {
 describe("a click at the Focus on the Skill Tree", () => {
   /** The Skill Tree's Focus spot `hit` names, as laid out for `world`. */
   const spotOn = (world: World, hit: CursorHit) => {
-    const spot = skillTreeFocusSpots(world, SCREEN).find(
+    const spot = skillTreeFocusSpots(world, SCREEN, "summoning").find(
       (one) => JSON.stringify(one.hit) === JSON.stringify(hit),
     );
     if (!spot) throw new Error("no such spot");

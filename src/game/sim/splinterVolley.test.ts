@@ -209,9 +209,12 @@ function untilSpent(w: World): SimEvent[] {
 }
 
 describe("Splinter Volley in the Skill Tree", () => {
-  it("sits after Bone Wall with Bone Wall as its Prerequisite", () => {
+  it("hangs from both Bone Spear and Bone Wall", () => {
     expect(skillTuning.splinterVolley.branch).toBe("bone");
-    expect(skillTuning.splinterVolley.prerequisite).toBe("boneWall");
+    expect(skillTuning.splinterVolley.prerequisites).toEqual([
+      "boneSpear",
+      "boneWall",
+    ]);
     expect(branchSkills.bone.slice(-3, -1)).toEqual([
       "boneWall",
       "splinterVolley",

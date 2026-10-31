@@ -174,13 +174,20 @@ const SKILL_ACTIONS: Record<
 };
 
 /**
- * A Skill's tooltip with `way`: its name and Skill Level, each Synergy and what they add now, what holds it
- * back (its Prerequisite and its Level), then, but for touch, how to spend a Skill Point on it while one can be, and how to put
- * it on the Skill Bar once learned.
+ * A Skill's tooltip with `way`: its name and Skill Level, its stat lines, a
+ * "Next Skill Level" block while a point can be spent, each Synergy and what
+ * they add now, the Passive's lines, and what holds it back (its
+ * Prerequisites and its Level). Then, but for touch, how to spend a Skill
+ * Point on it while one can be, and how to put it on the Skill Bar once
+ * learned.
  */
 export function skillTooltip(sheet: SkillSheet, way: InputWay): string[] {
   const raised = sheet.raised ? ` (+${sheet.raised})` : "";
   const lines = [sheet.name, `Skill Level ${sheet.skillLevel}${raised}`];
+  lines.push(...sheet.stats);
+  if (sheet.nextStats.length) {
+    lines.push("Next Skill Level", ...sheet.nextStats);
+  }
   for (const { giver, percentPerSkillLevel, total } of sheet.synergies) {
     lines.push(
       `Synergy: ${giver} +${percentPerSkillLevel}% per Skill Level, +${total}% now`,
@@ -189,8 +196,6 @@ export function skillTooltip(sheet: SkillSheet, way: InputWay): string[] {
   if (sheet.synergies.length) {
     lines.push(`Synergies add +${sheet.synergyTotal}% now`);
   }
-  if (sheet.prerequisite) lines.push(`Needs ${sheet.prerequisite} first`);
-  if (sheet.requiredLevel) lines.push(`Needs Level ${sheet.requiredLevel}`);
   if (sheet.passive) {
     const { percentPerSkillLevel, boosts, total } = sheet.passive;
     lines.push(
@@ -198,6 +203,10 @@ export function skillTooltip(sheet: SkillSheet, way: InputWay): string[] {
     );
     lines.push(`Passive adds +${total}% now`);
   }
+  if (sheet.prerequisites.length) {
+    lines.push(`Needs ${sheet.prerequisites.join(" and ")} first`);
+  }
+  if (sheet.requiredLevel) lines.push(`Needs Level ${sheet.requiredLevel}`);
   const actions = SKILL_ACTIONS[way];
   if (!actions) return lines;
   const { learn, pickUp } = actions;

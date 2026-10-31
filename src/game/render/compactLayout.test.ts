@@ -7,7 +7,14 @@ import { ATTRIBUTES, createWorld, FRESH_PROGRESS, SKILLS } from "../sim/world";
 import { PHONES } from "../testScreens";
 import { heroTuning } from "../tuning/hero";
 import { inventoryTuning } from "../tuning/items";
-import { BRANCHES, isPassive, type Skill } from "../tuning/skills";
+import {
+  BRANCHES,
+  type Branch,
+  branchSkills,
+  DEFAULT_BRANCH,
+  isPassive,
+  type Skill,
+} from "../tuning/skills";
 import { type Viewport, viewportOf } from "../viewport";
 import { beltStripLayout } from "./beltStrip";
 import { cursorHitAt } from "./cursorHit";
@@ -22,13 +29,10 @@ import { inventoryHitAt, inventoryPanelLayout } from "./inventoryPanel";
 import { panelButtonsLayout } from "./panelButtons";
 import { skillBarLayout } from "./skillBar";
 import {
-  fullRooms,
   SKILL_TREE_PANEL,
-  skillTreeBranchRow,
   skillTreeHitAt,
   skillTreePanelLayout,
   skillTreePanelRect,
-  skillTreeSkillRow,
 } from "./skillTreePanel";
 
 /** A Town of one tile with the Hero's `start` on it. */
@@ -114,7 +118,7 @@ function hudButtons(viewport: Viewport): [string, Rect][] {
 function panelRects(viewport: Viewport): [string, Rect][] {
   return [
     ["Hero panel", heroPanelLayout(viewport).panel],
-    ["Skill Tree panel", skillTreePanelLayout(viewport).panel],
+    ["Skill Tree panel", skillTreePanelLayout(viewport, DEFAULT_BRANCH).panel],
     ...BELT_ROWS.map(
       (rows) =>
         [
@@ -212,59 +216,67 @@ describe("the panels in the Compact Layout", () => {
 
   it.each(
     PHONES,
-  )("lay the Skill Tree's rows inside it and hit its Skills at their centres on $width×$height", (size) => {
+  )("lay the Skill Tree's tabs and grid inside it for every Branch and hit them at their centres on $width×$height", (size) => {
     const viewport = viewportOf(size);
-    const layout = skillTreePanelLayout(viewport);
-    const at = (rect: Rect) =>
-      skillTreeHitAt(viewport, centre(rect), world, true);
-    // Room for 15 Skills: Bone 6, Summoning 4 and Curses 5.
-    const rooms = fullRooms();
-    const panel = skillTreePanelRect(viewport, rooms);
     const hint =
       (SKILL_TREE_PANEL.hintHeight + SKILL_TREE_PANEL.padding) *
       viewport.uiScale;
+    const at = (rect: Rect, branch: Branch) =>
+      skillTreeHitAt(viewport, centre(rect), world, true, branch);
 
-    expect(panel).toEqual(layout.panel);
-    const slots: [string, Rect][] = [];
     for (const branch of BRANCHES) {
-      slots.push([`${branch} heading`, skillTreeBranchRow(viewport, branch)]);
-      for (let index = 0; index < rooms[branch]; index++) {
-        slots.push([
-          `${branch} ${index}`,
-          skillTreeSkillRow(viewport, branch, index, rooms),
-        ]);
+      const layout = skillTreePanelLayout(viewport, branch);
+      const { panel } = layout;
+      const parts: [string, Rect][] = [
+        ["×", layout.closeButton],
+        ...BRANCHES.map((other): [string, Rect] => [
+          `${other} tab`,
+          layout.tabs[other],
+        ]),
+        ...layout.skills.map(({ skill, tile }): [string, Rect] => [
+          skill,
+          tile,
+        ]),
+      ];
+
+      expect(panel).toEqual(skillTreePanelRect(viewport));
+      expect(layout.skills).toHaveLength(branchSkills[branch].length);
+      for (const [name, rect] of parts) {
+        expectInside(rect, panel, name);
+        if (name !== "×" && !name.endsWith("tab")) {
+          expect(rect.y + rect.h, `${name} over the hint`).toBeLessThanOrEqual(
+            panel.y + panel.h - hint,
+          );
+        }
+        expect(rect.y + rect.h, `${name} under the ×`).toBeGreaterThan(
+          layout.closeButton.y,
+        );
       }
-    }
-    expect(slots).toHaveLength(15 + 3);
-    for (const [name, rect] of slots) {
-      expectInside(rect, panel, name);
-      expect(rect.y + rect.h, `${name} over the hint`).toBeLessThanOrEqual(
-        panel.y + panel.h - hint,
-      );
-      expect(rect.y, `${name} under the ×`).toBeGreaterThanOrEqual(
-        layout.closeButton.y + layout.closeButton.h,
-      );
-    }
-    expectApart(slots);
-    for (const skill of SKILLS) {
-      expectInside(layout.skills[skill], layout.panel, `${skill} rows`);
-      expectInside(layout.raise[skill], layout.skills[skill], `${skill} +`);
-      expect(at(layout.raise[skill])).toEqual({
-        button: { type: "learn", skill },
+      expectApart(parts);
+      for (const { skill, tile, raise } of layout.skills) {
+        expectInside(raise, tile, `${skill} +`);
+        // Big enough to read and press.
+        expect(tile.w, `${skill} tile`).toBeGreaterThanOrEqual(18);
+        expect(at(raise, branch)).toEqual({
+          button: { type: "learn", skill },
+        });
+        const body = { ...tile, y: tile.y + raise.h, h: tile.h - raise.h };
+        // A Passive Skill can't be lifted.
+        expect(at(body, branch)).toEqual(
+          isPassive(skill)
+            ? { button: null }
+            : { button: { type: "pickUpSkill", skill } },
+        );
+      }
+      for (const other of BRANCHES) {
+        expect(at(layout.tabs[other], branch)).toEqual({
+          button: { type: "branchTab", branch: other },
+        });
+      }
+      expect(at(layout.closeButton, branch)).toEqual({
+        button: { type: "close", panel: "skillTree" },
       });
-      const rows = layout.skills[skill];
-      const name = { ...rows, w: layout.raise[skill].x - rows.x };
-      // A Passive Skill can't be lifted.
-      expect(at(name)).toEqual(
-        isPassive(skill)
-          ? { button: null }
-          : { button: { type: "pickUpSkill", skill } },
-      );
     }
-    expect(overlaps(layout.closeButton, layout.skills.golem)).toBe(false);
-    expect(at(layout.closeButton)).toEqual({
-      button: { type: "close", panel: "skillTree" },
-    });
   });
 
   it.each(

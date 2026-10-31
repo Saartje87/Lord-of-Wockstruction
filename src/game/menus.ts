@@ -7,6 +7,7 @@ import {
   type Order,
   type SimEvent,
 } from "./sim/world";
+import { type Branch, DEFAULT_BRANCH } from "./tuning/skills";
 import type { Viewport } from "./viewport";
 
 /**
@@ -22,6 +23,11 @@ export type Menus = {
   heroPanelOpen: boolean;
   inventoryOpen: boolean;
   skillTreeOpen: boolean;
+  /**
+   * The Branch the Skill Tree panel shows, kept while it is shut and reopened.
+   * Panel state: the Save never keeps it.
+   */
+  skillTreeBranch: Branch;
   questOpen: boolean;
   /**
    * Whether the Waypoint list is open. A World panel: the World opens it,
@@ -185,6 +191,7 @@ export function createMenus(screen: Screen = { type: "playing" }): Menus {
     heroPanelOpen: false,
     inventoryOpen: false,
     skillTreeOpen: false,
+    skillTreeBranch: DEFAULT_BRANCH,
     questOpen: false,
     waypointsOpen: false,
     dialogueOpen: false,

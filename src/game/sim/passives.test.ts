@@ -145,7 +145,7 @@ describe("Passive Skills in the Skill Tree's Branches", () => {
     ["lingeringMalice", "curses", "dread"],
   ] as const)("%s ends the %s Branch after %s", (skill, branch, before) => {
     expect(skillTuning[skill].branch).toBe(branch);
-    expect(skillTuning[skill].prerequisite).toBe(before);
+    expect(skillTuning[skill].prerequisites).toContain(before);
     expect(isPassive(skill)).toBe(true);
   });
 
@@ -165,7 +165,10 @@ describe("Passive Skills in the Skill Tree's Branches", () => {
 describe("learning a Passive Skill", () => {
   /** A Level 20 Hero with Skill Points, Dread learned and Raise Skeleton on the bar. */
   function learner(): World {
-    const w = inField({ dread: 1, raiseSkeleton: 1 }, "raiseSkeleton");
+    const w = inField(
+      { weaken: 1, dread: 1, raiseSkeleton: 1 },
+      "raiseSkeleton",
+    );
     w.hero.progress.skillPoints = 3;
     return w;
   }

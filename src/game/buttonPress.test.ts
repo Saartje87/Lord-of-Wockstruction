@@ -151,6 +151,29 @@ describe("the Skill Tree's +", () => {
   });
 });
 
+describe("a Branch tab", () => {
+  it("opens its Branch, starting on Bone, and keeps it while the panel is shut and reopened", () => {
+    const menus = createMenus();
+    const world = worldWith({});
+    const panelButton = { type: "panelButton", panel: "skillTree" } as const;
+
+    expect(menus.skillTreeBranch).toBe("bone");
+    pressButton(menus, world, panelButton);
+    const orders = pressButton(menus, world, {
+      type: "branchTab",
+      branch: "curses",
+    });
+    expect(orders).toEqual([]);
+    expect(menus.skillTreeBranch).toBe("curses");
+
+    pressButton(menus, world, panelButton);
+    expect(menus.skillTreeOpen).toBe(false);
+    pressButton(menus, world, panelButton);
+    expect(menus.skillTreeOpen).toBe(true);
+    expect(menus.skillTreeBranch).toBe("curses");
+  });
+});
+
 describe("a Panel button", () => {
   it("opens and shuts its panel", () => {
     const menus = createMenus();

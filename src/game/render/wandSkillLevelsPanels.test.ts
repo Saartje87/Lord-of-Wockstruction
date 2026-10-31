@@ -5,7 +5,6 @@ import {
   createWorld,
   FRESH_PROGRESS,
   type Progress,
-  skillManaCost,
   type World,
 } from "../sim/world";
 import { viewportOf } from "../viewport";
@@ -95,15 +94,9 @@ describe("a Wand's raise on the Skill Tree and in Skill tooltips", () => {
     ).toContain("Skill Level 2");
   });
 
-  it("prices the next Skill Point by the Skill Level it would make", () => {
-    expect(golemRow(wanded(1)).manaCost).toBe(
-      String(skillManaCost("golem", 3)),
-    );
-  });
-
   it("lets a Skill only a Wand raised be picked up", () => {
     const picksUpGolem = (w: World) =>
-      skillTreeFocusSpots(w, screen).some(
+      skillTreeFocusSpots(w, screen, "summoning").some(
         (spot) =>
           spot.secondHit?.button?.type === "pickUpSkill" &&
           spot.secondHit.button.skill === "golem",

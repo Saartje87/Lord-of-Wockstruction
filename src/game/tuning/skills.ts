@@ -9,11 +9,13 @@ type SkillBase = {
   /** The Branch of the Skill Tree it belongs to. */
   branch: Branch;
   /**
-   * The Skill before it in its Branch, which must have a Skill Level before
-   * a Skill Point can go into this one; null for the first of a Branch.
-   * It gates spending only, never casting.
+   * The Skills above it in its Branch that it hangs from, each of which must
+   * have a Skill Level before a Skill Point can go into this one; empty for a
+   * Branch's first Skills. It gates spending only, never casting.
    */
-  prerequisite: Skill | null;
+  prerequisites: Skill[];
+  /** Its place in its Branch's grid, which each Prerequisite sits above. */
+  grid: GridPlace;
   /** The Hero's Level from which a Skill Point can be spent on it. */
   requiredLevel: number;
   /** The Synergies it gets: the Skills whose Skill Levels make it stronger. */
@@ -204,20 +206,26 @@ export const corpseTuning = {
   reach: 2,
 };
 
+/** A place in a Branch's grid: a column 0 to 2 and a row 0 to 5, top down. */
+export type GridPlace = { column: number; row: number };
+
+/** How many columns and rows each Branch's grid has. */
+export const BRANCH_GRID = { columns: 3, rows: 6 } as const;
+
 /** A themed group of Skills in the Skill Tree. */
 export type Branch = "bone" | "summoning" | "curses";
 
 /** The Branches in the order the Skill Tree shows them. */
 export const BRANCHES: Branch[] = ["bone", "summoning", "curses"];
 
-/**
- * What the Skill Tree makes room for in each Branch: its name and how many
- * Skills it is built to hold (Bone 6, Summoning 4, Curses 5).
- */
-export const branchTuning: Record<Branch, { name: string; room: number }> = {
-  bone: { name: "Bone", room: 6 },
-  summoning: { name: "Summoning", room: 4 },
-  curses: { name: "Curses", room: 5 },
+/** The Branch the Skill Tree opens on. */
+export const DEFAULT_BRANCH: Branch = "bone";
+
+/** The name of each Branch. */
+export const branchTuning: Record<Branch, { name: string }> = {
+  bone: { name: "Bone" },
+  summoning: { name: "Summoning" },
+  curses: { name: "Curses" },
 };
 
 /** One of the Skills, by the name the sim and the Save know it by. */
@@ -290,7 +298,8 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
   golem: {
     name: "Golem",
     branch: "summoning",
-    prerequisite: "raiseSkeleton",
+    prerequisites: ["raiseSkeleton"],
+    grid: { column: 0, row: 1 },
     requiredLevel: 1,
     manaCost: 15,
     manaCostPerSkillLevel: 2,
@@ -308,7 +317,8 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
   raiseSkeleton: {
     name: "Raise Skeleton",
     branch: "summoning",
-    prerequisite: null,
+    prerequisites: [],
+    grid: { column: 1, row: 0 },
     requiredLevel: 1,
     manaCost: 6,
     manaCostPerSkillLevel: 1,
@@ -333,7 +343,8 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
   amplifyDamage: {
     name: "Amplify Damage",
     branch: "curses",
-    prerequisite: null,
+    prerequisites: [],
+    grid: { column: 1, row: 0 },
     requiredLevel: 2,
     manaCost: 4,
     manaCostPerSkillLevel: 0,
@@ -356,7 +367,8 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
   weaken: {
     name: "Weaken",
     branch: "curses",
-    prerequisite: "amplifyDamage",
+    prerequisites: ["amplifyDamage"],
+    grid: { column: 0, row: 1 },
     requiredLevel: 5,
     manaCost: 7,
     manaCostPerSkillLevel: 0,
@@ -381,7 +393,8 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
   leadenLimbs: {
     name: "Leaden Limbs",
     branch: "curses",
-    prerequisite: "weaken",
+    prerequisites: ["amplifyDamage"],
+    grid: { column: 2, row: 1 },
     requiredLevel: 8,
     manaCost: 9,
     manaCostPerSkillLevel: 0,
@@ -407,7 +420,8 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
   dread: {
     name: "Dread",
     branch: "curses",
-    prerequisite: "leadenLimbs",
+    prerequisites: ["leadenLimbs"],
+    grid: { column: 2, row: 2 },
     requiredLevel: 10,
     manaCost: 11,
     manaCostPerSkillLevel: 0,
@@ -430,7 +444,8 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
   boneWard: {
     name: "Bone Ward",
     branch: "bone",
-    prerequisite: null,
+    prerequisites: [],
+    grid: { column: 1, row: 0 },
     requiredLevel: 3,
     manaCost: 11,
     manaCostPerSkillLevel: 1,
@@ -447,7 +462,8 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
   corpseExplosion: {
     name: "Corpse Explosion",
     branch: "bone",
-    prerequisite: "boneWard",
+    prerequisites: ["boneWard"],
+    grid: { column: 0, row: 1 },
     requiredLevel: 4,
     manaCost: 15,
     manaCostPerSkillLevel: 1,
@@ -472,7 +488,8 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
   boneSpear: {
     name: "Bone Spear",
     branch: "bone",
-    prerequisite: "corpseExplosion",
+    prerequisites: ["corpseExplosion"],
+    grid: { column: 0, row: 2 },
     requiredLevel: 6,
     manaCost: 7,
     manaCostPerSkillLevel: 1,
@@ -503,7 +520,8 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
   boneWall: {
     name: "Bone Wall",
     branch: "bone",
-    prerequisite: "boneSpear",
+    prerequisites: ["boneWard"],
+    grid: { column: 2, row: 2 },
     requiredLevel: 8,
     manaCost: 14,
     manaCostPerSkillLevel: 0,
@@ -523,7 +541,8 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
   splinterVolley: {
     name: "Splinter Volley",
     branch: "bone",
-    prerequisite: "boneWall",
+    prerequisites: ["boneSpear", "boneWall"],
+    grid: { column: 1, row: 3 },
     requiredLevel: 10,
     manaCost: 12,
     manaCostPerSkillLevel: 1,
@@ -553,7 +572,8 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
   raiseArcher: {
     name: "Raise Archer",
     branch: "summoning",
-    prerequisite: "golem",
+    prerequisites: ["raiseSkeleton"],
+    grid: { column: 2, row: 1 },
     requiredLevel: 6,
     manaCost: 8,
     manaCostPerSkillLevel: 1,
@@ -581,7 +601,8 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
   ossifiedWill: {
     name: "Ossified Will",
     branch: "bone",
-    prerequisite: "splinterVolley",
+    prerequisites: ["splinterVolley"],
+    grid: { column: 1, row: 4 },
     requiredLevel: 12,
     passive: {
       boosts: ["boneWard", "corpseExplosion", "boneSpear", "splinterVolley"],
@@ -596,7 +617,8 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
   graveCommand: {
     name: "Grave Command",
     branch: "summoning",
-    prerequisite: "raiseArcher",
+    prerequisites: ["golem", "raiseArcher"],
+    grid: { column: 1, row: 2 },
     requiredLevel: 12,
     passive: {
       boosts: ["golem", "raiseSkeleton", "raiseArcher"],
@@ -612,7 +634,8 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
   lingeringMalice: {
     name: "Lingering Malice",
     branch: "curses",
-    prerequisite: "dread",
+    prerequisites: ["weaken", "dread"],
+    grid: { column: 1, row: 3 },
     requiredLevel: 12,
     passive: {
       boosts: ["amplifyDamage", "weaken", "leadenLimbs", "dread"],
@@ -623,23 +646,17 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
 };
 
 /**
- * Each Branch's Skills in Prerequisite order, the first having none and
- * each next one having the one before it.
+ * Each Branch's Skills by grid place: row by row, left to right. A
+ * Prerequisite is always in a higher row, so it comes first.
  */
 export const branchSkills = Object.fromEntries(
-  BRANCHES.map((branch) => {
-    const inBranch = (Object.keys(skillTuning) as Skill[]).filter(
-      (skill) => skillTuning[skill].branch === branch,
-    );
-    const ordered: Skill[] = [];
-    let next = inBranch.find((skill) => !skillTuning[skill].prerequisite);
-    while (next) {
-      ordered.push(next);
-      const after: Skill | undefined = inBranch.find(
-        (skill) => skillTuning[skill].prerequisite === next,
-      );
-      next = after;
-    }
-    return [branch, ordered];
-  }),
+  BRANCHES.map((branch) => [
+    branch,
+    (Object.keys(skillTuning) as Skill[])
+      .filter((skill) => skillTuning[skill].branch === branch)
+      .sort((a, b) => {
+        const [one, other] = [skillTuning[a].grid, skillTuning[b].grid];
+        return one.row - other.row || one.column - other.column;
+      }),
+  ]),
 ) as Record<Branch, Skill[]>;

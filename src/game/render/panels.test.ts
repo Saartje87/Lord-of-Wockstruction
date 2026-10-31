@@ -6,7 +6,13 @@ import { emptySkillBar } from "../sim/skillBar";
 import { ATTRIBUTES, createWorld, FRESH_PROGRESS, SKILLS } from "../sim/world";
 import { heroTuning } from "../tuning/hero";
 import { ITEM_TYPES, inventoryTuning, itemOf } from "../tuning/items";
-import { isPassive, type Skill } from "../tuning/skills";
+import {
+  BRANCHES,
+  type Branch,
+  DEFAULT_BRANCH,
+  isPassive,
+  type Skill,
+} from "../tuning/skills";
 import { type Viewport, viewportOf } from "../viewport";
 import { heroPanelHitAt, heroPanelLayout } from "./heroPanel";
 import {
@@ -91,7 +97,7 @@ describe("the panels at the UI Scale", () => {
     const viewport = viewportOf(size);
     const { uiScale } = viewport;
     const hero = heroPanelLayout(viewport);
-    const skillTree = skillTreePanelLayout(viewport);
+    const skillTree = skillTreePanelLayout(viewport, DEFAULT_BRANCH);
     const inventory = inventoryPanelLayout(viewport, 1);
 
     // At native scale: 300×524 Hero panel and 320 px Skill Tree panel,
@@ -104,7 +110,7 @@ describe("the panels at the UI Scale", () => {
     expect(hero.raise.strength.w).toBeCloseTo(22 * uiScale);
     expect(skillTree.panel.w).toBeCloseTo(320 * uiScale);
     expect(skillTree.closeButton.w).toBeCloseTo(22 * uiScale);
-    expect(skillTree.raise.golem.w).toBeCloseTo(22 * uiScale);
+    expect(skillTree.skills[0].raise.w).toBeCloseTo(22 * uiScale);
     expect(skillTree.panel.x + skillTree.panel.w).toBeCloseTo(
       size.width - 16 * uiScale,
     );
@@ -119,7 +125,7 @@ describe("the panels at the UI Scale", () => {
   )("fits the open panels inside $width×$height without overlapping", (size) => {
     const viewport = viewportOf(size);
     const hero = heroPanelLayout(viewport);
-    const skillTree = skillTreePanelLayout(viewport).panel;
+    const skillTree = skillTreePanelLayout(viewport, DEFAULT_BRANCH).panel;
 
     expectOnScreen(viewport, hero.panel, "Hero panel");
     expectOnScreen(viewport, skillTree, "Skill Tree panel");
@@ -157,27 +163,37 @@ describe("the panels at the UI Scale", () => {
 
   it.each(
     SCREENS,
-  )("hits the Skill Tree's Skills at their centres on $width×$height", (size) => {
+  )("hits the Skill Tree's tabs and Skills at their centres on $width×$height", (size) => {
     const viewport = viewportOf(size);
-    const layout = skillTreePanelLayout(viewport);
-    const at = (rect: Rect) =>
-      skillTreeHitAt(viewport, centre(rect), world, true);
+    const closeButton = skillTreePanelLayout(
+      viewport,
+      DEFAULT_BRANCH,
+    ).closeButton;
+    const at = (rect: Rect, branch: Branch) =>
+      skillTreeHitAt(viewport, centre(rect), world, true, branch);
 
-    for (const skill of SKILLS) {
-      expect(at(layout.raise[skill])).toEqual({
-        button: { type: "learn", skill },
-      });
-      // The rows left of the +.
-      const rows = layout.skills[skill];
-      const name = { ...rows, w: layout.raise[skill].x - rows.x };
-      // A Passive Skill can't be lifted.
-      expect(at(name)).toEqual(
-        isPassive(skill)
-          ? { button: null }
-          : { button: { type: "pickUpSkill", skill } },
-      );
+    for (const branch of BRANCHES) {
+      const layout = skillTreePanelLayout(viewport, branch);
+      for (const other of BRANCHES) {
+        expect(at(layout.tabs[other], branch)).toEqual({
+          button: { type: "branchTab", branch: other },
+        });
+      }
+      for (const { skill, tile, raise } of layout.skills) {
+        expect(at(raise, branch)).toEqual({
+          button: { type: "learn", skill },
+        });
+        // The tile below the +.
+        const body = { ...tile, y: tile.y + raise.h, h: tile.h - raise.h };
+        // A Passive Skill can't be lifted.
+        expect(at(body, branch)).toEqual(
+          isPassive(skill)
+            ? { button: null }
+            : { button: { type: "pickUpSkill", skill } },
+        );
+      }
     }
-    expect(at(layout.closeButton)).toEqual({
+    expect(at(closeButton, "bone")).toEqual({
       button: { type: "close", panel: "skillTree" },
     });
   });

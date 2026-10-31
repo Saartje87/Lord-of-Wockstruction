@@ -31,11 +31,7 @@ import { orbsLayout } from "./orbs";
 import { panelButtonsLayout } from "./panelButtons";
 import { QUEST_PANEL, questPanelLayout, questPanelSheet } from "./questPanel";
 import { skillBarLayout } from "./skillBar";
-import {
-  fullRooms,
-  SKILL_TREE_PANEL,
-  skillTreePanelLayout,
-} from "./skillTreePanel";
+import { SKILL_TREE_PANEL, skillTreePanelLayout } from "./skillTreePanel";
 import { touchControlsLayout } from "./touchControls";
 import { MIN_CELL_HIT, TOUCH_HIT_AREA, touchHitRect } from "./touchHitArea";
 import { VENDOR_PANEL, vendorPanelLayout } from "./vendorPanel";
@@ -236,24 +232,28 @@ const PANELS_UNDER_TEST: PanelUnderTest[] = [
     name: "Skill Tree",
     panel: "skillTree",
     rects(viewport) {
-      const layout = skillTreePanelLayout(viewport, fullRooms());
+      // The tallest Branch, Bone, with the tabs, every Branch's grid being
+      // the same size.
+      const layout = skillTreePanelLayout(viewport, "bone");
       return {
         panel: layout.panel,
         closeHint: closeHintOf(layout.panel, SKILL_TREE_PANEL, viewport),
         closeButton: layout.closeButton,
         parts: [
-          ...Object.entries(layout.branches).map(
-            ([branch, rect]): [string, Rect] => [`${branch} heading`, rect],
+          ["Skill Points", layout.points],
+          ...Object.entries(layout.tabs).map(
+            ([branch, rect]): [string, Rect] => [`${branch} tab`, rect],
           ),
-          ...Object.entries(layout.skills).map(
-            ([skill, rect]): [string, Rect] => [skill, rect],
-          ),
+          ...layout.skills.map(({ skill, tile }): [string, Rect] => [
+            skill,
+            tile,
+          ]),
         ],
-        buttons: Object.entries(layout.raise).map(
-          ([skill, rect]): [string, Rect, Rect] => [
+        buttons: layout.skills.map(
+          ({ skill, raise, tile }): [string, Rect, Rect] => [
             `${skill} +`,
-            rect,
-            layout.panel,
+            raise,
+            tile,
           ],
         ),
         cells: [],

@@ -33,6 +33,7 @@ import type { MinionType } from "../tuning/minions";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import type { ProjectileKind } from "../tuning/projectiles";
 import { type Skill, skillTuning } from "../tuning/skills";
+import { uniqueTuning } from "../tuning/uniqueMonsters";
 import type { BoneAltarView } from "./boneAltarMeshes";
 import type { BoneWallView } from "./boneWallMeshes";
 import { ATTACK_CONTACT, type HeroClip } from "./clips";
@@ -84,6 +85,8 @@ export type MonsterView = {
   /** How white a hit Monster is washed, 0..1. */
   flash: number;
   corpse: boolean;
+  /** Times its type's own scale: a Unique Monster's, else 1. */
+  scale: number;
   /** Whether it is outlined as hovered or targeted. */
   highlighted: boolean;
 };
@@ -398,6 +401,7 @@ export function worldViewOf(
           animation: corpseAnimationOf(effects.deadForMs.get(corpse.id)),
           flash: 0,
           corpse: true,
+          scale: 1,
           highlighted: false,
         }),
       ),
@@ -634,6 +638,7 @@ function monsterViewOf(
     animation,
     flash: effects.flashes.get(monster.id) ?? 0,
     corpse: false,
+    scale: monster.unique === null ? 1 : uniqueTuning.scale,
     highlighted: highlight === monster.id,
   };
 }

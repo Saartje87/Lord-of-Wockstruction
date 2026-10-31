@@ -483,8 +483,20 @@ const INVENTORY_STYLE = {
  * `bevelAlpha` of the edge's opacity. A lit button's icon sits `pressOffset`
  * lower, and all are `dimmed` opaque (0..1) during Death. `icon` is each
  * icon's shape about the button's centre, its lines `iconStroke` wide.
+ * `pointsMark` is the Points mark: a gold disc of `radius` centred `inset`
+ * in from the button's top-right corner, with a "+" `plus` across, its
+ * lines `stroke` wide.
  */
 const PANEL_BUTTON_STYLE = {
+  pointsMark: {
+    radius: 8,
+    inset: 2,
+    plus: 8,
+    stroke: 2.5,
+    fill: 0xe8b830,
+    rim: 0x3a2a08,
+    sign: 0x2a1a04,
+  },
   frame: 1.5,
   bevel: 3,
   litBevel: 4,
@@ -1463,7 +1475,12 @@ export function createRenderer(
       panelButtons.draw(
         viewport,
         menus,
-        { heroDead: world.death !== null, inTown: inTown(world) },
+        {
+          heroDead: world.death !== null,
+          inTown: inTown(world),
+          attributePoints: world.hero.progress.attributePoints,
+          skillPoints: world.hero.progress.skillPoints,
+        },
         hoveredPanelButton(onPanel),
       );
       miniMap.draw(
@@ -2160,7 +2177,11 @@ function panelButtonsView(activeInput: Readonly<ActiveInput>) {
     draw(
       screen: Viewport,
       menus: Menus,
-      hero: HeroState & { inTown: boolean },
+      hero: HeroState & {
+        inTown: boolean;
+        attributePoints: number;
+        skillPoints: number;
+      },
       hovered: Panel | "townPortal" | null,
     ) {
       const { buttons, townPortal } = panelButtonsLayout(screen);
@@ -2195,6 +2216,22 @@ function panelButtonsView(activeInput: Readonly<ActiveInput>) {
           alpha,
           scale,
         );
+        if (shown.points) {
+          const mark = atUiScale(look.pointsMark, scale);
+          const cx = rect.x + rect.w - mark.inset;
+          const cy = rect.y + mark.inset;
+          const half = mark.plus / 2;
+          graphics
+            .circle(cx, cy, mark.radius)
+            .fill({ color: look.pointsMark.fill, alpha })
+            .stroke({ color: look.pointsMark.rim, width: 1, alpha });
+          graphics
+            .moveTo(cx - half, cy)
+            .lineTo(cx + half, cy)
+            .moveTo(cx, cy - half)
+            .lineTo(cx, cy + half)
+            .stroke({ color: look.pointsMark.sign, width: mark.stroke, alpha });
+        }
         if (shown.panel === hovered) {
           tooltipText.text = shown.tooltip;
           tooltipText.visible = true;

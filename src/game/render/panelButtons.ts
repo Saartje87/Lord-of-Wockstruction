@@ -7,6 +7,7 @@ import {
   PANELS,
   type Panel,
   panelOpen,
+  unplacedPoints,
 } from "../menus";
 import { inside, middleOf, type Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
@@ -176,13 +177,15 @@ export function panelButtonHitAt(
 
 /**
  * What a Panel button shows: its panel, lit while that panel is open
- * however it was opened, dimmed while the Hero lies in Death, and the
- * tooltip naming it and its key while hovered.
+ * however it was opened, dimmed while the Hero lies in Death, `points`
+ * while it has a Points mark (lit or not), and the tooltip naming it and its
+ * key while hovered, and the points left to spend while `points`.
  */
 export type PanelButtonSheet = {
   panel: Panel;
   lit: boolean;
   dimmed: boolean;
+  points: boolean;
   tooltip: string;
 };
 
@@ -197,14 +200,30 @@ const PANEL_NAMES: Record<Panel, string> = {
 /** What the Panel buttons show, from left to right. */
 export function panelButtonsSheet(
   menus: Menus,
-  hero: HeroState,
+  hero: HeroState & { attributePoints: number; skillPoints: number },
 ): PanelButtonSheet[] {
-  return PANELS.map((panel) => ({
-    panel,
-    lit: panelOpen(menus, panel),
-    dimmed: hero.heroDead,
-    tooltip: `${PANEL_NAMES[panel]} (${PANEL_KEYS[panel].toUpperCase()})`,
-  }));
+  return PANELS.map((panel) => {
+    const left =
+      panel === "hero"
+        ? {
+            count: unplacedPoints(menus, hero.attributePoints),
+            name: "Attribute",
+          }
+        : panel === "skillTree"
+          ? { count: hero.skillPoints, name: "Skill" }
+          : { count: 0, name: "" };
+    const points = left.count > 0;
+    const key = `${PANEL_NAMES[panel]} (${PANEL_KEYS[panel].toUpperCase()})`;
+    return {
+      panel,
+      lit: panelOpen(menus, panel),
+      dimmed: hero.heroDead,
+      points,
+      tooltip: points
+        ? `${key} \u00b7 ${left.count} ${left.name} Point${left.count === 1 ? "" : "s"} to spend`
+        : key,
+    };
+  });
 }
 
 /**

@@ -102,6 +102,33 @@ describe("rolling an elemental damage Suffix", () => {
   });
 });
 
+describe("a drop with no elemental damage Suffix", () => {
+  it("rolls the same as before damage ranges, seed by seed", () => {
+    // Taken from the rolls before an elemental damage Suffix had a high end.
+    const before = [
+      { seed: 1, rarity: "normal", affixes: [] },
+      {
+        seed: 2,
+        rarity: "magic",
+        affixes: [{ kind: "brutality", grade: 1, value: 6 }],
+      },
+      {
+        seed: 3,
+        rarity: "magic",
+        affixes: [{ kind: "accuracy", grade: 1, value: 30 }],
+      },
+      {
+        seed: 4,
+        rarity: "magic",
+        affixes: [{ kind: "accuracy", grade: 0, value: 15 }],
+      },
+    ];
+    for (const { seed, ...expected } of before) {
+      expect(rollItem(createRng(seed), "axe", 9)).toEqual(expected);
+    }
+  });
+});
+
 describe("the Hero's attack with an elemental Suffix", () => {
   it("rolls the Element's amount between low and high, both ends occurring", () => {
     const w = wielding(["fireDamage", 2, 5]);

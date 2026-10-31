@@ -1240,14 +1240,25 @@ export function skillLevelsOf(world: World): Record<Skill, number> {
   ) as Record<Skill, number>;
 }
 
-/** What the Equipped Items add up to, bonus by bonus (0 for none). */
-function bonusOf(world: World, bonus: Bonus): number {
-  let total = 0;
+/**
+ * What the Equipped Items add up to of `bonus` at the least and at the most:
+ * the two are the same but for a damage range's high ends.
+ */
+function bonusRangeOf(world: World, bonus: Bonus): [number, number] {
+  let low = 0;
+  let spread = 0;
   for (const slot of EQUIPMENT_SLOTS) {
     const item = world.hero.equipment[slot];
-    if (item) total += itemBonus(item, bonus);
+    if (!item) continue;
+    low += itemBonus(item, bonus);
+    spread += affixSpread(item.affixes, bonus);
   }
-  return total;
+  return [low, low + spread];
+}
+
+/** What the Equipped Items add up to, bonus by bonus (0 for none). */
+function bonusOf(world: World, bonus: Bonus): number {
+  return bonusRangeOf(world, bonus)[0];
 }
 
 /**
@@ -1425,13 +1436,7 @@ function physicalDamageRange(world: World): [number, number] {
 
 /** The least and most damage of `element` the Equipped Items add to the Hero's hits. */
 function elementalDamage(world: World, element: Element): [number, number] {
-  const bonus = ELEMENT_INFO[element].damageBonus;
-  const low = bonusOf(world, bonus);
-  let spread = 0;
-  for (const slot of EQUIPMENT_SLOTS) {
-    spread += affixSpread(world.hero.equipment[slot]?.affixes, bonus);
-  }
-  return [low, low + spread];
+  return bonusRangeOf(world, ELEMENT_INFO[element].damageBonus);
 }
 
 /**
@@ -1461,8 +1466,8 @@ export function heroAttackDamage(world: World, roll: number): Damage {
   const [min, max] = physicalDamageRange(world);
   const damage: Damage = { physical: Math.round(min + roll * (max - min)) };
   for (const element of ELEMENTS) {
-    const range = elementalDamage(world, element);
-    if (range[1] > 0) damage[element] = randomInt(world.rng, range);
+    const [low, high] = elementalDamage(world, element);
+    if (high > 0) damage[element] = randomInt(world.rng, [low, high]);
   }
   return damage;
 }

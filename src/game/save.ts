@@ -35,7 +35,7 @@ import {
   type World,
 } from "./sim/world";
 import { heroTuning } from "./tuning/hero";
-import { AFFIX_KINDS, type AffixKind, affixOf } from "./tuning/items";
+import { AFFIX_KINDS, type AffixKind, hasDamageRange } from "./tuning/items";
 import { questTuning } from "./tuning/quests";
 import { isPassive } from "./tuning/skills";
 
@@ -99,14 +99,6 @@ const NEW_SLOTS_SINCE_VERSION = 13;
  * older text names one value, which loads as the range from it to itself.
  */
 const DAMAGE_RANGE_SINCE_VERSION = 14;
-
-/** Whether `kind` is an Affix kind that adds a damage range. */
-function isDamageKind(kind: unknown): boolean {
-  return (
-    AFFIX_KINDS.includes(kind as AffixKind) &&
-    !!affixOf(kind as AffixKind).grades[0].highRange
-  );
-}
 
 /** The Equipment slots that version `NEW_SLOTS_SINCE_VERSION` added. */
 const NEW_SLOTS: readonly string[] = ["offHand", "helm", "gloves", "boots"];
@@ -312,9 +304,7 @@ export function parseSave(text: string | null): HeroSave | null {
     fields.equipment,
     fields.belt,
     fields.smithBonuses,
-    version < AFFIXES_SINCE_VERSION,
-    version < NEW_SLOTS_SINCE_VERSION,
-    version < DAMAGE_RANGE_SINCE_VERSION,
+    version,
   );
   return belongings && { progress, belongings };
 }
@@ -323,17 +313,18 @@ export function parseSave(text: string | null): HeroSave | null {
  * The stored Inventory, Equipment and Belt Columns as Belongings, or null
  * when they aren't a list of Item types at cells, an object of Item types by
  * slot and a list of Potion types per Belt Column, or the Hero couldn't
- * have them.
+ * have them. `version` is the Save's, which decides what older text
+ * lacks or names differently.
  */
 function parseBelongings(
   inventory: unknown,
   equipment: unknown,
   belt: unknown,
   smithBonuses: unknown,
-  older: boolean,
-  withoutNewSlots: boolean,
-  singleValued: boolean,
+  version: number,
 ): Belongings | null {
+  const older = version < AFFIXES_SINCE_VERSION;
+  const withoutNewSlots = version < NEW_SLOTS_SINCE_VERSION;
   // How many rows the Belt Columns have is checked with the Equipment.
   if (!isValidBelt(belt, Number.POSITIVE_INFINITY)) return null;
   if (!Array.isArray(inventory)) return null;
@@ -361,7 +352,7 @@ function parseBelongings(
     if (typeof entry !== "object" || entry === null) return null;
     const { cell } = entry;
     if (typeof cell !== "object" || cell === null) return null;
-    const stored = parseStoredItem(entry, older, singleValued);
+    const stored = parseStoredItem(entry, version);
     if (!stored) return null;
     placed.push({
       ...stored,
@@ -371,8 +362,8 @@ function parseBelongings(
   const worn: Belongings["equipment"] = {};
   for (const [slot, entry] of Object.entries(equipment)) {
     const stored = older
-      ? parseOlderEquipped(entry, bonuses[slot])
-      : parseStoredItem(entry, false, singleValued);
+      ? parseOlderEquipped(entry, bonuses[slot], version)
+      : parseStoredItem(entry, version);
     if (!stored) return null;
     worn[slot as keyof typeof worn] = stored;
   }
@@ -429,11 +420,9 @@ const NAMED_JEWELLERY: Record<
  * null when it isn't an object. Text of this version names the Rarity and
  * the Affixes; older text names neither and its Items are Normal.
  */
-function parseStoredItem(
-  entry: unknown,
-  older: boolean,
-  singleValued: boolean,
-): StoredItem | null {
+function parseStoredItem(entry: unknown, version: number): StoredItem | null {
+  const older = version < AFFIXES_SINCE_VERSION;
+  const singleValued = version < DAMAGE_RANGE_SINCE_VERSION;
   if (typeof entry !== "object" || entry === null) return null;
   const { type, rarity, affixes, rareName, smithBonus } = entry as Record<
     string,
@@ -461,7 +450,11 @@ function parseStoredItem(
             unknown
           >;
           // Older text has one value; an elemental damage Affix's is its range.
-          if (singleValued && isDamageKind(kind)) {
+          if (
+            singleValued &&
+            AFFIX_KINDS.includes(kind as AffixKind) &&
+            hasDamageRange(kind as AffixKind)
+          ) {
             return { kind, grade, value, high: value };
           }
           return { kind, grade, value, ...(high !== undefined && { high }) };
@@ -476,12 +469,12 @@ function parseStoredItem(
 function parseOlderEquipped(
   type: unknown,
   smithBonus: unknown,
+  version: number,
 ): StoredItem | null {
   if (typeof type !== "string") return null;
   return parseStoredItem(
     { type, ...(smithBonus !== undefined && { smithBonus }) },
-    true,
-    false,
+    version,
   );
 }
 

@@ -53,13 +53,18 @@ export const NAMEPLATE = {
   bar: 180,
   barHeight: 8,
   barBottom: 8,
+  gap: 4,
 };
 
 /**
  * Where the nameplate's panel and Life bar are drawn, where its name's top
- * centre goes, and how big the name is.
+ * centre goes, and how big the name is. With a `below` above 0 (the bottom
+ * of the Boss bar) the panel sits `gap` under that instead of at the top.
  */
-export function nameplateLayout(screen: Viewport): {
+export function nameplateLayout(
+  screen: Viewport,
+  below = 0,
+): {
   panel: Rect;
   bar: Rect;
   nameAt: Vec;
@@ -69,7 +74,7 @@ export function nameplateLayout(screen: Viewport): {
   const centre = screen.width / 2;
   const panel = {
     x: centre - sizes.width / 2,
-    y: sizes.top,
+    y: below > 0 ? below + sizes.gap : sizes.top,
     w: sizes.width,
     h: sizes.height,
   };

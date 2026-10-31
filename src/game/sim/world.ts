@@ -1116,6 +1116,31 @@ export function isInCombat(world: World): boolean {
   );
 }
 
+/** What the Boss bar shows: the Act Boss's name, Life and maximum Life. */
+export type BossBar = { name: string; life: number; maxLife: number };
+
+/**
+ * The Boss bar: the Act Boss's name and Life while he is In Combat with the
+ * Hero, or null when he isn't, has died, is Returning, or the Area has none.
+ * No other Monster ever has one.
+ */
+export function bossBarOf(world: World): BossBar | null {
+  const { actBoss } = world.areas[world.areaName];
+  if (!actBoss) return null;
+  const boss = world.monsters.find(
+    (monster) =>
+      monster.unique === actBoss.name &&
+      monster.type === actBoss.monster &&
+      AFTER_HERO.includes(monster.state),
+  );
+  if (!boss) return null;
+  return {
+    name: actBoss.name,
+    life: boss.life,
+    maxLife: monsterMaxLife(boss),
+  };
+}
+
 /** The Experience Level `level` needs: 0 for Level 1. */
 export function levelExperience(level: number): number {
   return EXPERIENCE_TABLE[level - 1];

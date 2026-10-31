@@ -153,6 +153,7 @@ describe("heroSheet with Items Equipped", () => {
       { name: "Mana", value: "40 / 40", changed: false },
       { name: "Damage", value: "21–31", changed: false },
       { name: "Defense", value: "40", changed: false },
+      { name: "Block", value: "0%", changed: false },
       { name: "Attack Rating", value: "100", changed: false },
       { name: "Chance to hit a Skeleton", value: "85%", changed: false },
     ]);
@@ -217,8 +218,8 @@ describe("heroSheet with a Shield", () => {
     ).toBe("19%");
   });
 
-  it("shows no Block line with no Shield", () => {
-    expect(withOffHand({})).toBeUndefined();
+  it("shows 0% with no Shield", () => {
+    expect(withOffHand({})?.value).toBe("0%");
   });
 });
 
@@ -301,6 +302,7 @@ describe("heroSheet", () => {
         { name: "Mana", value: "40 / 40", changed: false },
         { name: "Damage", value: "20–30", changed: false },
         { name: "Defense", value: "0", changed: false },
+        { name: "Block", value: "0%", changed: false },
         { name: "Attack Rating", value: "100", changed: false },
         { name: "Chance to hit a Skeleton", value: "85%", changed: false },
       ],
@@ -339,6 +341,7 @@ describe("heroSheet", () => {
       { name: "Mana", value: "44 / 44", changed: false },
       { name: "Damage", value: "22–33", changed: false },
       { name: "Defense", value: "0", changed: false },
+      { name: "Block", value: "0%", changed: false },
       { name: "Attack Rating", value: "105", changed: false },
       // 2 × 105 / (105 + 135)
       { name: "Chance to hit a Skeleton", value: "88%", changed: false },
@@ -400,6 +403,7 @@ describe("heroSheet with Pending Attribute Points", () => {
       { name: "Mana", value: "34 / 45", changed: true },
       { name: "Damage", value: "20–30", changed: false },
       { name: "Defense", value: "0", changed: false },
+      { name: "Block", value: "0%", changed: false },
       { name: "Attack Rating", value: "100", changed: false },
       { name: "Chance to hit a Skeleton", value: "85%", changed: false },
     ]);

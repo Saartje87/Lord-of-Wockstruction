@@ -166,10 +166,7 @@ function sheetValues(world: World) {
       // Each hit rounds its own damage, so the range shows rounded too.
       { name: "Damage", value: `${Math.round(min)}–${Math.round(max)}` },
       { name: "Defense", value: String(heroDefense(world)) },
-      // Only with a Shield, as the speed lines show only when not 0.
-      ...(heroBlockChance(world) > 0
-        ? [{ name: "Block", value: `${heroBlockChance(world)}%` }]
-        : []),
+      { name: "Block", value: `${heroBlockChance(world)}%` },
       { name: "Attack Rating", value: String(attackRating(world)) },
       {
         name: "Chance to hit a Skeleton",

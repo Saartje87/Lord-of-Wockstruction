@@ -1103,15 +1103,21 @@ export function nextLevelExperience(level: number): number | null {
   return level < EXPERIENCE_TABLE.length ? EXPERIENCE_TABLE[level] : null;
 }
 
+/** What one Item adds of `bonus`: its type's, its Affixes' and its Smith bonus. */
+function itemBonus(item: Item, bonus: Bonus): number {
+  return (
+    (itemOf(item.type).bonuses[bonus] ?? 0) +
+    affixTotal(item.affixes, bonus) +
+    (item.smithBonus?.bonus === bonus ? item.smithBonus.amount : 0)
+  );
+}
+
 /** What the Equipped Items add up to, bonus by bonus (0 for none). */
 function bonusOf(world: World, bonus: Bonus): number {
   let total = 0;
   for (const slot of EQUIPMENT_SLOTS) {
     const item = world.hero.equipment[slot];
-    if (!item) continue;
-    total += itemOf(item.type).bonuses[bonus] ?? 0;
-    total += affixTotal(item.affixes, bonus);
-    if (item.smithBonus?.bonus === bonus) total += item.smithBonus.amount;
+    if (item) total += itemBonus(item, bonus);
   }
   return total;
 }
@@ -1160,19 +1166,31 @@ function maxima(world: World): PotionMaxima {
   return { life: maxLife(world), mana: maxMana(world) };
 }
 
+/** The slots whose Items' own Defense counts towards the Hero's Defense. */
+const DEFENSE_SLOTS: readonly EquipmentSlot[] = [
+  "helm",
+  "armour",
+  "gloves",
+  "boots",
+  "offHand",
+];
+
 /**
- * The Hero's Defense, which Monsters' Attack Rating has to beat: the
- * Equipped Armour's base Defense plus the Equipped Items' +Defense, 0 with
- * neither.
+ * The Hero's Defense, which Monsters' Attack Rating has to beat: the own
+ * Defense of each Equipped Helm, Armour, Gloves, Boots and Shield, each
+ * scaled by its own enhanced Defense %, plus the Equipped Items' flat
+ * +Defense; 0 with none.
  */
 export function heroDefense(world: World): number {
-  const armour = world.hero.equipment.armour;
-  const own = (armour && itemOf(armour.type).defense) ?? 0;
-  // The Armour's own Defense is scaled before flat Defense is added.
-  const enhanced = Math.round(
-    own * (1 + bonusOf(world, "enhancedDefense") / 100),
-  );
-  return enhanced + bonusOf(world, "defense");
+  let total = bonusOf(world, "defense");
+  for (const slot of DEFENSE_SLOTS) {
+    const item = world.hero.equipment[slot];
+    if (!item) continue;
+    const own = itemOf(item.type).defense ?? 0;
+    // The Item's own Defense is scaled before flat Defense is added.
+    total += Math.round(own * (1 + itemBonus(item, "enhancedDefense") / 100));
+  }
+  return total;
 }
 
 /** Whether the Hero is regaining Life: alive, out of combat and below full. */

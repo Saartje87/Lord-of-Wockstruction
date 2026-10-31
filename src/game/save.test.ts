@@ -374,7 +374,7 @@ describe("stored text", () => {
 
   it("carries a version number", () => {
     expect(JSON.parse(encodeSave(save(progress(1, 0))))).toMatchObject({
-      version: 12,
+      version: 13,
     });
   });
 

@@ -1,6 +1,22 @@
 /** The Smith's one-time service: the bonuses it can give, by the kind of Item. */
 
-import type { Bonus } from "./items";
+import type { Bonus, ItemKind } from "./items";
+
+/**
+ * The pool the Smith rolls from for an Item of `kind`: the Armour pool also
+ * serves Helms, Gloves, Boots and Shields. Null for a kind he can't work.
+ */
+export function smithPoolOf(kind: ItemKind): "weapon" | "armour" | null {
+  if (kind === "weapon") return "weapon";
+  const armour: readonly ItemKind[] = [
+    "armour",
+    "helm",
+    "gloves",
+    "boots",
+    "shield",
+  ];
+  return armour.includes(kind) ? "armour" : null;
+}
 
 /** One bonus the Smith can give and the `[min, max]` amount it rolls. */
 export type SmithPoolEntry = { bonus: Bonus; amount: [number, number] };

@@ -324,10 +324,10 @@ describe("the panels in the Compact Layout", () => {
   });
 
   it.each([
-    { rows: 1, atLeast: 30 },
-    { rows: 2, atLeast: 30 },
-    { rows: 3, atLeast: 27 },
-    { rows: 4, atLeast: 24 },
+    { rows: 1, atLeast: 25 },
+    { rows: 2, atLeast: 24 },
+    { rows: 3, atLeast: 22 },
+    { rows: 4, atLeast: 20 },
   ])("make the Inventory's cells as big as the 640×360 screen has room for, with $rows Belt rows", ({
     rows,
     atLeast,

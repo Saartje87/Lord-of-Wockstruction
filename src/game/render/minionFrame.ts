@@ -5,6 +5,7 @@ import {
   minionMaxLife,
   raiseCount,
   type SimEvent,
+  skillLevelsOf,
   type World,
 } from "../sim/world";
 import { skillTuning } from "../tuning/skills";
@@ -41,7 +42,7 @@ export type MinionRow = {
  */
 export function minionFrameRows(world: World): MinionRow[] {
   const rows = new Map<MinionType, MinionRow>();
-  const { skillLevels } = world.hero.progress;
+  const skillLevels = skillLevelsOf(world);
   for (const minion of world.minions) {
     // The cap is the sim's own rule for replacing the oldest, at the Skill
     // Level the Hero has now.

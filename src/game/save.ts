@@ -267,7 +267,7 @@ export function parseSave(text: string | null): HeroSave | null {
   }
   const skillLevels = parseSkillLevels(fields.skillLevels);
   if (!skillLevels) return null;
-  const skillBar = parseSkillBar(fields.skillBar, skillLevels);
+  const skillBar = parseSkillBar(fields.skillBar);
   if (!skillBar) return null;
   const touchedWaypoints = parseTouchedWaypoints(fields.touchedWaypoints);
   if (!touchedWaypoints) return null;
@@ -504,13 +504,11 @@ function parseSkillLevels(stored: unknown): Record<Skill, number> | null {
 
 /**
  * The stored Skill Bar, or null when it isn't an object holding each slot
- * and nothing else, every slot empty or holding a learned cast Skill in
- * `skillLevels`, none in two slots.
+ * and nothing else, every slot empty or holding a cast Skill, none in two
+ * slots. A Skill with no learned Skill Level may be on it: a Wand raised it,
+ * or did.
  */
-function parseSkillBar(
-  stored: unknown,
-  skillLevels: Record<Skill, number>,
-): SkillBar | null {
+function parseSkillBar(stored: unknown): SkillBar | null {
   const slots = objectWithin(stored, SKILL_BAR_SLOTS);
   if (!slots) return null;
   const held: unknown[] = [];
@@ -520,7 +518,7 @@ function parseSkillBar(
     if (!(SKILLS as unknown[]).includes(skill)) return null;
     // A Passive Skill is never cast, so it has no place on the bar.
     if (isPassive(skill as Skill)) return null;
-    if (skillLevels[skill as Skill] === 0 || held.includes(skill)) return null;
+    if (held.includes(skill)) return null;
     held.push(skill);
   }
   return Object.fromEntries(

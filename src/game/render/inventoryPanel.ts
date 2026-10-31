@@ -18,6 +18,7 @@ import type { Vec } from "../sim/vec";
 import type { Order, World } from "../sim/world";
 import type { Element } from "../tuning/damage";
 import {
+  affixOf,
   type Bonus,
   beltTuning,
   type ItemType,
@@ -27,6 +28,7 @@ import {
   type PotionEffectTuning,
   type PotionResource,
 } from "../tuning/items";
+import { skillTuning } from "../tuning/skills";
 import { atUiScale, type Viewport } from "../viewport";
 import { type CloseButton, closeButtonRect, closeHitAt } from "./closeButton";
 import { compactPanelRect } from "./compactLayout";
@@ -475,6 +477,7 @@ const BONUS_NAMES: Record<Bonus, string> = {
   fireDamage: "Fire Damage",
   coldDamage: "Cold Damage",
   lightningDamage: "Lightning Damage",
+  skillLevel: "Skill Level",
 };
 
 /** The Element a single-Element Resistance Bonus guards against. */
@@ -584,8 +587,11 @@ function tooltipLines(shown: Shown): TooltipLine[] {
   }
   for (const affix of shown.affixes ?? []) {
     const { bonus, amount } = affixBonus(affix);
+    const skill = affixOf(affix.kind).skill;
     lines.push({
-      text: bonusLine(bonus, amount),
+      text: skill
+        ? `+${amount} to ${skillTuning[skill].name}`
+        : bonusLine(bonus, amount),
       element: BONUS_ELEMENT[bonus],
     });
   }

@@ -25,7 +25,7 @@ import {
   waypointUnderHero,
 } from "./sim/world";
 import { ITEM_TYPES, itemOf } from "./tuning/items";
-import type { MonsterType } from "./tuning/monsters";
+import { type MonsterType, monsterTuning } from "./tuning/monsters";
 import { pondsOf } from "./world3d/waterMeshes";
 
 // Building the World runs the loader's validation: a `start` Entry, Exits to
@@ -1371,6 +1371,86 @@ describe("the shipped Act 1's Main Path", () => {
     expect(spa?.uniques.map((unique) => unique.name)).toEqual([
       "Sir Soaks-a-Lot",
     ]);
+  });
+});
+
+describe("Grave Wockington's room in the shipped Ossuary", () => {
+  const { ossuary } = shippedWorld().areas;
+  // His room is the walkable tiles from row 47 down; the 3-wide corridor
+  // north of it (rows 39-46) runs up to the room before it.
+  const ROOM_TOP = 47;
+  const CORRIDOR = { x: [14, 17], y: [39, 47] };
+  const MIDDLE_ROOM = { x: [6, 34], y: [25, 39] };
+  const inside = (box: { x: number[]; y: number[] }, pos: Vec) =>
+    pos.x >= box.x[0] &&
+    pos.x < box.x[1] &&
+    pos.y >= box.y[0] &&
+    pos.y < box.y[1];
+  const inRoom = (pos: Vec) => pos.y >= ROOM_TOP;
+  const boss = ossuary.actBoss;
+
+  it("holds only him when the Hero walks in", () => {
+    const world = createWorld({
+      areas,
+      tilesets,
+      seed: 1,
+      start: { area: "ossuary", entry: "start" },
+    });
+    expect(boss).not.toBeNull();
+    expect(inRoom(boss?.pos ?? { x: 0, y: 0 })).toBe(true);
+    expect(ossuary.spawns.filter((spawn) => inRoom(spawn.pos))).toEqual([]);
+    expect(
+      world.monsters.filter((m) => inRoom(m.pos)).map((m) => m.type),
+    ).toEqual(["grave_wockington"]);
+  });
+
+  it("moves the room's former Monsters into the corridor north of it and the room before it", () => {
+    const counts = (monster: MonsterType) =>
+      ossuary.spawns
+        .filter(
+          (s) =>
+            s.monster === monster &&
+            (inside(CORRIDOR, s.pos) || inside(MIDDLE_ROOM, s.pos)),
+        )
+        .reduce((total, s) => total + s.count, 0);
+    expect(
+      ossuary.spawns.filter((s) => inside(CORRIDOR, s.pos)).length,
+    ).toBeGreaterThan(0);
+    // Twelve Monsters moved: more than the three middle-room packs hold.
+    expect(counts("skeleton")).toBeGreaterThanOrEqual(5 + 7);
+    expect(counts("zombie")).toBeGreaterThanOrEqual(2 + 2);
+    expect(counts("skeleton_archer")).toBeGreaterThanOrEqual(2 + 3);
+  });
+
+  it("gives him a Leash from his spawn that reaches every walkable tile of his room and stops short of the corridor's far end", () => {
+    const home = boss?.pos ?? { x: 0, y: 0 };
+    const leash = monsterTuning.grave_wockington.leash;
+    const gap = (to: Vec) => Math.hypot(to.x - home.x, to.y - home.y);
+    let tiles = 0;
+    for (let y = ROOM_TOP; y < ossuary.height; y++) {
+      for (let x = 0; x < ossuary.width; x++) {
+        if (!isWalkable(ossuary, { x: x + 0.5, y: y + 0.5 })) continue;
+        tiles++;
+        expect(gap({ x: x + 0.5, y: y + 0.5 }), `tile ${x},${y}`).toBeLessThan(
+          leash,
+        );
+      }
+    }
+    expect(tiles).toBeGreaterThan(100);
+    for (let x = CORRIDOR.x[0]; x < CORRIDOR.x[1]; x++) {
+      expect(gap({ x: x + 0.5, y: CORRIDOR.y[0] + 0.5 })).toBeGreaterThan(
+        leash,
+      );
+    }
+  });
+
+  it("keeps the Ossuary's Waypoint at the Area's start", () => {
+    const start = ossuary.entries.start;
+    const waypoint = ossuary.waypoint;
+    expect(waypoint).not.toBeNull();
+    expect(
+      Math.hypot((waypoint?.x ?? 0) - start.x, (waypoint?.y ?? 0) - start.y),
+    ).toBeLessThan(5);
   });
 });
 

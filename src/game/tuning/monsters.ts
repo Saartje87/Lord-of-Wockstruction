@@ -476,7 +476,9 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
     recoveryMs: 1500,
     jitterMs: 400,
     maxAttackers: 0,
-    leash: 20,
+    // From his spawn in the Ossuary this reaches every corner of his room (12
+    // tiles at most) and stops short of the corridor's far end (15 tiles).
+    leash: 13,
     returnSpeed: 1.2,
     graceMs: 2000,
     flinchChance: 0,

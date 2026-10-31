@@ -544,6 +544,10 @@ _Avoid_: 3D mode, renderer, graphics mode
 How the HUD and panels are arranged on a short screen, such as a phone held sideways: one panel at a time, filling the screen, opening another shuts it.
 _Avoid_: Mobile layout, small mode
 
+**Click Marker**:
+The small puff of pale bone-ash that bursts low from the floor and fades where a fresh click or tap on the floor sends the Hero walking; holding on to keep walking doesn't raise another, and a click on a Monster, NPC or Item raises none. Nothing marks the floor under a cursor that only moves.
+_Avoid_: Waypoint, move indicator, hover tile, cursor
+
 **Target**:
 The Monster that auto-aim has picked for the Hero when there is no cursor, with a controller or touch: the nearest one within reach, and while the stick walks the Hero, the nearest one within reach ahead of where it walks. Attacks go to it and Skills are cast at it; it is shown as a hovered Monster is.
 _Avoid_: Lock-on, focus (that's in panels), aim

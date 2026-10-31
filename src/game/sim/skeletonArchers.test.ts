@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { monsterTuning } from "../tuning/monsters";
 import { emptyBelt } from "./belt";
 import type { Belongings } from "./inventory";
@@ -144,11 +144,6 @@ function killOne(world: World): SimEvent[] {
   }
   return all;
 }
-
-const tunedGrowth = { ...monsterTuning.skeleton_archer.growth };
-afterEach(() => {
-  monsterTuning.skeleton_archer.growth = { ...tunedGrowth };
-});
 
 /** Steps until the first Arrow is loosed, returning it. */
 function untilLoosed(world: World) {

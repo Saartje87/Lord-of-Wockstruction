@@ -5,9 +5,12 @@ import { afterEach, beforeEach } from "vitest";
 // values restored (nested too), added keys removed, replaced objects swapped
 // back. The objects stay the same objects, so code holding a reference sees the
 // restored values. Only tuning is covered; other module state is the test's own.
-const tuningModules = import.meta.glob("./src/game/tuning/*.ts", {
-  eager: true,
-}) as Record<string, Record<string, unknown>>;
+const tuningModules = import.meta.glob(
+  ["./src/game/tuning/*.ts", "!./src/game/tuning/*.test.ts"],
+  {
+    eager: true,
+  },
+) as Record<string, Record<string, unknown>>;
 
 type Node = {
   target: object;
@@ -49,7 +52,8 @@ function restore(node: Node, done: Set<Node>): void {
   if (done.has(node)) return;
   done.add(node);
   const target = node.target as Record<PropertyKey, unknown>;
-  if (node.length !== undefined) (target as unknown[]).length = node.length;
+  if (node.length !== undefined)
+    (node.target as unknown[]).length = node.length;
   for (const key of Reflect.ownKeys(target)) {
     if (Array.isArray(target) && key === "length") continue;
     if (!node.entries.has(key)) delete target[key];

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { heroTuning } from "../tuning/hero";
 import { monsterTuning } from "../tuning/monsters";
 import { newMinion } from "./minions";
@@ -105,11 +105,6 @@ const { lob, recoveryMs, range } = attack;
 const { burn } = lob;
 if (!burn) throw new Error("No burn tuning");
 const ticks = Math.floor(burn.burnMs / burn.tickMs);
-
-const savedFlinch = heroTuning.flinchChance;
-afterEach(() => {
-  heroTuning.flinchChance = savedFlinch;
-});
 
 /** The boss in a field with the Hero kept alive, unflinching, and no waves. */
 function fight(rows: string[], seed = 1): World {
@@ -532,11 +527,6 @@ describe("his wind-up", () => {
 });
 
 describe("Gravefire's damage type", () => {
-  const saved = structuredClone(monsterTuning.grave_wockington.damage);
-  afterEach(() => {
-    monsterTuning.grave_wockington.damage = saved;
-  });
-
   /** The damage of each burn tick on a Hero with `fireResistance`. */
   function tickDamage(fireResistance: number) {
     monsterTuning.grave_wockington.damage = [100, 100];

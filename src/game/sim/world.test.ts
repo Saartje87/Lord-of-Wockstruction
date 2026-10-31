@@ -285,7 +285,6 @@ describe("Area tiles", () => {
     name: "grassland",
     tiles: [{ id: 16 }, { id: 17 }, { id: 132 }],
   };
-  const _gid = (id: number) => grassland.firstgid + id;
 
   it("reads a tileset from its own file, by the file's name", () => {
     const tsj = {

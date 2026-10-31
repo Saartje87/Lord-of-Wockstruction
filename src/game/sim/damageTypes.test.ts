@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { heroTuning } from "../tuning/hero";
 import { minionTuning } from "../tuning/minions";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
@@ -89,25 +89,6 @@ function inField(rows: string[], progress?: Progress): World {
     start: { area: "field", entry: "start" },
   });
 }
-
-const original = {
-  skeleton: structuredClone(monsterTuning.skeleton),
-  explosion: structuredClone(skillTuning.corpseExplosion),
-  golemResistances: (minionTuning.golem as { resistances?: unknown })
-    .resistances,
-};
-
-afterEach(() => {
-  // A test may add keys the original lacks, so drop them first.
-  delete (monsterTuning.skeleton as { damageTypes?: unknown }).damageTypes;
-  Object.assign(monsterTuning.skeleton, structuredClone(original.skeleton));
-  Object.assign(
-    skillTuning.corpseExplosion,
-    structuredClone(original.explosion),
-  );
-  (minionTuning.golem as { resistances?: unknown }).resistances =
-    original.golemResistances;
-});
 
 /** A Skeleton that hits for exactly `damage`, with the Damage Types given. */
 function skeletonDealing(damage: number, damageTypes?: Record<string, number>) {

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { heroTuning } from "../tuning/hero";
 import { skillTuning } from "../tuning/skills";
 import { emptySkillBar } from "./skillBar";
@@ -121,11 +121,6 @@ const limbs = skillTuning.leadenLimbs.effect;
 if (limbs.type !== "curse" || limbs.kind !== "leadenLimbs") {
   throw new Error("Leaden Limbs is not a leadenLimbs Curse");
 }
-
-const tuned = { ...limbs };
-afterEach(() => {
-  Object.assign(limbs, tuned);
-});
 
 describe("Leaden Limbs", () => {
   it("sits after Weaken with Weaken as its Prerequisite", () => {

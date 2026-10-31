@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   BRANCHES,
   branchSkills,
@@ -107,11 +107,6 @@ function spend(w: World, skill: Skill, times = 1): SimEvent[] {
   }
   return events;
 }
-
-const raiseRequiredLevel = skillTuning.raiseSkeleton.requiredLevel;
-afterEach(() => {
-  skillTuning.raiseSkeleton.requiredLevel = raiseRequiredLevel;
-});
 
 describe("a New Hero", () => {
   it("has no Skills learned and no Skill Points", () => {

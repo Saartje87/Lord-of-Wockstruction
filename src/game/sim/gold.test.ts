@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { changesSave } from "../save";
 import { goldTuning } from "../tuning/gold";
 import { dropTuning, potionDropTuning } from "../tuning/items";
@@ -66,18 +66,6 @@ function map(row: string, exitTo = "") {
     ],
   };
 }
-
-const tuned = {
-  ...goldTuning,
-  perMonsterLevel: [...goldTuning.perMonsterLevel],
-};
-const tunedItems = { ...dropTuning };
-const tunedPotions = { ...potionDropTuning };
-afterEach(() => {
-  Object.assign(goldTuning, tuned);
-  Object.assign(dropTuning, tunedItems);
-  Object.assign(potionDropTuning, tunedPotions);
-});
 
 /** Every kill drops a Gold Pile and nothing else. */
 function onlyGold() {

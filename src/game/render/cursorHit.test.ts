@@ -53,15 +53,6 @@ function world(belt: ItemType) {
   });
 }
 
-/** The middle of where `a` and `b` overlap. */
-function overlapCentre(a: Rect, b: Rect) {
-  const left = Math.max(a.x, b.x);
-  const right = Math.min(a.x + a.w, b.x + b.w);
-  const top = Math.max(a.y, b.y);
-  const bottom = Math.min(a.y + a.h, b.y + b.h);
-  return { x: (left + right) / 2, y: (top + bottom) / 2 };
-}
-
 /**
  * A short screen held at native scale, where the Inventory panel reaches
  * down over the HUD. At the UI Scale they keep clear of each other on the

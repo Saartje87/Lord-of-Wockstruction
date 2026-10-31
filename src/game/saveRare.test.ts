@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { encodeSave, parseSave } from "./save";
+import { parseSaveJson, type SaveJson } from "./saveTamper";
 import { emptyBelt } from "./sim/belt";
 import type { Belongings } from "./sim/inventory";
 import { FRESH_PROGRESS } from "./sim/world";
@@ -22,8 +23,8 @@ const BELONGINGS: Belongings = {
 };
 
 /** Saved text of the Belongings, tampered with by `change`. */
-function tampered(change: (text: Record<string, any>) => void) {
-  const text = JSON.parse(
+function tampered(change: (text: SaveJson) => void) {
+  const text = parseSaveJson(
     encodeSave({
       progress: { ...FRESH_PROGRESS, smithService: "locked" },
       belongings: BELONGINGS,
@@ -43,38 +44,44 @@ describe("the Save of Rare Items", () => {
   it.each([
     [
       "a Rare name on a Magic Item",
-      (t: any) => {
+      (t: SaveJson) => {
         t.inventory[0].rarity = "magic";
         t.inventory[0].affixes.length = 1;
       },
     ],
     [
       "a Rare name on a Normal Item",
-      (t: any) => {
+      (t: SaveJson) => {
         t.inventory[0].rarity = "normal";
         t.inventory[0].affixes = [];
       },
     ],
     [
       "a Rare name on an Equipped Normal Item",
-      (t: any) => {
+      (t: SaveJson) => {
         t.equipment.weapon.rarity = "normal";
         t.equipment.weapon.affixes = [];
       },
     ],
-    ["a Rare Item without a name", (t: any) => delete t.inventory[0].rareName],
+    [
+      "a Rare Item without a name",
+      (t: SaveJson) => delete t.inventory[0].rareName,
+    ],
     [
       "a Rare Item with a blank name",
-      (t: any) => (t.inventory[0].rareName = " "),
+      (t: SaveJson) => (t.inventory[0].rareName = " "),
     ],
     [
       "a Rare Item with a non-text name",
-      (t: any) => (t.inventory[0].rareName = 5),
+      (t: SaveJson) => (t.inventory[0].rareName = 5),
     ],
-    ["a Rare Item with two Affixes", (t: any) => t.inventory[0].affixes.pop()],
+    [
+      "a Rare Item with two Affixes",
+      (t: SaveJson) => t.inventory[0].affixes.pop(),
+    ],
     [
       "a Rare Item with five Affixes",
-      (t: any) =>
+      (t: SaveJson) =>
         t.inventory[0].affixes.push(
           { kind: "dexterity", grade: 0, value: 2 },
           { kind: "vitality", grade: 0, value: 2 },
@@ -83,7 +90,7 @@ describe("the Save of Rare Items", () => {
     ],
     [
       "a Rare Item with three Prefixes",
-      (t: any) =>
+      (t: SaveJson) =>
         (t.inventory[0].affixes = [
           { kind: "accuracy", grade: 0, value: 12 },
           { kind: "life", grade: 0, value: 7 },
@@ -92,7 +99,7 @@ describe("the Save of Rare Items", () => {
     ],
     [
       "a Rare Item with three Suffixes",
-      (t: any) =>
+      (t: SaveJson) =>
         (t.inventory[0].affixes = [
           { kind: "strength", grade: 0, value: 2 },
           { kind: "dexterity", grade: 0, value: 2 },
@@ -101,12 +108,12 @@ describe("the Save of Rare Items", () => {
     ],
     [
       "a Rare Item with one kind twice",
-      (t: any) =>
+      (t: SaveJson) =>
         (t.inventory[0].affixes[2] = { kind: "life", grade: 0, value: 7 }),
     ],
     [
       "a Rare Potion",
-      (t: any) =>
+      (t: SaveJson) =>
         (t.belt[0] = [
           { type: "lifePotion", rarity: "rare", rareName: "Gloom Bane" },
         ]),

@@ -14,7 +14,9 @@ import { compactPanelRect } from "./compactLayout";
  * The Dialogue panel in the middle of the screen (CSS px at native scale,
  * drawn at the UI Scale): `width` wide, the NPC's name `firstLine` down, the
  * `bodyHeight` of what they say under it, then a row `rowHeight` tall for
- * each button, and `hintHeight` for the hint, all inside `padding`.
+ * each button, and `hintHeight` for the hint, all inside `padding`. In the
+ * Compact Layout the words keep at least `compactMinBody`, room for a few
+ * lines, however many buttons share the panel.
  */
 export const DIALOGUE = {
   width: 340,
@@ -23,6 +25,7 @@ export const DIALOGUE = {
   bodyHeight: 120,
   rowHeight: 44,
   hintHeight: 28,
+  compactMinBody: 56,
 };
 
 /** What an NPC without a Quest says, by their name in the map: a line of their own. */
@@ -176,17 +179,34 @@ export function dialoguePanelRect(screen: Viewport, buttons: number): Rect {
  * Where the panel, its × close button, the NPC's words and each button
  * (CSS px) go, at the UI Scale: inside the panel's padding, and in the
  * Compact Layout, where the panel fills the screen, as wide as on a desktop
- * and centred.
+ * and centred. There the words and the buttons share the room above the
+ * hint: the words keep up to `bodyHeight`, but no less than
+ * `DIALOGUE.compactMinBody`, and the buttons give up height for it only
+ * when that is not enough.
  */
 export function dialogueLayout(
   screen: Viewport,
   buttons: number,
 ): { panel: Rect; closeButton: Rect; body: Rect; buttons: Rect[] } {
-  const { width, padding, firstLine, bodyHeight, rowHeight } = atUiScale(
-    DIALOGUE,
-    screen.uiScale,
-  );
+  const {
+    width,
+    padding,
+    firstLine,
+    rowHeight,
+    hintHeight,
+    bodyHeight: wanted,
+    compactMinBody,
+  } = atUiScale(DIALOGUE, screen.uiScale);
   const panel = dialoguePanelRect(screen, buttons);
+  // On a desktop the panel is as tall as its parts; in the Compact Layout
+  // the words and the buttons share what the fixed panel has left.
+  const room = panel.h - firstLine - hintHeight - padding;
+  const bodyHeight = screen.compact
+    ? Math.min(wanted, Math.max(compactMinBody, room - buttons * rowHeight))
+    : wanted;
+  const buttonHeight = screen.compact
+    ? Math.min(rowHeight, (room - bodyHeight) / buttons)
+    : rowHeight;
   const w = width - 2 * padding;
   const x = panel.x + (panel.w - w) / 2;
   return {
@@ -195,9 +215,9 @@ export function dialogueLayout(
     body: { x, y: panel.y + firstLine, w, h: bodyHeight },
     buttons: Array.from({ length: buttons }, (_, index) => ({
       x,
-      y: panel.y + firstLine + bodyHeight + index * rowHeight,
+      y: panel.y + firstLine + bodyHeight + index * buttonHeight,
       w,
-      h: rowHeight,
+      h: buttonHeight,
     })),
   };
 }

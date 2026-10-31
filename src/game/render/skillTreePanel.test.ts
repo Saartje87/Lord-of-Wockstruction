@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   createWorld,
   FRESH_PROGRESS,
@@ -83,11 +83,6 @@ function kill(w: World) {
     step(w, []);
   }
 }
-
-const golemRequiredLevel = skillTuning.golem.requiredLevel;
-afterEach(() => {
-  skillTuning.golem.requiredLevel = golemRequiredLevel;
-});
 
 /** The rows of a Belt Column with no Belt Equipped. */
 const ONE_ROW = 1;
@@ -370,8 +365,8 @@ describe("skillTreeHitAt", () => {
     const skill = layout.skills.golem;
     const plus = layout.raise.golem;
 
-    expect(skill.h).toBe(26);
-    expect(skill.y).toBeGreaterThan(layout.panel.y + 56 + 26);
+    expect(skill.h).toBe(24);
+    expect(skill.y).toBeGreaterThan(layout.panel.y + 56 + 24);
     expect(plus.y).toBeGreaterThanOrEqual(skill.y);
     expect(plus.y + plus.h).toBeLessThanOrEqual(skill.y + skill.h);
     expect(plus.x + plus.w).toBe(skill.x + skill.w);

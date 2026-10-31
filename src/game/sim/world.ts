@@ -77,7 +77,6 @@ import {
   type Damage,
   landDamage,
   minionResistances,
-  monsterResistances,
   resistancesOf,
   splitDamage,
   unresistedTotal,
@@ -140,7 +139,6 @@ import {
 import {
   type AttackNumbers,
   type Burn,
-  isLobbed,
   type LobbedProjectile,
   type Projectile,
   stepBurns,

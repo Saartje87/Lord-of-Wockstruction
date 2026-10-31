@@ -561,7 +561,7 @@ A touch held still on an Item or Skill for a moment, which shows its tooltip ins
 _Avoid_: Hold, press and hold, hover
 
 **Touch hit area**:
-The area around a small button, such as a ×, a Panel button, the pause button or a panel's + and −, that a touch presses it from: grown toward 44 CSS px square, whatever the UI Scale, as far as the halfway rule and its panel allow. A mouse presses only the button as drawn.
+The area around a small button, such as a ×, a Panel button, the pause button or a panel's + and −, that a touch presses it from: grown toward 44 CSS px square, whatever the UI Scale, as far as the halfway rule and its panel allow. A mouse presses only the button as drawn. A cell in a grid (Inventory, Equipment slots, Belt, Vendor) can't grow, since its neighbours meet it halfway, so it is never drawn smaller than 20 CSS px instead.
 _Avoid_: Tap target, hitbox, touch zone
 
 **Halfway rule**:

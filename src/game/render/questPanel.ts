@@ -102,26 +102,32 @@ export function questPanelRect(screen: Viewport, rows: number): Rect {
  * Where the panel, its × close button and each Quest's row (CSS px) go, at
  * the UI Scale. The rows run down the panel from under its title, inside its
  * padding; in the Compact Layout, where the panel fills the screen, as wide
- * as on a desktop and centred.
+ * as on a desktop and centred, and no taller than the room above the hint
+ * leaves for them.
  */
 export function questPanelLayout(
   screen: Viewport,
   rows: number,
 ): { panel: Rect; closeButton: Rect; rows: Rect[] } {
-  const { width, padding, firstRow, rowHeight } = atUiScale(
+  const { width, padding, firstRow, rowHeight, hintHeight } = atUiScale(
     QUEST_PANEL,
     screen.uiScale,
   );
   const panel = questPanelRect(screen, rows);
   const w = width - 2 * padding;
+  // A short screen's panel is too short for every row at full height.
+  const roomForRows = panel.h - firstRow - hintHeight - padding;
+  const h = screen.compact
+    ? Math.min(rowHeight, roomForRows / rows)
+    : rowHeight;
   return {
     panel,
     closeButton: closeButtonRect(panel, screen.uiScale),
     rows: Array.from({ length: rows }, (_, index) => ({
       x: panel.x + (panel.w - w) / 2,
-      y: panel.y + firstRow + index * rowHeight,
+      y: panel.y + firstRow + index * h,
       w,
-      h: rowHeight,
+      h,
     })),
   };
 }

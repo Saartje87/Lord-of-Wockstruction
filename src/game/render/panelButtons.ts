@@ -130,6 +130,22 @@ export function panelButtonTooltipRect(
   };
 }
 
+/**
+ * Where the panels at the right of a desktop screen must stop (the bottom
+ * edge, in CSS px): above the Panel buttons (the Hero button's top, as they
+ * are in line), the Town Portal button and the Mana orb, whichever reaches
+ * highest.
+ */
+export function rightPanelsBottom(screen: Viewport): number {
+  const { buttons, townPortal } = panelButtonsLayout(screen);
+  const { mana } = orbsLayout(screen);
+  return Math.min(
+    buttons.hero.y,
+    townPortal.y,
+    mana.y - mana.radius - mana.rim,
+  );
+}
+
 /** A Panel button, which opens or shuts its panel as its key does. */
 export type PanelButton = { type: "panelButton"; panel: Panel };
 

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { monsterTuning } from "../tuning/monsters";
 import { emptyBelt } from "./belt";
 import {
@@ -145,11 +145,6 @@ function killOne(world: World): SimEvent[] {
 const skeletonAt = (monsterLevel: number): MonsterOfLevel => ({
   type: "skeleton",
   monsterLevel,
-});
-
-const tunedGrowth = { ...monsterTuning.skeleton.growth };
-afterEach(() => {
-  monsterTuning.skeleton.growth = { ...tunedGrowth };
 });
 
 describe("Monster Level", () => {

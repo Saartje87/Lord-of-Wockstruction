@@ -4,6 +4,8 @@ export default defineConfig({
   test: {
     // Agent worktrees are whole checkouts of other branches.
     exclude: [...configDefaults.exclude, ".claude/**"],
+    // Puts the tuning objects back after every test.
+    setupFiles: ["./vitest.setup.ts"],
   },
   plugins: [
     {

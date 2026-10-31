@@ -10,6 +10,7 @@ import type { Rect } from "../sim/rect";
 import { SKILL_BAR_SLOTS, type SkillBarSlot } from "../sim/skillBar";
 import type { Vec } from "../sim/vec";
 import type { World } from "../sim/world";
+import { PHONES as SCREEN_PHONES } from "../testScreens";
 import { viewportOf } from "../viewport";
 import { createPadInput, type PadButton, pollPad } from "./pad";
 import { arenaWith } from "./testArena";
@@ -235,11 +236,11 @@ const CONTROLLER_BUTTON: Record<SkillBarSlot, PadButton> = {
   right: "rt",
 };
 
-/** The phones held sideways the touch hit areas are for: the Compact Layout at a UI Scale of 0.75. */
-const PHONES = [
-  viewportOf({ width: 640, height: 360 }),
-  viewportOf({ width: 915, height: 330 }),
-];
+/**
+ * The phones held sideways the touch hit areas are for, as viewports: the
+ * Compact Layout at a UI Scale of 0.75.
+ */
+const PHONES = SCREEN_PHONES.map(viewportOf);
 
 /** Whether a lone finger coming down at `at` presses the pause button. */
 function pauses(at: Vec, on: TouchControlsLayout): boolean {
@@ -261,16 +262,31 @@ describe("the pause button's touch hit area", () => {
   );
 
   it.each(
-    cases,
-  )("takes a touch just outside the drawn button at %s with %s open", (_, __, on) => {
+    cases.filter(([, panel]) => panel === "a panel"),
+  )("takes a touch 5 px outside the drawn button at %s with %s open", (_, __, on) => {
     const { pause } = on;
     const middle = centre(pause);
-    // Drawn 33 px square: 5 px out is still within 44 px square.
+    // Drawn 33 px square: 5 px out is still within 44 px square, and with a
+    // panel open nothing else is drawn beside it to stop it.
     expect(pause.w).toBe(33);
     expect(pauses({ x: pause.x - 5, y: middle.y }, on)).toBe(true);
     expect(pauses({ x: middle.x, y: pause.y + pause.h + 5 }, on)).toBe(true);
     // Beyond 44 px square it takes nothing.
     expect(pauses({ x: pause.x - 6, y: middle.y }, on)).toBe(false);
+  });
+
+  it.each(
+    PHONES,
+  )("meets the Skill row below it halfway, or 5.5 px out if that is less, with no panel open at %o", (screen) => {
+    const on = touchControlsLayout(screen);
+    const { pause, skills } = on;
+    const { x } = centre(pause);
+    // Drawn 33 px square, it can grow 5.5 px each way, but the Skill row
+    // is drawn under it, so they meet halfway.
+    const below = skills.right.y - (pause.y + pause.h);
+    const edge = pause.y + pause.h + Math.min(5.5, below / 2);
+    expect(pauses({ x, y: edge - 0.05 }, on)).toBe(true);
+    expect(pauses({ x, y: edge + 0.05 }, on)).toBe(false);
   });
 
   it.each(

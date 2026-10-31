@@ -228,25 +228,20 @@ describe("the Slam", () => {
   });
 
   it("isn't stopped by hitting the Wockbrute, even when the hit flinches it", () => {
-    const flinch = monsterTuning.wockbrute.flinchChance;
-    try {
-      monsterTuning.wockbrute.flinchChance = 1;
-      const w = world(["H.W"]);
-      const monster = brute(w);
-      untilWindUp(w, monster);
-      const life = monster.life;
-      const events = untilSlammed(
-        w,
-        monster,
-        () => {},
-        () => [{ type: "Attack", monster: monster.id }],
-      );
-      expect(monster.state).toBe("recover");
-      expect(onHero(events)).toHaveLength(1);
-      expect(monster.life).toBeLessThanOrEqual(life);
-    } finally {
-      monsterTuning.wockbrute.flinchChance = flinch;
-    }
+    monsterTuning.wockbrute.flinchChance = 1;
+    const w = world(["H.W"]);
+    const monster = brute(w);
+    untilWindUp(w, monster);
+    const life = monster.life;
+    const events = untilSlammed(
+      w,
+      monster,
+      () => {},
+      () => [{ type: "Attack", monster: monster.id }],
+    );
+    expect(monster.state).toBe("recover");
+    expect(onHero(events)).toHaveLength(1);
+    expect(monster.life).toBeLessThanOrEqual(life);
   });
 });
 

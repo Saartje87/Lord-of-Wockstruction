@@ -21,6 +21,15 @@ Parallel agents share one Chrome and often one machine.
 - **Branch**: a new worktree may start on another agent's branch. Check `git log` and reset it onto your base branch before working.
 - **`vendor/`**: the KayKit import (`scripts/import-kaykit/main.mts`) reads the gitignored `vendor/kaykit/` from the folder it runs in and skips what isn't there. In a worktree, clone the main checkout's like `node_modules`: `cp -cR <main checkout>/vendor vendor` (about 1 s).
 - **Main checkout**: someone else may have uncommitted work there. Merge and playtest in your own worktree, and stage files by name.
+- **Scratch files**: other agents share the scratchpad. Put yours in a subfolder named for your ticket (`t174/`).
+
+## Before finishing
+
+A ticket that changes a panel's layout, a model's look or any on-screen criterion ends with a look at the game. Its ticket comment says:
+
+- which screen sizes were checked (a desktop size and a phone, at least, for a panel);
+- what was seen;
+- anything that looked off, even if it's out of the ticket's scope.
 
 ## Skip the grind
 

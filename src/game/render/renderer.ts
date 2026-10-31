@@ -28,7 +28,6 @@ import { beltOf, beltRows, isBeltCell } from "../sim/belt";
 import {
   cursorItemOf,
   EQUIPMENT_SLOTS,
-  type EquipmentSlot,
   equipmentOf,
   type Item,
   type ItemId,
@@ -109,7 +108,6 @@ import {
 import { cursorHitAt, type ShownPanels } from "./cursorHit";
 import {
   DAMAGE_NUMBER,
-  type DamageNumber,
   damageNumbers,
   floatAt,
   floatText,

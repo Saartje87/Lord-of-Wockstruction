@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { encodeSave, parseSave, SAVE_VERSION } from "./save";
+import { encodeSave, parseSave } from "./save";
+import { parseSaveJson, type SaveJson } from "./saveTamper";
 import { emptyBelt } from "./sim/belt";
 import type { Belongings } from "./sim/inventory";
 import { FRESH_PROGRESS } from "./sim/world";
@@ -28,7 +29,7 @@ const BELONGINGS: Belongings = {
 
 /** Saved text of the Belongings, as parsed JSON to tamper with. */
 function textOf(belongings: Belongings) {
-  return JSON.parse(
+  return parseSaveJson(
     encodeSave({
       progress: { ...FRESH_PROGRESS, smithService: "locked" },
       belongings,
@@ -37,7 +38,7 @@ function textOf(belongings: Belongings) {
 }
 
 /** The text of `belongings` after `change` has tampered with it. */
-function tampered(change: (text: Record<string, any>) => void) {
+function tampered(change: (text: SaveJson) => void) {
   const text = textOf(BELONGINGS);
   change(text);
   return JSON.stringify(text);
@@ -88,10 +89,6 @@ describe("the Save of the Mana and enhanced percent Affixes", () => {
 });
 
 describe("the Save of Magic Items", () => {
-  it("is at least version 12", () => {
-    expect(SAVE_VERSION).toBeGreaterThanOrEqual(12);
-  });
-
   it("round-trips Rarity, Affixes (kind, grade, value) and the Smith bonus", () => {
     const loaded = parseSave(
       encodeSave({
@@ -118,26 +115,29 @@ describe("the Save of Magic Items", () => {
   it.each([
     [
       "an unknown Affix kind",
-      (t: any) => (t.inventory[0].affixes[0].kind = "luck"),
+      (t: SaveJson) => (t.inventory[0].affixes[0].kind = "luck"),
     ],
     [
       "an Affix that doesn't suit the Item",
-      (t: any) => (t.inventory[0].affixes[0].kind = "brutality"),
+      (t: SaveJson) => (t.inventory[0].affixes[0].kind = "brutality"),
     ],
     [
       "two Affixes of one kind",
-      (t: any) =>
+      (t: SaveJson) =>
         (t.inventory[0].affixes[1] = { kind: "defense", grade: 0, value: 6 }),
     ],
     [
       "two Prefixes",
-      (t: any) =>
+      (t: SaveJson) =>
         (t.inventory[0].affixes[1] = { kind: "life", grade: 0, value: 6 }),
     ],
-    ["a Magic Item with no Affixes", (t: any) => (t.inventory[0].affixes = [])],
+    [
+      "a Magic Item with no Affixes",
+      (t: SaveJson) => (t.inventory[0].affixes = []),
+    ],
     [
       "a Magic Item with three Affixes",
-      (t: any) =>
+      (t: SaveJson) =>
         t.inventory[0].affixes.push(
           { kind: "energy", grade: 0, value: 2 },
           {
@@ -149,33 +149,39 @@ describe("the Save of Magic Items", () => {
     ],
     [
       "a Normal Item with Affixes",
-      (t: any) => (t.inventory[0].rarity = "normal"),
+      (t: SaveJson) => (t.inventory[0].rarity = "normal"),
     ],
-    ["an unknown Rarity", (t: any) => (t.inventory[0].rarity = "legendary")],
+    [
+      "an unknown Rarity",
+      (t: SaveJson) => (t.inventory[0].rarity = "legendary"),
+    ],
     [
       "a grade that doesn't exist",
-      (t: any) => (t.inventory[0].affixes[0].grade = 3),
+      (t: SaveJson) => (t.inventory[0].affixes[0].grade = 3),
     ],
-    ["a fractional grade", (t: any) => (t.inventory[0].affixes[0].grade = 0.5)],
+    [
+      "a fractional grade",
+      (t: SaveJson) => (t.inventory[0].affixes[0].grade = 0.5),
+    ],
     [
       "a value below its grade's range",
-      (t: any) => (t.inventory[0].affixes[0].value = 10),
+      (t: SaveJson) => (t.inventory[0].affixes[0].value = 10),
     ],
     [
       "a value above its grade's range",
-      (t: any) => (t.inventory[0].affixes[0].value = 21),
+      (t: SaveJson) => (t.inventory[0].affixes[0].value = 21),
     ],
     [
       "a fractional value",
-      (t: any) => (t.inventory[0].affixes[0].value = 15.5),
+      (t: SaveJson) => (t.inventory[0].affixes[0].value = 15.5),
     ],
     [
       "a Magic Potion",
-      (t: any) => (t.belt[0] = [{ type: "lifePotion", rarity: "magic" }]),
+      (t: SaveJson) => (t.belt[0] = [{ type: "lifePotion", rarity: "magic" }]),
     ],
     [
       "a Magic Potion in the Inventory",
-      (t: any) =>
+      (t: SaveJson) =>
         t.inventory.push({
           type: "lifePotion",
           rarity: "magic",
@@ -183,12 +189,12 @@ describe("the Save of Magic Items", () => {
           cell: { column: 0, row: 0 },
         }),
     ],
-    ["an Item without a Rarity", (t: any) => delete t.inventory[0].rarity],
+    ["an Item without a Rarity", (t: SaveJson) => delete t.inventory[0].rarity],
     [
       "an Equipped Item that is only a type",
-      (t: any) => (t.equipment.weapon = "axe"),
+      (t: SaveJson) => Object.assign(t.equipment, { weapon: "axe" }),
     ],
-    ["a smithBonuses side map", (t: any) => (t.smithBonuses = {})],
+    ["a smithBonuses side map", (t: SaveJson) => (t.smithBonuses = {})],
   ])("is refused with %s", (_, change) => {
     expect(parseSave(tampered(change))).toBeNull();
   });

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { createMenus, type Menus } from "../menus";
 import { SKILL_BAR_SLOTS } from "../sim/skillBar";
 import type { Vec } from "../sim/vec";
@@ -35,11 +35,6 @@ const restAt: PadSnapshot = {
   held: [],
   released: [],
 };
-
-const original = { ...inputTuning };
-afterEach(() => {
-  Object.assign(inputTuning, original);
-});
 
 /** A snapshot with the stick at `stick` and no button down. */
 const stickAt = (stick: Vec): PadSnapshot => ({

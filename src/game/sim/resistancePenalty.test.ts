@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { RESISTANCE_PENALTIES } from "../tuning/damage";
 import { emptyBelt } from "./belt";
 import { createWorld, heroResistance, type World } from "./world";
@@ -44,11 +44,6 @@ describe("the Resistance Penalty", () => {
     RESISTANCE_PENALTIES[2] = 30;
     RESISTANCE_PENALTIES[3] = 200;
   });
-  afterEach(() => {
-    delete RESISTANCE_PENALTIES[2];
-    delete RESISTANCE_PENALTIES[3];
-  });
-
   it("is 0 in Act 1", () => {
     expect(RESISTANCE_PENALTIES[1]).toBe(0);
     expect(heroResistance(inAct(1, 20), "fire")).toEqual({

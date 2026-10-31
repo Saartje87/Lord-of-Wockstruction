@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { World } from "../sim/world";
 import { inputTuning } from "../tuning/input";
 import { pickTarget } from "./target";
@@ -8,9 +8,6 @@ const east = { x: 1, y: 0 };
 const idAt = (world: World, i: number) => world.monsters[i].id;
 
 describe("picking the Target", () => {
-  const original = { ...inputTuning };
-  afterEach(() => Object.assign(inputTuning, original));
-
   it("picks a living Monster straight ahead within range", () => {
     const world = arenaWith([{ x: 13, y: 10 }]);
 

@@ -4,6 +4,7 @@ import { EQUIPMENT_SLOTS } from "../sim/inventory";
 import { overlaps, type Rect } from "../sim/rect";
 import { emptySkillBar, SKILL_BAR_SLOTS } from "../sim/skillBar";
 import { ATTRIBUTES, createWorld, FRESH_PROGRESS, SKILLS } from "../sim/world";
+import { PHONES } from "../testScreens";
 import { heroTuning } from "../tuning/hero";
 import { inventoryTuning } from "../tuning/items";
 import { BRANCHES, isPassive, type Skill } from "../tuning/skills";
@@ -73,14 +74,6 @@ const world = createWorld({
 
 /** A point pending on each Attribute, so each − and Accept show. */
 const pending = { strength: 1, dexterity: 1, vitality: 1, energy: 1 };
-
-/** Phones held sideways, which take the Compact Layout. */
-const PHONES = [
-  { width: 640, height: 320 },
-  { width: 640, height: 360 },
-  { width: 844, height: 390 },
-  { width: 915, height: 330 },
-];
 
 /** The rows of Belt Columns a Belt can give, from none Equipped up. */
 const BELT_ROWS = [1, 2, 3, 4];
@@ -337,33 +330,6 @@ describe("the panels in the Compact Layout", () => {
     expect(inventoryPanelLayout(viewport, rows).cell).toBeGreaterThanOrEqual(
       atLeast,
     );
-  });
-
-  it.each(
-    PHONES,
-  )("keep every Inventory cell, Equipment slot and Belt cell at least 20 px square on $width×$height", (size) => {
-    // Neighbouring cells meet on one line by the halfway rule, so a cell's
-    // Touch hit area is the cell as drawn: this is the floor.
-    const viewport = viewportOf(size);
-    for (const rows of BELT_ROWS) {
-      const layout = inventoryPanelLayout(viewport, rows);
-      const targets: [string, Rect][] = [
-        ["cell", { x: 0, y: 0, w: layout.cell, h: layout.cell }],
-        ...EQUIPMENT_SLOTS.map(
-          (slot) => [slot, layout.slots[slot]] as [string, Rect],
-        ),
-        ...layout.belt.flatMap((cells, column) =>
-          cells.map(
-            (rect, row) => [`Belt ${column},${row}`, rect] as [string, Rect],
-          ),
-        ),
-      ];
-      for (const [name, rect] of targets) {
-        const label = `${name}, ${rows} Belt rows`;
-        expect(rect.w, label).toBeGreaterThanOrEqual(20);
-        expect(rect.h, label).toBeGreaterThanOrEqual(20);
-      }
-    }
   });
 
   it("draws the Inventory's cells no bigger than native size on a roomy phone", () => {

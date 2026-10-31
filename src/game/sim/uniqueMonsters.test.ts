@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { heroTuning } from "../tuning/hero";
 import { isPotion } from "../tuning/items";
 import { uniqueTuning } from "../tuning/uniqueMonsters";
@@ -71,11 +71,6 @@ function inSpa(progress = FRESH_PROGRESS, seed = 1): World {
     start: { area: "spa", entry: "start" },
   });
 }
-
-const flinch = heroTuning.flinchChance;
-afterEach(() => {
-  heroTuning.flinchChance = flinch;
-});
 
 /** Has the Hero attack the Unique Monster until it dies; the events. */
 function kill(world: World): SimEvent[] {
@@ -198,10 +193,6 @@ describe("a Unique Monster object", () => {
 });
 
 describe("Unique Monster Resistances", () => {
-  afterEach(() => {
-    delete uniqueTuning.resistances["Sir Soaks-a-Lot"];
-  });
-
   it("are its Monster type's unless its own tuning overrides them", () => {
     const zombie = { type: "zombie", unique: "Sir Soaks-a-Lot" } as const;
     expect(resistancesOf(zombie)).toEqual(monsterResistances("zombie"));

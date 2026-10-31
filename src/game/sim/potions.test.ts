@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { beltTuning } from "../tuning/items";
 import { beltOf, emptyBelt } from "./belt";
 import { type Belongings, FRESH_BELONGINGS, inventoryOf } from "./inventory";
@@ -146,11 +146,6 @@ const REJUVENATION = "rejuvenationPotion" as const;
 /** A Town whose Hero has `belt` in their Belt Columns. */
 const withBelt = (belt: Belongings["belt"]) =>
   inTown({ ...FRESH_BELONGINGS, belt });
-
-const tunedBelt = { ...beltTuning };
-afterEach(() => {
-  Object.assign(beltTuning, tunedBelt);
-});
 
 describe("a New Hero's Belt", () => {
   it("holds a Life Potion in each of the four Belt Columns", () => {

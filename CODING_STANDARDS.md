@@ -16,7 +16,9 @@ Names in code, comments and on-screen text use the terms in `GLOSSARY.md`. Where
 
 ## Tests
 
-Tests sit at the existing seams (`createWorld` + `step` → events, World queries, pure render helpers, the Save module) and assert what those return, not internal fields. A tuning value a test overrides is restored in `afterEach`.
+Tests sit at the existing seams (`createWorld` + `step` → events, World queries, pure render helpers, the Save module) and assert what those return, not internal fields. Tuning is restored automatically after every test (`vitest.setup.ts`), so a test changes it freely; any other module state a test changes is the test's to restore.
+
+A divergence from the spec made to keep an existing test unchanged is a finding: the test changes instead.
 
 ## Style
 

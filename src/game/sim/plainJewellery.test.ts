@@ -1,15 +1,12 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   affixTuning,
   dropTuning,
   ITEM_TYPES,
   type ItemType,
-  isPotion,
   itemTuning,
   potionDropTuning,
-  rarityTuning,
 } from "../tuning/items";
-import { itemTitle } from "./affixes";
 import { createWorld, FRESH_PROGRESS, step } from "./world";
 
 /** A Town with the Hero at `H` and one Skeleton at `S`. */
@@ -46,13 +43,6 @@ function map() {
     ],
   };
 }
-
-const tuned = { ...dropTuning };
-const tunedPotions = { ...potionDropTuning };
-afterEach(() => {
-  Object.assign(dropTuning, tuned);
-  Object.assign(potionDropTuning, tunedPotions);
-});
 
 /** The Item one kill of a Monster of level 1 drops, seeded `seed`. */
 function droppedAt(seed: number, type: ItemType) {

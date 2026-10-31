@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { townPortalLook } from "../tuning/townPortalLook";
 import {
   shownTownPortals,
@@ -63,11 +63,6 @@ describe("shownTownPortals", () => {
   });
 });
 
-const { openMs, closeMs, overshoot } = townPortalLook;
-afterEach(() => {
-  Object.assign(townPortalLook, { openMs, closeMs, overshoot });
-});
-
 describe("townPortalOpenScale", () => {
   it("bursts open from a point, springing past full size, over 400 ms", () => {
     Object.assign(townPortalLook, { openMs: 400, overshoot: 0.25 });
@@ -83,7 +78,7 @@ describe("townPortalOpenScale", () => {
   });
 
   it("stays at full size once open", () => {
-    expect(townPortalOpenScale(openMs + 1)).toBe(1);
+    expect(townPortalOpenScale(townPortalLook.openMs + 1)).toBe(1);
     expect(townPortalOpenScale(60_000)).toBe(1);
   });
 
@@ -109,6 +104,6 @@ describe("townPortalCloseScale", () => {
   });
 
   it("stays at nothing once closed", () => {
-    expect(townPortalCloseScale(closeMs + 1)).toBe(0);
+    expect(townPortalCloseScale(townPortalLook.closeMs + 1)).toBe(0);
   });
 });

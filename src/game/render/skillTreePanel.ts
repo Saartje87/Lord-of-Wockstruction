@@ -35,7 +35,7 @@ export const SKILL_TREE_PANEL = {
   width: 320,
   padding: 18,
   firstRow: 56,
-  rowHeight: 26,
+  rowHeight: 24,
   hintHeight: 28,
   plus: 22,
 };

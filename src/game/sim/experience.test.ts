@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { monsterTuning } from "../tuning/monsters";
 import { createWorld, maxLife, type SimEvent, step, type World } from "./world";
 
@@ -126,11 +126,6 @@ describe("Levels", () => {
 });
 
 describe("a kill worth several Levels", () => {
-  const tuned = monsterTuning.skeleton.experience;
-  afterEach(() => {
-    monsterTuning.skeleton.experience = tuned;
-  });
-
   it("grants every one of them, each with its own LevelReached", () => {
     // Level 5 needs 7,875 and Level 6 14,175.
     monsterTuning.skeleton.experience = 10_000;

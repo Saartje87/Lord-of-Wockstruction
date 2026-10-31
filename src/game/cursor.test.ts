@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { pressButton } from "./buttonPress";
 import {
   type CursorHit,
@@ -774,11 +774,6 @@ const beltedWorld = () => {
 };
 const beltTypes = (world: World) =>
   beltOf(world).map((column) => column.map((item) => item.type));
-
-const tunedBelt = { ...beltTuning };
-afterEach(() => {
-  Object.assign(beltTuning, tunedBelt);
-});
 
 describe("the cursor on the Belt strip", () => {
   it("lifts the bottom Potion of the Belt Column pressed on, the ones above dropping down a row", () => {

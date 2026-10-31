@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { monsterTuning } from "../tuning/monsters";
 import {
   monsterAttackRating,
@@ -139,11 +139,6 @@ function killOne(world: World): SimEvent[] {
   }
   return all;
 }
-
-const tunedGrowth = { ...monsterTuning.zombie.growth };
-afterEach(() => {
-  monsterTuning.zombie.growth = { ...tunedGrowth };
-});
 
 describe("a Zombie Spawn", () => {
   it("places that many Zombies, at the Zombie's Life", () => {

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   affixTuning,
   dropTuning,
@@ -50,11 +50,6 @@ function map() {
 
 const tuned = { ...dropTuning };
 const tunedPotions = { ...potionDropTuning };
-afterEach(() => {
-  Object.assign(dropTuning, tuned);
-  Object.assign(potionDropTuning, tunedPotions);
-});
-
 /** The Item one kill of a Monster of `monsterLevel` drops, seeded `seed`. */
 function droppedAt(monsterLevel: number, seed: number, type?: ItemType) {
   const potion = type !== undefined && isPotion(type);

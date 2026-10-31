@@ -28,7 +28,8 @@ export type Bonus =
   | "fireResistance"
   | "coldResistance"
   | "lightningResistance"
-  | "allResistances";
+  | "allResistances"
+  | "block";
 
 /** Every Bonus there is. */
 export const BONUSES: readonly Bonus[] = [
@@ -47,6 +48,7 @@ export const BONUSES: readonly Bonus[] = [
   "coldResistance",
   "lightningResistance",
   "allResistances",
+  "block",
 ];
 
 /** What a Potion gives back. */
@@ -82,6 +84,8 @@ export type ItemTuning = {
   damage?: [number, number];
   /** An armour piece's own Defense: Armour, Helm, Gloves, Boots or Shield. */
   defense?: number;
+  /** A Shield's own chance to Block, in percent. */
+  block?: number;
   /** What it adds to the Hero while Equipped. */
   bonuses: Partial<Record<Bonus, number>>;
   /** A Potion's effect when drunk. */
@@ -182,6 +186,7 @@ export const itemTuning = {
     kind: "shield",
     size: { columns: 2, rows: 2 },
     defense: 14,
+    block: 15,
     bonuses: {},
   },
   towerShield: {
@@ -190,6 +195,7 @@ export const itemTuning = {
     kind: "shield",
     size: { columns: 2, rows: 3 },
     defense: 28,
+    block: 25,
     bonuses: {},
   },
   ring: {
@@ -281,6 +287,9 @@ export function itemOf(type: ItemType): ItemTuning {
 export function isPotion(type: ItemType): boolean {
   return itemTuning[type].kind === "potion";
 }
+
+/** Block: the most the Hero's chance to Block can be, in percent. */
+export const blockTuning = { cap: 50 };
 
 /** The Inventory grid's size in cells. */
 export const inventoryTuning = { columns: 10, rows: 4 };
@@ -627,6 +636,19 @@ export const affixTuning = {
         [3, 5],
         [6, 9],
         [10, 14],
+      ],
+    ),
+  },
+  block: {
+    side: "suffix",
+    bonus: "block",
+    rollsOn: ["shield"],
+    grades: threeGrades(
+      ["of Parrying", "of Deflection", "of the Bulwark"],
+      [
+        [3, 5],
+        [6, 9],
+        [10, 15],
       ],
     ),
   },

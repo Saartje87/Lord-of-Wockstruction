@@ -14,6 +14,7 @@ import { graveWockingtonTuning } from "../tuning/graveWockington";
 import { heroTuning } from "../tuning/hero";
 import {
   type Bonus,
+  blockTuning,
   dropTuning,
   itemOf,
   potionDropTuning,
@@ -709,6 +710,11 @@ export type SimEvent =
    */
   | { type: "Missed"; target: MonsterId | "hero" }
   /**
+   * A Monster's attack would have hit the Hero but their Shield Blocked it:
+   * no damage, no flinch, nothing off their Bone Ward.
+   */
+  | { type: "Blocked" }
+  /**
    * A Monster's attack hit the Hero, `warded` of it soaked by their Bone
    * Ward and `damage` reaching their Life. `damageType` is what most of the
    * hit was made of.
@@ -1229,6 +1235,20 @@ export function heroDefense(world: World): number {
     total += Math.round(own * (1 + itemBonus(item, "enhancedDefense") / 100));
   }
   return total;
+}
+
+/**
+ * The Hero's chance, in percent, to Block a Monster's attack that would hit:
+ * the Equipped Shield's own plus its Block Affixes, never above
+ * `blockTuning.cap`; 0 with no Shield.
+ */
+export function heroBlockChance(world: World): number {
+  const shield = world.hero.equipment.offHand;
+  if (!shield || itemOf(shield.type).kind !== "shield") return 0;
+  return Math.min(
+    blockTuning.cap,
+    (itemOf(shield.type).block ?? 0) + itemBonus(shield, "block"),
+  );
 }
 
 /** Whether the Hero is regaining Life: alive, out of combat and below full. */
@@ -3424,20 +3444,29 @@ function rollGold(
  * with 0 Defense is always hit; above it the attack can Miss, which deals no
  * damage, so it neither flinches the Hero nor keeps them In Combat. A hit's
  * damage comes off their Bone Ward first, gone once used up, and only the
- * rest off their Life.
+ * rest off their Life. An attack that would hit can still be Blocked by an
+ * Equipped Shield (see `heroBlockChance`): that too deals no damage, never
+ * flinches the Hero and leaves their Bone Ward be, but keeps them In Combat.
  */
 function hitHero(world: World, attack: AttackNumbers, events: SimEvent[]) {
   const { hero } = world;
-  const rolled = rollAttack(
-    world,
-    heroChanceToBeHit(world, attack.attackRating),
-    attack.damage,
-    attack.damageTypes,
-  );
-  if (rolled === null) {
+  const chance = heroChanceToBeHit(world, attack.attackRating);
+  if (chance < 1 && random(world.rng) >= chance) {
     events.push({ type: "Missed", target: "hero" });
     return;
   }
+  // A Block is rolled once the attack would hit, before any damage. With no
+  // Shield nothing is rolled, so the rolls after it stay as they were.
+  const blockChance = heroBlockChance(world);
+  if (blockChance > 0 && random(world.rng) * 100 < blockChance) {
+    hero.combat = COMBAT_STEPS;
+    events.push({ type: "Blocked" });
+    return;
+  }
+  const rolled = splitDamage(
+    randomInt(world.rng, attack.damage),
+    attack.damageTypes,
+  );
   const { total: damage, main: damageType } = landDamage(
     rolled,
     heroResistances(world),

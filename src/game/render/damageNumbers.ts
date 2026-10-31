@@ -18,7 +18,8 @@ export const DAMAGE_NUMBER = { size: 18, stroke: 3, gap: 2 };
  * A number to float up from whoever was hit: `hit` for the Hero's hits,
  * `kill` for a killing blow and `taken` for damage the Hero or one of their
  * Minions takes; a `miss` floating up from a Monster the Hero Missed, or
- * from the Hero or one of their Minions a Monster Missed; `noRoom` over the
+ * from the Hero or one of their Minions a Monster Missed; a `block` over the
+ * Hero, whose Shield Blocked an attack, shown as a Miss is; `noRoom` over the
  * Hero, who found no room for a Ground Item; or `castFailed` over the Hero,
  * whose cast failed for `reason`.
  */
@@ -31,6 +32,7 @@ export type DamageNumber =
       damageType: DamageType;
     }
   | { on: CharacterId | "hero"; kind: "miss" }
+  | { on: "hero"; kind: "block" }
   | { on: "hero"; kind: "noRoom" }
   | { on: "hero"; kind: "castFailed"; reason: CastFailure };
 
@@ -44,6 +46,7 @@ const NUMBER_COLOUR: Record<DamageNumber["kind"], number> = {
   kill: 0xffd04a,
   taken: 0xff4a4a,
   miss: 0x9a9a9a,
+  block: 0x9a9a9a,
   noRoom: 0xe8e0c8,
   castFailed: 0x8ab4ff,
 };
@@ -85,6 +88,7 @@ export function damageNumbers(events: readonly SimEvent[]): DamageNumber[] {
     if (event.type === "Missed") {
       numbers.push({ on: event.target, kind: "miss" });
     }
+    if (event.type === "Blocked") numbers.push({ on: "hero", kind: "block" });
     // A hit the Bone Ward soaked whole leaves the Life orb untouched.
     if (event.type === "HeroHit" && event.damage > 0) {
       numbers.push({
@@ -116,6 +120,7 @@ export function damageNumbers(events: readonly SimEvent[]): DamageNumber[] {
 /** The text a damage number floats: its damage, or what happened. */
 export function floatText(number: DamageNumber): string {
   if (number.kind === "miss") return "Miss";
+  if (number.kind === "block") return "Block";
   if (number.kind === "noRoom") return "No room";
   if (number.kind === "castFailed") return CAST_FAILED_TEXT[number.reason];
   return String(number.damage);

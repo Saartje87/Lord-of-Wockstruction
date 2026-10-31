@@ -722,7 +722,7 @@ describe("an Item's tooltip", () => {
     ]);
   });
 
-  it("names a Helm, Gloves, Boots or Shield and its Defense", () => {
+  it("names a Helm, Gloves, Boots or Shield and its Defense (and Block)", () => {
     expect(itemTooltip({ type: "ironHelm" })).toEqual([
       "Iron Helm",
       "Defense: 16",
@@ -738,7 +738,22 @@ describe("an Item's tooltip", () => {
     expect(itemTooltip({ type: "towerShield" })).toEqual([
       "Tower Shield",
       "Defense: 28",
+      "Block: 25%",
     ]);
+  });
+
+  it("shows a Shield's Block chance and its Block Affixes as +N% Block", () => {
+    expect(itemTooltip({ type: "buckler" })).toEqual([
+      "Buckler",
+      "Defense: 14",
+      "Block: 15%",
+    ]);
+    expect(
+      itemTooltip({
+        type: "towerShield",
+        affixes: [{ kind: "block", grade: 0, value: 4 }],
+      }),
+    ).toContain("+4% Block");
   });
 
   it("names a plain Ring or Amulet with no bonuses of its own", () => {

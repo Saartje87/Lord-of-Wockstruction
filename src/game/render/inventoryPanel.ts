@@ -471,6 +471,7 @@ const BONUS_NAMES: Record<Bonus, string> = {
   coldResistance: "Cold Resistance",
   lightningResistance: "Lightning Resistance",
   allResistances: "All Resistances",
+  block: "Block",
 };
 
 /** The Element a single-Element Resistance Bonus guards against. */
@@ -488,6 +489,7 @@ const PERCENT_BONUSES: readonly Bonus[] = [
   "coldResistance",
   "lightningResistance",
   "allResistances",
+  "block",
 ];
 
 /** A tooltip line giving `amount` of `bonus`. */
@@ -560,6 +562,7 @@ function tooltipLines(shown: Shown): TooltipLine[] {
   }
   if (item.defense !== undefined)
     lines.push({ text: `Defense: ${item.defense}` });
+  if (item.block !== undefined) lines.push({ text: `Block: ${item.block}%` });
   for (const [bonus, amount] of Object.entries(item.bonuses)) {
     lines.push({ text: `+${amount} to ${BONUS_NAMES[bonus as Bonus]}` });
   }

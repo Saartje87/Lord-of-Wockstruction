@@ -481,15 +481,14 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
   },
   // The Act 1 boss's type: slow and sturdy, with a heavy blow after a long
   // wind-up. What makes him a threat is the Skeletons he raises in waves
-  // (`graveWockingtonTuning`). Placeholder numbers until his fight is
-  // designed (T446).
+  // (`graveWockingtonTuning`). First tuning pass (T513).
   grave_wockington: {
     name: "Grave Wockington",
     resistances: { fire: 50 },
-    life: 120,
+    life: 150,
     experience: 300,
     speed: 1.6,
-    damage: [8, 16],
+    damage: [6, 12],
     defense: 120,
     attackRating: 30,
     radius: 0.45,
@@ -501,7 +500,7 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
     needsSight: true,
     spreadRadius: 1.5,
     // Gravefire, lobbed at where the Hero stands, from a standstill; a target
-    // within his reach gets his blow instead. Placeholder numbers until T510.
+    // within his reach gets his blow instead. First pass (T513).
     attack: {
       kind: "ranged",
       projectile: "gravefire",
@@ -513,10 +512,10 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
       lob: {
         radius: 2.2,
         atHero: true,
-        burn: { burnMs: 4000, tickMs: 500, damage: 0.25 },
+        burn: { burnMs: 4000, tickMs: 500, damage: 0.2 },
       },
       melee: { reach: 1.5, reachGrace: 0.25, arcDegrees: 70 },
-      recoveryMs: [1800, 1000],
+      recoveryMs: [2200, 1300],
     },
     windUpMs: 900,
     rootMs: 400,

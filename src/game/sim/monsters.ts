@@ -776,7 +776,10 @@ function loose(
 }
 
 /** A damage range `share` of itself, each end at least 1. */
-function shared([min, max]: [number, number], share: number): [number, number] {
+export function shared(
+  [min, max]: [number, number],
+  share: number,
+): [number, number] {
   return [
     Math.max(1, Math.round(min * share)),
     Math.max(1, Math.round(max * share)),

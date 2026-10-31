@@ -3,7 +3,7 @@ import type { MonsterType } from "./monsters";
 
 /**
  * Grave Wockington's Skeleton waves, in human units. The sim converts it to
- * steps once. Placeholder numbers until his fight is designed (T446).
+ * steps once. First tuning pass (T513).
  */
 export type GraveWockingtonTuning = {
   /** How long after he first goes after the Hero until his first wave (ms). */
@@ -42,11 +42,11 @@ export type GraveWockingtonTuning = {
 export const graveWockingtonTuning: GraveWockingtonTuning = {
   itemDrops: [["rare"], ["rare"], ["magic", "rare"]],
   firstWaveMs: 2000,
-  waveEveryMs: 10000,
+  waveEveryMs: 8000,
   waveSize: 3,
   raisedLimit: 6,
   raises: "skeleton",
   raiseDistance: 1.6,
   halfAt: 0.5,
-  pastHalf: { waveEveryMs: 7000, waveSize: 5, raisedLimit: 9, archers: 1 },
+  pastHalf: { waveEveryMs: 6000, waveSize: 4, raisedLimit: 8, archers: 1 },
 };

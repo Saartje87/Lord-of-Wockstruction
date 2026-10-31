@@ -1,5 +1,6 @@
 import { goldTuning } from "../tuning/gold";
-import type { MonsterType } from "../tuning/monsters";
+import { graveWockingtonTuning } from "../tuning/graveWockington";
+import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import type { Area } from "./area";
 import {
   killExperience,
@@ -8,6 +9,7 @@ import {
   monsterDefense,
   monsterExperience,
   monsterMaxLife,
+  shared,
 } from "./monsters";
 import { levelExperience, nextLevelExperience } from "./world";
 
@@ -114,4 +116,97 @@ export function tuningReport(
     .sort((a, b) => a.areaLevel - b.areaLevel);
 
   return { levels, areas: areaRows };
+}
+
+/** One stage of the Act Boss's waves. */
+export type BossStage = {
+  stage: "first half" | "past half";
+  /** Seconds until the first wave, after he first goes after the Hero. */
+  firstWaveS: number | null;
+  /** Seconds between waves. */
+  everyS: number;
+  size: number;
+  archers: number;
+  /** How many raised Monsters can live at once. */
+  limit: number;
+  /** Raised Monsters a minute. */
+  perMinute: number;
+  /** Seconds between Gravefire casts at best (wind-up plus recovery). */
+  gravefireEveryS: number;
+};
+
+/** The Act Boss's numbers at an Area Level, Unique multipliers included. */
+export type BossReport = {
+  maxLife: number;
+  /** His melee blow. */
+  damage: [number, number];
+  attackRating: number;
+  defense: number;
+  experience: number;
+  gravefire: {
+    range: number;
+    windUpMs: number;
+    recoveryMs: number[];
+    radius: number;
+    burnMs: number;
+    tickMs: number;
+    ticks: number;
+    /** One tick's damage, before Resistances and Defense. */
+    tick: [number, number];
+    /** All ticks of one circle, if stood in throughout. */
+    burn: [number, number];
+  };
+  stages: BossStage[];
+};
+
+/**
+ * The Act Boss `type` as a Unique Monster at `areaLevel`: his Life, blow,
+ * Gravefire and waves per stage, from the live tuning.
+ */
+export function bossReport(type: MonsterType, areaLevel: number): BossReport {
+  const monster = { type, monsterLevel: areaLevel, unique: type as string };
+  const tuning = monsterTuning[type];
+  const { attack } = tuning;
+  if (attack.kind !== "ranged" || !attack.lob?.burn) {
+    throw new Error(`${type} has no Gravefire`);
+  }
+  const { burn } = attack.lob;
+  const damage = monsterDamageRange(monster);
+  const tick = shared(damage, burn.damage);
+  const ticks = Math.floor(burn.burnMs / burn.tickMs);
+  const recoveries = attack.recoveryMs ?? [tuning.recoveryMs];
+  const wave = graveWockingtonTuning;
+  const waveStages = [
+    { stage: "first half" as const, ...wave, archers: 0 },
+    { stage: "past half" as const, ...wave, ...wave.pastHalf },
+  ];
+  return {
+    maxLife: monsterMaxLife(monster),
+    damage,
+    attackRating: monsterAttackRating(monster),
+    defense: monsterDefense(monster),
+    experience: monsterExperience(monster),
+    gravefire: {
+      range: attack.range,
+      windUpMs: tuning.windUpMs,
+      recoveryMs: recoveries,
+      radius: attack.lob.radius,
+      burnMs: burn.burnMs,
+      tickMs: burn.tickMs,
+      ticks,
+      tick,
+      burn: [tick[0] * ticks, tick[1] * ticks],
+    },
+    stages: waveStages.map((stage, i) => ({
+      stage: stage.stage,
+      firstWaveS: i === 0 ? wave.firstWaveMs / 1000 : null,
+      everyS: stage.waveEveryMs / 1000,
+      size: stage.waveSize,
+      archers: stage.archers,
+      limit: stage.raisedLimit,
+      perMinute: (60_000 / stage.waveEveryMs) * stage.waveSize,
+      gravefireEveryS:
+        (tuning.windUpMs + (recoveries[i] ?? recoveries.at(-1) ?? 0)) / 1000,
+    })),
+  };
 }

@@ -1885,6 +1885,17 @@ describe("the dev-only `fight` Entries", () => {
     expect(nearest).toBeGreaterThanOrEqual(FIGHT_ENTRY_MIN_DISTANCE);
   });
 
+  it("starts the Hero in the Ossuary within his Gravefire's range of Grave Wockington", () => {
+    const { ossuary } = shippedWorld().areas;
+    const fight = ossuary.entries.fight;
+    const boss = ossuary.actBoss?.pos ?? { x: 0, y: 0 };
+
+    expect(fight).toBeDefined();
+    expect(Math.hypot(boss.x - fight.x, boss.y - fight.y)).toBeLessThanOrEqual(
+      monsterTuning.grave_wockington.aggroRadius,
+    );
+  });
+
   it("is led to by no Exit", () => {
     const offenders = Object.entries(shippedWorld().areas).flatMap(
       ([name, area]) =>

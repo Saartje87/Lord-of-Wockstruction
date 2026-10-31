@@ -11,12 +11,17 @@
  "infinite": false,
  "compressionlevel": -1,
  "nextlayerid": 5,
- "nextobjectid": 15,
+ "nextobjectid": 16,
  "properties": [
   {
    "name": "areaLevel",
    "type": "int",
    "value": 9
+  },
+  {
+   "name": "mainPath",
+   "type": "int",
+   "value": 5
   },
   {
    "name": "act",
@@ -8259,6 +8264,18 @@
    "opacity": 1,
    "visible": true,
    "objects": [
+    {
+     "id": 15,
+     "name": "waypoint",
+     "type": "waypoint",
+     "x": 1392,
+     "y": 2736,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true
+    },
     {
      "id": 1,
      "name": "",

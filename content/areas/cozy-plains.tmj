@@ -11,7 +11,7 @@
  "infinite": false,
  "compressionlevel": -1,
  "nextlayerid": 5,
- "nextobjectid": 17,
+ "nextobjectid": 18,
  "properties": [
   {
    "name": "mainPath",
@@ -8269,6 +8269,18 @@
    "opacity": 1,
    "visible": true,
    "objects": [
+    {
+     "id": 17,
+     "name": "waypoint",
+     "type": "waypoint",
+     "x": 3120,
+     "y": 2160,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true
+    },
     {
      "id": 1,
      "name": "",

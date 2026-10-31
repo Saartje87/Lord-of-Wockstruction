@@ -1768,3 +1768,34 @@ describe("the shipped Wockwolf packs", () => {
     ).toBe(wolves(world.areas["cozy-plains"]));
   });
 });
+
+describe("the dev-only `fight` Entries", () => {
+  /** How near a `fight` Entry stands to its pack at most, in tiles: near enough for the pack to notice the Hero on arrival. */
+  const FIGHT_ENTRY_DISTANCE = 4;
+
+  it.each([
+    ["catacombs", "skeleton"],
+    ["old-mill", "wockbrute"],
+    ["soggy-bog", "bog_spitter"],
+  ] as const)("start the Hero in the %s within reach of a %s pack", (name, monster) => {
+    const area = shippedWorld().areas[name];
+    const fight = area.entries.fight;
+
+    expect(fight).toBeDefined();
+    const nearest = Math.min(
+      ...area.spawns
+        .filter((spawn) => spawn.monster === monster)
+        .map((spawn) =>
+          Math.hypot(spawn.pos.x - fight.x, spawn.pos.y - fight.y),
+        ),
+    );
+    expect(nearest).toBeLessThanOrEqual(FIGHT_ENTRY_DISTANCE);
+    expect(nearest).toBeGreaterThanOrEqual(FIGHT_ENTRY_DISTANCE - 1);
+  });
+
+  it("is led to by no Exit", () => {
+    for (const area of Object.values(shippedWorld().areas)) {
+      expect(area.exits.map((exit) => exit.entry)).not.toContain("fight");
+    }
+  });
+});

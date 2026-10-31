@@ -11,7 +11,7 @@
  "infinite": false,
  "compressionlevel": -1,
  "nextlayerid": 5,
- "nextobjectid": 13,
+ "nextobjectid": 14,
  "properties": [
   {
    "name": "areaLevel",
@@ -8435,6 +8435,18 @@
      "name": "from-crypt",
      "type": "entry",
      "x": 5520,
+     "y": 4752,
+     "width": 0,
+     "height": 0,
+     "rotation": 0,
+     "visible": true,
+     "point": true
+    },
+    {
+     "id": 13,
+     "name": "fight",
+     "type": "entry",
+     "x": 4464,
      "y": 4752,
      "width": 0,
      "height": 0,

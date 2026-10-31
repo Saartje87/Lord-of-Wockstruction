@@ -545,6 +545,8 @@ type MonsterMark = {
   /** Where it stood when last drawn, in tile units. */
   at: Vec;
   diedAtMs: number | null;
+  /** When it last raised a wave, if it has. */
+  castAtMs: number | null;
   flashUntilMs: number;
 };
 
@@ -928,10 +930,12 @@ export function createRenderer(
     effectsAt(nowMs: number, world: World): Effects {
       const flashes = new Map<MonsterId, number>();
       const deadForMs = new Map<MonsterId, number>();
+      const casts = new Map<MonsterId, number>();
       for (const [id, mark] of monsters) {
         const left = (mark.flashUntilMs - nowMs) / FLASH_MS;
         if (left > 0) flashes.set(id, FLASH_STRENGTH * left);
         if (mark.diedAtMs !== null) deadForMs.set(id, nowMs - mark.diedAtMs);
+        if (mark.castAtMs !== null) casts.set(id, nowMs - mark.castAtMs);
       }
       const portals = portalsShown(world, nowMs);
       for (let i = closingTownPortals.length - 1; i >= 0; i--) {
@@ -960,6 +964,7 @@ export function createRenderer(
       return {
         flashes,
         deadForMs,
+        casts,
         portals,
         bursts: bursts.map(ageOf),
         curses: curses.map((curse) => ({
@@ -1111,6 +1116,10 @@ export function createRenderer(
           const mark = monsters.get(event.target);
           if (mark) mark.flashUntilMs = nowMs + FLASH_MS;
         }
+        if (event.type === "WaveRaised") {
+          const mark = monsters.get(event.boss);
+          if (mark) mark.castAtMs = nowMs;
+        }
         if (event.type === "MonsterDied") {
           const mark = monsters.get(event.id);
           if (mark) mark.diedAtMs = nowMs;
@@ -1216,7 +1225,13 @@ export function createRenderer(
       const markOf = (id: MonsterId, type: MonsterType): MonsterMark => {
         let mark = monsters.get(id);
         if (!mark) {
-          mark = { type, at: heroAt, diedAtMs: null, flashUntilMs: 0 };
+          mark = {
+            type,
+            at: heroAt,
+            diedAtMs: null,
+            castAtMs: null,
+            flashUntilMs: 0,
+          };
           monsters.set(id, mark);
         }
         seen.add(id);

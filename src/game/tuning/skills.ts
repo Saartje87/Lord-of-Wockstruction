@@ -218,6 +218,9 @@ export type Branch = "bone" | "summoning" | "curses";
 /** The Branches in the order the Skill Tree shows them. */
 export const BRANCHES: Branch[] = ["bone", "summoning", "curses"];
 
+/** The Branch the Skill Tree opens on. */
+export const DEFAULT_BRANCH: Branch = "bone";
+
 /** The name of each Branch. */
 export const branchTuning: Record<Branch, { name: string }> = {
   bone: { name: "Bone" },

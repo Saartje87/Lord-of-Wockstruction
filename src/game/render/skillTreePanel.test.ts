@@ -11,6 +11,7 @@ import {
   BRANCHES,
   type Branch,
   branchSkills,
+  DEFAULT_BRANCH,
   type Skill,
   skillTuning,
 } from "../tuning/skills";
@@ -283,6 +284,29 @@ describe("skillTreeSheet", () => {
     expect(rowOf(world(), "graveCommand").nextStats).toEqual([]);
   });
 
+  it("gives a learned Passive Skill with a point to spend its boost one Skill Level up as the next block", () => {
+    const { percentPerSkillLevel } = skillTuning.graveCommand.passive;
+    const withPassive = (graveCommand: number, skillPoints: number) =>
+      world({
+        ...FRESH_PROGRESS,
+        level: 20,
+        skillPoints,
+        skillLevels: {
+          ...FRESH_PROGRESS.skillLevels,
+          golem: 1,
+          raiseArcher: 1,
+          graveCommand,
+        },
+      });
+
+    expect(rowOf(withPassive(2, 1), "graveCommand").nextStats).toEqual([
+      `Boost: +${percentPerSkillLevel * 3}%`,
+    ]);
+    // Unlearned, or no point to spend: no next block.
+    expect(rowOf(withPassive(0, 1), "graveCommand").nextStats).toEqual([]);
+    expect(rowOf(withPassive(2, 0), "graveCommand").nextStats).toEqual([]);
+  });
+
   it("shows the required Level, and no +, until the Hero reaches it", () => {
     skillTuning.golem.requiredLevel = 6;
 
@@ -360,7 +384,7 @@ describe("skillTreePanelLayout", () => {
 
   it("sits where the Inventory panel does, at the right", () => {
     const inventory = inventoryPanelLayout(screen, ONE_ROW).panel;
-    const { panel } = skillTreePanelLayout(screen);
+    const { panel } = skillTreePanelLayout(screen, DEFAULT_BRANCH);
 
     expect(panel.x + panel.w).toBe(inventory.x + inventory.w);
     expect(panel.y).toBe(inventory.y);
@@ -412,7 +436,10 @@ describe("skillTreePanelLayout", () => {
   });
 
   it("gives three tabs along the top of the grid, one per Branch", () => {
-    const { tabs, skills, closeButton } = skillTreePanelLayout(screen);
+    const { tabs, skills, closeButton } = skillTreePanelLayout(
+      screen,
+      DEFAULT_BRANCH,
+    );
     const rects = BRANCHES.map((branch) => tabs[branch]);
 
     for (const tab of rects) {

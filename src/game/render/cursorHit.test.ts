@@ -11,6 +11,7 @@ import {
   step,
 } from "../sim/world";
 import type { ItemType } from "../tuning/items";
+import { DEFAULT_BRANCH } from "../tuning/skills";
 import { type Viewport, viewportOf } from "../viewport";
 import { beltStripLayout } from "./beltStrip";
 import { cursorHitAt } from "./cursorHit";
@@ -182,7 +183,8 @@ describe("with touch, a near miss on a panel's ×", () => {
     {
       panel: "skillTree",
       open: { ...createMenus(), skillTreeOpen: true },
-      layout: skillTreePanelLayout,
+      layout: (screen: Viewport) =>
+        skillTreePanelLayout(screen, DEFAULT_BRANCH),
     },
   ] as const;
   /** Points just off each side of `rect`, 3 px out, by its middle. */
@@ -467,7 +469,7 @@ describe.each([
     {
       name: "skillTree",
       open: { ...createMenus(), skillTreeOpen: true },
-      panel: skillTreePanelLayout(screen).panel,
+      panel: skillTreePanelLayout(screen, DEFAULT_BRANCH).panel,
     },
   ];
 

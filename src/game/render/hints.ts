@@ -176,9 +176,10 @@ const SKILL_ACTIONS: Record<
 /**
  * A Skill's tooltip with `way`: its name and Skill Level, its stat lines, a
  * "Next Skill Level" block while a point can be spent, each Synergy and what
- * they add now, the Passive's lines, what holds it back (its Prerequisites and
- * its Level), then, but for touch, how to spend a Skill Point on it while one can be, and how to put
- * it on the Skill Bar once learned.
+ * they add now, the Passive's lines, and what holds it back (its
+ * Prerequisites and its Level). Then, but for touch, how to spend a Skill
+ * Point on it while one can be, and how to put it on the Skill Bar once
+ * learned.
  */
 export function skillTooltip(sheet: SkillSheet, way: InputWay): string[] {
   const raised = sheet.raised ? ` (+${sheet.raised})` : "";

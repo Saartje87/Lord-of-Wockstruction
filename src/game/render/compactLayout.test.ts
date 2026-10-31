@@ -11,6 +11,7 @@ import {
   BRANCHES,
   type Branch,
   branchSkills,
+  DEFAULT_BRANCH,
   isPassive,
   type Skill,
 } from "../tuning/skills";
@@ -117,7 +118,7 @@ function hudButtons(viewport: Viewport): [string, Rect][] {
 function panelRects(viewport: Viewport): [string, Rect][] {
   return [
     ["Hero panel", heroPanelLayout(viewport).panel],
-    ["Skill Tree panel", skillTreePanelLayout(viewport).panel],
+    ["Skill Tree panel", skillTreePanelLayout(viewport, DEFAULT_BRANCH).panel],
     ...BELT_ROWS.map(
       (rows) =>
         [

@@ -7,7 +7,7 @@ import {
   type Order,
   type SimEvent,
 } from "./sim/world";
-import type { Branch } from "./tuning/skills";
+import { type Branch, DEFAULT_BRANCH } from "./tuning/skills";
 import type { Viewport } from "./viewport";
 
 /**
@@ -191,7 +191,7 @@ export function createMenus(screen: Screen = { type: "playing" }): Menus {
     heroPanelOpen: false,
     inventoryOpen: false,
     skillTreeOpen: false,
-    skillTreeBranch: "bone",
+    skillTreeBranch: DEFAULT_BRANCH,
     questOpen: false,
     waypointsOpen: false,
     dialogueOpen: false,

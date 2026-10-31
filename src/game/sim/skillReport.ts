@@ -9,12 +9,12 @@ import {
 } from "../tuning/skills";
 import type { Area } from "./area";
 import { monsterMaxLife } from "./monsters";
-import { skillNumbers } from "./skillNumbers";
+import { type SkillLineLabel, skillNumbers } from "./skillNumbers";
 import { SKILLS, skillManaCost } from "./world";
 
 /** One number of a Skill at a Skill Level, as Synergies and Passive Skills change it. */
 export type SkillNumber = {
-  label: string;
+  label: SkillLineLabel;
   /** With no Synergy giver or Passive Skill Level. */
   base: number;
   /** With every Synergy giver at the same Skill Level. */
@@ -54,7 +54,7 @@ const SHARDS_HIT = 2;
 export const REPORT_SKILL_LEVELS = [1, 5, 10, 20];
 
 /** The lines of `skillNumbers` the report shows, by kind of effect. */
-const REPORTED: Record<SkillEffect["type"], string[]> = {
+const REPORTED: Record<SkillEffect["type"], SkillLineLabel[]> = {
   summon: ["Life", "Damage"],
   raise: ["Count", "Life", "Damage"],
   curse: ["Duration", "Radius"],

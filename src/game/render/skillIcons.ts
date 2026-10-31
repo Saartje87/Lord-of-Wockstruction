@@ -22,9 +22,12 @@ type Pen = {
 
 type Point = [number, number];
 
-const px = (pen: Pen, fx: number) => pen.box.x + pen.box.w * fx;
-const py = (pen: Pen, fy: number) => pen.box.y + pen.box.h * fy;
+/** Where a fraction `across` of the way over the box is, in px. */
+const pxX = (pen: Pen, across: number) => pen.box.x + pen.box.w * across;
+/** Where a fraction `down` of the way down the box is, in px. */
+const pxY = (pen: Pen, down: number) => pen.box.y + pen.box.h * down;
 
+/** Strokes the path drawn so far with the pen's colour and width. */
 function stroke(pen: Pen) {
   pen.graphics.stroke({
     color: pen.colour,
@@ -38,8 +41,10 @@ function stroke(pen: Pen) {
 /** Strokes the polyline through `points`, closing it if asked. */
 function line(pen: Pen, points: Point[], close = false) {
   const [first, ...rest] = points;
-  pen.graphics.moveTo(px(pen, first[0]), py(pen, first[1]));
-  for (const [fx, fy] of rest) pen.graphics.lineTo(px(pen, fx), py(pen, fy));
+  pen.graphics.moveTo(pxX(pen, first[0]), pxY(pen, first[1]));
+  for (const [across, down] of rest) {
+    pen.graphics.lineTo(pxX(pen, across), pxY(pen, down));
+  }
   if (close) pen.graphics.closePath();
   stroke(pen);
 }
@@ -47,30 +52,34 @@ function line(pen: Pen, points: Point[], close = false) {
 /** Fills the polygon through `points`. */
 function solid(pen: Pen, points: Point[]) {
   pen.graphics
-    .poly(points.flatMap(([fx, fy]) => [px(pen, fx), py(pen, fy)]))
+    .poly(
+      points.flatMap(([across, down]) => [pxX(pen, across), pxY(pen, down)]),
+    )
     .fill({ color: pen.colour, alpha: pen.alpha });
 }
 
-function dot(pen: Pen, fx: number, fy: number, fr: number) {
+/** Fills a circle centred `across` and `down` the box, `radius` of its width. */
+function dot(pen: Pen, across: number, down: number, radius: number) {
   pen.graphics
-    .circle(px(pen, fx), py(pen, fy), pen.box.w * fr)
+    .circle(pxX(pen, across), pxY(pen, down), pen.box.w * radius)
     .fill({ color: pen.colour, alpha: pen.alpha });
 }
 
-function ring(pen: Pen, fx: number, fy: number, fr: number) {
-  pen.graphics.circle(px(pen, fx), py(pen, fy), pen.box.w * fr);
+/** Strokes the outline of a circle placed as `dot` places one. */
+function ring(pen: Pen, across: number, down: number, radius: number) {
+  pen.graphics.circle(pxX(pen, across), pxY(pen, down), pen.box.w * radius);
   stroke(pen);
 }
 
 /** A curve from `from` to `to` bending toward `via`, stroked. */
 function curve(pen: Pen, from: Point, via: Point, to: Point) {
   pen.graphics
-    .moveTo(px(pen, from[0]), py(pen, from[1]))
+    .moveTo(pxX(pen, from[0]), pxY(pen, from[1]))
     .quadraticCurveTo(
-      px(pen, via[0]),
-      py(pen, via[1]),
-      px(pen, to[0]),
-      py(pen, to[1]),
+      pxX(pen, via[0]),
+      pxY(pen, via[1]),
+      pxX(pen, to[0]),
+      pxY(pen, to[1]),
     );
   stroke(pen);
 }

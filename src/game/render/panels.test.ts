@@ -6,7 +6,13 @@ import { emptySkillBar } from "../sim/skillBar";
 import { ATTRIBUTES, createWorld, FRESH_PROGRESS, SKILLS } from "../sim/world";
 import { heroTuning } from "../tuning/hero";
 import { ITEM_TYPES, inventoryTuning, itemOf } from "../tuning/items";
-import { BRANCHES, type Branch, isPassive, type Skill } from "../tuning/skills";
+import {
+  BRANCHES,
+  type Branch,
+  DEFAULT_BRANCH,
+  isPassive,
+  type Skill,
+} from "../tuning/skills";
 import { type Viewport, viewportOf } from "../viewport";
 import { heroPanelHitAt, heroPanelLayout } from "./heroPanel";
 import {
@@ -91,7 +97,7 @@ describe("the panels at the UI Scale", () => {
     const viewport = viewportOf(size);
     const { uiScale } = viewport;
     const hero = heroPanelLayout(viewport);
-    const skillTree = skillTreePanelLayout(viewport);
+    const skillTree = skillTreePanelLayout(viewport, DEFAULT_BRANCH);
     const inventory = inventoryPanelLayout(viewport, 1);
 
     // At native scale: 300×524 Hero panel and 320 px Skill Tree panel,
@@ -119,7 +125,7 @@ describe("the panels at the UI Scale", () => {
   )("fits the open panels inside $width×$height without overlapping", (size) => {
     const viewport = viewportOf(size);
     const hero = heroPanelLayout(viewport);
-    const skillTree = skillTreePanelLayout(viewport).panel;
+    const skillTree = skillTreePanelLayout(viewport, DEFAULT_BRANCH).panel;
 
     expectOnScreen(viewport, hero.panel, "Hero panel");
     expectOnScreen(viewport, skillTree, "Skill Tree panel");
@@ -159,7 +165,10 @@ describe("the panels at the UI Scale", () => {
     SCREENS,
   )("hits the Skill Tree's tabs and Skills at their centres on $width×$height", (size) => {
     const viewport = viewportOf(size);
-    const closeButton = skillTreePanelLayout(viewport).closeButton;
+    const closeButton = skillTreePanelLayout(
+      viewport,
+      DEFAULT_BRANCH,
+    ).closeButton;
     const at = (rect: Rect, branch: Branch) =>
       skillTreeHitAt(viewport, centre(rect), world, true, branch);
 

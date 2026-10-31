@@ -32,7 +32,7 @@ import { skillTuning } from "../tuning/skills";
 import { atUiScale, type Viewport } from "../viewport";
 import { type CloseButton, closeButtonRect, closeHitAt } from "./closeButton";
 import { compactPanelRect } from "./compactLayout";
-import { panelsBottom } from "./panelButtons";
+import { rightPanelsBottom } from "./panelButtons";
 
 /**
  * The Inventory panel at the top right (CSS px at native scale, drawn at
@@ -116,7 +116,7 @@ export function inventoryPanelLayout(
   const fits = (screen.width / 2 - right - 2 * padding) / columns;
   // The panel stops above the HUD along the bottom: the Panel buttons, the
   // Town Portal button and the Mana orb.
-  const bottom = panelsBottom(screen);
+  const bottom = rightPanelsBottom(screen);
   const fitsDown =
     (bottom - top - 2 * padding - titleHeight - 2 * gridGap - hintHeight) /
     (EQUIPMENT_ROWS + beltRows + rows);

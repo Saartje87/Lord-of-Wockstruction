@@ -131,11 +131,12 @@ export function panelButtonTooltipRect(
 }
 
 /**
- * Where the panels at the right of a desktop screen must stop: above the
- * HUD along the bottom, the Skill Bar and the Panel buttons, the Town
- * Portal button and the Mana orb, whichever reaches highest.
+ * Where the panels at the right of a desktop screen must stop (the bottom
+ * edge, in CSS px): above the Panel buttons (the Hero button's top, as they
+ * are in line), the Town Portal button and the Mana orb, whichever reaches
+ * highest.
  */
-export function panelsBottom(screen: Viewport): number {
+export function rightPanelsBottom(screen: Viewport): number {
   const { buttons, townPortal } = panelButtonsLayout(screen);
   const { mana } = orbsLayout(screen);
   return Math.min(

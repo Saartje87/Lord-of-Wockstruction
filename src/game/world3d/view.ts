@@ -11,6 +11,7 @@ import { isLobbed } from "../sim/projectiles";
 import { msToSteps, STEP_MS } from "../sim/units";
 import type { Vec } from "../sim/vec";
 import {
+  burningCircles,
   CAST_STEPS,
   DEATH_STEPS,
   FLINCH_STEPS,
@@ -32,6 +33,7 @@ import type { MinionType } from "../tuning/minions";
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
 import type { ProjectileKind } from "../tuning/projectiles";
 import { type Skill, skillTuning } from "../tuning/skills";
+import { uniqueTuning } from "../tuning/uniqueMonsters";
 import type { BoneAltarView } from "./boneAltarMeshes";
 import type { BoneWallView } from "./boneWallMeshes";
 import { ATTACK_CONTACT, type HeroClip } from "./clips";
@@ -83,6 +85,10 @@ export type MonsterView = {
   /** How white a hit Monster is washed, 0..1. */
   flash: number;
   corpse: boolean;
+  /** Whether it has flared up, as Grave Wockington does past half his Life. */
+  flared: boolean;
+  /** Times its type's own scale: a Unique Monster's, else 1. */
+  scale: number;
   /** Whether it is outlined as hovered or targeted. */
   highlighted: boolean;
 };
@@ -138,6 +144,8 @@ export type Effects = {
   flashes: ReadonlyMap<MonsterId, number>;
   /** How long ago (ms) each Monster just killed died; others lie still. */
   deadForMs: ReadonlyMap<MonsterId, number>;
+  /** How long ago (ms) each Monster just raised a wave; others have not. */
+  casts: ReadonlyMap<MonsterId, number>;
   /** The Town Portal ends of the Area, bursting open, standing or closing. */
   portals: ShownTownPortal[];
   /** The Corpse bursts so far, with how long ago each began. */
@@ -191,6 +199,8 @@ export type FloorEffectsView = {
   curses: (FloorCircle & { pos: Vec; colour: number })[];
   /** Where each Muck in flight will land, from loosing until it does. */
   marks: LandingMarkView[];
+  /** Each burning circle Gravefire left, from landing until it burns out. */
+  burns: BurnView[];
   /** A flash disc and a spreading ring round a burst Corpse. */
   bursts: { pos: Vec; flash: FloorCircle; ring: FloorCircle }[];
   /** The gold ring round the Hero's feet on a Level-Up. */
@@ -213,12 +223,23 @@ export const LOB_ARC_HEIGHT = 2;
 
 /** The mark a lobbed Projectile (Muck) will land on, drawn on the ground. */
 export type LandingMarkView = {
+  /** What was lobbed, which sets the mark's colour. */
+  kind: ProjectileKind;
   /** Where it will land, in tile units. */
   pos: Vec;
   /** The circle it hits within (tiles). */
   radius: number;
   /** How far the Projectile is along its arc, 0..1. */
   progress: number;
+};
+
+/** A burning circle on the ground as the 3D World shows it. */
+export type BurnView = {
+  pos: Vec;
+  /** The circle it burns within (tiles). */
+  radius: number;
+  /** How much of its burn is left, 1 when it lands to 0 when it is out. */
+  left: number;
 };
 
 /** A Ground Item lying on the floor as the 3D World shows it. */
@@ -346,6 +367,7 @@ export function worldViewOf(
   effects: Effects = {
     flashes: new Map(),
     deadForMs: new Map(),
+    casts: new Map(),
     portals: [],
     bursts: [],
     curses: [],
@@ -381,6 +403,8 @@ export function worldViewOf(
           animation: corpseAnimationOf(effects.deadForMs.get(corpse.id)),
           flash: 0,
           corpse: true,
+          flared: false,
+          scale: 1,
           highlighted: false,
         }),
       ),
@@ -476,8 +500,16 @@ function floorEffectsOf(
   const telegraphs: TelegraphView[] = [];
   for (const monster of world.monsters) {
     const { attack } = monsterTuning[monster.type];
-    // A ranged attack has no reach to show: the drawn bow is the tell.
-    if (monster.state !== "windup" || attack.kind !== "melee") continue;
+    // A ranged attack has no reach to show: the drawn bow is the tell. A
+    // swing by one that also casts does.
+    if (monster.state !== "windup") continue;
+    const swing =
+      attack.kind === "melee"
+        ? attack
+        : monster.swinging && attack.melee
+          ? { ...attack.melee, slam: undefined }
+          : null;
+    if (!swing) continue;
     telegraphs.push({
       pos: {
         x: monster.prevPos.x + (monster.pos.x - monster.prevPos.x) * alpha,
@@ -485,8 +517,8 @@ function floorEffectsOf(
       },
       facing: monster.facing,
       // A Slam fills the whole circle it hits within.
-      reach: attack.slam ? attack.slam.radius : attack.reach,
-      arc: attack.slam ? Math.PI : (attack.arcDegrees * Math.PI) / 180,
+      reach: swing.slam ? swing.slam.radius : swing.reach,
+      arc: swing.slam ? Math.PI : (swing.arcDegrees * Math.PI) / 180,
       progress: windUpProgress(monster),
     });
   }
@@ -512,15 +544,24 @@ function floorEffectsOf(
     effects.levelUpAgoMs === null ? null : levelRing(effects.levelUpAgoMs);
   const marks: LandingMarkView[] = world.projectiles
     .filter(isLobbed)
-    .map(({ landing, radius, progress }) => ({
+    .map(({ kind, landing, radius, progress }) => ({
+      kind,
       pos: { ...landing },
       radius,
       progress,
     }));
+  const burns: BurnView[] = burningCircles(world).map(
+    ({ pos, radius, leftMs, lengthMs }) => ({
+      pos,
+      radius,
+      left: leftMs / lengthMs,
+    }),
+  );
   return {
     telegraphs,
     curses,
     marks,
+    burns,
     bursts,
     levelRing: ring && { pos: heroPos, ...ring },
   };
@@ -539,6 +580,9 @@ function corpseAnimationOf(ms: number | undefined): MonsterAnimation {
   return { clip: "death", progress };
 }
 
+/** How long (ms) a Monster's cast clip plays when it raises a wave. */
+const CAST_MS = 1200;
+
 /** A living Monster as shown: its animation chosen by its state. */
 function monsterViewOf(
   world: World,
@@ -547,14 +591,20 @@ function monsterViewOf(
   effects: Effects,
   highlight: CharacterId | null,
 ): MonsterView {
-  const { contact } = MONSTER_LOOKS[monster.type];
+  const look = MONSTER_LOOKS[monster.type];
+  // One that casts its ranged attack plays its Spellcast clip for it, but not
+  // for its swing.
+  const casting = look.clips.lob !== undefined && !monster.swinging;
+  const contact = casting ? (look.lobContact ?? look.contact) : look.contact;
+  const attackClip = casting ? "lob" : "attack";
+  const castAgo = effects.casts.get(monster.id);
   const moving =
     monster.pos.x !== monster.prevPos.x || monster.pos.y !== monster.prevPos.y;
   let animation: MonsterAnimation;
   if (monster.state === "windup") {
     // A flinch doesn't stop a wind-up, so it shows over one.
     animation = {
-      clip: "attack",
+      clip: attackClip,
       progress: windUpProgress(monster) * contact,
     };
   } else if (monster.flinch > 0) {
@@ -566,9 +616,11 @@ function monsterViewOf(
     };
   } else if (monster.state === "recover") {
     animation = {
-      clip: "attack",
+      clip: attackClip,
       progress: contact + recoveryProgress(monster) * (1 - contact),
     };
+  } else if (castAgo !== undefined && castAgo < CAST_MS) {
+    animation = { clip: "cast", progress: castAgo / CAST_MS };
   } else {
     const seconds = (world.tick * STEP_MS) / 1000;
     const clip = !moving
@@ -589,6 +641,8 @@ function monsterViewOf(
     animation,
     flash: effects.flashes.get(monster.id) ?? 0,
     corpse: false,
+    flared: (monster.waves?.stage ?? 0) > 0,
+    scale: monster.unique === null ? 1 : uniqueTuning.scale,
     highlighted: highlight === monster.id,
   };
 }

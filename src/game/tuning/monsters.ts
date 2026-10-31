@@ -114,6 +114,12 @@ export type RangedTuning = {
   projectile: ProjectileKind;
   /** How near its target must be, and in sight, to start an attack (tiles). */
   range: number;
+  /**
+   * How its Projectile's damage splits over Damage Types, instead of the
+   * Monster type's `damageTypes`, so a blow of the same Monster stays
+   * Physical (Grave Wockington). A burn's ticks carry them too.
+   */
+  damageTypes?: DamageShares;
   /** How fast its Projectile flies (tiles per second). */
   projectileSpeed: number;
   /** How far its Projectile flies before it vanishes (tiles). */
@@ -124,7 +130,31 @@ export type RangedTuning = {
    * ground, and there hits every Hero and Minion within `radius` (tiles).
    * Its `projectileRange` is then unused.
    */
-  lob?: { radius: number };
+  lob?: {
+    radius: number;
+    /**
+     * Set when it lands where the Hero stood when it was loosed, whoever its
+     * Monster is after.
+     */
+    atHero?: boolean;
+    /**
+     * Set when it lands as a burning circle instead of a blow: for `burnMs`
+     * it hurts every Hero (not in Death) and Minion within `radius`, every
+     * `tickMs`, for the Monster's damage times `damage` (at least 1) each time.
+     */
+    burn?: { burnMs: number; tickMs: number; damage: number };
+  };
+  /**
+   * Set for a Monster that also swings: with its target within this reach it
+   * winds up a blow instead of loosing, as a melee attack would.
+   */
+  melee?: Omit<MeleeTuning, "kind" | "slam">;
+  /**
+   * How long it recovers, after loosing and before it can attack again, at
+   * each of its stages (ms): the first for its first stage. Missing, the
+   * type's `recoveryMs`.
+   */
+  recoveryMs?: number[];
 };
 
 /** A growth rate per Monster Level for each number that scales with it. */
@@ -451,15 +481,14 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
   },
   // The Act 1 boss's type: slow and sturdy, with a heavy blow after a long
   // wind-up. What makes him a threat is the Skeletons he raises in waves
-  // (`graveWockingtonTuning`). Placeholder numbers until his fight is
-  // designed (T446).
+  // (`graveWockingtonTuning`). First tuning pass (T513).
   grave_wockington: {
     name: "Grave Wockington",
     resistances: { fire: 50 },
-    life: 120,
+    life: 150,
     experience: 300,
     speed: 1.6,
-    damage: [8, 16],
+    damage: [6, 12],
     defense: 120,
     attackRating: 30,
     radius: 0.45,
@@ -470,13 +499,32 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
     replanMs: 400,
     needsSight: true,
     spreadRadius: 1.5,
-    attack: { kind: "melee", reach: 1.5, reachGrace: 0.25, arcDegrees: 70 },
+    // Gravefire, lobbed at where the Hero stands, from a standstill; a target
+    // within his reach gets his blow instead. First pass (T513).
+    attack: {
+      kind: "ranged",
+      projectile: "gravefire",
+      // Fire: the Hero's Fire Resistance pays off against the burn.
+      damageTypes: { fire: 1 },
+      range: 8,
+      projectileSpeed: 5,
+      projectileRange: 8,
+      lob: {
+        radius: 2.2,
+        atHero: true,
+        burn: { burnMs: 4000, tickMs: 500, damage: 0.2 },
+      },
+      melee: { reach: 1.5, reachGrace: 0.25, arcDegrees: 70 },
+      recoveryMs: [2200, 1300],
+    },
     windUpMs: 900,
     rootMs: 400,
     recoveryMs: 1500,
     jitterMs: 400,
     maxAttackers: 0,
-    leash: 20,
+    // From his spawn in the Ossuary this reaches every corner of his room (12
+    // tiles at most) and stops short of the corridor's far end (15 tiles).
+    leash: 13,
     returnSpeed: 1.2,
     graceMs: 2000,
     flinchChance: 0,

@@ -5,7 +5,7 @@ import { CURSE_CIRCLE, curseLook } from "../render/curse";
 import { LEVEL_UP } from "../render/levelUp";
 import { isLobbed } from "../sim/projectiles";
 import { msToSteps } from "../sim/units";
-import { step } from "../sim/world";
+import { burningCircles, step } from "../sim/world";
 import { monsterTuning } from "../tuning/monsters";
 import { type Effects, type PointerState, worldViewOf } from "./view";
 
@@ -17,6 +17,7 @@ const NO_POINTER: PointerState = {
 const NO_EFFECTS: Effects = {
   flashes: new Map(),
   deadForMs: new Map(),
+  casts: new Map(),
   portals: [],
   bursts: [],
   curses: [],
@@ -155,6 +156,54 @@ describe("the 3D World view of the floor effects", () => {
       }
 
       expect(viewOf(world).marks).toEqual([]);
+    });
+  });
+
+  describe("Gravefire", () => {
+    /** Grave Wockington 4 tiles from the Hero, stepped until he casts. */
+    const cast = () => {
+      const world = arenaWith([{ x: 14, y: 10 }], { combat: true });
+      world.monsters[0].type = "grave_wockington";
+      world.hero.life = 1e6;
+      for (let i = 0; !world.projectiles.length; i++) {
+        if (i > 600) throw new Error("No Gravefire was cast");
+        step(world, []);
+      }
+      // Once is enough.
+      world.monsters[0].cooldown = 1e9;
+      return world;
+    };
+
+    it("marks its landing from casting, in fire and not Muck's green", () => {
+      const world = cast();
+      const [mark] = viewOf(world).marks;
+
+      expect(mark.kind).toBe("gravefire");
+      expect(viewOf(world).burns).toEqual([]);
+    });
+
+    it("shows the burning circle from landing until its burn ends, then removes it", () => {
+      const world = cast();
+      for (let i = 0; !world.burns.length; i++) {
+        if (i > 600) throw new Error("It never landed");
+        step(world, []);
+      }
+      const [burning] = burningCircles(world);
+
+      const [shown] = viewOf(world).burns;
+      expect(shown.pos).toEqual(burning.pos);
+      expect(shown.radius).toBe(burning.radius);
+      expect(shown.left).toBeGreaterThan(0.9);
+      expect(viewOf(world).marks).toEqual([]);
+
+      for (let i = 0; i < 60; i++) step(world, []);
+      expect(viewOf(world).burns[0].left).toBeLessThan(shown.left);
+
+      for (let i = 0; world.burns.length; i++) {
+        if (i > 60 * 10) throw new Error("It never burnt out");
+        step(world, []);
+      }
+      expect(viewOf(world).burns).toEqual([]);
     });
   });
 

@@ -14,6 +14,7 @@ const NO_POINTER: PointerState = {
 const NO_EFFECTS: Effects = {
   flashes: new Map(),
   deadForMs: new Map(),
+  casts: new Map(),
   portals: [],
   bursts: [],
   curses: [],
@@ -78,6 +79,56 @@ describe("the 3D World view of the Monsters", () => {
 
     monster.flinch = 5;
     expect(firstMonster(world).animation.clip).toBe("flinch");
+  });
+
+  it("draws Grave Wockington as the Skeleton_Mage with a staff, a fire tint and a Spellcast clip for a wave", () => {
+    const { world, monster } = withSkeleton();
+    monster.type = "grave_wockington";
+
+    const look = MONSTER_LOOKS.grave_wockington;
+    expect(look.model).toBe("Skeleton_Mage");
+    expect(look.weapons).toEqual([
+      { slot: "handslot.r", model: "Skeleton_Staff" },
+    ]);
+    expect(look.look).toBe("fire");
+    expect(look.scale).toBeGreaterThan(MONSTER_LOOKS.skeleton.scale);
+    expect(look.clips.cast).toMatch(/^Spellcast_/);
+    expect(firstMonster(world).animation.clip).toBe("idle");
+
+    const casts = new Map([[monster.id, 200]]);
+    const cast = firstMonster(world, { ...NO_EFFECTS, casts }).animation;
+    expect(cast.clip).toBe("cast");
+    // Over once the cast has played.
+    const done = new Map([[monster.id, 60_000]]);
+    expect(
+      firstMonster(world, { ...NO_EFFECTS, casts: done }).animation.clip,
+    ).toBe("idle");
+  });
+
+  it("shows Grave Wockington's flare on his model from the turn on", () => {
+    const { world, monster } = withSkeleton();
+    monster.type = "grave_wockington";
+    monster.waves = { cooldown: 100, raised: [], stage: 0 };
+    expect(firstMonster(world).flared).toBe(false);
+
+    monster.waves.stage = 1;
+    expect(firstMonster(world).flared).toBe(true);
+    expect(worldViewOf(world, 1, NO_POINTER, NO_EFFECTS).monsters).toHaveLength(
+      1,
+    );
+  });
+
+  it("plays Grave Wockington's Spellcast clip while he casts Gravefire, and his melee clip for his swing", () => {
+    const { world, monster } = withSkeleton();
+    monster.type = "grave_wockington";
+    monster.state = "windup";
+
+    expect(MONSTER_LOOKS.grave_wockington.clips.lob).toMatch(/^Spellcast_/);
+    expect(firstMonster(world).animation.clip).toBe("lob");
+    monster.state = "recover";
+    expect(firstMonster(world).animation.clip).toBe("lob");
+    monster.swinging = true;
+    expect(firstMonster(world).animation.clip).toBe("attack");
   });
 
   it("draws a Wockwolf as the Werewolf, scaled down, with the clip of its state", () => {
@@ -215,5 +266,17 @@ describe("the 3D World view of the Monsters", () => {
       clip: "death",
       progress: expect.closeTo(0.5, 5),
     });
+  });
+});
+
+describe("the 3D World view of a Unique Monster", () => {
+  it("draws it about 1.2x its type's scale and an ordinary Monster at 1x", () => {
+    const { world, monster } = withSkeleton();
+    expect(firstMonster(world).scale).toBe(1);
+
+    monster.unique = "Bob";
+
+    expect(firstMonster(world).scale).toBeCloseTo(1.2);
+    expect(firstMonster(world).type).toBe("skeleton");
   });
 });

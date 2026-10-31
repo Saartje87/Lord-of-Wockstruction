@@ -48,6 +48,7 @@ import { buyable, goodAt, goodsOf } from "../sim/vendor";
 import {
   ATTRIBUTES,
   areaFade,
+  bossBarOf,
   DEATH_STEPS,
   groundItemsOf,
   hasQuestToDeal,
@@ -95,6 +96,7 @@ import {
   bannerOpacityAt,
 } from "./areaBanner";
 import { beltStripLayout, beltStripSheet } from "./beltStrip";
+import { bossBarContentOf, bossBarLayout } from "./bossBar";
 import { CLOSE_BUTTON } from "./closeButton";
 import { corpseBurst } from "./corpseBurst";
 import {
@@ -167,7 +169,7 @@ import {
   itemUnder,
   landingCell,
 } from "./inventoryPanel";
-import { itemColour, itemLabel, rarityColour } from "./itemArt";
+import { itemColour, itemLabel, rarityColour, UNIQUE_COLOUR } from "./itemArt";
 import {
   MAP_LOOK,
   MAP_OVERLAY,
@@ -545,6 +547,8 @@ type MonsterMark = {
   /** Where it stood when last drawn, in tile units. */
   at: Vec;
   diedAtMs: number | null;
+  /** When it last raised a wave, if it has. */
+  castAtMs: number | null;
   flashUntilMs: number;
 };
 
@@ -603,6 +607,14 @@ export function createRenderer(
   });
   nameplateText.anchor.set(0.5, 0);
   app.stage.addChild(nameplateText);
+  const bossBar = new Graphics();
+  app.stage.addChild(bossBar);
+  const bossBarText = new Text({
+    text: "",
+    style: { fill: NAMEPLATE_STYLE.nameColour, fontFamily: SERIF },
+  });
+  bossBarText.anchor.set(0.5, 0);
+  app.stage.addChild(bossBarText);
   // Under the HUD, over the World; the HUD and panels draw over it.
   const mapOverlay = mapOverlayView();
   app.stage.addChild(mapOverlay.layer);
@@ -928,10 +940,12 @@ export function createRenderer(
     effectsAt(nowMs: number, world: World): Effects {
       const flashes = new Map<MonsterId, number>();
       const deadForMs = new Map<MonsterId, number>();
+      const casts = new Map<MonsterId, number>();
       for (const [id, mark] of monsters) {
         const left = (mark.flashUntilMs - nowMs) / FLASH_MS;
         if (left > 0) flashes.set(id, FLASH_STRENGTH * left);
         if (mark.diedAtMs !== null) deadForMs.set(id, nowMs - mark.diedAtMs);
+        if (mark.castAtMs !== null) casts.set(id, nowMs - mark.castAtMs);
       }
       const portals = portalsShown(world, nowMs);
       for (let i = closingTownPortals.length - 1; i >= 0; i--) {
@@ -960,6 +974,7 @@ export function createRenderer(
       return {
         flashes,
         deadForMs,
+        casts,
         portals,
         bursts: bursts.map(ageOf),
         curses: curses.map((curse) => ({
@@ -1111,6 +1126,10 @@ export function createRenderer(
           const mark = monsters.get(event.target);
           if (mark) mark.flashUntilMs = nowMs + FLASH_MS;
         }
+        if (event.type === "WaveRaised") {
+          const mark = monsters.get(event.boss);
+          if (mark) mark.castAtMs = nowMs;
+        }
         if (event.type === "MonsterDied") {
           const mark = monsters.get(event.id);
           if (mark) mark.diedAtMs = nowMs;
@@ -1216,7 +1235,13 @@ export function createRenderer(
       const markOf = (id: MonsterId, type: MonsterType): MonsterMark => {
         let mark = monsters.get(id);
         if (!mark) {
-          mark = { type, at: heroAt, diedAtMs: null, flashUntilMs: 0 };
+          mark = {
+            type,
+            at: heroAt,
+            diedAtMs: null,
+            castAtMs: null,
+            flashUntilMs: 0,
+          };
           monsters.set(id, mark);
         }
         seen.add(id);
@@ -1344,11 +1369,37 @@ export function createRenderer(
           ? hovered.monster.id
           : { minion: hovered.minion.id }
         : null;
+      // The Boss bar, while the Act Boss is In Combat with the Hero.
+      const bossContent = bossBarContentOf(bossBarOf(world));
+      bossBar.clear();
+      bossBarText.visible = bossContent !== null;
+      let nameplateBelow = 0;
+      if (bossContent) {
+        const layout = bossBarLayout(viewport);
+        const { panel, bar, mark } = layout;
+        bossBar
+          .rect(panel.x, panel.y, panel.w, panel.h)
+          .fill({ color: 0x000000, alpha: NAMEPLATE_STYLE.alpha });
+        lifeBar(bossBar, {
+          x: bar.x,
+          y: bar.y,
+          width: bar.w,
+          height: bar.h,
+          fraction: bossContent.fraction,
+        });
+        bossBar
+          .rect(mark.x, mark.y, mark.w, mark.h)
+          .fill(NAMEPLATE_STYLE.nameColour);
+        bossBarText.text = bossContent.name;
+        sizeText(bossBarText, layout.nameSize);
+        bossBarText.position.set(layout.nameAt.x, layout.nameAt.y);
+        nameplateBelow = panel.y + panel.h;
+      }
       nameplate.clear();
       nameplateText.visible = hovered !== null;
       if (hovered) {
-        const { name, fraction, friendly } = nameplateOf(hovered);
-        const layout = nameplateLayout(viewport);
+        const { name, fraction, friendly, unique } = nameplateOf(hovered);
+        const layout = nameplateLayout(viewport, nameplateBelow);
         const { panel, bar } = layout;
         nameplate
           .rect(panel.x, panel.y, panel.w, panel.h)
@@ -1364,7 +1415,9 @@ export function createRenderer(
         nameplateText.text = name;
         nameplateText.style.fill = friendly
           ? FRIENDLY.name
-          : NAMEPLATE_STYLE.nameColour;
+          : unique
+            ? UNIQUE_COLOUR
+            : NAMEPLATE_STYLE.nameColour;
         sizeText(nameplateText, layout.nameSize);
         nameplateText.position.set(layout.nameAt.x, layout.nameAt.y);
       }

@@ -36,7 +36,13 @@ export function hoveredOf(
  * What the top-centre nameplate shows for a hovered character: its name, how
  * full its Life bar is (0..1), and whether it is on the Hero's side.
  */
-export type Nameplate = { name: string; fraction: number; friendly: boolean };
+export type Nameplate = {
+  name: string;
+  fraction: number;
+  friendly: boolean;
+  /** Whether it is a Unique Monster, whose name is drawn in the Unique gold. */
+  unique: boolean;
+};
 
 /**
  * The top-centre nameplate (CSS px at native scale, drawn at the UI Scale):
@@ -53,13 +59,18 @@ export const NAMEPLATE = {
   bar: 180,
   barHeight: 8,
   barBottom: 8,
+  gap: 4,
 };
 
 /**
  * Where the nameplate's panel and Life bar are drawn, where its name's top
- * centre goes, and how big the name is.
+ * centre goes, and how big the name is. With a `below` above 0 (the bottom
+ * of the Boss bar) the panel sits `gap` under that instead of at the top.
  */
-export function nameplateLayout(screen: Viewport): {
+export function nameplateLayout(
+  screen: Viewport,
+  below = 0,
+): {
   panel: Rect;
   bar: Rect;
   nameAt: Vec;
@@ -69,7 +80,7 @@ export function nameplateLayout(screen: Viewport): {
   const centre = screen.width / 2;
   const panel = {
     x: centre - sizes.width / 2,
-    y: sizes.top,
+    y: below > 0 ? below + sizes.gap : sizes.top,
     w: sizes.width,
     h: sizes.height,
   };
@@ -94,6 +105,7 @@ export function nameplateOf(hovered: Hovered): Nameplate {
       name: minionTuning[minion.type].name,
       fraction: minion.life / minionMaxLife(minion),
       friendly: true,
+      unique: false,
     };
   }
   const { monster } = hovered;
@@ -101,5 +113,6 @@ export function nameplateOf(hovered: Hovered): Nameplate {
     name: monster.unique ?? monsterTuning[monster.type].name,
     fraction: monster.life / monsterMaxLife(monster),
     friendly: false,
+    unique: monster.unique !== null,
   };
 }

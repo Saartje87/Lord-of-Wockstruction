@@ -28,6 +28,9 @@ export type Look = {
 
 const FLAT: Lay = [-Math.PI / 2, 0, 0];
 
+/** The fire red of Gravefire: its Projectile's glow, its landing mark and its burning circle. */
+export const GRAVEFIRE_COLOUR = 0xff6a1a;
+
 /** How each Item type lies on the floor. */
 export const LOOT_LOOKS: Record<ItemType, Look> = {
   shortSword: {
@@ -136,6 +139,16 @@ export const PROJECTILE_LOOKS: Record<ProjectileKind, ProjectileLook> = {
     height: 0.8,
     glow: 0x8fc22e,
     trail: 2,
+  },
+  // Gravefire: a pumpkin left orange, glowing fire red, lobbed as Muck is.
+  gravefire: {
+    model: "halloween/pumpkin_orange_small",
+    scale: 1.1,
+    lay: [0, 0, 0],
+    tint: 0xff7a2a,
+    height: 0.8,
+    glow: GRAVEFIRE_COLOUR,
+    trail: 3,
   },
   // A small bone, as Bone Spear's but a third the size.
   splinter: {

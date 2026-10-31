@@ -111,9 +111,20 @@ const SKELETONS = {
     { from: "Skeleton_Warrior", to: "Skeleton" },
     { from: "Skeleton_Rogue", to: "SkeletonArcher" },
     { from: "Skeleton_Minion", to: "Zombie", repaint: true },
+    {
+      from: "Skeleton_Mage",
+      to: "Skeleton_Mage",
+      // Besides theirs: the clips he raises a wave and casts Gravefire with.
+      extraClips: ["Spellcast_Raise", "Spellcast_Shoot"],
+    },
   ],
   /** Weapons, written as glbs beside the characters. */
-  weapons: ["Skeleton_Blade", "Skeleton_Shield_Small_A", "Skeleton_Crossbow"],
+  weapons: [
+    "Skeleton_Blade",
+    "Skeleton_Shield_Small_A",
+    "Skeleton_Crossbow",
+    "Skeleton_Staff",
+  ],
 };
 
 /** The Mystery Monthly packs, as their downloads unzip. */
@@ -397,12 +408,12 @@ await importCharacter({
   clips: KNIGHT.clips,
   dropNodes: KNIGHT.dropNodes,
 });
-for (const { from, to, repaint } of SKELETONS.models) {
+for (const { from, to, repaint, extraClips = [] } of SKELETONS.models) {
   const target = `${out.characters}/${to}.glb`;
   await importCharacter({
     from: `${dirOf(skeletons)}/${skeletonDir}/${from}.glb`,
     to: target,
-    clips: MONSTER_CLIPS,
+    clips: [...MONSTER_CLIPS, ...extraClips],
     dropNodes: () => false,
   });
   if (repaint) await rotTexture(target);

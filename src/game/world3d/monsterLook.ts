@@ -9,7 +9,9 @@ export type MonsterClip =
   | "run"
   | "attack"
   | "flinch"
-  | "death";
+  | "death"
+  | "cast"
+  | "lob";
 
 /** How one Monster type is drawn. */
 export type MonsterLook = {
@@ -20,12 +22,19 @@ export type MonsterLook = {
   /** How tall it stands in tiles, which its picking box follows. */
   height: number;
   /** The KayKit clip that plays each of its animations. */
-  clips: Record<MonsterClip, string>;
+  clips: Record<Exclude<MonsterClip, "cast" | "lob">, string> & {
+    /** The clip it raises a wave with. */
+    cast?: string;
+    /** The clip it casts a lobbed attack with, in place of `attack`. */
+    lob?: string;
+  };
   /**
    * How far into its attack clip the weapon makes contact (0..1): the
    * wind-up scrubs the clip to here, the recovery plays the rest.
    */
   contact: number;
+  /** `contact` for its `lob` clip, if it differs. */
+  lobContact?: number;
   /** How its colours are graded; a character's own by default. */
   look?: keyof typeof LOOKS;
   /** Weapon files in `characters/`, by the hand slot that holds them. */
@@ -125,15 +134,23 @@ export const MONSTER_LOOKS: Record<MonsterType, MonsterLook> = {
     contact: 0.55,
     weapons: [],
   },
-  // A big, pale Skeleton with a blade for a staff, until he has a model of his own.
+  // A big Skeleton_Mage, tinted with fire, a staff in his hand. He raises
+  // each wave and casts Gravefire with a Spellcast clip.
   grave_wockington: {
-    model: "Skeleton",
+    model: "Skeleton_Mage",
     scale: 0.6,
     height: 1.5,
-    clips: { ...STANDING, attack: "1H_Melee_Attack_Chop" },
+    clips: {
+      ...STANDING,
+      attack: "1H_Melee_Attack_Chop",
+      cast: "Spellcast_Raise",
+      lob: "Spellcast_Shoot",
+    },
     contact: ATTACK_CONTACT,
-    look: "raised",
-    weapons: [{ slot: "handslot.r", model: "Skeleton_Blade" }],
+    // Gravefire leaves the staff as the cast settles, as Muck leaves the hands.
+    lobContact: 0.35,
+    look: "fire",
+    weapons: [{ slot: "handslot.r", model: "Skeleton_Staff" }],
   },
   zombie: {
     model: "Zombie",

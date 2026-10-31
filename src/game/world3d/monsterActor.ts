@@ -34,6 +34,9 @@ const TURN_RATE = 14;
 const FLASH_GLOW = 0.9;
 /** The colour a hit Monster flashes. */
 const FLASH_COLOUR = 0xffffff;
+/** The colour and strength of a flared Monster's glow. */
+const FLARE_COLOUR = 0xff5a14;
+const FLARE_GLOW = 0.45;
 /** The outline's width, in tiles. */
 const OUTLINE = 0.022;
 
@@ -50,6 +53,10 @@ export type Posed = {
   animation: MonsterAnimation;
   /** How white it is washed, 0..1. */
   flash?: number;
+  /** Whether it glows with a flare of fire; false when missing. */
+  flared?: boolean;
+  /** Times the look's scale; 1 when missing. */
+  scale?: number;
   /** Whether it is outlined as hovered or targeted. */
   highlighted: boolean;
 };
@@ -125,18 +132,21 @@ export function poseMonster(actor: MonsterActor, monster: Posed, dt: number) {
     actor.turn = turnTowards(actor.turn, monster.facing, dt, TURN_RATE);
   }
   actor.root.rotation.y = actor.turn ?? 0;
-  glowMaterials(
-    actor.materials,
-    FLASH_COLOUR,
-    (monster.flash ?? 0) * FLASH_GLOW,
-  );
+  actor.root.scale.setScalar(monster.scale ?? 1);
+  // A hit's white flash shows over the flare.
+  const flash = (monster.flash ?? 0) * FLASH_GLOW;
+  if (flash > 0 || !monster.flared) {
+    glowMaterials(actor.materials, FLASH_COLOUR, flash);
+  } else {
+    glowMaterials(actor.materials, FLARE_COLOUR, FLARE_GLOW);
+  }
   if (monster.highlighted !== actor.highlighted) {
     actor.highlighted = monster.highlighted;
     const ink = monster.highlighted ? actor.inks.highlight : actor.inks.ink;
     for (const hull of actor.hulls) hull.material = ink;
   }
 
-  const name = actor.clips[monster.animation.clip];
+  const name = actor.clips[monster.animation.clip] ?? actor.clips.idle;
   blendClips(actor.actions, name, dt, first);
   const action = actor.actions.get(name);
   if (action) {

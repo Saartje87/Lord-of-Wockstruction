@@ -4,6 +4,7 @@ export const PROJECTILE_KINDS = [
   "boneSpear",
   "splinter",
   "muck",
+  "gravefire",
 ] as const;
 
 /** One kind of Projectile. */

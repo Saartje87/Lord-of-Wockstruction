@@ -27,6 +27,9 @@ const TYPE_COLOUR: Partial<Record<ItemType, number>> = {
   rejuvenationPotion: 0x8a2aa0,
 };
 
+/** The colour a Unique Monster's name is drawn in: a gold no Item name uses. */
+export const UNIQUE_COLOUR = 0xd9942a;
+
 /** The colour an Item's name is drawn in: white, or blue for Magic. */
 export function rarityColour(rarity: Rarity): number {
   if (rarity === "rare") return 0xffe05a;

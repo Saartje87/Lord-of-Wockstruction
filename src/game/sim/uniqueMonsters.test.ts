@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { heroTuning } from "../tuning/hero";
+import { isPotion } from "../tuning/items";
 import { uniqueTuning } from "../tuning/uniqueMonsters";
 import { loadArea } from "./area";
+import { monsterResistances, resistancesOf } from "./damage";
 import {
   killExperience,
   monsterAttackRating,
@@ -79,6 +81,7 @@ afterEach(() => {
 function kill(world: World): SimEvent[] {
   heroTuning.flinchChance = 0;
   const [monster] = world.monsters;
+  monster.life = 1;
   const events: SimEvent[] = [];
   for (let i = 0; i < 6000 && world.monsters.includes(monster); i++) {
     const orders: Order[] =
@@ -101,21 +104,17 @@ describe("Unique Monsters", () => {
     expect(monster.pos).toEqual({ x: 4.5, y: 1.5 });
   });
 
-  it("have more Life, damage, Attack Rating and Experience than their type", () => {
+  it("have 4x the Life, 1.5x the damage and 5x the Experience of their type at the same Monster Level", () => {
     const ordinary = { type: "zombie", monsterLevel: 3 } as const;
     const special = { ...ordinary, unique: "Sir Soaks-a-Lot" };
 
-    expect(monsterMaxLife(special)).toBe(
-      Math.round(monsterMaxLife(ordinary) * uniqueTuning.life),
-    );
-    expect(monsterDamageRange(special)[1]).toBeGreaterThan(
-      monsterDamageRange(ordinary)[1],
-    );
+    expect(monsterMaxLife(special)).toBe(monsterMaxLife(ordinary) * 4);
+    const [low, high] = monsterDamageRange(ordinary);
+    expect(monsterDamageRange(special)[0]).toBe(Math.round(low * 1.5));
+    expect(monsterDamageRange(special)[1]).toBe(Math.round(high * 1.5));
+    expect(monsterExperience(special)).toBe(monsterExperience(ordinary) * 5);
     expect(monsterAttackRating(special)).toBeGreaterThan(
       monsterAttackRating(ordinary),
-    );
-    expect(monsterExperience(special)).toBeGreaterThan(
-      monsterExperience(ordinary),
     );
     expect(killExperience(special, 3)).toBeGreaterThan(
       killExperience(ordinary, 3),
@@ -128,14 +127,35 @@ describe("Unique Monsters", () => {
     expect(monster.life).toBe(monsterMaxLife(monster));
   });
 
-  it("drop better Items: at least one Item every time", () => {
-    for (let seed = 1; seed <= 5; seed++) {
-      const events = kill(inSpa(FRESH_PROGRESS, seed));
+  it("always drop a Rare Item and a Magic or Rare one, with Affixes", () => {
+    for (let seed = 1; seed <= 60; seed++) {
+      const items = kill(inSpa(FRESH_PROGRESS, seed))
+        .filter((event) => event.type === "ItemDropped")
+        .map((event) => event.item)
+        .filter((item) => !isPotion(item.type));
 
-      expect(
-        events.filter((event) => event.type === "ItemDropped").length,
-      ).toBeGreaterThanOrEqual(1);
+      expect(items).toHaveLength(2);
+      expect(items[0].rarity).toBe("rare");
+      expect(["magic", "rare"]).toContain(items[1].rarity);
+      for (const item of items) {
+        expect(item.affixes.length).toBeGreaterThanOrEqual(
+          item.rarity === "rare" ? 3 : 1,
+        );
+      }
     }
+  });
+
+  it("roll both Magic and Rare for the second Item across seeds", () => {
+    const second = new Set<string>();
+    for (let seed = 1; seed <= 60; seed++) {
+      const items = kill(inSpa(FRESH_PROGRESS, seed))
+        .filter((event) => event.type === "ItemDropped")
+        .map((event) => event.item)
+        .filter((item) => !isPotion(item.type));
+      second.add(items[1].rarity);
+    }
+
+    expect([...second].sort()).toEqual(["magic", "rare"]);
   });
 
   it("come back in every new Session, whatever the Quests", () => {
@@ -174,5 +194,22 @@ describe("a Unique Monster object", () => {
 
   it("must have a name", () => {
     expect(() => load([unique("", "zombie", 4)])).toThrow(/without a name/);
+  });
+});
+
+describe("Unique Monster Resistances", () => {
+  afterEach(() => {
+    delete uniqueTuning.resistances["Sir Soaks-a-Lot"];
+  });
+
+  it("are its Monster type's unless its own tuning overrides them", () => {
+    const zombie = { type: "zombie", unique: "Sir Soaks-a-Lot" } as const;
+    expect(resistancesOf(zombie)).toEqual(monsterResistances("zombie"));
+
+    uniqueTuning.resistances["Sir Soaks-a-Lot"] = { fire: 75 };
+    expect(resistancesOf(zombie)).toEqual({ fire: 75 });
+    expect(resistancesOf({ type: "zombie", unique: null })).toEqual(
+      monsterResistances("zombie"),
+    );
   });
 });

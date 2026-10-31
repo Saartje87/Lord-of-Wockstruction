@@ -21,6 +21,7 @@ import {
   dropTuning,
   itemOf,
   potionDropTuning,
+  type Rarity,
 } from "../tuning/items";
 import { mapTuning } from "../tuning/map";
 import { minionTuning } from "../tuning/minions";
@@ -77,6 +78,7 @@ import {
   landDamage,
   minionResistances,
   monsterResistances,
+  resistancesOf,
   splitDamage,
   unresistedTotal,
 } from "./damage";
@@ -137,8 +139,11 @@ import {
 } from "./potions";
 import {
   type AttackNumbers,
+  type Burn,
+  isLobbed,
   type LobbedProjectile,
   type Projectile,
+  stepBurns,
   stepProjectiles,
 } from "./projectiles";
 import {
@@ -165,7 +170,7 @@ import {
 } from "./skillBar";
 import { giveSmithBonus, SMITH } from "./smith";
 import { passiveMultiplier, skillPower } from "./synergies";
-import { msToSteps, perStep } from "./units";
+import { msToSteps, perStep, STEP_MS } from "./units";
 import { validateAreas, validateResistances } from "./validate";
 import { distance, type Vec } from "./vec";
 import { moveGood, newVendor, restockVendor, type Vendor } from "./vendor";
@@ -330,10 +335,10 @@ export type Monster = {
   unique: string | null;
   /**
    * Grave Wockington's Skeleton waves: steps left until the next, counted
-   * while he is after the Hero, and the Monsters he raised. Null for the
-   * others.
+   * while he is after the Hero, the Monsters he raised, and his stage: 0 for
+   * the first half of his Life, 1 once past half. Null for the others.
    */
-  waves: { cooldown: number; raised: MonsterId[] } | null;
+  waves: { cooldown: number; raised: MonsterId[]; stage: number } | null;
   pos: Vec;
   prevPos: Vec;
   life: number;
@@ -377,6 +382,11 @@ export type Monster = {
    * because the Wall cuts it off from them; null when it isn't.
    */
   wall: number | null;
+  /**
+   * Whether the attack it is winding up or recovering from is its swing, not
+   * its ranged attack, for a Monster with both (Grave Wockington).
+   */
+  swinging: boolean;
 };
 
 /** A Curse on a Monster: the Skill that put it there, and steps left. */
@@ -447,7 +457,27 @@ export type KeptArea = Pick<
   | "goldPiles"
   | "explored"
   | "boneAltars"
+  | "burns"
 >;
+
+/** A burning circle: where it is, how big, and how long it has left. */
+export type BurningCircle = {
+  pos: Vec;
+  radius: number;
+  leftMs: number;
+  /** How long it burns in all (ms). */
+  lengthMs: number;
+};
+
+/** The burning circles in the active Area, for the view and tests. */
+export function burningCircles(world: World): BurningCircle[] {
+  return world.burns.map((burn) => ({
+    pos: { ...burn.pos },
+    radius: burn.radius,
+    leftMs: Math.round(burn.left * STEP_MS),
+    lengthMs: Math.round(burn.steps * STEP_MS),
+  }));
+}
 
 /**
  * What remains of a dead Monster: inert, not clickable, not blocking. It
@@ -496,6 +526,8 @@ export type World = {
   monsters: Monster[];
   /** The Bone Altars still standing in the active Area. */
   boneAltars: BoneAltar[];
+  /** The burning circles Gravefire left, which burn out in time. */
+  burns: Burn[];
   /** The Bone Wall pieces standing in the active Area. */
   boneWalls: BoneWallPiece[];
   /** The Projectiles in flight in the active Area. */
@@ -753,6 +785,14 @@ export type SimEvent =
   /** The Hero's side hit Bone Altar `altar` for `damage`. */
   /** Monster `boss` raised a wave of `monsters` around itself. */
   | { type: "WaveRaised"; boss: MonsterId; monsters: MonsterId[] }
+  /** Monster `boss` flared up, crossing half its Life. */
+  | { type: "BossFlared"; boss: MonsterId }
+  /** A Monster cast Gravefire, which will land on `landing`. */
+  | { type: "GravefireCast"; monster: MonsterId; landing: Vec }
+  /** A Gravefire landed on `at` and began to burn there. */
+  | { type: "GravefireLanded"; at: Vec; radius: number }
+  /** The burning circle on `at` burnt out. */
+  | { type: "GravefireBurnEnded"; at: Vec }
   /** The Hero killed the Act Boss of Act `act` with its Quest not yet Done. */
   | { type: "ActCompleted"; act: number }
   /** The Hero raised a Bone Wall of pieces standing at `pieces`. */
@@ -1017,6 +1057,7 @@ export function createWorld(options: {
     },
     monsters: [],
     boneAltars: [],
+    burns: [],
     boneWalls: [],
     projectiles: [],
     corpses: [],
@@ -1114,6 +1155,38 @@ export function isInCombat(world: World): boolean {
     world.hero.combat > 0 ||
     world.monsters.some((monster) => AFTER_HERO.includes(monster.state))
   );
+}
+
+/** Whether `monster` is the Area's Act Boss. */
+function isActBoss(world: World, monster: Monster): boolean {
+  const { actBoss } = world.areas[world.areaName];
+  return (
+    !!actBoss &&
+    monster.unique === actBoss.name &&
+    monster.type === actBoss.monster
+  );
+}
+
+/** What the Boss bar shows: the Act Boss's name, Life and maximum Life. */
+export type BossBar = { name: string; life: number; maxLife: number };
+
+/**
+ * The Boss bar: the Act Boss's name and Life while he is In Combat with the
+ * Hero, or null when he isn't, has died, is Returning, or the Area has none.
+ * No other Monster ever has one.
+ */
+export function bossBarOf(world: World): BossBar | null {
+  const { actBoss } = world.areas[world.areaName];
+  const boss = world.monsters.find(
+    (monster) =>
+      isActBoss(world, monster) && AFTER_HERO.includes(monster.state),
+  );
+  if (!actBoss || !boss) return null;
+  return {
+    name: actBoss.name,
+    life: boss.life,
+    maxLife: monsterMaxLife(boss),
+  };
 }
 
 /** The Experience Level `level` needs: 0 for Level 1. */
@@ -1503,6 +1576,7 @@ function startAreaChange(
       sendHome(monster);
     }
   }
+  fallWithReturning(world, events);
   // A hit landed on this step stops for the fade instead.
   world.hitstop = 0;
   stopHero(world.hero);
@@ -1573,7 +1647,7 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
     removeWallPiece(world, piece, false, events);
   }
   const { monsters, projectiles, corpses, groundItems, explored } = world;
-  const { boneAltars, goldPiles } = world;
+  const { boneAltars, goldPiles, burns } = world;
   world.keptAreas[world.areaName] = {
     monsters,
     projectiles,
@@ -1582,6 +1656,7 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
     goldPiles,
     explored,
     boneAltars,
+    burns,
   };
   world.areaName = area.name;
   const kept = world.keptAreas[area.name];
@@ -1592,6 +1667,7 @@ function arrive(world: World, change: AreaChange, events: SimEvent[]) {
   world.groundItems = kept?.groundItems ?? [];
   world.goldPiles = kept?.goldPiles ?? [];
   world.boneAltars = kept?.boneAltars ?? [];
+  world.burns = kept?.burns ?? [];
   world.explored =
     kept?.explored ??
     new Array(area.width * area.height).fill(area.name === TOWN);
@@ -1898,9 +1974,14 @@ function placeMonster(
     pause: wanderPause(world, type),
     curse: null,
     wall: null,
+    swinging: false,
     waves:
       type === "grave_wockington"
-        ? { cooldown: msToSteps(graveWockingtonTuning.firstWaveMs), raised: [] }
+        ? {
+            cooldown: msToSteps(graveWockingtonTuning.firstWaveMs),
+            raised: [],
+            stage: 0,
+          }
         : null,
   };
   world.monsters.push(monster);
@@ -2023,16 +2104,34 @@ function stepWaves(world: World, events: SimEvent[]) {
   for (const boss of [...world.monsters]) {
     const { waves } = boss;
     if (!waves) continue;
-    const afterHero = !["idle", "wander", "return", "flee"].includes(
-      boss.state,
-    );
+    const afterHero = AFTER_HERO.includes(boss.state);
+    const { halfAt, pastHalf } = graveWockingtonTuning;
+    // The first step at or below half his Life is the turn: a wave at once.
+    if (
+      afterHero &&
+      waves.stage === 0 &&
+      boss.life <= monsterMaxLife(boss) * halfAt
+    ) {
+      waves.stage = 1;
+      waves.cooldown = 0;
+      events.push({ type: "BossFlared", boss: boss.id });
+    }
+    const past = waves.stage > 0;
+    let archers = past ? pastHalf.archers : 0;
     const made = raiseWhenDue(world, waves, afterHero, {
       from: boss.pos,
       distance: graveWockingtonTuning.raiseDistance,
-      limit: graveWockingtonTuning.raisedLimit,
-      size: graveWockingtonTuning.waveSize,
-      type: () => graveWockingtonTuning.raises,
-      cooldown: msToSteps(graveWockingtonTuning.waveEveryMs),
+      limit: past ? pastHalf.raisedLimit : graveWockingtonTuning.raisedLimit,
+      size: past ? pastHalf.waveSize : graveWockingtonTuning.waveSize,
+      // The first of each wave's Monsters are its Archers, the rest Skeletons.
+      type: () => {
+        if (archers <= 0) return graveWockingtonTuning.raises;
+        archers -= 1;
+        return "skeleton_archer";
+      },
+      cooldown: msToSteps(
+        past ? pastHalf.waveEveryMs : graveWockingtonTuning.waveEveryMs,
+      ),
     });
     if (made.length === 0) continue;
     // Raised already after the Hero.
@@ -2155,7 +2254,8 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   reachNpc(world, events);
   // Before the Monsters, so an Arrow first shows where it is loosed.
   landProjectiles(world, events);
-  const strikes = stepMonsters(world);
+  const strikes = stepMonsters(world, events);
+  fallWithReturning(world, events);
   separateBodies(world);
   for (const { monster, target, wall } of strikes) {
     const attack = monsterAttack(monster);
@@ -2200,7 +2300,7 @@ function stepDeath(
   }
   // Projectiles fly on, over the dead Hero.
   landProjectiles(world, events);
-  stepMonsters(world);
+  stepMonsters(world, events);
   separateBodies(world);
   stepBoneWalls(world, events);
 }
@@ -2211,6 +2311,25 @@ function stepDeath(
  * kills them flies on over them.
  */
 function landProjectiles(world: World, events: SimEvent[]) {
+  const burning = world.burns.length;
+  landFlyers(world, events);
+  // A Gravefire lands as a burning circle, newest last.
+  for (const burn of world.burns.slice(burning)) {
+    events.push({
+      type: "GravefireLanded",
+      at: { ...burn.pos },
+      radius: burn.radius,
+    });
+  }
+  stepBurns(
+    world,
+    (burn, target) => strike(world, target, burn, events, true),
+    (burn) => events.push({ type: "GravefireBurnEnded", at: { ...burn.pos } }),
+  );
+}
+
+/** Moves every Projectile one step and lands those that touch something. */
+function landFlyers(world: World, events: SimEvent[]) {
   stepProjectiles(
     world,
     (projectile, target) => strike(world, target, projectile, events),
@@ -2244,9 +2363,10 @@ function strike(
   target: MonsterTarget,
   attack: AttackNumbers,
   events: SimEvent[],
+  alwaysHits = false,
 ) {
-  if (target !== "hero") hitMinion(world, target, attack, events);
-  else if (!world.death) hitHero(world, attack, events);
+  if (target !== "hero") hitMinion(world, target, attack, events, alwaysHits);
+  else if (!world.death) hitHero(world, attack, events, alwaysHits);
 }
 
 /**
@@ -2741,6 +2861,8 @@ function curse(
     skillPower(skillLevelsOf(world), skill),
   );
   for (const monster of world.monsters) {
+    // Dread's Curse doesn't take hold on the Act Boss: he never flees.
+    if (effect.kind === "dread" && isActBoss(world, monster)) continue;
     if (distance(monster.pos, target) <= radius) {
       const was = monster.curse && skillTuning[monster.curse.skill].effect;
       monster.curse = { skill, left };
@@ -3363,7 +3485,7 @@ function takeDamage(
 ) {
   const { total: damage, main } = landDamage(
     rolled,
-    monsterResistances(monster.type),
+    resistancesOf(monster),
     damageTaken(monster),
   );
   monster.life = Math.max(0, monster.life - damage);
@@ -3400,29 +3522,27 @@ function hurt(world: World, monster: Monster, events: SimEvent[]) {
       pos: monster.pos,
     });
     events.push({ type: "MonsterDied", id: monster.id });
+    fallRaised(world, monster, events);
     gainExperience(
       world,
       killExperience(monster, world.hero.progress.level),
       events,
     );
+    const { act } = world.areas[world.areaName];
+    const isBoss = isActBoss(world, monster);
     rollDrop(
       world,
       monster.pos,
       events,
       monster.unique !== null,
       monster.monsterLevel,
+      isBoss ? graveWockingtonTuning.itemDrops : uniqueTuning.itemDrops,
     );
     if (monster.unique !== null) {
       const { name } = world.areas[world.areaName];
       noteDeed(world, { type: "uniqueKilled", area: name }, events);
     }
-    const { actBoss, act } = world.areas[world.areaName];
-    if (
-      actBoss &&
-      act !== null &&
-      monster.unique === actBoss.name &&
-      monster.type === actBoss.monster
-    ) {
+    if (isBoss && act !== null) {
       const completes = actBossQuestOpen(world.hero.progress.quests, act);
       noteDeed(world, { type: "actBossKilled", act }, events);
       if (completes) events.push({ type: "ActCompleted", act });
@@ -3432,6 +3552,38 @@ function hurt(world: World, monster: Monster, events: SimEvent[]) {
   noticeHit(world, monster);
   if (random(world.rng) < monsterTuning[monster.type].flinchChance) {
     flinchMonster(monster);
+  }
+}
+
+/**
+ * Every living Monster `raiser` raised dies at once: each leaves its Corpse,
+ * but gives no Experience and drops nothing.
+ */
+function fallRaised(world: World, raiser: Monster, events: SimEvent[]) {
+  if (!raiser.waves) return;
+  const fallen = world.monsters.filter((m) =>
+    raiser.waves?.raised.includes(m.id),
+  );
+  raiser.waves.raised = [];
+  world.monsters = world.monsters.filter((m) => !fallen.includes(m));
+  for (const monster of fallen) {
+    world.corpses.push({
+      id: monster.id,
+      type: monster.type,
+      monsterLevel: monster.monsterLevel,
+      pos: monster.pos,
+    });
+    events.push({ type: "MonsterDied", id: monster.id });
+  }
+}
+
+/** Lets the raised Monsters of every raiser that is Returning fall dead. */
+function fallWithReturning(world: World, events: SimEvent[]) {
+  for (const monster of world.monsters) {
+    if (monster.state !== "return") continue;
+    fallRaised(world, monster, events);
+    // Back to the first half of his Life, as his Life is restored at home.
+    if (monster.waves) monster.waves.stage = 0;
   }
 }
 
@@ -3506,7 +3658,7 @@ function minionStrike(
  * `dropTuning.chance` one Item, then by `potionDropTuning.chance` one Potion,
  * each of a type picked with equal odds. `monsterLevel` is the dying
  * Monster's, which decides the grades its Items' Affixes can roll. A Unique Monster's Items are
- * rolled once for each of `uniqueTuning.itemDropChances` instead.
+ * rolled once for each of `uniqueDrops` instead (the Act Boss has his own list).
  */
 function rollDrop(
   world: World,
@@ -3514,20 +3666,23 @@ function rollDrop(
   events: SimEvent[],
   unique: boolean,
   monsterLevel: number,
+  uniqueDrops: readonly (readonly Rarity[])[],
 ) {
   const itemDrops = unique
-    ? uniqueTuning.itemDropChances.map((chance) => ({
-        chance,
+    ? uniqueDrops.map((only) => ({
+        chance: 1,
         items: dropTuning.items,
+        only,
       }))
-    : [dropTuning];
-  for (const { chance, items } of [...itemDrops, potionDropTuning]) {
+    : [{ ...dropTuning, only: undefined }];
+  const potionDrop = { ...potionDropTuning, only: undefined };
+  for (const { chance, items, only } of [...itemDrops, potionDrop]) {
     if (chance < 1 && random(world.rng) >= chance) continue;
     const type = items[randomInt(world.rng, [0, items.length - 1])];
     const item: Item = {
       id: world.nextItemId++,
       type,
-      ...rollItem(world.rng, type, monsterLevel, unique),
+      ...rollItem(world.rng, type, monsterLevel, unique, only),
     };
     world.groundItems.push({ item, pos: { ...pos } });
     events.push({
@@ -3575,18 +3730,25 @@ function rollGold(
  * rest off their Life. An attack that would hit can still be Blocked by an
  * Equipped Shield (see `heroBlockChance`): that too deals no damage, never
  * flinches the Hero and leaves their Bone Ward be, but keeps them In Combat.
+ * An `alwaysHits` hit (a burning circle's) is neither Missed nor Blocked, rolls
+ * nothing for either, and never flinches the Hero; the rest is as above.
  */
-function hitHero(world: World, attack: AttackNumbers, events: SimEvent[]) {
+function hitHero(
+  world: World,
+  attack: AttackNumbers,
+  events: SimEvent[],
+  alwaysHits = false,
+) {
   const { hero } = world;
   const chance = heroChanceToBeHit(world, attack.attackRating);
-  if (chance < 1 && random(world.rng) >= chance) {
+  if (!alwaysHits && chance < 1 && random(world.rng) >= chance) {
     events.push({ type: "Missed", target: "hero" });
     return;
   }
   // A Block is rolled once the attack would hit, before any damage. With no
   // Shield nothing is rolled, so the rolls after it stay as they were.
   const blockChance = heroBlockChance(world);
-  if (blockChance > 0 && random(world.rng) * 100 < blockChance) {
+  if (!alwaysHits && blockChance > 0 && random(world.rng) * 100 < blockChance) {
     hero.combat = COMBAT_STEPS;
     events.push({ type: "Blocked" });
     return;
@@ -3617,6 +3779,7 @@ function hitHero(world: World, attack: AttackNumbers, events: SimEvent[]) {
     return;
   }
 
+  if (alwaysHits) return;
   // A swing's follow-through carries on.
   if (hero.swing?.landed) return;
   if (random(world.rng) >= heroTuning.flinchChance) return;
@@ -3636,19 +3799,20 @@ function hitHero(world: World, attack: AttackNumbers, events: SimEvent[]) {
  * Lands a Monster's attack, a melee one or a Projectile, on the Hero's
  * Minion `id`, if it still lives: it rolls the attack's Attack Rating against
  * the Minion's Defense, and at 0 Life the Minion dies, leaving no Corpse.
- * Neither keeps the Hero In Combat.
+ * Neither keeps the Hero In Combat. An `alwaysHits` hit always hits.
  */
 function hitMinion(
   world: World,
   id: MinionId,
   attack: AttackNumbers,
   events: SimEvent[],
+  alwaysHits = false,
 ) {
   const minion = world.minions.find((one) => one.id === id);
   if (!minion) return;
   const rolled = rollAttack(
     world,
-    chanceToHit(attack.attackRating, minionDefense(minion)),
+    alwaysHits ? 1 : chanceToHit(attack.attackRating, minionDefense(minion)),
     attack.damage,
     attack.damageTypes,
   );
@@ -3698,6 +3862,7 @@ function die(world: World, events: SimEvent[]) {
   world.hero.boneWard = null;
   for (const minion of world.minions) crumbleMinion(world, minion, events);
   for (const monster of world.monsters) sendHome(monster);
+  fallWithReturning(world, events);
   stopHero(world.hero);
   returnCursorItem(world, events);
   events.push({ type: "HeroDied" });

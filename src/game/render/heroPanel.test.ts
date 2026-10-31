@@ -280,8 +280,8 @@ describe("heroSheet with elemental damage Suffixes", () => {
             type: "axe",
             rarity: "magic",
             affixes: [
-              { kind: "fireDamage", grade: 0, value: 3 },
-              { kind: "coldDamage", grade: 0, value: 2 },
+              { kind: "fireDamage", grade: 0, value: 3, high: 6 },
+              { kind: "coldDamage", grade: 0, value: 2, high: 3 },
             ],
           },
         },
@@ -290,8 +290,8 @@ describe("heroSheet with elemental damage Suffixes", () => {
     });
 
     const damage = heroSheet(w).derived.find((d) => d.name === "Damage");
-    // The Axe's 30–48 with 20 Strength, plus 5 unscaled.
-    expect(damage?.value).toBe("35–53");
+    // The Axe's 30–48 with 20 Strength, plus 5 to 9 unscaled.
+    expect(damage?.value).toBe("35–57");
   });
 });
 

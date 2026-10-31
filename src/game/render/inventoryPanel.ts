@@ -509,9 +509,9 @@ const PERCENT_BONUSES: readonly Bonus[] = [
 ];
 
 /** A tooltip line giving `amount` of `bonus`. */
-function bonusLine(bonus: Bonus, amount: number): string {
+function bonusLine(bonus: Bonus, amount: number, high = amount): string {
   if (ELEMENTAL_DAMAGE_BONUSES.includes(bonus)) {
-    return `+${amount} ${BONUS_NAMES[bonus]}`;
+    return `+${amount}–${high} ${BONUS_NAMES[bonus]}`;
   }
   return PERCENT_BONUSES.includes(bonus)
     ? `+${amount}% ${BONUS_NAMES[bonus]}`
@@ -587,12 +587,12 @@ function tooltipLines(shown: Shown): TooltipLine[] {
     lines.push({ text: `+${amount} to ${BONUS_NAMES[bonus as Bonus]}` });
   }
   for (const affix of shown.affixes ?? []) {
-    const { bonus, amount } = affixBonus(affix);
+    const { bonus, amount, high } = affixBonus(affix);
     const skill = affixOf(affix.kind).skill;
     lines.push({
       text: skill
         ? `+${amount} to ${skillTuning[skill].name}`
-        : bonusLine(bonus, amount),
+        : bonusLine(bonus, amount, high),
       element: BONUS_ELEMENT[bonus],
     });
   }

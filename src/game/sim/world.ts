@@ -46,7 +46,7 @@ import { townPortalTuning } from "../tuning/townPortal";
 import { townPortalLook } from "../tuning/townPortalLook";
 import { uniqueTuning } from "../tuning/uniqueMonsters";
 import { waypointTuning } from "../tuning/waypoints";
-import { affixTotal, rollItem } from "./affixes";
+import { affixSpread, affixTotal, rollItem } from "./affixes";
 import {
   type Area,
   cellAt,
@@ -1423,9 +1423,15 @@ function physicalDamageRange(world: World): [number, number] {
   return [(min + flat) * scale, (max + flat) * scale];
 }
 
-/** The flat damage of `element` the Equipped Items add to the Hero's hits. */
-function elementalDamage(world: World, element: Element): number {
-  return bonusOf(world, ELEMENT_INFO[element].damageBonus);
+/** The least and most damage of `element` the Equipped Items add to the Hero's hits. */
+function elementalDamage(world: World, element: Element): [number, number] {
+  const bonus = ELEMENT_INFO[element].damageBonus;
+  const low = bonusOf(world, bonus);
+  let spread = 0;
+  for (const slot of EQUIPMENT_SLOTS) {
+    spread += affixSpread(world.hero.equipment[slot]?.affixes, bonus);
+  }
+  return [low, low + spread];
 }
 
 /**
@@ -1435,24 +1441,28 @@ function elementalDamage(world: World, element: Element): number {
  */
 export function damageRange(world: World): [number, number] {
   const [min, max] = physicalDamageRange(world);
-  const elemental = ELEMENTS.reduce(
-    (sum, element) => sum + elementalDamage(world, element),
-    0,
-  );
-  return [min + elemental, max + elemental];
+  let low = min;
+  let high = max;
+  for (const element of ELEMENTS) {
+    const [elementLow, elementHigh] = elementalDamage(world, element);
+    low += elementLow;
+    high += elementHigh;
+  }
+  return [low, high];
 }
 
 /**
  * The damage one of the Hero's attacks deals for a `roll` in [0, 1): that
- * far through the Physical range, rounded, plus each Element's flat damage.
- * Skills never add the Elements.
+ * far through the Physical range, rounded, plus each Element's damage,
+ * rolled between its low and high from the World's seeded RNG. Skills never
+ * add the Elements.
  */
 export function heroAttackDamage(world: World, roll: number): Damage {
   const [min, max] = physicalDamageRange(world);
   const damage: Damage = { physical: Math.round(min + roll * (max - min)) };
   for (const element of ELEMENTS) {
-    const amount = elementalDamage(world, element);
-    if (amount > 0) damage[element] = amount;
+    const range = elementalDamage(world, element);
+    if (range[1] > 0) damage[element] = randomInt(world.rng, range);
   }
   return damage;
 }

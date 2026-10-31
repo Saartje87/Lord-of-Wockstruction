@@ -433,6 +433,11 @@ export type AffixGrade = {
   name: string;
   /** The value an Affix of this grade rolls, `[min, max]` inclusive. */
   range: [number, number];
+  /**
+   * For an Affix that adds a damage range, the values its high end rolls,
+   * `[min, max]` inclusive; `range` is then its low end's.
+   */
+  highRange?: [number, number];
   /** The lowest Monster Level whose drops can roll this grade. */
   fromMonsterLevel: number;
   /** Its odds among the grades the Monster Level reaches. */
@@ -480,12 +485,14 @@ type Range = [number, number];
 function threeGrades(
   names: [string, string, string],
   ranges: [Range, Range, Range],
+  highRanges?: [Range, Range, Range],
 ): AffixGrade[] {
   const gates = [1, 5, 9];
   const weights = [60, 30, 10];
   return names.map((name, i) => ({
     name,
     range: ranges[i],
+    ...(highRanges && { highRange: highRanges[i] }),
     fromMonsterLevel: gates[i],
     weight: weights[i],
   }));
@@ -509,11 +516,22 @@ const RESISTANCE_RANGES: [Range, Range, Range] = [
 /** The Item kinds the Weapon Affixes roll on. */
 const WEAPON_KINDS: readonly ItemKind[] = ["weapon", "wand"];
 
-/** Flat Element damage added to each of the Hero's attacks; to be tuned. */
+/** The low end of the Element damage added to each of the Hero's attacks; to be tuned. */
 const ELEMENTAL_DAMAGE_RANGES: [Range, Range, Range] = [
   [1, 3],
   [4, 8],
   [9, 15],
+];
+
+/**
+ * The high end of that damage, a little above the low end; to be tuned. Each
+ * starts where the low end's does, so an older Save's single value v, loaded
+ * as v to v, is always inside; a roll never puts the high below the low.
+ */
+const ELEMENTAL_DAMAGE_HIGH_RANGES: [Range, Range, Range] = [
+  [1, 6],
+  [4, 14],
+  [9, 24],
 ];
 
 const ATTRIBUTE_RANGES: [Range, Range, Range] = [
@@ -742,6 +760,7 @@ export const affixTuning = {
     grades: threeGrades(
       ["of Embers", "of Flames", "of the Furnace"],
       ELEMENTAL_DAMAGE_RANGES,
+      ELEMENTAL_DAMAGE_HIGH_RANGES,
     ),
   },
   coldDamage: {
@@ -751,6 +770,7 @@ export const affixTuning = {
     grades: threeGrades(
       ["of Frost", "of Ice", "of the Glacier"],
       ELEMENTAL_DAMAGE_RANGES,
+      ELEMENTAL_DAMAGE_HIGH_RANGES,
     ),
   },
   lightningDamage: {
@@ -760,6 +780,7 @@ export const affixTuning = {
     grades: threeGrades(
       ["of Sparks", "of Storms", "of Thunder"],
       ELEMENTAL_DAMAGE_RANGES,
+      ELEMENTAL_DAMAGE_HIGH_RANGES,
     ),
   },
   // Speed Suffixes: the Hero's swing and walk, never casting.

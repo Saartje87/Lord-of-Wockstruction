@@ -1,5 +1,5 @@
 import { type MonsterType, monsterTuning } from "../tuning/monsters";
-import type { Area } from "./area";
+import type { Area, Exit } from "./area";
 import { tileOf, type Vec } from "./vec";
 
 /**
@@ -95,7 +95,7 @@ function terrainOf(area: Area): string[] {
 
 /** Every kind of marker the Area has, first in the legend first. */
 function markersOf(area: Area): Marker[] {
-  const at = (pos: Vec) => {
+  const tileLabel = (pos: Vec) => {
     const { x, y } = tileOf(pos);
     return `(${x}, ${y})`;
   };
@@ -105,21 +105,21 @@ function markersOf(area: Area): Marker[] {
     markers.push({
       char,
       tiles: placed.map(([pos]) => tileOf(pos)),
-      lines: placed.map(([pos, line]) => `${line} at ${at(pos)}`),
+      lines: placed.map(([pos, line]) => `${line} at ${tileLabel(pos)}`),
     });
   };
-  const unique = (name: string, monster: MonsterType) =>
+  const namedMonster = (name: string, monster: MonsterType) =>
     `${name} (${monsterTuning[monster].name})`;
 
   if (area.actBoss) {
     const { name, monster, pos } = area.actBoss;
-    add("B", [[pos, `Act Boss ${unique(name, monster)}`]]);
+    add("B", [[pos, `Act Boss ${namedMonster(name, monster)}`]]);
   }
   add(
     "U",
     area.uniques.map(({ name, monster, pos }) => [
       pos,
-      `Unique Monster ${unique(name, monster)}`,
+      `Unique Monster ${namedMonster(name, monster)}`,
     ]),
   );
   add(
@@ -152,10 +152,9 @@ function markersOf(area: Area): Marker[] {
       char: ">",
       tiles: area.exits.flatMap(exitTiles),
       lines: area.exits.map((exit) => {
-        const tiles = exitTiles(exit);
-        const { x: x0, y: y0 } = tiles[0];
-        const { x: x1, y: y1 } = tiles[tiles.length - 1];
-        const span = (a: number, b: number) => (a === b ? `${a}` : `${a}–${b}`);
+        const { x0, y0, x1, y1 } = exitBounds(exit);
+        const span = (from: number, to: number) =>
+          from === to ? `${from}` : `${from}–${to}`;
         return `Exit to ${exit.area}, Entry "${exit.entry}", at x ${span(x0, x1)}, y ${span(y0, y1)}`;
       }),
     });
@@ -163,13 +162,20 @@ function markersOf(area: Area): Marker[] {
   return markers;
 }
 
+/** The first and last column and row of the tiles an Exit's zone overlaps. */
+function exitBounds(exit: Exit) {
+  return {
+    x0: Math.floor(exit.x),
+    y0: Math.floor(exit.y),
+    x1: Math.ceil(exit.x + exit.width) - 1,
+    y1: Math.ceil(exit.y + exit.height) - 1,
+  };
+}
+
 /** The tiles an Exit's zone overlaps, row by row. */
-function exitTiles(exit: Area["exits"][number]): Vec[] {
+function exitTiles(exit: Exit): Vec[] {
   const tiles: Vec[] = [];
-  const x0 = Math.floor(exit.x);
-  const y0 = Math.floor(exit.y);
-  const x1 = Math.ceil(exit.x + exit.width) - 1;
-  const y1 = Math.ceil(exit.y + exit.height) - 1;
+  const { x0, y0, x1, y1 } = exitBounds(exit);
   for (let y = y0; y <= y1; y++) {
     for (let x = x0; x <= x1; x++) tiles.push({ x, y });
   }
@@ -187,7 +193,7 @@ const SPAWN_CHARS: Record<MonsterType, string> = (() => {
   for (const type of Object.keys(monsterTuning) as MonsterType[]) {
     const initials = type.split("_").map((word) => word[0]);
     const char = [...initials, ...type.replaceAll("_", "")].find(
-      (c) => !taken.has(c),
+      (letter) => !taken.has(letter),
     );
     if (!char) throw new Error(`No letter left for Monster type "${type}"`);
     taken.add(char);

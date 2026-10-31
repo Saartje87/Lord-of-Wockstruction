@@ -37,7 +37,7 @@ The chain of Combat Areas leading from an Act's Town to its Act Boss, its Area L
 _Avoid_: Critical path, route
 
 **Side Area**:
-A Combat Area in an Act that is not on its Main Path, reached from one of the Main Path's Areas.
+A Combat Area in an Act that is not on its Main Path, reached from one of the Main Path's Areas; it has no Waypoint.
 _Avoid_: Side dungeon, optional area, branch
 
 **Act Boss**:
@@ -45,7 +45,7 @@ The one named Monster at the end of an Act's Main Path; killing it while the Act
 _Avoid_: Final boss, end boss
 
 **Waypoint**:
-A fixed spot in an Act's Town and in some of its Combat Areas; once the Hero has touched one, walking onto it opens the list of that Act's Waypoints, and picking a touched one takes them there, leaving the Area as an Exit does. The Save keeps which ones they have touched.
+A fixed spot in an Act's Town and in every Combat Area on its Main Path, the Act Boss's included, never in a Side Area; once the Hero has touched one, walking onto it opens the list of that Act's Waypoints, and picking a touched one takes them there, leaving the Area as an Exit does. The Save keeps which ones they have touched.
 _Avoid_: Teleporter, checkpoint, Town Portal (that's the Hero's own)
 
 **Quest**:

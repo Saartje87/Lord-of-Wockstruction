@@ -1,6 +1,7 @@
 import type { CursorHit } from "../cursor";
 import type { InputWay } from "../input/activeInput";
 import {
+  type HeroPoints,
   type HeroState,
   type Menus,
   PANEL_KEYS,
@@ -177,9 +178,9 @@ export function panelButtonHitAt(
 
 /**
  * What a Panel button shows: its panel, lit while that panel is open
- * however it was opened, dimmed while the Hero lies in Death, `points`
- * while it has a Points mark (lit or not), and the tooltip naming it and its
- * key while hovered, and the points left to spend while `points`.
+ * however it was opened, dimmed while the Hero lies in Death, `points` while
+ * it has a Points mark (lit or not), and the tooltip naming it and its key,
+ * and the points left to spend whenever `points`.
  */
 export type PanelButtonSheet = {
   panel: Panel;
@@ -197,31 +198,54 @@ const PANEL_NAMES: Record<Panel, string> = {
   quest: "Quests",
 };
 
-/** What the Panel buttons show, from left to right. */
+/** The points a panel is spent from, as its tooltip names them. */
+const POINTS_KINDS: Partial<Record<Panel, "Attribute" | "Skill">> = {
+  hero: "Attribute",
+  skillTree: "Skill",
+};
+
+/**
+ * The points left to spend on `panel`, with their kind, or null where it
+ * has none to spend: the Hero panel's unspent Attribute Points, less those
+ * already placed as Pending, and the Skill Tree's unspent Skill Points.
+ */
+function pointsToSpend(
+  menus: Menus,
+  hero: HeroPoints,
+  panel: Panel,
+): { count: number; kind: "Attribute" | "Skill" } | null {
+  const kind = POINTS_KINDS[panel];
+  if (!kind) return null;
+  const count =
+    kind === "Attribute"
+      ? unplacedPoints(menus, hero.attributePoints)
+      : hero.skillPoints;
+  return count > 0 ? { count, kind } : null;
+}
+
+/** "5 Attribute Points to spend", or "1 Skill Point to spend". */
+function pointsTooltip({ count, kind }: { count: number; kind: string }) {
+  return `${count} ${kind} Point${count === 1 ? "" : "s"} to spend`;
+}
+
+/**
+ * What the Panel buttons show, from left to right. The Hero button's Points
+ * mark counts the Attribute Points not yet placed as Pending, the Skill Tree
+ * button's the Skill Points `hero` has unspent.
+ */
 export function panelButtonsSheet(
   menus: Menus,
-  hero: HeroState & { attributePoints: number; skillPoints: number },
+  hero: HeroPoints,
 ): PanelButtonSheet[] {
   return PANELS.map((panel) => {
-    const left =
-      panel === "hero"
-        ? {
-            count: unplacedPoints(menus, hero.attributePoints),
-            name: "Attribute",
-          }
-        : panel === "skillTree"
-          ? { count: hero.skillPoints, name: "Skill" }
-          : { count: 0, name: "" };
-    const points = left.count > 0;
+    const toSpend = pointsToSpend(menus, hero, panel);
     const key = `${PANEL_NAMES[panel]} (${PANEL_KEYS[panel].toUpperCase()})`;
     return {
       panel,
       lit: panelOpen(menus, panel),
       dimmed: hero.heroDead,
-      points,
-      tooltip: points
-        ? `${key} \u00b7 ${left.count} ${left.name} Point${left.count === 1 ? "" : "s"} to spend`
-        : key,
+      points: toSpend !== null,
+      tooltip: toSpend ? `${key} \u00b7 ${pointsTooltip(toSpend)}` : key,
     };
   });
 }

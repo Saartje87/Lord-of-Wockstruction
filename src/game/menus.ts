@@ -222,6 +222,12 @@ export function noPendingPoints(): PendingPoints {
  */
 export type HeroState = { heroDead: boolean };
 
+/** `HeroState` with the Attribute and Skill Points the Hero has unspent. */
+export type HeroPoints = HeroState & {
+  attributePoints: number;
+  skillPoints: number;
+};
+
 /**
  * The buttons of the Start Screen and the pause menu. On the Start Screen,
  * New Hero asks to confirm one, and then `confirm` starts it while `goBack`
@@ -693,10 +699,7 @@ function fitRotateNotice(menus: Menus, showing: boolean, nowMs: number) {
  * are, but nothing while `hero` lies dead. In the Compact Layout, with both
  * unspent, it opens only the Hero panel.
  */
-export function clickLevelUp(
-  menus: Menus,
-  hero: HeroState & { attributePoints: number; skillPoints: number },
-) {
+export function clickLevelUp(menus: Menus, hero: HeroPoints) {
   if (hero.heroDead || menus.rotateNotice || !isPlaying(menus)) return;
   const attributes = hero.attributePoints > 0;
   if (hero.skillPoints > 0 && !(attributes && menus.compact)) {

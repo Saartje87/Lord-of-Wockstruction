@@ -2290,7 +2290,7 @@ function landProjectiles(world: World, events: SimEvent[]) {
   }
   stepBurns(
     world,
-    (burn, target) => strike(world, target, burn, events),
+    (burn, target) => strike(world, target, burn, events, true),
     (burn) => events.push({ type: "GravefireBurnEnded", at: { ...burn.pos } }),
   );
 }
@@ -2330,9 +2330,10 @@ function strike(
   target: MonsterTarget,
   attack: AttackNumbers,
   events: SimEvent[],
+  sure = false,
 ) {
-  if (target !== "hero") hitMinion(world, target, attack, events);
-  else if (!world.death) hitHero(world, attack, events);
+  if (target !== "hero") hitMinion(world, target, attack, events, sure);
+  else if (!world.death) hitHero(world, attack, events, sure);
 }
 
 /**
@@ -3693,18 +3694,25 @@ function rollGold(
  * rest off their Life. An attack that would hit can still be Blocked by an
  * Equipped Shield (see `heroBlockChance`): that too deals no damage, never
  * flinches the Hero and leaves their Bone Ward be, but keeps them In Combat.
+ * A `sure` hit (a burning circle's) is neither Missed nor Blocked, rolls
+ * nothing for either, and never flinches the Hero; the rest is as above.
  */
-function hitHero(world: World, attack: AttackNumbers, events: SimEvent[]) {
+function hitHero(
+  world: World,
+  attack: AttackNumbers,
+  events: SimEvent[],
+  sure = false,
+) {
   const { hero } = world;
   const chance = heroChanceToBeHit(world, attack.attackRating);
-  if (chance < 1 && random(world.rng) >= chance) {
+  if (!sure && chance < 1 && random(world.rng) >= chance) {
     events.push({ type: "Missed", target: "hero" });
     return;
   }
   // A Block is rolled once the attack would hit, before any damage. With no
   // Shield nothing is rolled, so the rolls after it stay as they were.
   const blockChance = heroBlockChance(world);
-  if (blockChance > 0 && random(world.rng) * 100 < blockChance) {
+  if (!sure && blockChance > 0 && random(world.rng) * 100 < blockChance) {
     hero.combat = COMBAT_STEPS;
     events.push({ type: "Blocked" });
     return;
@@ -3735,6 +3743,7 @@ function hitHero(world: World, attack: AttackNumbers, events: SimEvent[]) {
     return;
   }
 
+  if (sure) return;
   // A swing's follow-through carries on.
   if (hero.swing?.landed) return;
   if (random(world.rng) >= heroTuning.flinchChance) return;
@@ -3754,19 +3763,20 @@ function hitHero(world: World, attack: AttackNumbers, events: SimEvent[]) {
  * Lands a Monster's attack, a melee one or a Projectile, on the Hero's
  * Minion `id`, if it still lives: it rolls the attack's Attack Rating against
  * the Minion's Defense, and at 0 Life the Minion dies, leaving no Corpse.
- * Neither keeps the Hero In Combat.
+ * Neither keeps the Hero In Combat. A `sure` hit always hits.
  */
 function hitMinion(
   world: World,
   id: MinionId,
   attack: AttackNumbers,
   events: SimEvent[],
+  sure = false,
 ) {
   const minion = world.minions.find((one) => one.id === id);
   if (!minion) return;
   const rolled = rollAttack(
     world,
-    chanceToHit(attack.attackRating, minionDefense(minion)),
+    sure ? 1 : chanceToHit(attack.attackRating, minionDefense(minion)),
     attack.damage,
     attack.damageTypes,
   );

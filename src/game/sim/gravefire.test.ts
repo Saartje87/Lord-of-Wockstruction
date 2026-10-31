@@ -269,6 +269,65 @@ describe("a burning circle", () => {
     expect(onHero([...landed, ...untilBurnt(w)])).toHaveLength(ticks);
   });
 
+  it("always hits: no Miss, no Block and no flinch, however the Hero is armed", () => {
+    const w = fight(["H.....G...."]);
+    untilCast(w);
+    untilBurning(w);
+    // A Block the Hero cannot fail, an Attack Rating that cannot hit, and a
+    // flinch that never fails.
+    w.hero.equipment.offHand = {
+      id: 900,
+      type: "buckler",
+      rarity: "magic",
+      affixes: [{ kind: "block", grade: 0, value: 1000 }],
+    };
+    w.burns[0].attackRating = 0;
+    heroTuning.flinchChance = 1;
+    const events: SimEvent[] = [];
+    while (burningCircles(w).length > 0) {
+      events.push(...step(w, []));
+      expect(w.hero.flinch).toBe(0);
+    }
+
+    expect(events.filter((e) => e.type === "HeroHit")).toHaveLength(ticks);
+    expect(events.some((e) => e.type === "Missed")).toBe(false);
+    expect(events.some((e) => e.type === "Blocked")).toBe(false);
+  });
+
+  it("hits a Minion every tick whatever its Defense, with its Resistance applied", () => {
+    const w = fight(["H.....G...."]);
+    untilCast(w);
+    untilBurning(w);
+    w.burns[0].attackRating = 0;
+    const [circle] = burningCircles(w);
+    const minion = newMinion(90, "golem", "golem", 1, { ...circle.pos }, 0);
+    w.minions.push(minion);
+    const events: SimEvent[] = [];
+    while (burningCircles(w).length > 0) {
+      minion.pos = { ...circle.pos };
+      minion.prevPos = { ...circle.pos };
+      events.push(...step(w, []));
+    }
+    const hits = events.filter((e) => e.type === "MinionHit");
+
+    expect(hits.length).toBeGreaterThan(0);
+    expect(events.some((e) => e.type === "MinionMissed")).toBe(false);
+  });
+
+  it("soaks into the Bone Ward before the Hero's Life", () => {
+    const w = fight(["H.....G...."]);
+    untilCast(w);
+    untilBurning(w);
+    w.hero.boneWard = { left: 1000, full: 1000 };
+    const life = w.hero.life;
+    const events: SimEvent[] = [];
+    while (burningCircles(w).length > 0) events.push(...step(w, []));
+
+    expect(w.hero.life).toBe(life);
+    expect(w.hero.boneWard?.left).toBeLessThan(1000);
+    expect(events.filter((e) => e.type === "HeroHit")).toHaveLength(ticks);
+  });
+
   it("hurts each Minion inside it and nothing outside it", () => {
     const w = fight(["H.....G....", "...........", "..........."]);
     untilCast(w);

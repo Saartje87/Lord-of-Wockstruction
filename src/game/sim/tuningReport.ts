@@ -135,14 +135,36 @@ export type BossStage = {
   gravefireEveryS: number;
 };
 
-/** The Act Boss's numbers at an Area Level, Unique multipliers included. */
-export type BossReport = {
+/** A Unique Monster's numbers at an Area Level, Unique multipliers included. */
+export type UniqueRow = {
   maxLife: number;
-  /** His melee blow. */
   damage: [number, number];
   attackRating: number;
   defense: number;
   experience: number;
+};
+
+/** The Monster `type` as the Unique Monster `name` at `areaLevel`, from the live tuning. */
+export function uniqueReport(
+  type: MonsterType,
+  name: string,
+  areaLevel: number,
+): UniqueRow {
+  const monster = { type, monsterLevel: areaLevel, unique: name };
+  return {
+    maxLife: monsterMaxLife(monster),
+    damage: monsterDamageRange(monster),
+    attackRating: monsterAttackRating(monster),
+    defense: monsterDefense(monster),
+    experience: monsterExperience(monster),
+  };
+}
+
+/**
+ * The Act Boss's numbers at an Area Level, Unique multipliers included; the
+ * `damage` is his melee blow.
+ */
+export type BossReport = UniqueRow & {
   gravefire: {
     range: number;
     windUpMs: number;
@@ -163,16 +185,19 @@ export type BossReport = {
  * The Act Boss `type` as a Unique Monster at `areaLevel`: his Life, blow,
  * Gravefire and waves per stage, from the live tuning.
  */
-export function bossReport(type: MonsterType, areaLevel: number): BossReport {
-  const monster = { type, monsterLevel: areaLevel, unique: type as string };
+export function bossReport(
+  type: MonsterType,
+  name: string,
+  areaLevel: number,
+): BossReport {
+  const numbers = uniqueReport(type, name, areaLevel);
   const tuning = monsterTuning[type];
   const { attack } = tuning;
   if (attack.kind !== "ranged" || !attack.lob?.burn) {
     throw new Error(`${type} has no Gravefire`);
   }
   const { burn } = attack.lob;
-  const damage = monsterDamageRange(monster);
-  const tick = shareOfRange(damage, burn.damage);
+  const tick = shareOfRange(numbers.damage, burn.damage);
   const ticks = Math.floor(burn.burnMs / burn.tickMs);
   const recoveries = attack.recoveryMs ?? [tuning.recoveryMs];
   const wave = graveWockingtonTuning;
@@ -181,11 +206,7 @@ export function bossReport(type: MonsterType, areaLevel: number): BossReport {
     { stage: "past half" as const, ...wave, ...wave.pastHalf },
   ];
   return {
-    maxLife: monsterMaxLife(monster),
-    damage,
-    attackRating: monsterAttackRating(monster),
-    defense: monsterDefense(monster),
-    experience: monsterExperience(monster),
+    ...numbers,
     gravefire: {
       range: attack.range,
       windUpMs: tuning.windUpMs,
@@ -208,26 +229,5 @@ export function bossReport(type: MonsterType, areaLevel: number): BossReport {
       gravefireEveryS:
         (tuning.windUpMs + (recoveries[i] ?? recoveries.at(-1) ?? 0)) / 1000,
     })),
-  };
-}
-
-/** A Unique Monster's numbers at an Area Level, Unique multipliers included. */
-export type UniqueRow = {
-  maxLife: number;
-  damage: [number, number];
-  attackRating: number;
-  defense: number;
-  experience: number;
-};
-
-/** The Monster `type` as a Unique Monster at `areaLevel`, from the live tuning. */
-export function uniqueReport(type: MonsterType, areaLevel: number): UniqueRow {
-  const monster = { type, monsterLevel: areaLevel, unique: type as string };
-  return {
-    maxLife: monsterMaxLife(monster),
-    damage: monsterDamageRange(monster),
-    attackRating: monsterAttackRating(monster),
-    defense: monsterDefense(monster),
-    experience: monsterExperience(monster),
   };
 }

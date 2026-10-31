@@ -36,7 +36,13 @@ export function hoveredOf(
  * What the top-centre nameplate shows for a hovered character: its name, how
  * full its Life bar is (0..1), and whether it is on the Hero's side.
  */
-export type Nameplate = { name: string; fraction: number; friendly: boolean };
+export type Nameplate = {
+  name: string;
+  fraction: number;
+  friendly: boolean;
+  /** Whether it is a Unique Monster, whose name is drawn in the Unique gold. */
+  unique: boolean;
+};
 
 /**
  * The top-centre nameplate (CSS px at native scale, drawn at the UI Scale):
@@ -94,6 +100,7 @@ export function nameplateOf(hovered: Hovered): Nameplate {
       name: minionTuning[minion.type].name,
       fraction: minion.life / minionMaxLife(minion),
       friendly: true,
+      unique: false,
     };
   }
   const { monster } = hovered;
@@ -101,5 +108,6 @@ export function nameplateOf(hovered: Hovered): Nameplate {
     name: monster.unique ?? monsterTuning[monster.type].name,
     fraction: monster.life / monsterMaxLife(monster),
     friendly: false,
+    unique: monster.unique !== null,
   };
 }

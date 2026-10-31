@@ -3506,7 +3506,7 @@ function minionStrike(
  * `dropTuning.chance` one Item, then by `potionDropTuning.chance` one Potion,
  * each of a type picked with equal odds. `monsterLevel` is the dying
  * Monster's, which decides the grades its Items' Affixes can roll. A Unique Monster's Items are
- * rolled once for each of `uniqueTuning.itemDropChances` instead.
+ * rolled once for each of `uniqueTuning.itemDrops` instead.
  */
 function rollDrop(
   world: World,
@@ -3516,18 +3516,20 @@ function rollDrop(
   monsterLevel: number,
 ) {
   const itemDrops = unique
-    ? uniqueTuning.itemDropChances.map((chance) => ({
-        chance,
+    ? uniqueTuning.itemDrops.map((only) => ({
+        chance: 1,
         items: dropTuning.items,
+        only,
       }))
-    : [dropTuning];
-  for (const { chance, items } of [...itemDrops, potionDropTuning]) {
+    : [{ ...dropTuning, only: undefined }];
+  const potionDrop = { ...potionDropTuning, only: undefined };
+  for (const { chance, items, only } of [...itemDrops, potionDrop]) {
     if (chance < 1 && random(world.rng) >= chance) continue;
     const type = items[randomInt(world.rng, [0, items.length - 1])];
     const item: Item = {
       id: world.nextItemId++,
       type,
-      ...rollItem(world.rng, type, monsterLevel, unique),
+      ...rollItem(world.rng, type, monsterLevel, unique, only),
     };
     world.groundItems.push({ item, pos: { ...pos } });
     events.push({

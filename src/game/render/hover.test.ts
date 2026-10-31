@@ -12,6 +12,7 @@ import {
 import type { MonsterType } from "../tuning/monsters";
 import { viewportOf } from "../viewport";
 import { hoveredOf, nameplateLayout, nameplateOf } from "./hover";
+import { rarityColour, UNIQUE_COLOUR } from "./itemArt";
 
 /** A World in a Combat Area with one `monster`, to read nameplates from. */
 function world(monster: MonsterType = "skeleton") {
@@ -153,7 +154,12 @@ describe("nameplateOf", () => {
 
     const plate = nameplateOf({ minion: golem(max / 4) });
 
-    expect(plate).toEqual({ name: "Golem", fraction: 0.25, friendly: true });
+    expect(plate).toEqual({
+      name: "Golem",
+      fraction: 0.25,
+      friendly: true,
+      unique: false,
+    });
   });
 });
 
@@ -208,5 +214,22 @@ describe("what is shown as hovered", () => {
     world.minions = [golem(5)];
 
     expect(hoveredOf(world, { minion: 2 }, null)).toBeNull();
+  });
+});
+
+describe("the nameplate's Unique gold", () => {
+  it("marks a Unique Monster's name as Unique and an ordinary Monster's not", () => {
+    const [zombie] = world("zombie").monsters;
+
+    expect(nameplateOf({ monster: zombie }).unique).toBe(false);
+    expect(nameplateOf({ monster: { ...zombie, unique: "Bob" } }).unique).toBe(
+      true,
+    );
+  });
+
+  it("is a colour no Item's name uses", () => {
+    for (const rarity of ["normal", "magic", "rare"] as const) {
+      expect(UNIQUE_COLOUR).not.toBe(rarityColour(rarity));
+    }
   });
 });

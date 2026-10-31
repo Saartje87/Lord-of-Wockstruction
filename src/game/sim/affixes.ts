@@ -82,13 +82,15 @@ function rollAffix(
  * Prefix and one Suffix; a Rare Item three or four, at most two of each
  * side, and a two-word name. Never two of a kind, each in a grade
  * `monsterLevel` reaches. A Unique Monster's drop rolls its Rarity by
- * `rarityTuning.uniqueRarity`.
+ * `rarityTuning.uniqueRarity`. `only` limits the Rarity to those it lists,
+ * keeping their relative odds.
  */
 export function rollItem(
   rng: Rng,
   type: ItemType,
   monsterLevel: number,
   unique = false,
+  only?: readonly Rarity[],
 ): ItemRoll {
   if (isPotion(type)) return { rarity: "normal", affixes: [] };
   const { normal, magic, rare } = unique
@@ -97,7 +99,14 @@ export function rollItem(
   // A Ring or Amulet re-rolls Normal: it drops Magic or Rare.
   const never = itemOf(type).kind === "ring" || itemOf(type).kind === "amulet";
   const rarity =
-    RARITY_ORDER[pickWeighted(rng, [never ? 0 : normal, magic, rare])];
+    RARITY_ORDER[
+      pickWeighted(
+        rng,
+        [never ? 0 : normal, magic, rare].map((weight, i) =>
+          only && !only.includes(RARITY_ORDER[i]) ? 0 : weight,
+        ),
+      )
+    ];
   if (rarity === "normal") return { rarity, affixes: [] };
   const { prefix: prefixOdds, suffix: suffixOdds } = rarityTuning.sideOdds;
   const coin = () => pickWeighted(rng, [prefixOdds, suffixOdds]);

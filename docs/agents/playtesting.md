@@ -65,12 +65,17 @@ In dev builds, `?area=<Area>&entry=<Entry>` starts at that Entry instead of in T
 
 To start beside a fight, use the `fight` Entry, 3 to 4 tiles from a pack that notices the Hero on arrival. No Exit leads to it:
 
+- `?area=cozy-plains&entry=fight`: 4 Wockwolves in Cozy Plains' north-west.
 - `?area=catacombs&entry=fight`: the Catacombs' 7 Skeletons.
+- `?area=crypt&entry=fight`: 2 Skeleton Archers in the Crypt; the 7 Skeletons beside them join in.
 - `?area=old-mill&entry=fight`: Wockbrutes in the Old Mill.
 - `?area=soggy-bog&entry=fight`: Bog Spitters in the Soggy Bog.
+- `?area=wockyard&entry=fight`: 5 Skeletons in the Wockyard.
 - `?area=spa&entry=fight`: Bruckle and his 5 Wockwolves in the Spa, about 3 tiles from him. Use a sturdy Save; his yard is fenced off from the south.
 - `?area=spa&entry=pools`: beside the Spa's pools, away from any pack, for looking at the hot springs' tint and steam.
 - `?area=ossuary&entry=fight`: Grave Wockington's room, about 6 tiles from him. Use a Level 11–12 Save; he notices the Hero on arrival.
+
+A ticket that places a Unique Monster or a new pack adds a `fight` Entry beside it, 3 to 4 tiles away on walkable floor, and its line in this list. The "dev-only `fight` Entries" tests in `content.test.ts` fail for an Area with Monsters but no `fight` Entry, and for one whose nearest Monster is nearer or farther than that.
 
 ### The 3D World
 

@@ -11,7 +11,7 @@
  "infinite": false,
  "compressionlevel": -1,
  "nextlayerid": 5,
- "nextobjectid": 18,
+ "nextobjectid": 19,
  "properties": [
   {
    "name": "mainPath",
@@ -8321,6 +8321,18 @@
      "type": "entry",
      "x": 432.0,
      "y": 528.0,
+     "width": 0,
+     "height": 0,
+     "point": true,
+     "rotation": 0,
+     "visible": true
+    },
+    {
+     "id": 18,
+     "name": "fight",
+     "type": "entry",
+     "x": 3504,
+     "y": 2640,
      "width": 0,
      "height": 0,
      "point": true,

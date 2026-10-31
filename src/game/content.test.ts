@@ -2038,29 +2038,57 @@ describe("the shipped Wockwolf packs", () => {
 });
 
 describe("the dev-only `fight` Entries", () => {
-  /** How near a `fight` Entry stands to its pack's nearest spawn at least, in tiles: not on top of it. */
+  /** How near a `fight` Entry stands to the nearest Monster at least, in tiles: not on top of it. */
   const FIGHT_ENTRY_MIN_DISTANCE = 3;
   /** How near it stands at most, in tiles: near enough for the pack to notice the Hero on arrival. */
   const FIGHT_ENTRY_MAX_DISTANCE = 4;
 
-  it.each([
-    ["catacombs", "skeleton"],
-    ["old-mill", "wockbrute"],
-    ["soggy-bog", "bog_spitter"],
-  ] as const)("start the Hero in the %s within reach of a %s pack", (name, monster) => {
-    const area = shippedWorld().areas[name];
-    const fight = area.entries.fight;
+  /**
+   * The Areas whose `fight` Entry stands off walkable floor, or whose nearest
+   * Monster (a pack's spawn, a Unique Monster or the Act Boss) is not 3 to 4
+   * tiles away, each with why.
+   */
+  const misplacedFightEntries = (areasByName: Record<string, Area>) =>
+    Object.entries(areasByName).flatMap(([name, area]) => {
+      const fight = area.entries.fight;
+      if (!fight) return [];
+      if (!isWalkable(area, fight)) return [`${name}: off walkable floor`];
+      const monsters = [
+        ...area.spawns.map((spawn) => spawn.pos),
+        ...area.uniques.map((unique) => unique.pos),
+        ...(area.actBoss ? [area.actBoss.pos] : []),
+      ];
+      const nearest = Math.min(...monsters.map((pos) => distance(pos, fight)));
+      return nearest >= FIGHT_ENTRY_MIN_DISTANCE &&
+        nearest <= FIGHT_ENTRY_MAX_DISTANCE
+        ? []
+        : [`${name}: nearest Monster ${nearest.toFixed(1)} tiles away`];
+    });
 
-    expect(fight).toBeDefined();
-    const nearest = Math.min(
-      ...area.spawns
-        .filter((spawn) => spawn.monster === monster)
-        .map((spawn) =>
-          Math.hypot(spawn.pos.x - fight.x, spawn.pos.y - fight.y),
-        ),
-    );
-    expect(nearest).toBeLessThanOrEqual(FIGHT_ENTRY_MAX_DISTANCE);
-    expect(nearest).toBeGreaterThanOrEqual(FIGHT_ENTRY_MIN_DISTANCE);
+  it("is in every Area with Monsters", () => {
+    const without = Object.entries(shippedWorld().areas)
+      .filter(
+        ([, area]) =>
+          area.spawns.length > 0 || area.uniques.length > 0 || area.actBoss,
+      )
+      .filter(([, area]) => !area.entries.fight)
+      .map(([name]) => name);
+    expect(without).toEqual([]);
+  });
+
+  it("stands on walkable floor, 3 to 4 tiles from the nearest Monster", () => {
+    expect(misplacedFightEntries(shippedWorld().areas)).toEqual([]);
+  });
+
+  it("is reported when no Monster stands 3 to 4 tiles from it", () => {
+    const { catacombs } = shippedWorld().areas;
+    const far = {
+      ...catacombs,
+      entries: { ...catacombs.entries, fight: catacombs.entries.start },
+    };
+    expect(misplacedFightEntries({ catacombs: far })).toEqual([
+      expect.stringMatching(/^catacombs: nearest Monster/),
+    ]);
   });
 
   it("starts the Hero in the Spa within reach of Bruckle and his Wockwolves", () => {

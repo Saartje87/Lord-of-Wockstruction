@@ -631,7 +631,7 @@ describe("the Hero hit", () => {
       expect(w.hero.swing).toBeNull();
       step(w, []);
       expect(w.hero.flinch).toBe(0);
-      expect(w.hero.swing).toEqual({
+      expect(w.hero.swing).toMatchObject({
         elapsed: 0,
         landed: false,
         monster: null,

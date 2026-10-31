@@ -15,7 +15,6 @@ import {
   DEATH_STEPS,
   FLINCH_STEPS,
   HERO_FLINCH_STEPS,
-  HIT_STEP,
   hasQuestToDeal,
   type Minion,
   type MinionId,
@@ -23,7 +22,7 @@ import {
   type MonsterId,
   npcsIn,
   OPENING_STEPS,
-  SWING_STEPS,
+  type Swing,
   type World,
 } from "../sim/world";
 import { boneAltarTuning } from "../tuning/boneAltars";
@@ -660,7 +659,7 @@ function heroAnimationOf(world: World): HeroAnimation {
     };
   }
   if (hero.swing) {
-    return { clip: "swing", progress: swingProgress(hero.swing.elapsed) };
+    return { clip: "swing", progress: swingProgress(hero.swing) };
   }
   if (hero.cast) {
     return {
@@ -689,11 +688,11 @@ function heroAnimationOf(world: World): HeroAnimation {
  * contact frame falls on the step the hit lands, the rest of the clip on the
  * steps after it.
  */
-function swingProgress(elapsed: number): number {
-  if (elapsed <= HIT_STEP) return (elapsed / HIT_STEP) * ATTACK_CONTACT;
+function swingProgress({ elapsed, steps, hitStep }: Swing): number {
+  if (elapsed <= hitStep) return (elapsed / hitStep) * ATTACK_CONTACT;
   return (
     ATTACK_CONTACT +
-    ((elapsed - HIT_STEP) / (SWING_STEPS - HIT_STEP)) * (1 - ATTACK_CONTACT)
+    ((elapsed - hitStep) / (steps - hitStep)) * (1 - ATTACK_CONTACT)
   );
 }
 

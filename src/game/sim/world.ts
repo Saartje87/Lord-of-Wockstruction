@@ -173,10 +173,12 @@ import { holdBack, slideAround, stepInDirection } from "./walking";
 const EXPERIENCE_TABLE = heroTuning.experienceTable;
 /** The most Experience the Hero can have: what the last Level needs. */
 const EXPERIENCE_CAP = EXPERIENCE_TABLE[EXPERIENCE_TABLE.length - 1];
-const WALK_PER_STEP = perStep(heroTuning.walkSpeed);
-/** How many steps a swing takes. */
+/**
+ * How many steps a swing takes with no attack speed; the Hero's own is
+ * `heroSwingSteps`.
+ */
 export const SWING_STEPS = msToSteps(heroTuning.swingMs);
-/** The step of a swing on which its hit lands. */
+/** The step of a base swing on which its hit lands. */
 export const HIT_STEP = msToSteps(heroTuning.swingMs * heroTuning.hitAt);
 const HITSTOP_STEPS = msToSteps(heroTuning.hitstopMs);
 /** How many steps the Hero flinches for. */
@@ -296,6 +298,12 @@ export type Opening = {
 export type Swing = {
   /** Steps since the swing started, not counting hitstop. */
   elapsed: number;
+  /**
+   * How many steps it takes and the step its hit lands on, fixed as it
+   * starts, so Equipping Gloves mid-swing can't skip the hit.
+   */
+  steps: number;
+  hitStep: number;
   /** Whether its hit has landed yet. */
   landed: boolean;
   /** The Monster an `Attack` swings at, or null for a `SwingAt` arc. */
@@ -1282,6 +1290,34 @@ export function heroBlockChance(world: World): number {
     blockTuning.cap,
     (itemOf(shield.type).block ?? 0) + itemBonus(shield, "block"),
   );
+}
+
+/** The Hero's attack speed, in percent: what the Equipped Items add; 0 for none. */
+export function heroAttackSpeed(world: World): number {
+  return bonusOf(world, "attackSpeed");
+}
+
+/** The Hero's walk speed bonus, in percent: what the Equipped Items add; 0 for none. */
+export function heroWalkSpeed(world: World): number {
+  return bonusOf(world, "walkSpeed");
+}
+
+/** How many whole steps the Hero's swing takes: the base swing over (1 + attack speed %). */
+function heroSwingSteps(world: World): number {
+  const faster = 1 + heroAttackSpeed(world) / 100;
+  return Math.max(2, msToSteps(heroTuning.swingMs / faster));
+}
+
+/** The step of the Hero's swing on which its hit lands, at the base swing's fraction through it. */
+function heroHitStep(world: World): number {
+  const faster = 1 + heroAttackSpeed(world) / 100;
+  const steps = msToSteps((heroTuning.swingMs * heroTuning.hitAt) / faster);
+  return Math.min(Math.max(1, steps), heroSwingSteps(world) - 1);
+}
+
+/** How far the Hero walks in one step (tiles): the base walk speed times (1 + walk speed %). */
+function heroWalkPerStep(world: World): number {
+  return perStep(heroTuning.walkSpeed * (1 + heroWalkSpeed(world) / 100));
 }
 
 /** Whether the Hero is regaining Life: alive, out of combat and below full. */
@@ -2438,7 +2474,7 @@ function give(world: World, order: Order, events: SimEvent[]) {
     case "SwingAt":
       hero.pickingUp = null;
       hero.talkingTo = null;
-      startSwing(hero, null, order.target);
+      startSwing(world, null, order.target);
       break;
     case "Cast":
       castFrom(world, order.slot, order.target, events);
@@ -2955,7 +2991,7 @@ function walkInDirection(world: World, direction: Vec) {
     area,
     hero.pos,
     direction,
-    WALK_PER_STEP,
+    heroWalkPerStep(world),
     heroTuning.radius,
   );
   if (to) {
@@ -2978,7 +3014,7 @@ function approach(world: World) {
     hero.attacking = null;
     hero.path = [];
   } else if (gapTo(hero.pos, monster) <= heroTuning.reach) {
-    startSwing(hero, monster.id, monster.pos);
+    startSwing(world, monster.id, monster.pos);
   } else if (hero.path.length === 0) {
     // Walked as near as it can get, still out of reach.
     hero.attacking = null;
@@ -3174,9 +3210,16 @@ function reachGoldPiles(world: World, events: SimEvent[]) {
   }
 }
 
-function startSwing(hero: Hero, monster: MonsterId | null, toward: Vec) {
+function startSwing(world: World, monster: MonsterId | null, toward: Vec) {
+  const { hero } = world;
   faceToward(hero, toward);
-  hero.swing = { elapsed: 0, landed: false, monster };
+  hero.swing = {
+    elapsed: 0,
+    steps: heroSwingSteps(world),
+    hitStep: heroHitStep(world),
+    landed: false,
+    monster,
+  };
   hero.attacking = null;
   hero.path = [];
 }
@@ -3184,8 +3227,8 @@ function startSwing(hero: Hero, monster: MonsterId | null, toward: Vec) {
 function advanceSwing(world: World, swing: Swing, events: SimEvent[]) {
   const { hero } = world;
   swing.elapsed += 1;
-  if (swing.elapsed === HIT_STEP) land(world, swing, events);
-  if (swing.elapsed < SWING_STEPS) return;
+  if (swing.elapsed === swing.hitStep) land(world, swing, events);
+  if (swing.elapsed < swing.steps) return;
 
   hero.swing = null;
   giveBuffered(world, events);
@@ -3729,7 +3772,7 @@ function walkHero(world: World) {
   const except =
     hero.attacking === null ? null : monsterById(world, hero.attacking);
   const obstacles = monsterBodies(world, except);
-  walk(hero);
+  walk(hero, heroWalkPerStep(world));
   const radius = heroTuning.radius;
   const gait = { radius, replanSteps: 1, body: { radius, obstacles } };
   if (holdBack(world.areas[world.areaName], hero, before, gait)) {
@@ -3738,8 +3781,8 @@ function walkHero(world: World) {
 }
 
 /** Moves the Hero one step along its path, carrying over past waypoints. */
-function walk(hero: Hero) {
-  let budget = WALK_PER_STEP;
+function walk(hero: Hero, perStepBudget: number) {
+  let budget = perStepBudget;
   while (budget > 0 && hero.path.length > 0) {
     const next = hero.path[0];
     const dx = next.x - hero.pos.x;

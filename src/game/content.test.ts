@@ -11,7 +11,7 @@ import { type Area, type Exit, isWalkable, type Spawn } from "./sim/area";
 import { type MonsterOfLevel, monsterExperience } from "./sim/monsters";
 import { canReach, findPath } from "./sim/path";
 import { validateActs, validateQuests } from "./sim/validate";
-import type { Vec } from "./sim/vec";
+import { distance, type Vec } from "./sim/vec";
 import {
   createWorld,
   FRESH_PROGRESS,
@@ -1247,6 +1247,13 @@ describe('the shipped "Bog Off" Quest', () => {
   });
 });
 
+/**
+ * Ticks the Spa Day test gives a New Hero to kill Bruckle: his Life is a
+ * Unique Wockbrute's, many times a Level 1 Hero's hit, which takes far longer
+ * than the 6000 ticks that fell the Ossuary's boss.
+ */
+const UNIQUE_KILL_TICKS = 30_000;
+
 describe('the shipped "Spa Day" Quest', () => {
   const inSpa = (progress = FRESH_PROGRESS) =>
     createWorld({
@@ -1276,15 +1283,20 @@ describe('the shipped "Spa Day" Quest', () => {
     );
   });
 
-  it("is Ready once the Hero kills the Spa's Unique Monster, then Done at the Smith", () => {
+  it("is Ready once the Hero kills Bruckle, then Done at the Smith", () => {
     const world = inSpa();
-    const boss = world.monsters.find((monster) => monster.unique);
-    if (!boss) throw new Error("no Unique Monster");
+    const boss = world.monsters.find((monster) => monster.unique === "Bruckle");
+    if (!boss) throw new Error("no Bruckle");
+    expect(boss.type).toBe("wockbrute");
     world.monsters = [boss];
     world.hero.pos = { x: boss.pos.x - 1.2, y: boss.pos.y };
     world.hero.prevPos = { ...world.hero.pos };
     let ready = false;
-    for (let i = 0; i < 120_000 && world.monsters.includes(boss); i++) {
+    for (
+      let i = 0;
+      i < UNIQUE_KILL_TICKS && world.monsters.includes(boss);
+      i++
+    ) {
       const orders: Order[] =
         i % 120 === 0 ? [{ type: "Attack", monster: boss.id }] : [];
       for (const event of step(world, orders)) {
@@ -1355,6 +1367,12 @@ describe("loading the shipped content into a World", () => {
   });
 });
 
+/**
+ * How far from Bruckle (tiles) a Wockwolf counts as his guard: his pack stands
+ * about 2 tiles off, the Spa's other Wockwolves 8.
+ */
+const GUARD_RADIUS = 3;
+
 describe("the shipped Act 1's Main Path", () => {
   it("lists the Waypoints from Wockville out to the Ossuary", () => {
     expect(waypointList(shippedWorld()).map((w) => w.area)).toEqual([
@@ -1376,14 +1394,14 @@ describe("the shipped Act 1's Main Path", () => {
     const spa = shippedWorld().areas.spa;
     const bruckle = spa.uniques[0].pos;
     const entry = spa.entries["from-cozy-plains"];
-    const far = Math.hypot(bruckle.x - entry.x, bruckle.y - entry.y);
-    const farthest = Math.max(
-      ...spa.spawns.map((s) =>
-        Math.hypot(s.pos.x - entry.x, s.pos.y - entry.y),
-      ),
+    const deepestSpawn = Math.max(
+      ...spa.spawns.map((s) => Math.abs(s.pos.y - entry.y)),
     );
 
-    expect(far).toBeGreaterThanOrEqual(0.8 * farthest);
+    // The entry is at the Spa's south edge. He stands straight across from it,
+    // and no Spawn lies further along that axis.
+    expect(bruckle.x).toBe(entry.x);
+    expect(Math.abs(bruckle.y - entry.y)).toBeGreaterThanOrEqual(deepestSpawn);
   });
 
   it("stands 5 ordinary Wockwolves around Bruckle, beside the Spa's other Monsters", () => {
@@ -1391,8 +1409,7 @@ describe("the shipped Act 1's Main Path", () => {
     const bruckle = spa.uniques[0].pos;
     const guards = spa.spawns.filter(
       (s) =>
-        s.monster === "wockwolf" &&
-        Math.hypot(s.pos.x - bruckle.x, s.pos.y - bruckle.y) <= 3,
+        s.monster === "wockwolf" && distance(s.pos, bruckle) <= GUARD_RADIUS,
     );
 
     expect(guards.map((s) => s.count)).toEqual([5]);
@@ -1401,7 +1418,7 @@ describe("the shipped Act 1's Main Path", () => {
     );
   });
 
-  it("spawns Bruckle as a Unique Wockbrute with ordinary Wockwolves near him", () => {
+  it("spawns Bruckle as a Unique Wockbrute with exactly 5 ordinary Wockwolves around him", () => {
     const world = createWorld({
       areas,
       tilesets,
@@ -1412,12 +1429,11 @@ describe("the shipped Act 1's Main Path", () => {
     if (!bruckle) throw new Error("no Bruckle");
     const guards = world.monsters.filter(
       (m) =>
-        m.type === "wockwolf" &&
-        Math.hypot(m.pos.x - bruckle.pos.x, m.pos.y - bruckle.pos.y) <= 6,
+        m.type === "wockwolf" && distance(m.pos, bruckle.pos) <= GUARD_RADIUS,
     );
 
     expect(bruckle.type).toBe("wockbrute");
-    expect(guards.length).toBeGreaterThanOrEqual(5);
+    expect(guards).toHaveLength(5);
     expect(guards.every((m) => m.unique === null)).toBe(true);
   });
 
@@ -1538,7 +1554,7 @@ describe("Grave Wockington in the shipped Ossuary", () => {
     world.hero.pos = { x: boss.pos.x - 1.2, y: boss.pos.y };
     world.hero.prevPos = { ...world.hero.pos };
     const events: SimEvent[] = [];
-    for (let i = 0; i < 120_000 && world.monsters.includes(boss); i++) {
+    for (let i = 0; i < 6000 && world.monsters.includes(boss); i++) {
       const orders: Order[] =
         i % 120 === 0 ? [{ type: "Attack", monster: boss.id }] : [];
       events.push(...step(world, orders));

@@ -1,3 +1,4 @@
+import type { DamageShares, Resistances } from "./damage";
 import type { ProjectileKind } from "./projectiles";
 
 /**
@@ -17,6 +18,16 @@ export type MonsterTuning = {
   speed: number;
   /** Damage per hit, rolled from `[min, max]` inclusive. */
   damage: [number, number];
+  /**
+   * How its damage splits over Damage Types; missing, all Physical. A hit
+   * rolls its chance to hit whatever it is made of.
+   */
+  damageTypes?: DamageShares;
+  /**
+   * What it shrugs off of each Element's damage (percent; see `Resistances`),
+   * the same at every Monster Level. Missing ones are 0.
+   */
+  resistances?: Resistances;
   /** Set against the Hero's Attack Rating for the chance to hit it. */
   defense: number;
   /** Set against the Hero's Defense for its chance to hit them. */
@@ -137,6 +148,9 @@ export type MonsterType =
 export const monsterTuning: Record<MonsterType, MonsterTuning> = {
   skeleton: {
     name: "Skeleton",
+    // The starting table of Damage Types and Resistances: undead shrug off
+    // Cold, plants and muck burn. All of it to be tuned.
+    resistances: { cold: 25 },
     life: 60,
     experience: 100,
     speed: 2.8,
@@ -185,6 +199,7 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
   // from, costly to stand and trade with.
   zombie: {
     name: "Zombie",
+    resistances: { fire: -25, cold: 25 },
     life: 150,
     // Twice a Skeleton's: one takes about twice as long to kill, and costs
     // the Hero about twice the Life, in every Combat Area.
@@ -230,6 +245,7 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
   // bursting them down, and pays off when reached.
   skeleton_archer: {
     name: "Skeleton Archer",
+    resistances: { cold: 25 },
     life: 36,
     experience: 110,
     speed: 2.8,
@@ -287,6 +303,7 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
   // numbers (T470); expected to move in playtesting.
   wockwolf: {
     name: "Wockwolf",
+    resistances: { cold: 25 },
     life: 30,
     // Half a Skeleton's: a pack is worth more than one Skeleton, a single
     // Wockwolf is not.
@@ -332,6 +349,7 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
   // expected to move in playtesting.
   bog_spitter: {
     name: "Bog Spitter",
+    resistances: { fire: -50, lightning: 25 },
     life: 45,
     experience: 120,
     speed: 1.2,
@@ -435,6 +453,7 @@ export const monsterTuning: Record<MonsterType, MonsterTuning> = {
   // designed (T446).
   grave_wockington: {
     name: "Grave Wockington",
+    resistances: { fire: 50 },
     life: 120,
     experience: 300,
     speed: 1.6,

@@ -2138,7 +2138,9 @@ describe("the Dialogue panel", () => {
     const menus = createMenus();
     reactMenus(menus, [talked]);
 
-    reactMenus(menus, [{ type: "HeroHit", damage: 0, warded: 4 }]);
+    reactMenus(menus, [
+      { type: "HeroHit", damage: 0, warded: 4, damageType: "physical" },
+    ]);
 
     expect(menus.dialogueOpen).toBe(false);
   });
@@ -2239,7 +2241,9 @@ describe("the Vendor panel", () => {
 
   it("stays open as the Hero takes damage, the World playing on", () => {
     const menus = opened();
-    reactMenus(menus, [{ type: "HeroHit", damage: 3, warded: 0 }]);
+    reactMenus(menus, [
+      { type: "HeroHit", damage: 3, warded: 0, damageType: "physical" },
+    ]);
     expect(menus.vendorOpen).toBe(true);
   });
 

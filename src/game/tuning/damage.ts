@@ -30,3 +30,17 @@ export const MAXIMUM_RESISTANCE = 75;
 
 /** The least the Hero's effective Resistance goes (percent): hits take double. */
 export const MINIMUM_RESISTANCE = -100;
+
+/**
+ * The Resistance Penalty of each Act, by Act number: a whole number of 0 or
+ * more (percent) taken off every one of the Hero's Resistances, before the
+ * cap, while they are in an Area of that Act. Act 1's is 0.
+ */
+export const RESISTANCE_PENALTIES: Record<number, number> = {
+  1: 0,
+};
+
+/** The Resistance Penalty in an Area of `act`; none for an Act without one or an Area without an Act. */
+export function resistancePenaltyOf(act: number | null): number {
+  return act === null ? 0 : (RESISTANCE_PENALTIES[act] ?? 0);
+}

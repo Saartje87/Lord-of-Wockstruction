@@ -202,6 +202,19 @@ const RESOURCE_BITS = {
   ],
 };
 
+/**
+ * Shields' and Wands' models on the ground, written to
+ * `public/assets/models/loot/`: Fantasy Weapons Bits, from Bits Bundle 2
+ * (CC0). Read from the gitignored `vendor/kaykit/` like Resource Bits, and
+ * skipped when it isn't there.
+ */
+const FANTASY_WEAPONS = {
+  name: "Fantasy Weapons Bits (Bits Bundle 2)",
+  dir: "vendor/kaykit/KayKit_Bits_Bundle2/KayKit Fantasy Weapons Bits 1.0",
+  url: "https://kaylousberg.itch.io/kaykit-bits-bundle",
+  models: ["shield_A", "shield_D", "wand_A", "wand_B"],
+};
+
 /** Whether a piece's pack is one of the `VENDORED` ones. */
 function isVendored(pack: PieceSource["pack"]): pack is keyof typeof VENDORED {
   return pack in VENDORED;
@@ -261,15 +274,13 @@ const NPCS = {
 
 /**
  * Ground Items' models, written to `public/assets/models/loot/`: Adventurers
- * weapons and shields (glTF with a texture each), an arrow and Dungeon
+ * weapons (glTF with a texture each), an arrow and Dungeon
  * Remastered's bottles. Item kinds without one get a stand-in drawn in code.
  */
 const LOOT = {
   adventurers: [
     { model: "sword_1handed", texture: "knight_texture.png" },
     { model: "axe_1handed", texture: "barbarian_texture.png" },
-    { model: "shield_round", texture: "knight_texture.png" },
-    { model: "shield_spikes", texture: "barbarian_texture.png" },
     { model: "arrow", texture: "rogue_texture.png" },
   ],
   dungeon: ["bottle_A_brown", "bottle_B_green", "bottle_C_brown"],
@@ -517,6 +528,17 @@ for (const name of RESOURCE_BITS.models) {
     console.log(`No ${RESOURCE_BITS.dir}: keeping the committed ${to}`);
   }
 }
+for (const name of FANTASY_WEAPONS.models) {
+  const to = `${out.models}/loot/${name}.glb`;
+  if (existsSync(FANTASY_WEAPONS.dir)) {
+    await io.write(
+      to,
+      await io.read(`${FANTASY_WEAPONS.dir}/Assets/gltf/${name}.gltf`),
+    );
+  } else {
+    console.log(`No ${FANTASY_WEAPONS.dir}: keeping the committed ${to}`);
+  }
+}
 writeFileSync(
   `${out.tilesets}/kaykit.tsj`,
   `${JSON.stringify(tilesetOf(PIECES), null, 1)}\n`,
@@ -548,6 +570,10 @@ const imported = [
     (name) =>
       `| ${RESOURCE_BITS.name}: \`Assets/gltf/${name}.gltf\` | Gold Piles |`,
   ),
+  ...FANTASY_WEAPONS.models.map(
+    (name) =>
+      `| ${FANTASY_WEAPONS.name}: \`Assets/gltf/${name}.gltf\` | Ground Items (Shields and Wands) |`,
+  ),
   ...PIECES.map(
     (source) =>
       `| ${isVendored(source.pack) ? `${VENDORED[source.pack].name}: ` : ""}\`${filesOf(source)[0]}\` | ${source.kind === "floor" ? "floors" : source.kind === "wall" ? "Walls" : "Props"} |`,
@@ -573,7 +599,7 @@ ${Object.values(PACKS)
   .join("\n")}
 - ${MYSTERY_4.name}: [itch.io](${MYSTERY_4.url}), paid and CC0
 - ${MYSTERY.name}: [itch.io](${MYSTERY.url}), paid and CC0
-${[...Object.values(VENDORED), RESOURCE_BITS]
+${[...Object.values(VENDORED), RESOURCE_BITS, FANTASY_WEAPONS]
   .map((pack) => `- ${pack.name}: [itch.io](${pack.url}), paid and CC0`)
   .join("\n")}
 
@@ -585,7 +611,8 @@ game uses and the Knight's 1-handed chop, and the Plant Warrior the same
 with the Knight's spellcast. Town's NPCs get the \`Rig_Medium\` idles, with no
 animation track for a bone they lack. Halloween Bits, Medieval Hexagon and
 City Builder Bits pieces, which come as glTF with a binary and a texture, are
-packed into one glb each, as are Resource Bits' coin stacks. Nothing is recoloured.
+packed into one glb each, as are Resource Bits' coin stacks and Fantasy Weapons
+Bits' shields and wands. Nothing is recoloured.
 
 ### Imported files
 

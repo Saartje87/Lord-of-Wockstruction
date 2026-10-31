@@ -938,6 +938,30 @@ describe("the Old Mill's grass and millpond", () => {
     expect(pieces.some((p) => /tree_dead|grave/.test(p))).toBe(false);
   });
 
+  it("has the watermill beside its millpond, blocking its footprint, and no blacksmith", () => {
+    const area = mill();
+    expect(area.props.some((p) => /blacksmith/.test(p.piece))).toBe(false);
+    const watermills = area.props.filter(
+      (p) => p.piece === "hexagon/building_watermill_red",
+    );
+    expect(watermills).toHaveLength(1);
+    const pond: Vec[] = [];
+    area.water.forEach((isWater, i) => {
+      if (isWater)
+        pond.push({ x: i % area.width, y: Math.floor(i / area.width) });
+    });
+    const [mill_] = watermills;
+    expect(
+      pond.some(
+        (t) => Math.abs(mill_.x - t.x) <= 3 && Math.abs(mill_.y - t.y) <= 3,
+      ),
+    ).toBe(true);
+    const blocked = (p: Vec) =>
+      !canReach(area, { x: mill_.x - 2.5, y: mill_.y + 0.5 }, p) ||
+      !canReach(area, p, { x: mill_.x - 2.5, y: mill_.y + 0.5 });
+    expect(blocked({ x: mill_.x + 0.5, y: mill_.y + 0.5 })).toBe(true);
+  });
+
   it("has a small millpond beside the mill", () => {
     const area = mill();
     const pond: Vec[] = [];

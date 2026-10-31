@@ -96,6 +96,7 @@ Bits' shields and wands. Nothing is recoloured.
 | `addons/kaykit_medieval_hexagon_pack/Assets/gltf/buildings/blue/building_church_blue.gltf` | Props |
 | `addons/kaykit_medieval_hexagon_pack/Assets/gltf/buildings/red/building_well_red.gltf` | Props |
 | `addons/kaykit_medieval_hexagon_pack/Assets/gltf/buildings/red/building_blacksmith_red.gltf` | Props |
+| `addons/kaykit_medieval_hexagon_pack/Assets/gltf/buildings/red/building_watermill_red.gltf` | Props |
 | `addons/kaykit_dungeon_remastered/Assets/gltf/wall_corner.gltf.glb` | Walls |
 | `addons/kaykit_dungeon_remastered/Assets/gltf/wall_Tsplit.gltf.glb` | Walls |
 | `addons/kaykit_dungeon_remastered/Assets/gltf/wall_crossing.gltf.glb` | Walls |

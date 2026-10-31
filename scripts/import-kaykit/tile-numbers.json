@@ -47,5 +47,6 @@
   "city/bush_A": 45,
   "city/bush_B": 46,
   "city/bush_C": 47,
-  "water": 48
+  "water": 48,
+  "hexagon/building_watermill_red": 49
 }

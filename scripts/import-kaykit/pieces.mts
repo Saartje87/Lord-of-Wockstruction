@@ -74,6 +74,8 @@ export const PIECES: PieceSource[] = [
   building("church", "blue"),
   building("well", "red"),
   building("blacksmith", "red"),
+  // The Old Mill's watermill, static: no turning wheel.
+  building("watermill", "red"),
   // Joints for the dungeon Wall: the 3D World picks them where Walls meet.
   wall("dungeon", "wall_corner"),
   wall("dungeon", "wall_Tsplit"),

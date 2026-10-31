@@ -60,10 +60,14 @@ describe("the shipped tile numbers", () => {
     expect(TILE_NUMBERS.water).toBe(48);
   });
 
+  it("give the red watermill the next free number, after Water", () => {
+    expect(TILE_NUMBERS["hexagon/building_watermill_red"]).toBe(49);
+  });
+
   it("pin the first and last piece", () => {
     expect(TILE_NUMBERS["dungeon/floor_tile_large"]).toBe(0);
     expect(TILE_NUMBERS["city/bush_C"]).toBe(47);
-    expect(Object.keys(TILE_NUMBERS)).toHaveLength(49);
+    expect(Object.keys(TILE_NUMBERS)).toHaveLength(50);
   });
 
   it("are the numbers of the committed tileset", () => {

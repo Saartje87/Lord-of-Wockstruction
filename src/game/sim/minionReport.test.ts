@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { minionTuning } from "../tuning/minions";
+import { monsterTuning } from "../tuning/monsters";
 import { minionReport, summoningBudget } from "./minionReport";
+import { minionDefense } from "./minions";
 import { monsterDefense } from "./monsters";
 import { chanceToHit } from "./world";
 
@@ -42,5 +44,51 @@ describe("minionReport", () => {
       row.targetLife / (golem.damagePerSecond * golem.count),
     );
     expect(row.base.allSecondsToKill).toBeGreaterThan(0);
+  });
+
+  it("has a full group of Raised Skeletons kill an own-Level trash Skeleton in about 5 s with the base Skills alone, at every Level", () => {
+    for (const row of minionReport()) {
+      const skeletons = row.base.minions.find(
+        (one) => one.skill === "raiseSkeleton",
+      );
+      if (!skeletons)
+        throw new Error(`No Raised Skeletons at ${row.heroLevel}`);
+
+      expect(skeletons.secondsToKill).toBeGreaterThan(3);
+      expect(skeletons.secondsToKill).toBeLessThan(8);
+      expect(skeletons.chanceToHit).toBeGreaterThanOrEqual(0.65);
+      expect(skeletons.chanceToHit).toBeLessThanOrEqual(0.9);
+    }
+  });
+
+  it("has the Raised Archers hit most of the time too, and Monsters hit the Golem much less than 80% of the time", () => {
+    for (const { heroLevel, base } of minionReport()) {
+      for (const one of base.minions) {
+        if (one.skill === "raiseArcher") {
+          expect(one.chanceToHit).toBeGreaterThanOrEqual(0.65);
+          expect(one.chanceToHit).toBeLessThanOrEqual(0.9);
+        }
+        if (one.skill === "golem") {
+          const defense = minionDefense({
+            type: "golem",
+            skillLevel: one.skillLevel,
+          });
+          const { attackRating, growth } = monsterTuning.skeleton;
+          const monster = Math.round(
+            attackRating * (1 + growth.attackRating * (heroLevel - 1)),
+          );
+          expect(chanceToHit(monster, defense)).toBeLessThan(0.65);
+        }
+      }
+    }
+  });
+
+  it("grows Raised minions' Attack Rating per Skill Level at least as fast as Monster Defense per Monster Level", () => {
+    const { defense } = monsterTuning.skeleton.growth;
+    for (const type of ["raisedSkeleton", "raisedArcher"] as const) {
+      expect(minionTuning[type].growth.attackRating).toBeGreaterThanOrEqual(
+        defense,
+      );
+    }
   });
 });

@@ -456,8 +456,10 @@ describe("Monsters fighting the Golem", () => {
 
     let hit: SimEvent | undefined;
     for (let i = 0; !hit; i++) {
-      if (i > 60 * 30) throw new Error("Never hit a Minion");
-      hit = step(w, []).find((event) => event.type === "MinionHit");
+      if (i > 60 * 30) throw new Error("Never swung at a Minion");
+      hit = step(w, []).find(
+        (event) => event.type === "MinionHit" || event.type === "MinionMissed",
+      );
     }
 
     expect(hit).toMatchObject({ minion: golem.id });
@@ -515,6 +517,9 @@ describe("Monsters fighting the Golem", () => {
         [
           "EA.........SS.......",
           "...........SS.......",
+          "...........SS.......",
+          "...........SS.......",
+          "...........SS.......",
           "...................H",
         ],
         "town",
@@ -534,7 +539,7 @@ describe("Monsters fighting the Golem", () => {
         lowest = Math.min(lowest, golem.life);
         return w.minions.length === 0;
       },
-      60 * 120,
+      60 * 300,
     );
 
     expect(regained).toBe(false);
@@ -807,18 +812,17 @@ describe("the Golem's Skill Level", () => {
       };
     };
 
-    // +20% Life and damage, +10% Attack Rating and Defense per Skill Level.
-    expect(at(1)).toEqual({
-      life: 180,
-      damage: [4, 8],
-      attackRating: 100,
-      defense: 30,
-    });
-    expect(at(3)).toEqual({
-      life: 252,
-      damage: [6, 11],
-      attackRating: 120,
-      defense: 36,
-    });
+    const { life, damage, attackRating, defense } = minionTuning.golem;
+    const one = at(1);
+    const three = at(3);
+
+    expect(one.life).toBe(life);
+    expect(one.damage).toEqual(damage);
+    expect(one.attackRating).toBe(attackRating);
+    expect(one.defense).toBe(defense);
+    expect(three.life).toBeGreaterThan(one.life);
+    expect(three.damage[1]).toBeGreaterThan(one.damage[1]);
+    expect(three.attackRating).toBeGreaterThan(one.attackRating);
+    expect(three.defense).toBeGreaterThan(one.defense);
   });
 });

@@ -291,10 +291,10 @@ export function castTuning(skill: CastSkill): CastSkillTuning {
  */
 export const skillTuning: Record<CastSkill, CastSkillTuning> &
   Record<PassiveSkill, PassiveSkillTuning> = {
-  // Diablo 2's Clay Golem. One Minion of 180 Life, three Raised Skeletons'
+  // Diablo 2's Clay Golem. One Minion of 300 Life, five Raised Skeletons'
   // worth, for 15 Mana (a Level 6 Hero has 45, three Golems), where the
   // Skeletons cost 6 for two but need Corpses. Bone Ward's 8% Synergy: a
-  // Golem at Skill Level 5 (324 Life) gains 26 Life from each of its points.
+  // Golem at Skill Level 5 (540 Life) gains 43 Life from each of its points.
   golem: {
     name: "Golem",
     branch: "summoning",
@@ -308,12 +308,12 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
     synergies: [{ skill: "boneWard", percentPerSkillLevel: 8 }],
   },
   // Diablo 2's Raise Skeleton, and its Mana: 2 at Skill Level 1, one more at
-  // 4, 7, 10 … A Raised Skeleton is a Monster Level 1 Skeleton grown 20% a
-  // Skill Level, so given a Skill Point a Level it stays a little behind the
-  // Skeletons of the Crypt and Ossuary (see `minionTuning`). Its Synergies, 8%
+  // 4, 7, 10 … A Raised Skeleton's Life grows 20% and its damage and Attack
+  // Rating 30% and 45% a Skill Level (see `minionTuning`), so it keeps hitting
+  // trash Skeletons of its Hero's Level most of the time. Its Synergies, 8%
   // each from Golem and Raise Archer, are its Summoning mates': at Skill Level
   // 5 (108 Life) each Skill Level in a giver adds 9 Life, about what one of
-  // its own adds (12 Life and damage).
+  // its own adds (12 Life).
   raiseSkeleton: {
     name: "Raise Skeleton",
     branch: "summoning",

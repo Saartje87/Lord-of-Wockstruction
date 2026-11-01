@@ -275,10 +275,10 @@ describe("the Hero's Raised Skeletons", () => {
 
   it.each([
     [1, 2],
-    [3, 2],
-    [4, 3],
-    [7, 4],
-  ])("number at most 2 + one every 3 Skill Levels: at Skill Level %i, %i", (skillLevel, count) => {
+    [5, 2],
+    [6, 3],
+    [11, 4],
+  ])("number at most 2 + one every 5 Skill Levels: at Skill Level %i, %i", (skillLevel, count) => {
     const w = inField(necromancer(skillLevel));
 
     raiseMany(w, count + 2);
@@ -383,6 +383,52 @@ describe("the Hero's Raised Skeletons", () => {
     expect(events).toContainEqual({ type: "ExperienceGained", amount: 100 });
     expect(w.hero.progress.experience).toBe(experience + 100);
     expect(w.corpses).toEqual([expect.objectContaining({ id: skeleton?.id })]);
+  });
+});
+
+describe("Raised Skeletons fighting an own-Level Skeleton", () => {
+  it.each([
+    [4, 1],
+    [8, 2],
+    [12, 3],
+    [16, 4],
+    [20, 5],
+  ])("hit it most of the time at Level %i, Skill Level %i", (level, skillLevel) => {
+    const field = [
+      "EA..........",
+      "............",
+      "......S.....",
+      "............",
+      "............",
+      "...........H",
+    ];
+    const w = inField(necromancer(skillLevel), {
+      town: map(["HAE"], "field", null),
+      field: map(field, "town", level),
+    });
+    const [skeleton] = w.monsters;
+    if (!skeleton) throw new Error("No Skeleton");
+    // A dummy to swing at, and Minions that last the whole count.
+    skeleton.life = 1e9;
+    for (let i = 0; i < 2; i++) {
+      corpseAt(w, { x: 3.5 + i, y: 3.5 });
+      raiseAt(w, { x: 3.5 + i, y: 3.5 });
+    }
+
+    let hits = 0;
+    let misses = 0;
+    for (let i = 0; i < 60 * 300; i++) {
+      for (const event of step(w, [])) {
+        if (event.type === "HitLanded" && event.attacker === "minion") hits++;
+        if (event.type === "Missed" && event.target === skeleton.id) misses++;
+      }
+      for (const minion of w.minions) minion.life = minion.maxLife;
+    }
+
+    const rate = hits / (hits + misses);
+    expect(hits + misses).toBeGreaterThan(100);
+    expect(rate).toBeGreaterThan(0.68);
+    expect(rate).toBeLessThan(0.85);
   });
 });
 

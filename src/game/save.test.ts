@@ -292,6 +292,14 @@ describe("stored text", () => {
     });
   });
 
+  it("loads a Save from before Raise Mage with Raise Mage at Skill Level 0", () => {
+    const loaded = parseSave(
+      v10({ skillPoints: 0, skillLevels: { golem: 1 } }),
+    );
+
+    expect(loaded?.progress.skillLevels.raiseMage).toBe(0);
+  });
+
   it("loads a Save from before Weaken with Weaken at Skill Level 0", () => {
     const loaded = parseSave(
       v10({ skillPoints: 0, skillLevels: { golem: 1 } }),

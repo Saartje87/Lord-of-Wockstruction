@@ -241,14 +241,28 @@ function cursedWith<Kind extends "weaken" | "leadenLimbs">(
     : null;
 }
 
-/** What share of its speed a Monster with `curse` walks at. */
-function walkPace(curse: Monster["curse"]): number {
-  return cursedWith(curse, "leadenLimbs")?.walkSpeed ?? 1;
+/**
+ * What share of its speed a Monster walks at: the slower of its Leaden Limbs
+ * Curse and its Chill, never the two multiplied.
+ */
+function walkPace(monster: Pick<Monster, "curse" | "chill">): number {
+  return slowerPace(monster, "walkSpeed");
 }
 
-/** What share as often a Monster with `curse` swings or shoots. */
-function attackPace(curse: Monster["curse"]): number {
-  return cursedWith(curse, "leadenLimbs")?.attackSpeed ?? 1;
+/** What share as often a Monster swings or shoots, paced as `walkPace`. */
+function attackPace(monster: Pick<Monster, "curse" | "chill">): number {
+  return slowerPace(monster, "attackSpeed");
+}
+
+/** The slower of a Monster's Leaden Limbs and Chill shares of one pace. */
+function slowerPace(
+  monster: Pick<Monster, "curse" | "chill">,
+  pace: "walkSpeed" | "attackSpeed",
+): number {
+  return Math.min(
+    cursedWith(monster.curse, "leadenLimbs")?.[pace] ?? 1,
+    monster.chill?.[pace] ?? 1,
+  );
 }
 
 /**
@@ -271,6 +285,10 @@ export function stepMonsters(world: World, events: SimEvent[]): Strike[] {
   for (const monster of world.monsters) {
     if (monster.grace > 0) monster.grace -= 1;
     if (monster.cooldown > 0) monster.cooldown -= 1;
+    if (monster.chill) {
+      monster.chill.left -= 1;
+      if (monster.chill.left <= 0) monster.chill = null;
+    }
     if (monster.curse) {
       monster.curse.left -= 1;
       if (monster.curse.left <= 0) {
@@ -436,7 +454,7 @@ function wander(world: World, monster: Monster) {
     walkAlong(
       monster,
       monster.path,
-      STEPPED[monster.type].wanderSpeed * walkPace(monster.curse),
+      STEPPED[monster.type].wanderSpeed * walkPace(monster),
     );
     holdBack(area, monster, before, gait);
     if (monster.path.length > 0) return;
@@ -510,7 +528,7 @@ function chase(world: World, monster: Monster) {
         monster,
         gait,
         spot,
-        STEPPED[monster.type].speed * walkPace(monster.curse),
+        STEPPED[monster.type].speed * walkPace(monster),
         distance(monster.pos, spot),
       );
       return;
@@ -525,7 +543,7 @@ function chase(world: World, monster: Monster) {
       monster,
       gait,
       chased.pos,
-      STEPPED[monster.type].speed * walkPace(monster.curse),
+      STEPPED[monster.type].speed * walkPace(monster),
       gap - wait,
     );
     return;
@@ -535,7 +553,7 @@ function chase(world: World, monster: Monster) {
     monster,
     gait,
     chased.pos,
-    STEPPED[monster.type].speed * walkPace(monster.curse),
+    STEPPED[monster.type].speed * walkPace(monster),
     inSight ? gap - stopAt : gap,
   );
 }
@@ -572,7 +590,7 @@ function attackWall(world: World, monster: Monster, reach: number) {
     monster,
     gaitOf(world, monster),
     nearest.pos,
-    STEPPED[monster.type].speed * walkPace(monster.curse),
+    STEPPED[monster.type].speed * walkPace(monster),
   );
 }
 
@@ -590,7 +608,7 @@ function flee(world: World, monster: Monster) {
   // On top of its target it runs whichever way.
   if (away.x === 0 && away.y === 0) away.x = 1;
   const area = world.areas[world.areaName];
-  const budget = STEPPED[monster.type].speed * walkPace(monster.curse);
+  const budget = STEPPED[monster.type].speed * walkPace(monster);
   const to = stepInDirection(
     area,
     monster.pos,
@@ -675,7 +693,7 @@ function windUp(world: World, monster: Monster, events: SimEvent[]): Strike[] {
   monster.cooldown = Math.max(
     0,
     Math.round(
-      (cooldown + stepped.windUpSteps) / attackPace(monster.curse) -
+      (cooldown + stepped.windUpSteps) / attackPace(monster) -
         stepped.windUpSteps,
     ),
   );
@@ -814,12 +832,13 @@ function goHome(world: World, monster: Monster) {
     monster,
     gaitOf(world, monster),
     monster.home,
-    stepped.returnSpeed * walkPace(monster.curse),
+    stepped.returnSpeed * walkPace(monster),
   );
   if (distance(monster.pos, monster.home) > 0) return;
   monster.state = "idle";
   monster.life = monsterMaxLife(monster);
   monster.curse = null;
+  monster.chill = null;
   monster.grace = stepped.graceSteps;
 }
 

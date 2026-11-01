@@ -5,7 +5,7 @@ import {
   type Skill,
   skillTuning,
 } from "../tuning/skills";
-import { minionDamageRange, minionMaxLife } from "./minions";
+import { minionDamageRange } from "./minions";
 import { emptySkillBar } from "./skillBar";
 import { synergyMultiplier } from "./synergies";
 import { combatArea } from "./testAreas";
@@ -14,6 +14,7 @@ import {
   type Corpse,
   createWorld,
   FRESH_PROGRESS,
+  minionLevelOf,
   type Progress,
   progressOf,
   type SimEvent,
@@ -141,12 +142,38 @@ function share(skill: Skill): number {
 describe("Passive Skills in the Skill Tree's Branches", () => {
   it.each([
     ["ossifiedWill", "bone", "splinterVolley"],
-    ["graveCommand", "summoning", "raiseArcher"],
+    ["graveCommand", "summoning", "raiseMage"],
     ["lingeringMalice", "curses", "dread"],
   ] as const)("%s ends the %s Branch after %s", (skill, branch, before) => {
     expect(skillTuning[skill].branch).toBe(branch);
     expect(skillTuning[skill].prerequisites).toContain(before);
     expect(isPassive(skill)).toBe(true);
+  });
+
+  it("has Bonebinding start the Summoning Branch beside Raise Skeleton, from Level 1", () => {
+    const { branch, grid, prerequisites, requiredLevel } =
+      skillTuning.bonebinding;
+    expect(isPassive("bonebinding")).toBe(true);
+    expect(branch).toBe("summoning");
+    expect(prerequisites).toEqual(["raiseSkeleton"]);
+    expect(requiredLevel).toBe(1);
+    expect(grid.row).toBe(0);
+    expect(grid.row).toBe(skillTuning.raiseSkeleton.grid.row);
+    expect(Math.abs(grid.column - skillTuning.raiseSkeleton.grid.column)).toBe(
+      1,
+    );
+  });
+
+  it("gives Bonebinding +12% Attack Rating and +8% damage a Skill Level to every Minion kind", () => {
+    const { passive } = skillTuning.bonebinding;
+    expect(passive.boosts).toEqual([
+      "golem",
+      "raiseSkeleton",
+      "raiseArcher",
+      "raiseMage",
+    ]);
+    expect(passive.attackRatingPercentPerSkillLevel).toBe(12);
+    expect(passive.damagePercentPerSkillLevel).toBe(8);
   });
 
   it("neither give nor get Synergies, and cost no Mana", () => {
@@ -269,7 +296,7 @@ describe("Grave Command", () => {
     castAt(w, { x: 5, y: 4 });
     const [minion] = w.minions;
     if (!minion) throw new Error("No Minion");
-    return minion;
+    return { minion, now: minionLevelOf(w, minion) };
   }
 
   it("gives Minions more Life and damage by the tuned share per Skill Level", () => {
@@ -277,9 +304,9 @@ describe("Grave Command", () => {
     const plain = skeletonWith(0);
     const boosted = skeletonWith(4);
 
-    expect(boosted.life).toBe(Math.round(minionMaxLife(plain) * factor));
-    const [least, most] = minionDamageRange(plain);
-    expect(minionDamageRange(boosted)).toEqual([
+    expect(boosted.minion.life).toBe(Math.round(plain.minion.maxLife * factor));
+    const [least, most] = minionDamageRange(plain.now);
+    expect(minionDamageRange(boosted.now)).toEqual([
       Math.round(least * factor),
       Math.round(most * factor),
     ]);

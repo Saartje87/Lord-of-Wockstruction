@@ -202,11 +202,20 @@ export function skillTooltip(
     lines.push(`Synergies add +${sheet.synergyTotal}% now`);
   }
   if (sheet.passive) {
-    const { percentPerSkillLevel, boosts, total } = sheet.passive;
-    lines.push(
-      `Passive: +${percentPerSkillLevel}% per Skill Level to ${boosts}`,
-    );
-    lines.push(`Passive adds +${total}% now`);
+    const { boostsMain, percentPerSkillLevel, boosts, total, extras } =
+      sheet.passive;
+    if (boostsMain) {
+      lines.push(
+        `Passive: +${percentPerSkillLevel}% per Skill Level to ${boosts}`,
+      );
+      lines.push(`Passive adds +${total}% now`);
+    }
+    for (const { label, percentPerSkillLevel, total } of extras) {
+      lines.push(
+        `Passive: +${percentPerSkillLevel}% ${label} per Skill Level to ${boosts}`,
+      );
+      lines.push(`Passive adds +${total}% ${label} now`);
+    }
   }
   if (sheet.prerequisites.length) {
     lines.push(`Needs ${sheet.prerequisites.join(" and ")} first`);

@@ -35,18 +35,17 @@ export type Minion = {
   type: MinionType;
   /** The Skill that brought it. */
   skill: CastSkill;
-  /** The Skill Level of the Skill that brought it. */
-  skillLevel: number;
-  /**
-   * What its Skill's Synergies multiplied its Life and damage by when it
-   * was brought, 1 for none.
-   */
-  synergy: number;
   pos: Vec;
   /** Where it was one step ago, for the renderer to interpolate from. */
   prevPos: Vec;
-  /** Never regained. */
   life: number;
+  /** Steps since it was last hit; it regains Life once this is long enough. */
+  sinceHit: number;
+  /**
+   * Its full Life as the Hero's Skill Levels last made it. The World keeps
+   * it up to date, moving `life` along with it (see `syncMinionLife`).
+   */
+  maxLife: number;
   /** Which way it faces, in radians in tile space. */
   facing: number;
   state: MinionState;
@@ -79,6 +78,8 @@ const STEPPED = Object.fromEntries(
         radius: wallRadius(tuning.radius),
         replanSteps: msToSteps(tuning.replanMs),
       },
+      regenSteps: msToSteps(tuning.regenDelayMs),
+      regenPerStep: perStep(tuning.regenPerSecond),
       windUpSteps: msToSteps(tuning.windUpMs),
       rootSteps: msToSteps(tuning.rootMs),
       recoverySteps: msToSteps(tuning.recoveryMs),
@@ -96,6 +97,8 @@ const STEPPED = Object.fromEntries(
   {
     speed: number;
     stuckSteps: number;
+    regenSteps: number;
+    regenPerStep: number;
     stuckStride: number;
     gait: Gait;
     windUpSteps: number;
@@ -113,11 +116,43 @@ const STEPPED = Object.fromEntries(
 >;
 
 /**
- * A Minion type at a Skill Level, with the Synergy multiplier it was
- * brought with (1 if left out): all its scaled numbers depend on.
+ * A Minion type at a Skill Level, with the multiplier its Skill's Synergies
+ * and Passive Skills give (1 if left out): all its scaled numbers depend on.
+ * The World works it out from the Hero's current Skill Levels.
  */
-export type MinionOfLevel = Pick<Minion, "type" | "skillLevel"> &
-  Partial<Pick<Minion, "synergy">>;
+export type MinionOfLevel = {
+  type: MinionType;
+  skillLevel: number;
+  synergy?: number;
+  /** What Passive Skills multiply its hit damage by (1 if left out). */
+  damageBonus?: number;
+  /** What Passive Skills multiply its Attack Rating by (1 if left out). */
+  attackRatingBonus?: number;
+};
+
+/** Which Minions a number is about: the type, and the Skill that brings it. */
+export type MinionKind = Pick<Minion, "type" | "skill">;
+
+/** Counts a Minion's wait since its last hit, regaining Life once it is over. */
+export function regainMinionLife(minion: Minion) {
+  minion.sinceHit += 1;
+  const { regenSteps, regenPerStep } = STEPPED[minion.type];
+  if (minion.sinceHit < regenSteps) return;
+  minion.life = Math.min(
+    minion.maxLife,
+    minion.life + minion.maxLife * regenPerStep,
+  );
+}
+
+/**
+ * Moves a Minion's current Life with its full Life becoming `maxLife`: up by
+ * as much as it rose, or down to the new full Life if that is less.
+ */
+export function syncMinionLife(minion: Minion, maxLife: number) {
+  if (maxLife > minion.maxLife) minion.life += maxLife - minion.maxLife;
+  minion.life = Math.min(minion.life, maxLife);
+  minion.maxLife = maxLife;
+}
 
 /**
  * A Skill Level 1 number grown by `rate` of itself for each Skill Level
@@ -146,17 +181,21 @@ export function minionDamageRange({
   type,
   skillLevel,
   synergy = 1,
+  damageBonus = 1,
 }: MinionOfLevel): [number, number] {
   const { damage, growth } = minionTuning[type];
+  const power = synergy * damageBonus;
   return [
-    Math.round(grown(damage[0], growth.damage, skillLevel) * synergy),
-    Math.round(grown(damage[1], growth.damage, skillLevel) * synergy),
+    Math.round(grown(damage[0], growth.damage, skillLevel) * power),
+    Math.round(grown(damage[1], growth.damage, skillLevel) * power),
   ];
 }
 
 /** A Minion's Attack Rating at its Skill Level, against Monsters' Defense. */
 export function minionAttackRating(minion: MinionOfLevel): number {
-  return scaled(minion, "attackRating");
+  return Math.round(
+    scaled(minion, "attackRating") * (minion.attackRatingBonus ?? 1),
+  );
 }
 
 /**
@@ -178,8 +217,8 @@ export function minionRecoveryProgress(minion: Minion): number {
 }
 
 /**
- * A fresh Minion of `type`, brought by `skill`, at `pos`, facing `facing`,
- * following the Hero.
+ * A fresh Minion of `type`, brought by `skill`, at full Life at `skillLevel`
+ * and `synergy`, at `pos`, facing `facing`, following the Hero.
  */
 export function newMinion(
   id: MinionId,
@@ -190,15 +229,16 @@ export function newMinion(
   facing: number,
   synergy = 1,
 ): Minion {
+  const maxLife = minionMaxLife({ type, skillLevel, synergy });
   return {
     id,
     type,
     skill,
-    skillLevel,
-    synergy,
     pos: { ...pos },
     prevPos: { ...pos },
-    life: minionMaxLife({ type, skillLevel, synergy }),
+    life: maxLife,
+    sinceHit: Infinity,
+    maxLife,
     facing,
     state: "follow",
     target: null,
@@ -479,11 +519,7 @@ function looseShot(
     speed: shot.speed,
     rangeLeft: shot.flyRange,
     from: "minion",
-    minion: {
-      type: minion.type,
-      skillLevel: minion.skillLevel,
-      synergy: minion.synergy,
-    },
+    minion: { type: minion.type, skill: minion.skill },
   });
 }
 

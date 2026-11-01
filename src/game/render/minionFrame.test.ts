@@ -39,7 +39,12 @@ function withMinions(...types: MinionType[]): World {
   const w = createWorld({ areas: { town }, seed: 1 });
   w.hero.progress.skillLevels.raiseSkeleton = 1;
   for (const type of types) {
-    const skill = type === "golem" ? "golem" : "raiseSkeleton";
+    const skill =
+      type === "golem"
+        ? "golem"
+        : type === "raisedMage"
+          ? "raiseMage"
+          : "raiseSkeleton";
     w.minions.push(
       newMinion(w.nextMinionId++, type, skill, 1, { x: 1.5, y: 0.5 }, 0),
     );
@@ -145,11 +150,11 @@ describe("raising Minions through the sim", () => {
 describe("minionFrameRows", () => {
   it("counts Raised Skeletons against the cap at the Raise Skeleton Skill Level", () => {
     const w = withMinions("raisedSkeleton", "raisedSkeleton");
-    w.hero.progress.skillLevels.raiseSkeleton = 3;
+    w.hero.progress.skillLevels.raiseSkeleton = 5;
     expect(minionFrameRows(w)[0]).toMatchObject({ cap: 2 });
 
     // A Skill Point into Raise Skeleton that earns a Minion raises the cap.
-    w.hero.progress.skillLevels.raiseSkeleton = 4;
+    w.hero.progress.skillLevels.raiseSkeleton = 6;
     expect(minionFrameRows(w)[0]).toMatchObject({ cap: 3 });
   });
 
@@ -241,6 +246,31 @@ describe("minionFrameRows", () => {
     ]);
   });
 
+  it("gives a Raised Mage row its own count and cap", () => {
+    const w = withMinions("raisedMage");
+    w.hero.progress.skillLevels.raiseMage = 5;
+
+    expect(minionFrameRows(w)).toEqual([
+      expect.objectContaining({ kind: "raisedMage", cap: 2 }),
+    ]);
+  });
+
+  it("puts Raised Mages after the Raised Archers", () => {
+    const w = withMinions(
+      "raisedMage",
+      "raisedArcher",
+      "raisedSkeleton",
+      "golem",
+    );
+
+    expect(minionFrameRows(w).map((row) => row.kind)).toEqual([
+      "golem",
+      "raisedSkeleton",
+      "raisedArcher",
+      "raisedMage",
+    ]);
+  });
+
   it("drops a row once its last Minion dies", () => {
     const w = withMinions("golem", "raisedSkeleton");
     w.minions = w.minions.filter((minion) => minion.type !== "raisedSkeleton");
@@ -251,7 +281,12 @@ describe("minionFrameRows", () => {
   it("gives every Minion kind a place", () => {
     const kinds = Object.keys(MINION_KINDS).sort();
 
-    expect(kinds).toEqual(["golem", "raisedArcher", "raisedSkeleton"]);
+    expect(kinds).toEqual([
+      "golem",
+      "raisedArcher",
+      "raisedMage",
+      "raisedSkeleton",
+    ]);
   });
 });
 

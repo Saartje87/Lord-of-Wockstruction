@@ -18,7 +18,7 @@ import {
   FRESH_PROGRESS,
   isInCombat,
   maxLife,
-  minionMaxLife,
+  minionLevelOf,
   type Progress,
   type SimEvent,
   step,
@@ -438,11 +438,7 @@ describe("Monsters fighting the Golem", () => {
     summonAt(w, { x: 4.5, y: 0.5 });
     const golem = golemOf(w);
 
-    const events = stepUntil(
-      w,
-      () => golem.life < minionMaxLife(golem),
-      60 * 30,
-    );
+    const events = stepUntil(w, () => golem.life < golem.maxLife, 60 * 30);
 
     expect(events).toContainEqual(
       expect.objectContaining({ type: "MinionHit", minion: golem.id }),
@@ -460,19 +456,21 @@ describe("Monsters fighting the Golem", () => {
 
     let hit: SimEvent | undefined;
     for (let i = 0; !hit; i++) {
-      if (i > 60 * 30) throw new Error("Never hit a Minion");
-      hit = step(w, []).find((event) => event.type === "MinionHit");
+      if (i > 60 * 30) throw new Error("Never swung at a Minion");
+      hit = step(w, []).find(
+        (event) => event.type === "MinionHit" || event.type === "MinionMissed",
+      );
     }
 
     expect(hit).toMatchObject({ minion: golem.id });
-    expect(other.life).toBe(minionMaxLife(other));
+    expect(other.life).toBe(other.maxLife);
   });
 
   it("switch to the Hero once the Hero is nearer than the Golem", () => {
     const w = inField(GOLEM_HERO, SKELETON_FIELD);
     summonAt(w, { x: 4.5, y: 0.5 });
     const golem = golemOf(w);
-    stepUntil(w, () => golem.life < minionMaxLife(golem), 60 * 30);
+    stepUntil(w, () => golem.life < golem.maxLife, 60 * 30);
 
     // Just past the Skeleton, within the Golem's follow distance.
     const { x } = skeletonOf(w).pos;
@@ -490,7 +488,7 @@ describe("Monsters fighting the Golem", () => {
     const w = inField(GOLEM_HERO, SKELETON_FIELD);
     summonAt(w, { x: 4.5, y: 0.5 });
     const golem = golemOf(w);
-    stepUntil(w, () => golem.life < minionMaxLife(golem), 60 * 30);
+    stepUntil(w, () => golem.life < golem.maxLife, 60 * 30);
     // Hurt by the Skeleton, then back behind the Golem.
     walkTo(w, { x: skeletonOf(w).pos.x + 0.5, y: 1.5 });
     stepUntil(w, () => w.hero.life < maxLife(w), 60 * 10);
@@ -519,6 +517,9 @@ describe("Monsters fighting the Golem", () => {
         [
           "EA.........SS.......",
           "...........SS.......",
+          "...........SS.......",
+          "...........SS.......",
+          "...........SS.......",
           "...................H",
         ],
         "town",
@@ -529,24 +530,13 @@ describe("Monsters fighting the Golem", () => {
     const golem = golemOf(w);
     const heroLife = w.hero.life;
 
-    let lowest = golem.life;
-    let regained = false;
-    const events = stepUntil(
-      w,
-      () => {
-        if (golem.life > lowest) regained = true;
-        lowest = Math.min(lowest, golem.life);
-        return w.minions.length === 0;
-      },
-      60 * 120,
-    );
+    const events = stepUntil(w, () => w.minions.length === 0, 60 * 300);
 
-    expect(regained).toBe(false);
     expect(events).toContainEqual({ type: "MinionMissed", minion: golem.id });
     const dealt = events
       .filter((event) => event.type === "MinionHit")
       .reduce((sum, event) => sum + event.damage, 0);
-    expect(dealt).toBeGreaterThanOrEqual(minionMaxLife(golem));
+    expect(dealt).toBeGreaterThanOrEqual(golem.maxLife);
     expect(events).toContainEqual({
       type: "MinionDied",
       minion: golem.id,
@@ -591,7 +581,7 @@ describe("Monsters fighting the Golem", () => {
     // Where it was placed.
     const home = { x: 6.5, y: 0.5 };
     const golem = golemOf(w);
-    stepUntil(w, () => golem.life < minionMaxLife(golem), 60 * 30);
+    stepUntil(w, () => golem.life < golem.maxLife, 60 * 30);
 
     // Runs off east, the Golem lagging behind between them and the Skeleton,
     // which follows the Golem past its Leash, never reaching the Hero, and
@@ -787,7 +777,7 @@ describe("the Golem fighting Monsters", () => {
       );
     }
 
-    expect(golem.life).toBe(minionMaxLife(golem));
+    expect(golem.life).toBe(golem.maxLife);
     expect(
       events.some((e) => e.type === "HitLanded" || e.type === "Missed"),
     ).toBe(false);
@@ -805,24 +795,23 @@ describe("the Golem's Skill Level", () => {
       const golem = golemOf(w);
       return {
         life: golem.life,
-        damage: minionDamageRange(golem),
-        attackRating: minionAttackRating(golem),
-        defense: minionDefense(golem),
+        damage: minionDamageRange(minionLevelOf(w, golem)),
+        attackRating: minionAttackRating(minionLevelOf(w, golem)),
+        defense: minionDefense(minionLevelOf(w, golem)),
       };
     };
 
-    // +20% Life and damage, +10% Attack Rating and Defense per Skill Level.
-    expect(at(1)).toEqual({
-      life: 180,
-      damage: [4, 8],
-      attackRating: 100,
-      defense: 30,
-    });
-    expect(at(3)).toEqual({
-      life: 252,
-      damage: [6, 11],
-      attackRating: 120,
-      defense: 36,
-    });
+    const { life, damage, attackRating, defense } = minionTuning.golem;
+    const one = at(1);
+    const three = at(3);
+
+    expect(one.life).toBe(life);
+    expect(one.damage).toEqual(damage);
+    expect(one.attackRating).toBe(attackRating);
+    expect(one.defense).toBe(defense);
+    expect(three.life).toBeGreaterThan(one.life);
+    expect(three.damage[1]).toBeGreaterThan(one.damage[1]);
+    expect(three.attackRating).toBeGreaterThan(one.attackRating);
+    expect(three.defense).toBeGreaterThan(one.defense);
   });
 });

@@ -6,7 +6,7 @@ import type { ProjectileKind } from "../tuning/projectiles";
 import { altarRadiusOf, type BoneAltar, targetsOf } from "./boneAltars";
 import { BONE_WALL_REACH, type BoneWallPiece } from "./boneWalls";
 import { targetsInCircle } from "./melee";
-import type { MinionOfLevel } from "./minions";
+import type { MinionKind } from "./minions";
 import { canSee } from "./path";
 import type { Vec } from "./vec";
 import type { Monster, MonsterId, MonsterTarget, World } from "./world";
@@ -125,12 +125,13 @@ export type HeroProjectile = Flight & {
  * A Minion's Projectile, a Monster's reversed: it hits the first Monster or
  * Bone Altar it touches with no wall between, and flies through the Hero and
  * their Minions and Bone Wall pieces. It rolls its hit as the Minion's
- * swings do, with the Minion's numbers as they were when it was loosed.
+ * swings do, with the Minion's numbers as the Hero's Skill Levels make them
+ * when it hits.
  */
 export type MinionProjectile = Flight & {
   from: "minion";
-  /** The type, Skill Level and Synergy of the Minion that loosed it. */
-  minion: MinionOfLevel;
+  /** The type and Skill of the Minion that loosed it. */
+  minion: MinionKind;
 };
 
 /** Whether `projectile` is lobbed, flying an arc to a point. */

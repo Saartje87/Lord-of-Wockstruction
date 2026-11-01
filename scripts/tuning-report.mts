@@ -7,7 +7,9 @@
  * Monster there. Then each Unique Monster's numbers, and each cast Skill's
  * numbers per Skill Level, with Synergies and Passive Skills, and the casts it
  * takes to kill each kind of Monster in each Combat Area (`skillReport` in
- * `src/game/sim/skillReport.ts`).
+ * `src/game/sim/skillReport.ts`). Last, each Minion kind's chance to hit,
+ * damage and a full group's time to kill an own-Level trash Skeleton at a few
+ * Hero Levels (`minionReport` in `src/game/sim/minionReport.ts`).
  *
  * Run it with `npm run tuning:report`.
  */
@@ -15,11 +17,14 @@ import { readdirSync, readFileSync } from "node:fs";
 import { basename } from "node:path";
 import { runnerImport } from "vite";
 import type * as AreaModule from "../src/game/sim/area.ts";
+import type * as MinionReportModule from "../src/game/sim/minionReport.ts";
+import type { MinionLevelRow } from "../src/game/sim/minionReport.ts";
 import type * as SkillReportModule from "../src/game/sim/skillReport.ts";
 import type * as ReportModule from "../src/game/sim/tuningReport.ts";
 import type { UniqueRow } from "../src/game/sim/tuningReport.ts";
 import type * as MonstersModule from "../src/game/tuning/monsters.ts";
 import type { MonsterType } from "../src/game/tuning/monsters.ts";
+import type * as SkillsModule from "../src/game/tuning/skills.ts";
 
 // The sim's imports have no extensions, which Node can't resolve on its own.
 const load = async <T,>(path: string) =>
@@ -31,6 +36,12 @@ const { bossReport, tuningReport, uniqueReport } = await load<
 >("./src/game/sim/tuningReport.ts");
 const { skillReport } = await load<typeof SkillReportModule>(
   "./src/game/sim/skillReport.ts",
+);
+const { minionReport, RAISE_SKELETON_SHARE, SUMMONING_PASSIVES } = await load<
+  typeof MinionReportModule
+>("./src/game/sim/minionReport.ts");
+const { skillTuning } = await load<typeof SkillsModule>(
+  "./src/game/tuning/skills.ts",
 );
 const { monsterTuning } = await load<typeof MonstersModule>(
   "./src/game/tuning/monsters.ts",
@@ -259,3 +270,62 @@ console.log(
       ]),
   ),
 );
+
+const minionRows = minionReport();
+const budgetText = `Skill Points earned: Hero Level - 1. Half go into Summoning (rounded down). Raise Skeleton takes ${RAISE_SKELETON_SHARE * 100}% of them (rounded up); the rest are spread evenly over the other open cast Skills (Raise Archer from Level ${skillTuning.raiseArcher.requiredLevel}; Raise Mage from Level ${skillTuning.raiseMage.requiredLevel}; Golem), odd points to Raise Archer, then Raise Mage, then Golem. A Raised Mage's Cold damage counts after the Skeleton's Cold Resistance. With Passive Skills, ${SUMMONING_PASSIVES.map(({ skill, share }) => `${skillTuning[skill].name} (open from Level ${skillTuning[skill].requiredLevel}) takes ${share * 100}%`).join(" and ")} of those other points first (at least one each), each rounded down, and the rest is spread as before. A kind with no Skill Level has no row. Synergies between the Summoning Skills count.`;
+console.log(
+  `\n# Minions: against an own-Level trash Skeleton, a full group of each kind\n\n${budgetText}\n`,
+);
+for (const [title, pick] of [
+  ["base Summoning Skills alone", (row: MinionLevelRow) => row.base],
+  ["with Passive Skills", (row: MinionLevelRow) => row.withPassive],
+] as const) {
+  console.log(`## ${title}\n`);
+  console.log(
+    table(
+      [
+        "Hero Lvl",
+        "Points",
+        "Skeleton Life",
+        "Minion",
+        "Skill Lvl",
+        "Bonebinding",
+        "Grave Command",
+        "Count",
+        "Life",
+        "Attack Rating",
+        "Chance to hit",
+        "Mean hit",
+        "Damage/s",
+        "Group kills in s",
+      ],
+      minionRows.flatMap((row) =>
+        pick(row).minions.map((minion, i) => [
+          i === 0 ? row.heroLevel : "",
+          i === 0 ? row.budget : "",
+          i === 0 ? row.targetLife : "",
+          minion.name,
+          minion.skillLevel,
+          pick(row).skillLevels.bonebinding ?? 0,
+          pick(row).skillLevels.graveCommand ?? 0,
+          minion.count,
+          minion.life,
+          minion.attackRating,
+          `${(minion.chanceToHit * 100).toFixed(0)}%`,
+          minion.meanHit.toFixed(1),
+          minion.damagePerSecond.toFixed(1),
+          minion.secondsToKill.toFixed(1),
+        ]),
+      ),
+    ),
+  );
+  console.log(
+    `\nAll kinds together kill one Skeleton in (s): ${minionRows
+      .map(
+        (row) =>
+          `Level ${row.heroLevel} ${pick(row).allSecondsToKill?.toFixed(1) ?? "–"}`,
+      )
+      .join(", ")}`,
+  );
+  console.log();
+}

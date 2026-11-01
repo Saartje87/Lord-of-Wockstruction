@@ -87,6 +87,8 @@ export type MonsterView = {
   corpse: boolean;
   /** Whether it has flared up, as Grave Wockington does past half his Life. */
   flared: boolean;
+  /** Whether a Frost Bolt has Chilled it, which shows as a frost glow. */
+  chilled: boolean;
   /** Times its type's own scale: a Unique Monster's, else 1. */
   scale: number;
   /** Whether it is outlined as hovered or targeted. */
@@ -401,6 +403,7 @@ export function worldViewOf(
           flash: 0,
           corpse: true,
           flared: false,
+          chilled: false,
           scale: 1,
           highlighted: false,
         }),
@@ -638,6 +641,7 @@ function monsterViewOf(
     flash: effects.flashes.get(monster.id) ?? 0,
     corpse: false,
     flared: (monster.waves?.stage ?? 0) > 0,
+    chilled: monster.chill !== null,
     scale: monster.unique === null ? 1 : uniqueTuning.scale,
     highlighted: highlight === monster.id,
   };
@@ -650,18 +654,22 @@ function minionViewOf(
   alpha: number,
   highlight: CharacterId | null,
 ): MinionView {
-  const { contact } = MINION_LOOKS[minion.type];
+  const look = MINION_LOOKS[minion.type];
+  // One that casts its attack plays its Spellcast clip for it.
+  const casting = look.clips.lob !== undefined;
+  const contact = casting ? (look.lobContact ?? look.contact) : look.contact;
+  const attackClip = casting ? "lob" : "attack";
   const moving =
     minion.pos.x !== minion.prevPos.x || minion.pos.y !== minion.prevPos.y;
   let animation: MonsterAnimation;
   if (minion.state === "windup") {
     animation = {
-      clip: "attack",
+      clip: attackClip,
       progress: minionWindUpProgress(minion) * contact,
     };
   } else if (minion.state === "recover") {
     animation = {
-      clip: "attack",
+      clip: attackClip,
       progress: contact + minionRecoveryProgress(minion) * (1 - contact),
     };
   } else {

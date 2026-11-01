@@ -2,7 +2,6 @@ import type { Rect } from "../sim/rect";
 import {
   type MinionId,
   type MinionType,
-  minionMaxLife,
   raiseCount,
   type SimEvent,
   skillLevelsOf,
@@ -19,6 +18,7 @@ export const MINION_KINDS: Record<MinionType, number> = {
   golem: 0,
   raisedSkeleton: 1,
   raisedArcher: 2,
+  raisedMage: 3,
 };
 
 /** One Minion's Life bar: who it is and how much Life it has left (0..1). */
@@ -55,7 +55,7 @@ export function minionFrameRows(world: World): MinionRow[] {
           : null,
       bars: [],
     };
-    const fraction = minion.life / minionMaxLife(minion);
+    const fraction = minion.life / minion.maxLife;
     row.bars.push({
       id: minion.id,
       fraction: Math.min(1, Math.max(0, fraction)),

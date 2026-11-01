@@ -3,14 +3,19 @@ import {
   type DamageShares,
   type DamageType,
 } from "../tuning/damage";
+import { minionTuning } from "../tuning/minions";
 import {
   type CastSkill,
   type CurseEffect,
   castTuning,
   type Skill,
 } from "../tuning/skills";
-import { minionDamageRange, minionMaxLife } from "./minions";
-import { passiveMultiplier, skillPower } from "./synergies";
+import {
+  minionAttackRating,
+  minionDamageRange,
+  minionMaxLife,
+} from "./minions";
+import { minionBonuses, passiveMultiplier, skillPower } from "./synergies";
 import { STEP_MS } from "./units";
 import {
   curseRadius,
@@ -27,9 +32,11 @@ export type SkillLineLabel =
   | "Count"
   | "Life"
   | "Damage"
+  | "Attack Rating"
   | "Effect"
   | "Radius"
   | "Duration"
+  | "Chilled"
   | "Soak"
   | "Length"
   | "Piece Life"
@@ -143,12 +150,29 @@ export function skillNumbers(
       if (effect.type === "raise") {
         lines.push(line("Count", raiseCount(effect, skillLevel)));
       }
-      const minion = { type: effect.minion, skillLevel, synergy: power };
+      const minion = {
+        type: effect.minion,
+        skillLevel,
+        synergy: power,
+        ...minionBonuses(skillLevels, skill),
+      };
       const range = minionDamageRange(minion);
       lines.push(
         line("Life", minionMaxLife(minion)),
         line("Damage", mean(range), `${range[0]}-${range[1]}`),
+        line("Attack Rating", minionAttackRating(minion)),
       );
+      const chill = minionTuning[effect.minion].shot?.chill;
+      if (chill) {
+        const seconds = chill.durationMs / 1000;
+        lines.push(
+          line(
+            "Chilled",
+            seconds,
+            `${shown(seconds)} seconds, walks ${change(chill.walkSpeed)} speed, attacks ${change(chill.attackSpeed)} speed`,
+          ),
+        );
+      }
       break;
     }
     case "curse": {

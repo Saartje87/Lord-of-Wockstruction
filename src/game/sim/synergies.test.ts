@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { type CastSkill, type Skill, skillTuning } from "../tuning/skills";
-import { minionDamageRange, minionMaxLife } from "./minions";
+import { minionDamageRange } from "./minions";
 import { emptySkillBar } from "./skillBar";
 import { synergyMultiplier } from "./synergies";
 import { combatArea } from "./testAreas";
@@ -9,6 +9,7 @@ import {
   type Corpse,
   createWorld,
   FRESH_PROGRESS,
+  minionLevelOf,
   type Progress,
   type SimEvent,
   step,
@@ -183,7 +184,7 @@ describe("Minion Synergies", () => {
     castAt(w, { x: 5, y: 4 });
     const [minion] = w.minions;
     if (!minion) throw new Error("No Minion");
-    return minion;
+    return { minion, now: minionLevelOf(w, minion) };
   }
 
   it.each([
@@ -196,10 +197,10 @@ describe("Minion Synergies", () => {
     const plain = minionWith(skill, giver, 0);
     const boosted = minionWith(skill, giver, 4);
 
-    expect(boosted.life).toBe(Math.round(minionMaxLife(plain) * factor));
-    expect(minionMaxLife(boosted)).toBe(boosted.life);
-    const [least, most] = minionDamageRange(plain);
-    expect(minionDamageRange(boosted)).toEqual([
+    expect(boosted.minion.life).toBe(Math.round(plain.minion.maxLife * factor));
+    expect(boosted.minion.maxLife).toBe(boosted.minion.life);
+    const [least, most] = minionDamageRange(plain.now);
+    expect(minionDamageRange(boosted.now)).toEqual([
       Math.round(least * factor),
       Math.round(most * factor),
     ]);

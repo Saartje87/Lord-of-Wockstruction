@@ -150,6 +150,17 @@ export const PROJECTILE_LOOKS: Record<ProjectileKind, ProjectileLook> = {
     glow: GRAVEFIRE_COLOUR,
     trail: 3,
   },
+  // A Frost Bolt: the glowing bone of the Spear, a bit smaller and tinted
+  // icy blue with a pale-blue glow.
+  frostBolt: {
+    model: "halloween/bone_A",
+    scale: 0.7,
+    lay: [0, -Math.PI / 2, 0],
+    tint: 0x8fd8ff,
+    height: 0.8,
+    glow: 0x5fc8ff,
+    trail: 2,
+  },
   // A small bone, as Bone Spear's but a third the size.
   splinter: {
     model: "halloween/bone_A",

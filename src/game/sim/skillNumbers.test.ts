@@ -92,6 +92,31 @@ describe("skillNumbers", () => {
     expect(line("raiseArcher", 1, "Damage")?.text).toMatch(/^\d+-\d+$/);
   });
 
+  it("shows a Raised Mage's Count, Life and damage", () => {
+    expect(line("raiseMage", 1, "Count")?.text).toBe("1");
+    expect(line("raiseMage", 5, "Count")?.text).toBe("2");
+    expect(line("raiseMage", 1, "Life")).toBeDefined();
+    expect(line("raiseMage", 1, "Damage")?.text).toMatch(/^\d+-\d+$/);
+  });
+
+  it("counts Bonebinding in a Minion Skill's damage and Attack Rating, not its Life", () => {
+    for (const skill of [
+      "golem",
+      "raiseSkeleton",
+      "raiseArcher",
+      "raiseMage",
+    ] as const) {
+      const plain = (label: string) => line(skill, 3, label)?.value ?? 0;
+      const bound = (label: string) =>
+        line(skill, 3, label, { bonebinding: 4 })?.value ?? 0;
+      expect(bound("Attack Rating"), skill).toBeGreaterThan(
+        plain("Attack Rating"),
+      );
+      expect(bound("Damage"), skill).toBeGreaterThan(plain("Damage"));
+      expect(bound("Life"), skill).toBe(plain("Life"));
+    }
+  });
+
   it("shows no cast time, Projectile speed or range", () => {
     for (const skill of CASTS) {
       for (const one of skillNumbers(skill, 1, levels())) {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { arenaWith } from "../input/testArena";
+import { newMinion } from "../sim/minions";
 import {
   CAST_STEPS,
   DEATH_STEPS,
@@ -252,5 +253,49 @@ describe("the 3D World view of the torches", () => {
     for (const torch of view.torches) {
       expect(torch.lit).toBe(!view.loweredWalls.includes(torch.wall));
     }
+  });
+});
+
+describe("the 3D World view of Minions", () => {
+  /** A World with one Minion of `type`, in `state`. */
+  function withMinion(
+    type: "raisedMage" | "raisedSkeleton",
+    state: "windup" | "recover",
+  ) {
+    const world = arenaWith([], { combat: true });
+    const skill = type === "raisedMage" ? "raiseMage" : "raiseSkeleton";
+    const minion = newMinion(
+      world.nextMinionId++,
+      type,
+      skill,
+      1,
+      {
+        x: 11,
+        y: 10,
+      },
+      0,
+    );
+    minion.state = state;
+    minion.attackSteps = 1;
+    world.minions.push(minion);
+    return world;
+  }
+
+  it("plays a Raised Mage's cast clip for its attack", () => {
+    for (const state of ["windup", "recover"] as const) {
+      const world = withMinion("raisedMage", state);
+
+      const [minion] = worldViewOf(world, 1, NO_POINTER).minions;
+
+      expect(minion?.animation.clip, state).toBe("lob");
+    }
+  });
+
+  it("plays the attack clip for a Raised Skeleton's swing", () => {
+    const world = withMinion("raisedSkeleton", "windup");
+
+    const [minion] = worldViewOf(world, 1, NO_POINTER).minions;
+
+    expect(minion?.animation.clip).toBe("attack");
   });
 });

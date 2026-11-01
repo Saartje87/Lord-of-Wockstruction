@@ -105,6 +105,7 @@ import { faceToward, lands } from "./melee";
 import {
   type Minion,
   type MinionId,
+  type MinionKind,
   type MinionOfLevel,
   type MinionType,
   minionAttackRating,
@@ -113,7 +114,9 @@ import {
   minionMaxLife,
   newMinion,
   placeBesideHero,
+  regainMinionLife,
   stepMinions,
+  syncMinionLife,
 } from "./minions";
 import {
   killExperience,
@@ -167,7 +170,7 @@ import {
   type SkillBarSlot,
 } from "./skillBar";
 import { giveSmithBonus, SMITH } from "./smith";
-import { passiveMultiplier, skillPower } from "./synergies";
+import { minionBonuses, passiveMultiplier, skillPower } from "./synergies";
 import { msToSteps, perStep, STEP_MS } from "./units";
 import { validateAreas, validateResistances } from "./validate";
 import { distance, type Vec } from "./vec";
@@ -375,6 +378,8 @@ export type Monster = {
   pause: number;
   /** Its Curse, if it has one. */
   curse: MonsterCurse | null;
+  /** Its Chill from a Frost Bolt, if it has one: apart from its Curse. */
+  chill: MonsterChill | null;
   /**
    * The Bone Wall piece (its `id`) it is attacking in place of its target,
    * because the Wall cuts it off from them; null when it isn't.
@@ -389,6 +394,16 @@ export type Monster = {
 
 /** A Curse on a Monster: the Skill that put it there, and steps left. */
 export type MonsterCurse = { skill: CastSkill; left: number };
+
+/**
+ * A Chill on a Monster: steps left, and the shares of its walking and attack
+ * speed it keeps (the shot's tuning when it landed).
+ */
+export type MonsterChill = {
+  left: number;
+  walkSpeed: number;
+  attackSpeed: number;
+};
 
 /** Who a Monster goes after: the Hero, or one of their Minions. */
 export type MonsterTarget = "hero" | MinionId;
@@ -2005,6 +2020,7 @@ function placeMonster(
     // So a pack doesn't set off strolling in step.
     pause: wanderPause(world, type),
     curse: null,
+    chill: null,
     wall: null,
     swinging: false,
     waves:
@@ -2248,6 +2264,8 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   }
 
   if (hero.flinch > 0) stepFlinch(world, events);
+  syncMinions(world);
+  for (const minion of world.minions) regainMinionLife(minion);
   // Before the orders, so a Minion summoned this step stands where it appears.
   stepMinions(world, (minion, monster) =>
     minionStrike(world, minion, monster, events),
@@ -2256,6 +2274,8 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
     give(world, order, events);
   }
   world.heldOrders = [];
+  // A Skill Point spent or a Wand Equipped changes the Minions at once.
+  syncMinions(world);
   // Swing from where the Hero stands if already in reach, or once walked
   // into it.
   approach(world);
@@ -2689,7 +2709,7 @@ function castFrom(
   events.push({ type: "SkillCast", skill, target: { ...target } });
   switch (effect.type) {
     case "summon":
-      summon(world, skill, effect.minion, skillLevel, target, events);
+      summon(world, skill, effect.minion, target, events);
       break;
     case "raise":
       if (corpse) raise(world, skill, effect, skillLevel, corpse, events);
@@ -2753,7 +2773,6 @@ function summon(
   world: World,
   skill: CastSkill,
   type: MinionType,
-  skillLevel: number,
   target: Vec,
   events: SimEvent[],
 ) {
@@ -2762,7 +2781,7 @@ function summon(
   const pos = freeSpot(world, target, minionTuning[type].radius, replaced);
   if (!pos) return;
   for (const minion of replaced) crumbleMinion(world, minion, events);
-  bringMinion(world, skill, type, skillLevel, pos, events);
+  bringMinion(world, skill, type, pos, events);
 }
 
 /**
@@ -2787,7 +2806,7 @@ function raise(
   }
   const pos = freeSpot(world, corpse.pos, minionTuning[effect.minion].radius);
   if (!pos) return;
-  bringMinion(world, skill, effect.minion, skillLevel, pos, events);
+  bringMinion(world, skill, effect.minion, pos, events);
 }
 
 /** How far `effect` reaches from its Corpse at `skillLevel` (tiles). */
@@ -3099,12 +3118,40 @@ function stepBoneWalls(world: World, events: SimEvent[]) {
   }
 }
 
+/**
+ * A Minion's type at the Skill Level, Synergies and Passive Skills of its
+ * Skill as the Hero has them now.
+ */
+export function minionLevelOf(
+  world: World,
+  { type, skill }: MinionKind,
+  skillLevels = skillLevelsOf(world),
+): MinionOfLevel {
+  return {
+    type,
+    skillLevel: Math.max(1, skillLevels[skill]),
+    synergy: skillPower(skillLevels, skill),
+    ...minionBonuses(skillLevels, skill),
+  };
+}
+
+/** Brings every Minion's full Life up to date with the Hero's Skill Levels. */
+function syncMinions(world: World) {
+  if (world.minions.length === 0) return;
+  const skillLevels = skillLevelsOf(world);
+  for (const minion of world.minions) {
+    syncMinionLife(
+      minion,
+      minionMaxLife(minionLevelOf(world, minion, skillLevels)),
+    );
+  }
+}
+
 /** Adds a fresh Minion at full Life at `pos` to the Hero's Minions. */
 function bringMinion(
   world: World,
   skill: CastSkill,
   type: MinionType,
-  skillLevel: number,
   pos: Vec,
   events: SimEvent[],
 ) {
@@ -3112,7 +3159,7 @@ function bringMinion(
     world.nextMinionId++,
     type,
     skill,
-    skillLevel,
+    skillLevelsOf(world)[skill],
     pos,
     world.hero.facing,
     skillPower(skillLevelsOf(world), skill),
@@ -3657,16 +3704,18 @@ function rollAttack(
  */
 function minionStrike(
   world: World,
-  minion: MinionOfLevel,
+  kind: MinionKind,
   monster: Monster | BoneAltar,
   events: SimEvent[],
 ) {
+  const minion = minionLevelOf(world, kind);
+  const shares = minionTuning[kind.type].damageTypes;
   if (isBoneAltar(monster)) {
     hurtAltar(
       world,
       monster,
       unresistedTotal(
-        splitDamage(randomInt(world.rng, minionDamageRange(minion))),
+        splitDamage(randomInt(world.rng, minionDamageRange(minion)), shares),
       ),
       events,
     );
@@ -3676,6 +3725,7 @@ function minionStrike(
     world,
     chanceToHit(minionAttackRating(minion), monsterDefense(monster)),
     minionDamageRange(minion),
+    shares,
   );
   if (damage === null) {
     events.push({ type: "Missed", target: monster.id });
@@ -3683,6 +3733,14 @@ function minionStrike(
     return;
   }
   takeDamage(world, monster, damage, "minion", events);
+  const { chill } = minionTuning[kind.type].shot ?? {};
+  if (chill && monster.life > 0) {
+    monster.chill = {
+      left: Math.max(1, Math.round(chill.durationMs / STEP_MS)),
+      walkSpeed: chill.walkSpeed,
+      attackSpeed: chill.attackSpeed,
+    };
+  }
 }
 
 /**
@@ -3844,7 +3902,12 @@ function hitMinion(
   if (!minion) return;
   const rolled = rollAttack(
     world,
-    alwaysHits ? 1 : chanceToHit(attack.attackRating, minionDefense(minion)),
+    alwaysHits
+      ? 1
+      : chanceToHit(
+          attack.attackRating,
+          minionDefense(minionLevelOf(world, minion)),
+        ),
     attack.damage,
     attack.damageTypes,
   );
@@ -3857,6 +3920,7 @@ function hitMinion(
     minionResistances(minion.type),
   );
   minion.life = Math.max(0, minion.life - damage);
+  minion.sinceHit = 0;
   events.push({ type: "MinionHit", minion: minion.id, damage, damageType });
   if (minion.life > 0) return;
   removeMinion(world, minion);

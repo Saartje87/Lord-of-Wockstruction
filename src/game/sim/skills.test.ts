@@ -5,6 +5,7 @@ import {
   branchSkills,
   type CastSkill,
   type GridPlace,
+  isPassive,
   skillTuning,
 } from "../tuning/skills";
 import {
@@ -368,7 +369,14 @@ describe("Branches and Prerequisites", () => {
         "splinterVolley",
         "ossifiedWill",
       ],
-      summoning: ["raiseSkeleton", "golem", "raiseArcher", "graveCommand"],
+      summoning: [
+        "raiseSkeleton",
+        "bonebinding",
+        "golem",
+        "raiseArcher",
+        "raiseMage",
+        "graveCommand",
+      ],
       curses: [
         "amplifyDamage",
         "weaken",
@@ -392,7 +400,9 @@ describe("Branches and Prerequisites", () => {
     ["raiseSkeleton", []],
     ["golem", ["raiseSkeleton"]],
     ["raiseArcher", ["raiseSkeleton"]],
-    ["graveCommand", ["golem", "raiseArcher"]],
+    ["raiseMage", ["raiseArcher"]],
+    ["graveCommand", ["golem", "raiseArcher", "raiseMage"]],
+    ["bonebinding", ["raiseSkeleton"]],
     ["amplifyDamage", []],
     ["weaken", ["amplifyDamage"]],
     ["leadenLimbs", ["amplifyDamage"]],
@@ -420,13 +430,15 @@ describe("Branches and Prerequisites", () => {
       boneWall: 8,
       splinterVolley: 10,
       raiseArcher: 6,
+      raiseMage: 10,
       ossifiedWill: 12,
       graveCommand: 12,
+      bonebinding: 1,
       lingeringMalice: 12,
     });
   });
 
-  it("gives every Skill a place in its Branch's 3 x 6 grid, each Prerequisite above it, no two sharing one, and no loops", () => {
+  it("gives every Skill a place in its Branch's 3 x 6 grid, each Prerequisite above it (or, for a Passive Skill, beside it), no two sharing one, and no loops", () => {
     for (const branch of BRANCHES) {
       const places = new Set<string>();
       for (const skill of branchSkills[branch]) {
@@ -440,7 +452,14 @@ describe("Branches and Prerequisites", () => {
         places.add(`${grid.column},${grid.row}`);
         for (const before of prerequisites) {
           expect(skillTuning[before].branch).toBe(branch);
-          expect(skillTuning[before].grid.row).toBeLessThan(grid.row);
+          const above = skillTuning[before].grid;
+          // A Passive Skill may sit beside its Prerequisite, on its right.
+          expect(
+            above.row < grid.row ||
+              (isPassive(skill) &&
+                above.row === grid.row &&
+                above.column < grid.column),
+          ).toBe(true);
         }
       }
       expect(places.size).toBe(branchSkills[branch].length);

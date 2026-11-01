@@ -55,3 +55,25 @@ export function skillPower(
     passiveMultiplier(skillLevels, skill)
   );
 }
+
+/**
+ * What the learned Passive Skills multiply the hit damage and the Attack
+ * Rating of a Minion Skill's Minions by, apart from their Life: 1 plus, for
+ * each that boosts `skill`, its tuned percent times its Skill Level.
+ */
+export function minionBonuses(
+  skillLevels: Record<Skill, number>,
+  skill: CastSkill,
+): { damageBonus: number; attackRatingBonus: number } {
+  let damageBonus = 1;
+  let attackRatingBonus = 1;
+  for (const passive of PASSIVE_SKILLS) {
+    const effect = skillTuning[passive].passive;
+    if (!effect.boosts.includes(skill)) continue;
+    const level = skillLevels[passive];
+    damageBonus += ((effect.damagePercentPerSkillLevel ?? 0) / 100) * level;
+    attackRatingBonus +=
+      ((effect.attackRatingPercentPerSkillLevel ?? 0) / 100) * level;
+  }
+  return { damageBonus, attackRatingBonus };
+}

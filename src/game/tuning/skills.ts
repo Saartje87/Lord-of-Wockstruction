@@ -54,11 +54,17 @@ export type PassiveSkillTuning = SkillBase & {
  * What a Passive Skill gives: each Skill Level it has multiplies the main
  * number of every Skill in `boosts` (and a boosted Curse's radius) by a
  * further `percentPerSkillLevel` percent of itself, as its own factor apart
- * from the Skill's Synergies.
+ * from the Skill's Synergies (0 for a Passive Skill that gives only the
+ * numbers below). A Passive Skill that boosts Minion Skills may also raise,
+ * by a percent of itself for each Skill Level, their Minions' Attack Rating
+ * (`attackRatingPercentPerSkillLevel`) and the damage of their hits
+ * (`damagePercentPerSkillLevel`) alone, without their Life.
  */
 export type PassiveEffect = {
   boosts: CastSkill[];
   percentPerSkillLevel: number;
+  attackRatingPercentPerSkillLevel?: number;
+  damagePercentPerSkillLevel?: number;
 };
 
 /**
@@ -242,14 +248,17 @@ export type Skill =
   | "boneWall"
   | "splinterVolley"
   | "raiseArcher"
+  | "raiseMage"
   | "ossifiedWill"
   | "graveCommand"
+  | "bonebinding"
   | "lingeringMalice";
 
-/** The Passive Skills: one at the end of each Branch. */
+/** The Passive Skills: one ends each Branch, and a Branch may have more. */
 export const PASSIVE_SKILLS = [
   "ossifiedWill",
   "graveCommand",
+  "bonebinding",
   "lingeringMalice",
 ] as const;
 
@@ -291,10 +300,10 @@ export function castTuning(skill: CastSkill): CastSkillTuning {
  */
 export const skillTuning: Record<CastSkill, CastSkillTuning> &
   Record<PassiveSkill, PassiveSkillTuning> = {
-  // Diablo 2's Clay Golem. One Minion of 180 Life, three Raised Skeletons'
+  // Diablo 2's Clay Golem. One Minion of 300 Life, five Raised Skeletons'
   // worth, for 15 Mana (a Level 6 Hero has 45, three Golems), where the
   // Skeletons cost 6 for two but need Corpses. Bone Ward's 8% Synergy: a
-  // Golem at Skill Level 5 (324 Life) gains 26 Life from each of its points.
+  // Golem at Skill Level 5 (540 Life) gains 43 Life from each of its points.
   golem: {
     name: "Golem",
     branch: "summoning",
@@ -308,12 +317,15 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
     synergies: [{ skill: "boneWard", percentPerSkillLevel: 8 }],
   },
   // Diablo 2's Raise Skeleton, and its Mana: 2 at Skill Level 1, one more at
-  // 4, 7, 10 … A Raised Skeleton is a Monster Level 1 Skeleton grown 20% a
-  // Skill Level, so given a Skill Point a Level it stays a little behind the
-  // Skeletons of the Crypt and Ossuary (see `minionTuning`). Its Synergies, 8%
-  // each from Golem and Raise Archer, are its Summoning mates': at Skill Level
+  // 4, 7, 10 … A Raised Skeleton's Life grows 20% and its damage and Attack
+  // Rating 45% and 40% a Skill Level (see `minionTuning`), so with half the
+  // Hero's Skill Points in Summoning it keeps hitting trash Skeletons of its
+  // Hero's Level most of the time and kills one in about 5 s. A third one comes
+  // every 5 Skill Levels, so its damage, not its count, keeps pace with the
+  // Monsters' Life. Its Synergies,
+  // 8% each from Golem and Raise Archer, are its Summoning mates': at Skill Level
   // 5 (108 Life) each Skill Level in a giver adds 9 Life, about what one of
-  // its own adds (12 Life and damage).
+  // its own adds (12 Life).
   raiseSkeleton: {
     name: "Raise Skeleton",
     branch: "summoning",
@@ -327,7 +339,7 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
       type: "raise",
       minion: "raisedSkeleton",
       count: 2,
-      countEvery: 3,
+      countEvery: 5,
     },
     synergies: [
       { skill: "golem", percentPerSkillLevel: 8 },
@@ -589,6 +601,34 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
     synergies: [
       { skill: "raiseSkeleton", percentPerSkillLevel: 8 },
       { skill: "splinterVolley", percentPerSkillLevel: 7 },
+      { skill: "raiseMage", percentPerSkillLevel: 8 },
+    ],
+  },
+  // Raise Archer's rules for a Minion that casts: a Raised Mage keeps its
+  // distance and looses Frost Bolts, which deal only Cold damage. Frailer than
+  // an Archer (30 Life against 36), with Raise Archer's Mana. Level 10 puts
+  // it before Grave Command's 12. One at a time at first, one more every four
+  // Skill Levels, as it is the Branch's strongest cast. 8% from Raise Archer
+  // and from Leaden Limbs, the slowing Curse that keeps Monsters in its
+  // sights.
+  raiseMage: {
+    name: "Raise Mage",
+    branch: "summoning",
+    prerequisites: ["raiseArcher"],
+    grid: { column: 2, row: 2 },
+    requiredLevel: 10,
+    manaCost: 8,
+    manaCostPerSkillLevel: 1,
+    castMs: 400,
+    effect: {
+      type: "raise",
+      minion: "raisedMage",
+      count: 1,
+      countEvery: 4,
+    },
+    synergies: [
+      { skill: "raiseArcher", percentPerSkillLevel: 8 },
+      { skill: "leadenLimbs", percentPerSkillLevel: 8 },
     ],
   },
   // Diablo 2's Skeleton Mastery, in spirit: Bone Branch's damage and soak.
@@ -610,19 +650,40 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
     },
     synergies: [],
   },
+  // Minions that hit more often and harder: +12% Attack Rating and +8% damage
+  // a Skill Level on every kind, and no Life. Beside Raise Skeleton, from the
+  // second Skill Point on, so a summoner has it long before Grave Command. The
+  // Attack Rating is the cheap, early part: one point lifts a Raised Skeleton
+  // from about 72% to 78% to hit. Tuned with `npm run tuning:report` together
+  // with Grave Command: with them a full group of Raised Skeletons kills an
+  // own-Level trash Skeleton in about 3-4 s (base Skills: about 4-4.5 s).
+  bonebinding: {
+    name: "Bonebinding",
+    branch: "summoning",
+    prerequisites: ["raiseSkeleton"],
+    grid: { column: 2, row: 0 },
+    requiredLevel: 1,
+    passive: {
+      boosts: ["golem", "raiseSkeleton", "raiseArcher", "raiseMage"],
+      percentPerSkillLevel: 0,
+      attackRatingPercentPerSkillLevel: 12,
+      damagePercentPerSkillLevel: 8,
+    },
+    synergies: [],
+  },
   // Diablo 2's Skeleton Mastery for all Minions: Life and damage together,
-  // so 6% a Skill Level is a Minion 6% tougher and 6% stronger, about what a
-  // Skill Level 5 Raise Skeleton's own 11% a Skill Level is, spread over
+  // so 20% a Skill Level is a Minion 20% tougher and 20% stronger, a Skill
+  // Level worth about two of Bonebinding's, spread over
   // three Skills as Ossified Will's is over four.
   graveCommand: {
     name: "Grave Command",
     branch: "summoning",
-    prerequisites: ["golem", "raiseArcher"],
-    grid: { column: 1, row: 2 },
+    prerequisites: ["golem", "raiseArcher", "raiseMage"],
+    grid: { column: 1, row: 3 },
     requiredLevel: 12,
     passive: {
-      boosts: ["golem", "raiseSkeleton", "raiseArcher"],
-      percentPerSkillLevel: 6,
+      boosts: ["golem", "raiseSkeleton", "raiseArcher", "raiseMage"],
+      percentPerSkillLevel: 20,
     },
     synergies: [],
   },
@@ -647,7 +708,8 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
 
 /**
  * Each Branch's Skills by grid place: row by row, left to right. A
- * Prerequisite is always in a higher row, so it comes first.
+ * Prerequisite is in a higher row, or the same row to the left (a Passive
+ * Skill beside it), so it comes first.
  */
 export const branchSkills = Object.fromEntries(
   BRANCHES.map((branch) => [

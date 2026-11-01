@@ -18,6 +18,7 @@ export const MINION_KINDS: Record<MinionType, number> = {
   golem: 0,
   raisedSkeleton: 1,
   raisedArcher: 2,
+  raisedMage: 3,
 };
 
 /** One Minion's Life bar: who it is and how much Life it has left (0..1). */

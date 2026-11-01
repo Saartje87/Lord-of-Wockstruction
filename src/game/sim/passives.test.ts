@@ -142,7 +142,7 @@ function share(skill: Skill): number {
 describe("Passive Skills in the Skill Tree's Branches", () => {
   it.each([
     ["ossifiedWill", "bone", "splinterVolley"],
-    ["graveCommand", "summoning", "raiseArcher"],
+    ["graveCommand", "summoning", "raiseMage"],
     ["lingeringMalice", "curses", "dread"],
   ] as const)("%s ends the %s Branch after %s", (skill, branch, before) => {
     expect(skillTuning[skill].branch).toBe(branch);
@@ -166,7 +166,12 @@ describe("Passive Skills in the Skill Tree's Branches", () => {
 
   it("gives Bonebinding about +10% Attack Rating and +8% damage a Skill Level to every Minion kind", () => {
     const { passive } = skillTuning.bonebinding;
-    expect(passive.boosts).toEqual(["golem", "raiseSkeleton", "raiseArcher"]);
+    expect(passive.boosts).toEqual([
+      "golem",
+      "raiseSkeleton",
+      "raiseArcher",
+      "raiseMage",
+    ]);
     expect(passive.attackRatingPercentPerSkillLevel).toBe(10);
     expect(passive.damagePercentPerSkillLevel).toBe(8);
   });

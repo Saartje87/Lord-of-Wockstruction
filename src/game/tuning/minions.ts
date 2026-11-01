@@ -1,4 +1,4 @@
-import type { Resistances } from "./damage";
+import type { DamageShares, Resistances } from "./damage";
 import type { MonsterType } from "./monsters";
 import type { ProjectileKind } from "./projectiles";
 
@@ -85,6 +85,8 @@ export type MinionTuning = {
    * Monster then is, in place of a swing within `reach`.
    */
   shot?: MinionShot;
+  /** How its hits split over Damage Types; missing, all Physical. */
+  damageTypes?: DamageShares;
 };
 
 /** What a shooting Minion looses, and from how far. */
@@ -108,7 +110,11 @@ export type MinionGrowth = {
 };
 
 /** One of the Minions, by the name the sim knows it by. */
-export type MinionType = "golem" | "raisedSkeleton" | "raisedArcher";
+export type MinionType =
+  | "golem"
+  | "raisedSkeleton"
+  | "raisedArcher"
+  | "raisedMage";
 
 /** Every Minion's tuning. */
 export const minionTuning: Record<MinionType, MinionTuning> = {
@@ -224,6 +230,46 @@ export const minionTuning: Record<MinionType, MinionTuning> = {
     recoveryMs: 1600,
     shot: {
       projectile: "arrow",
+      range: 6,
+      projectileSpeed: 9,
+      projectileRange: 10,
+    },
+  },
+  // A Skeleton Mage's frail frame: less Life than a Raised Skeleton or even
+  // an Archer, with the Archer's reach and Attack Rating. Its Frost Bolt
+  // deals only Cold damage, which a Monster's Cold Resistance reduces.
+  raisedMage: {
+    name: "Raised Mage",
+    resistancesOf: "skeleton",
+    life: 30,
+    regenDelayMs: 3000,
+    regenPerSecond: 0.02,
+    damage: [18, 26],
+    attackRating: 190,
+    defense: 135,
+    growth: { life: 0.2, damage: 0.3, attackRating: 0.45, defense: 0.1 },
+    radius: 0.32,
+    speed: 4,
+    followDistance: 3,
+    teleportDistance: 12,
+    besideDistance: 1,
+    stuckStride: 0.5,
+    stuckMs: 1000,
+    replanMs: 400,
+    guardRadius: 7,
+    leash: 9,
+    // Never swings; kept for how near a Monster counts as a fight.
+    reach: 1.2,
+    fightRange: 1,
+    reachGrace: 0.25,
+    arcDegrees: 60,
+    // A spellcast a little quicker than the Archer's draw.
+    windUpMs: 500,
+    rootMs: 200,
+    recoveryMs: 1500,
+    damageTypes: { cold: 1 },
+    shot: {
+      projectile: "frostBolt",
       range: 6,
       projectileSpeed: 9,
       projectileRange: 10,

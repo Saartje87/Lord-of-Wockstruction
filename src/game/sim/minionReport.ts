@@ -1,5 +1,6 @@
 import { heroTuning } from "../tuning/hero";
 import { type MinionType, minionTuning } from "../tuning/minions";
+import { monsterTuning } from "../tuning/monsters";
 import {
   type CastSkill,
   castTuning,
@@ -23,6 +24,7 @@ export const SUMMONING_SKILLS: CastSkill[] = [
   "raiseSkeleton",
   "golem",
   "raiseArcher",
+  "raiseMage",
 ];
 
 /**
@@ -130,6 +132,19 @@ function allocate(
   return levels;
 }
 
+/** The share of a Minion's hit that a trash Skeleton's Resistances let through. */
+function letThrough(minion: MinionType): number {
+  const shares = minionTuning[minion].damageTypes;
+  if (!shares) return 1;
+  const { resistances = {} } = monsterTuning[REPORT_TARGET];
+  return Object.entries(shares).reduce(
+    (sum, [type, share]) =>
+      sum +
+      share * (1 - (resistances[type as keyof typeof resistances] ?? 0) / 100),
+    0,
+  );
+}
+
 /** Seconds from one attack's start to the next, from the Minion's tuning. */
 function swingSeconds(minion: MinionType): number {
   const { windUpMs, rootMs, recoveryMs } = minionTuning[minion];
@@ -162,7 +177,8 @@ function minionCase(
     const attackRating = minionAttackRating(minion);
     const chance = chanceToHit(attackRating, defense);
     const [least, most] = minionDamageRange(minion);
-    const meanHit = (least + most) / 2;
+    // What the Skeleton's Resistances let through of the Minion's Damage Types.
+    const meanHit = ((least + most) / 2) * letThrough(effect.minion);
     const damagePerSecond = (chance * meanHit) / swingSeconds(effect.minion);
     return [
       {

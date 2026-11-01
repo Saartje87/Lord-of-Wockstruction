@@ -170,7 +170,7 @@ import {
   type SkillBarSlot,
 } from "./skillBar";
 import { giveSmithBonus, SMITH } from "./smith";
-import { passiveMultiplier, skillPower } from "./synergies";
+import { minionBonuses, passiveMultiplier, skillPower } from "./synergies";
 import { msToSteps, perStep, STEP_MS } from "./units";
 import { validateAreas, validateResistances } from "./validate";
 import { distance, type Vec } from "./vec";
@@ -3118,6 +3118,7 @@ export function minionLevelOf(
     type,
     skillLevel: Math.max(1, skillLevels[skill]),
     synergy: skillPower(skillLevels, skill),
+    ...minionBonuses(skillLevels, skill),
   };
 }
 

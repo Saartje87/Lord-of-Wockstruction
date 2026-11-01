@@ -150,6 +150,27 @@ describe("Passive Skills in the Skill Tree's Branches", () => {
     expect(isPassive(skill)).toBe(true);
   });
 
+  it("has Bonebinding start the Summoning Branch beside Raise Skeleton, from Level 1", () => {
+    const { branch, grid, prerequisites, requiredLevel } =
+      skillTuning.bonebinding;
+    expect(isPassive("bonebinding")).toBe(true);
+    expect(branch).toBe("summoning");
+    expect(prerequisites).toEqual(["raiseSkeleton"]);
+    expect(requiredLevel).toBe(1);
+    expect(grid.row).toBe(0);
+    expect(grid.row).toBe(skillTuning.raiseSkeleton.grid.row);
+    expect(Math.abs(grid.column - skillTuning.raiseSkeleton.grid.column)).toBe(
+      1,
+    );
+  });
+
+  it("gives Bonebinding about +10% Attack Rating and +8% damage a Skill Level to every Minion kind", () => {
+    const { passive } = skillTuning.bonebinding;
+    expect(passive.boosts).toEqual(["golem", "raiseSkeleton", "raiseArcher"]);
+    expect(passive.attackRatingPercentPerSkillLevel).toBe(10);
+    expect(passive.damagePercentPerSkillLevel).toBe(8);
+  });
+
   it("neither give nor get Synergies, and cost no Mana", () => {
     for (const passive of PASSIVE_SKILLS) {
       expect(skillTuning[passive].synergies).toEqual([]);

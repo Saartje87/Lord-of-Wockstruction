@@ -19,6 +19,7 @@ import {
   type CastSkill,
   type GridPlace,
   isPassive,
+  type PassiveEffect,
   skillTuning,
 } from "../tuning/skills";
 import { atUiScale, type Viewport } from "../viewport";
@@ -58,6 +59,18 @@ export const SKILL_TREE_PANEL = {
   tabsGap: 8,
   compactTabWidth: 100,
 };
+
+/** A Passive Skill's boosts to Minions' Attack Rating and damage, as labelled percents. */
+function passiveExtras(
+  passive: PassiveEffect,
+): { label: string; percent: number }[] {
+  const { attackRatingPercentPerSkillLevel, damagePercentPerSkillLevel } =
+    passive;
+  return [
+    { label: "Attack Rating", percent: attackRatingPercentPerSkillLevel ?? 0 },
+    { label: "Damage", percent: damagePercentPerSkillLevel ?? 0 },
+  ].filter(({ percent }) => percent > 0);
+}
 
 /** What the Skill Tree panel shows of a Skill, as text. */
 export type SkillSheet = {
@@ -107,11 +120,21 @@ export type SkillSheet = {
    * and can't go on the Skill Bar; null for a Skill that is cast.
    */
   passive: {
+    /** Its percent per Skill Level on the main number; "0" if it has none. */
     percentPerSkillLevel: string;
     /** The percent it adds now. */
     total: string;
     /** The names of the Skills it boosts, comma separated. */
     boosts: string;
+    /**
+     * Its other boosts, each with its percent per Skill Level and the percent
+     * it adds now: Minions' Attack Rating and damage.
+     */
+    extras: readonly {
+      label: string;
+      percentPerSkillLevel: string;
+      total: string;
+    }[];
   } | null;
   /** The Level the Hero must reach to spend a Skill Point on it, until then. */
   requiredLevel: string | null;
@@ -168,10 +191,17 @@ export function skillTreeSheet(world: World): SkillTreeSheet {
           : skillNumbers(skill as CastSkill, at, levels).map(
               ({ label, text }) => `${label}: ${text}`,
             );
-      // A Passive Skill's one line is its boost, at that Skill Level.
+      // A Passive Skill's lines are its boosts, at that Skill Level.
       const nextAt = (at: number): string[] =>
         passive
-          ? [`Boost: +${passive.percentPerSkillLevel * at}%`]
+          ? [
+              ...(passive.percentPerSkillLevel > 0
+                ? [`Boost: +${passive.percentPerSkillLevel * at}%`]
+                : []),
+              ...passiveExtras(passive).map(
+                ({ label, percent }) => `${label}: +${percent * at}%`,
+              ),
+            ]
           : statsAt(at);
       return {
         skill,
@@ -202,6 +232,11 @@ export function skillTreeSheet(world: World): SkillTreeSheet {
               boosts: passive.boosts
                 .map((boosted) => skillTuning[boosted].name)
                 .join(", "),
+              extras: passiveExtras(passive).map(({ label, percent }) => ({
+                label,
+                percentPerSkillLevel: String(percent),
+                total: String(percent * skillLevel),
+              })),
             }
           : null,
         requiredLevel:
@@ -298,6 +333,20 @@ function prerequisiteArrows(
     skillTuning[skill].prerequisites.map((from) => {
       const start = tiles.get(from);
       if (!start) throw new Error(`${from} is not in the open Branch`);
+      // Beside its Prerequisite, in the same row: a line from side to side.
+      if (start.y === to.y) {
+        const [near, far] =
+          start.x < to.x ? [start.x + start.w, to.x] : [start.x, to.x + to.w];
+        const middle = to.y + to.h / 2;
+        return {
+          from,
+          to: skill,
+          points: [
+            { x: near, y: middle },
+            { x: far, y: middle },
+          ],
+        };
+      }
       const top = { x: to.x + to.w / 2, y: to.y };
       const bottom = { x: start.x + start.w / 2, y: start.y + start.h };
       const bend = top.y - gap;

@@ -21,11 +21,11 @@ describe("minionReport", () => {
     expect(row.withPassive.skillLevels.graveCommand).toBe(2);
   });
 
-  it("leaves out Skills the Level hasn't opened, and the Passive Skill below its Level", () => {
+  it("leaves out Skills the Level hasn't opened, and Grave Command below its Level", () => {
     const [row] = minionReport([4]);
 
     expect(row.base.minions.map((one) => one.skill)).toEqual(["raiseSkeleton"]);
-    expect(row.withPassive).toEqual(row.base);
+    expect(row.withPassive.skillLevels.graveCommand).toBeUndefined();
   });
 
   it("works a Minion's chance to hit and time to kill from the live tuning", () => {
@@ -81,6 +81,41 @@ describe("minionReport", () => {
         }
       }
     }
+  });
+
+  it("has a full group of Raised Skeletons kill an own-Level trash Skeleton in about 2-3 s with the Passive Skills taken, from Level 16", () => {
+    for (const row of minionReport([16, 20])) {
+      const skeletons = row.withPassive.minions.find(
+        (one) => one.skill === "raiseSkeleton",
+      );
+      if (!skeletons)
+        throw new Error(`No Raised Skeletons at ${row.heroLevel}`);
+
+      expect(row.withPassive.skillLevels.bonebinding).toBeGreaterThan(0);
+      expect(row.withPassive.skillLevels.graveCommand).toBeGreaterThan(0);
+      expect(skeletons.secondsToKill).toBeGreaterThan(1.5);
+      expect(skeletons.secondsToKill).toBeLessThan(3.5);
+    }
+  });
+
+  it("has the Passive Skills help at every Level they are open, never leaving the Raised Skeletons slower than with the base Skills alone", () => {
+    for (const row of minionReport([8, 12, 16, 20])) {
+      const kill = (minions: typeof row.base.minions) =>
+        minions.find((one) => one.skill === "raiseSkeleton")?.secondsToKill ??
+        Infinity;
+
+      expect(row.withPassive.skillLevels.bonebinding).toBeGreaterThan(0);
+      expect(kill(row.withPassive.minions)).toBeLessThan(
+        kill(row.base.minions),
+      );
+    }
+  });
+
+  it("keeps Bonebinding out of the with-Passives case until Raise Skeleton has a point", () => {
+    const [row] = minionReport([4]);
+
+    expect(row.withPassive).toEqual(row.base);
+    expect(row.withPassive.skillLevels.bonebinding).toBeUndefined();
   });
 
   it("grows Raised minions' Attack Rating per Skill Level at least as fast as Monster Defense per Monster Level", () => {

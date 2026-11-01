@@ -209,6 +209,22 @@ export const SKILL_ICONS: Record<Skill, (pen: Pen) => void> = {
       [0.7, 0.64],
     ]);
   },
+  // Bonebinding: a bone tied in the middle with a band.
+  bonebinding: (pen) => {
+    line(pen, [
+      [0.1, 0.9],
+      [0.9, 0.1],
+    ]);
+    dot(pen, 0.12, 0.7, 0.1);
+    dot(pen, 0.3, 0.88, 0.1);
+    dot(pen, 0.88, 0.3, 0.1);
+    dot(pen, 0.7, 0.12, 0.1);
+    line(pen, [
+      [0.32, 0.32],
+      [0.68, 0.68],
+    ]);
+    ring(pen, 0.5, 0.5, 0.16);
+  },
   graveCommand: (pen) => {
     line(pen, [
       [0.2, 0.95],

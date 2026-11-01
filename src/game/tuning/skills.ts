@@ -54,11 +54,17 @@ export type PassiveSkillTuning = SkillBase & {
  * What a Passive Skill gives: each Skill Level it has multiplies the main
  * number of every Skill in `boosts` (and a boosted Curse's radius) by a
  * further `percentPerSkillLevel` percent of itself, as its own factor apart
- * from the Skill's Synergies.
+ * from the Skill's Synergies (0 for a Passive Skill that gives only the
+ * numbers below). A Passive Skill that boosts Minion Skills may also raise,
+ * by a percent of itself for each Skill Level, their Minions' Attack Rating
+ * (`attackRatingPercentPerSkillLevel`) and the damage of their hits
+ * (`damagePercentPerSkillLevel`) alone, without their Life.
  */
 export type PassiveEffect = {
   boosts: CastSkill[];
   percentPerSkillLevel: number;
+  attackRatingPercentPerSkillLevel?: number;
+  damagePercentPerSkillLevel?: number;
 };
 
 /**
@@ -244,12 +250,14 @@ export type Skill =
   | "raiseArcher"
   | "ossifiedWill"
   | "graveCommand"
+  | "bonebinding"
   | "lingeringMalice";
 
-/** The Passive Skills: one at the end of each Branch. */
+/** The Passive Skills: one ends each Branch, and a Branch may have more. */
 export const PASSIVE_SKILLS = [
   "ossifiedWill",
   "graveCommand",
+  "bonebinding",
   "lingeringMalice",
 ] as const;
 
@@ -610,6 +618,25 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
     },
     synergies: [],
   },
+  // Minions that hit more often and harder: +10% Attack Rating and +8% damage
+  // a Skill Level on every kind, and no Life. Beside Raise Skeleton, from the
+  // second Skill Point on, so a summoner has it long before Grave Command.
+  // Tuned with `npm run tuning:report` so that, with Grave Command, a full
+  // group of Raised Skeletons kills an own-Level trash Skeleton in 2-3 s.
+  bonebinding: {
+    name: "Bonebinding",
+    branch: "summoning",
+    prerequisites: ["raiseSkeleton"],
+    grid: { column: 2, row: 0 },
+    requiredLevel: 1,
+    passive: {
+      boosts: ["golem", "raiseSkeleton", "raiseArcher"],
+      percentPerSkillLevel: 0,
+      attackRatingPercentPerSkillLevel: 10,
+      damagePercentPerSkillLevel: 8,
+    },
+    synergies: [],
+  },
   // Diablo 2's Skeleton Mastery for all Minions: Life and damage together,
   // so 6% a Skill Level is a Minion 6% tougher and 6% stronger, about what a
   // Skill Level 5 Raise Skeleton's own 11% a Skill Level is, spread over
@@ -647,7 +674,8 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
 
 /**
  * Each Branch's Skills by grid place: row by row, left to right. A
- * Prerequisite is always in a higher row, so it comes first.
+ * Prerequisite is in a higher row, or the same row to the left (a Passive
+ * Skill beside it), so it comes first.
  */
 export const branchSkills = Object.fromEntries(
   BRANCHES.map((branch) => [

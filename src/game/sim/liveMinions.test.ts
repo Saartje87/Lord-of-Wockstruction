@@ -158,7 +158,12 @@ describe("live Minion stats", () => {
   });
 
   it("a Skill Point in Grave Command changes the Minions it boosts", () => {
-    const w = inField({ raiseSkeleton: 1, golem: 1, raiseArcher: 1 });
+    const w = inField({
+      raiseSkeleton: 1,
+      golem: 1,
+      raiseArcher: 1,
+      raiseMage: 1,
+    });
     const skeleton = raiseSkeleton(w);
     const before = skeleton.maxLife;
     spend(w, "graveCommand");

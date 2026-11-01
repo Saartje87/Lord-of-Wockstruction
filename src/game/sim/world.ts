@@ -3696,12 +3696,13 @@ function minionStrike(
   events: SimEvent[],
 ) {
   const minion = minionLevelOf(world, kind);
+  const shares = minionTuning[kind.type].damageTypes;
   if (isBoneAltar(monster)) {
     hurtAltar(
       world,
       monster,
       unresistedTotal(
-        splitDamage(randomInt(world.rng, minionDamageRange(minion))),
+        splitDamage(randomInt(world.rng, minionDamageRange(minion)), shares),
       ),
       events,
     );
@@ -3711,6 +3712,7 @@ function minionStrike(
     world,
     chanceToHit(minionAttackRating(minion), monsterDefense(monster)),
     minionDamageRange(minion),
+    shares,
   );
   if (damage === null) {
     events.push({ type: "Missed", target: monster.id });

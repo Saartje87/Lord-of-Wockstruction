@@ -272,7 +272,7 @@ console.log(
 );
 
 const minionRows = minionReport();
-const budgetText = `Skill Points earned: Hero Level - 1. Half go into Summoning (rounded down), spread evenly over the open cast Skills (Raise Skeleton, Golem from Level 1; Raise Archer from Level ${skillTuning.raiseArcher.requiredLevel}), odd points to Raise Skeleton, then Golem, then Raise Archer. With Passive Skills, ${SUMMONING_PASSIVES.map(({ skill, share }) => `${skillTuning[skill].name} (open from Level ${skillTuning[skill].requiredLevel}) takes ${share * 100}%`).join(" and ")} of the budget, each rounded down, and the rest is spread as before. Synergies between the Summoning Skills count.`;
+const budgetText = `Skill Points earned: Hero Level - 1. Half go into Summoning (rounded down), spread evenly over the open cast Skills (Raise Skeleton, Golem from Level 1; Raise Archer from Level ${skillTuning.raiseArcher.requiredLevel}; Raise Mage from Level ${skillTuning.raiseMage.requiredLevel}), odd points to Raise Skeleton, then Golem, then Raise Archer, then Raise Mage. A Raised Mage's Cold damage counts after the Skeleton's Cold Resistance. With Passive Skills, ${SUMMONING_PASSIVES.map(({ skill, share }) => `${skillTuning[skill].name} (open from Level ${skillTuning[skill].requiredLevel}) takes ${share * 100}%`).join(" and ")} of the budget, each rounded down, and the rest is spread as before. Synergies between the Summoning Skills count.`;
 console.log(
   `\n# Minions: against an own-Level trash Skeleton, a full group of each kind\n\n${budgetText}\n`,
 );

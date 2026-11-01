@@ -2882,11 +2882,12 @@ const MINION_FRAME_STYLE = {
   bone: 0xe8e0c8,
   socket: 0x15120e,
   bow: 0xb08850,
+  frost: 0x7fd0ff,
 };
 
 /**
  * Draws a Minion kind's fixed icon in `box`: a stone Golem, a Skeleton's
- * skull, and the skull with a bow for an Archer.
+ * skull, the skull with a bow for an Archer and with a frosty hat for a Mage.
  */
 const MINION_ICONS: Record<
   MinionType,
@@ -2921,6 +2922,20 @@ const MINION_ICONS: Record<
       .moveTo(x + w * 0.85, y + h * 0.1)
       .quadraticCurveTo(x + w * 1.05, y + h * 0.5, x + w * 0.85, y + h * 0.9)
       .stroke({ width: Math.max(1, w * 0.07), color: MINION_FRAME_STYLE.bow });
+  },
+  raisedMage: (graphics, box) => {
+    MINION_ICONS.raisedSkeleton(graphics, box);
+    const { x, y, w, h } = box;
+    graphics
+      .poly([
+        x + w * 0.15,
+        y + h * 0.2,
+        x + w * 0.85,
+        y + h * 0.2,
+        x + w * 0.5,
+        y - h * 0.05,
+      ])
+      .fill(MINION_FRAME_STYLE.frost);
   },
 };
 

@@ -106,6 +106,7 @@ describe("skillTreeSheet", () => {
       "bonebinding",
       "golem",
       "raiseArcher",
+      "raiseMage",
       "graveCommand",
       "amplifyDamage",
       "weaken",
@@ -180,13 +181,14 @@ describe("skillTreeSheet", () => {
     expect(rowOf(world(progress), "graveCommand").prerequisites).toEqual([
       skillTuning.golem.name,
       skillTuning.raiseArcher.name,
+      skillTuning.raiseMage.name,
     ]);
     const learned = {
       ...progress,
       skillLevels: { ...progress.skillLevels, golem: 1 },
     };
     expect(rowOf(world(learned), "graveCommand")).toMatchObject({
-      prerequisites: [skillTuning.raiseArcher.name],
+      prerequisites: [skillTuning.raiseArcher.name, skillTuning.raiseMage.name],
       canRaise: false,
     });
   });
@@ -361,6 +363,7 @@ describe("skillTreeSheet", () => {
           ...FRESH_PROGRESS.skillLevels,
           golem: 1,
           raiseArcher: 1,
+          raiseMage: 1,
           graveCommand,
         },
       });

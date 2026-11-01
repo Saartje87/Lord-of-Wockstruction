@@ -24,7 +24,7 @@ describe("Skill icons", () => {
     expect(Object.keys(SKILL_ICONS).sort()).toEqual(
       Object.keys(skillTuning).sort(),
     );
-    expect(skills).toHaveLength(16);
+    expect(skills).toHaveLength(17);
   });
 
   it("draws something for each Skill, inside its box", () => {

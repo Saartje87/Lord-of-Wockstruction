@@ -248,6 +248,7 @@ export type Skill =
   | "boneWall"
   | "splinterVolley"
   | "raiseArcher"
+  | "raiseMage"
   | "ossifiedWill"
   | "graveCommand"
   | "bonebinding"
@@ -597,6 +598,34 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
     synergies: [
       { skill: "raiseSkeleton", percentPerSkillLevel: 8 },
       { skill: "splinterVolley", percentPerSkillLevel: 7 },
+      { skill: "raiseMage", percentPerSkillLevel: 8 },
+    ],
+  },
+  // Raise Archer's rules for a Minion that casts: a Raised Mage keeps its
+  // distance and looses Frost Bolts, which deal only Cold damage. Frailer than
+  // an Archer (30 Life against 36), with Raise Archer's Mana. Level 10 puts
+  // it before Grave Command's 12. One at a time at first, one more every four
+  // Skill Levels, as it is the Branch's strongest cast. 8% from Raise Archer
+  // and from Leaden Limbs, the slowing Curse that keeps Monsters in its
+  // sights.
+  raiseMage: {
+    name: "Raise Mage",
+    branch: "summoning",
+    prerequisites: ["raiseArcher"],
+    grid: { column: 2, row: 2 },
+    requiredLevel: 10,
+    manaCost: 8,
+    manaCostPerSkillLevel: 1,
+    castMs: 400,
+    effect: {
+      type: "raise",
+      minion: "raisedMage",
+      count: 1,
+      countEvery: 4,
+    },
+    synergies: [
+      { skill: "raiseArcher", percentPerSkillLevel: 8 },
+      { skill: "leadenLimbs", percentPerSkillLevel: 8 },
     ],
   },
   // Diablo 2's Skeleton Mastery, in spirit: Bone Branch's damage and soak.
@@ -630,7 +659,7 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
     grid: { column: 2, row: 0 },
     requiredLevel: 1,
     passive: {
-      boosts: ["golem", "raiseSkeleton", "raiseArcher"],
+      boosts: ["golem", "raiseSkeleton", "raiseArcher", "raiseMage"],
       percentPerSkillLevel: 0,
       attackRatingPercentPerSkillLevel: 10,
       damagePercentPerSkillLevel: 8,
@@ -644,11 +673,11 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
   graveCommand: {
     name: "Grave Command",
     branch: "summoning",
-    prerequisites: ["golem", "raiseArcher"],
-    grid: { column: 1, row: 2 },
+    prerequisites: ["golem", "raiseArcher", "raiseMage"],
+    grid: { column: 1, row: 3 },
     requiredLevel: 12,
     passive: {
-      boosts: ["golem", "raiseSkeleton", "raiseArcher"],
+      boosts: ["golem", "raiseSkeleton", "raiseArcher", "raiseMage"],
       percentPerSkillLevel: 6,
     },
     synergies: [],

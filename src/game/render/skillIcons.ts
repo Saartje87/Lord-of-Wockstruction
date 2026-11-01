@@ -209,6 +209,27 @@ export const SKILL_ICONS: Record<Skill, (pen: Pen) => void> = {
       [0.7, 0.64],
     ]);
   },
+  // Raise Mage: a staff topped with a diamond of frost.
+  raiseMage: (pen) => {
+    line(pen, [
+      [0.5, 0.35],
+      [0.5, 0.95],
+    ]);
+    solid(pen, [
+      [0.5, 0.02],
+      [0.8, 0.2],
+      [0.5, 0.38],
+      [0.2, 0.2],
+    ]);
+    line(pen, [
+      [0.15, 0.6],
+      [0.85, 0.6],
+    ]);
+    line(pen, [
+      [0.25, 0.45],
+      [0.75, 0.75],
+    ]);
+  },
   // Bonebinding: a bone tied in the middle with a band.
   bonebinding: (pen) => {
     line(pen, [

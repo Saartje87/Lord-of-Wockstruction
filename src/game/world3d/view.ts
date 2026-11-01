@@ -650,18 +650,22 @@ function minionViewOf(
   alpha: number,
   highlight: CharacterId | null,
 ): MinionView {
-  const { contact } = MINION_LOOKS[minion.type];
+  const look = MINION_LOOKS[minion.type];
+  // One that casts its attack plays its Spellcast clip for it.
+  const casting = look.clips.lob !== undefined;
+  const contact = casting ? (look.lobContact ?? look.contact) : look.contact;
+  const attackClip = casting ? "lob" : "attack";
   const moving =
     minion.pos.x !== minion.prevPos.x || minion.pos.y !== minion.prevPos.y;
   let animation: MonsterAnimation;
   if (minion.state === "windup") {
     animation = {
-      clip: "attack",
+      clip: attackClip,
       progress: minionWindUpProgress(minion) * contact,
     };
   } else if (minion.state === "recover") {
     animation = {
-      clip: "attack",
+      clip: attackClip,
       progress: contact + minionRecoveryProgress(minion) * (1 - contact),
     };
   } else {

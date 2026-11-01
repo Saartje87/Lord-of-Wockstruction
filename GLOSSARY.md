@@ -105,7 +105,7 @@ The Act Boss's name and Life, shown across the top of the screen while it is In 
 _Avoid_: Boss health bar, boss HP, nameplate (that's on hover)
 
 **Minion Frame**:
-The Hero's living Minions shown at the top left of the HUD, one row per Minion kind that has any alive, always Golem, then Raised Skeletons, then Raised Archers: the kind's picture, how many the Hero has out of how many they can have (never for the Golem, of which there is only one), and a thin Life bar for each of them, oldest first, flashing when it is hit. It shows only while the Hero has Minions, the Map Overlay or a panel open or not, a panel drawn over it where they meet, and can't be clicked or tapped.
+The Hero's living Minions shown at the top left of the HUD, one row per Minion kind that has any alive, always Golem, then Raised Skeletons, then Raised Archers, then Raised Mages: the kind's picture, how many the Hero has out of how many they can have (never for the Golem, of which there is only one), and a thin Life bar for each of them, oldest first, flashing when it is hit. It shows only while the Hero has Minions, the Map Overlay or a panel open or not, a panel drawn over it where they meet, and can't be clicked or tapped.
 _Avoid_: Portrait (that's the screen held upright), party frame, minion bar
 
 **Monster**:
@@ -221,7 +221,7 @@ Something the Hero learns on the Skill Tree: most are cast, spending Mana, and c
 _Avoid_: Spell, ability, power
 
 **Passive Skill**:
-A Skill that is never cast, costs no Mana and only works by being learned, making the Hero or what their other Skills do stronger for as long as it has a Skill Level. Each Branch ends in one; it never goes on the Skill Bar or becomes a Held Skill, and it neither gives nor gets Synergies.
+A Skill that is never cast, costs no Mana and only works by being learned, making the Hero or what their other Skills do stronger for as long as it has a Skill Level. Each Branch ends in one and may have more: Summoning also has Bonebinding, which needs Raise Skeleton and makes every Minion hit more often and harder. A Passive Skill never goes on the Skill Bar or becomes a Held Skill, and it neither gives nor gets Synergies.
 _Avoid_: Mastery, aura, trait
 
 **Skill Tree**:
@@ -269,11 +269,11 @@ The one Skill the player has picked up from the Skill Tree or the Skill Bar, on 
 _Avoid_: Dragged Skill, cursor Skill
 
 **Minion**:
-A creature on the Hero's side, brought by a Skill, that fights Monsters for the Hero.
+A creature on the Hero's side, brought by a Skill, that fights Monsters for the Hero. Its strength comes only from the Skill Tree: the Skill Level of the Skill that brought it, its Synergies and Passive Skills, never the Hero's Attributes or gear, and a Skill Point spent changes the Minions already out at once. It regains Life slowly once it hasn't been hit for a few seconds.
 _Avoid_: Pet, summon, ally (and never a Monster: Monsters are always hostile)
 
 **Golem**:
-The Minion summoned by the Golem Skill: the Hero has at most one, which follows them through Exits and Town Portals, never regains Life, leaves no Corpse, and is gone on the Hero's Death or when the Save is loaded. Casting the Skill again replaces it.
+The Minion summoned by the Golem Skill: the Hero has at most one, which follows them through Exits and Town Portals, leaves no Corpse, and is gone on the Hero's Death or when the Save is loaded. Casting the Skill again replaces it.
 _Avoid_: Golum
 
 **Curse**:
@@ -290,7 +290,19 @@ _Avoid_: Skeleton (that's the Monster), skelly, undead
 
 **Raised Archer**:
 The Minion the Raise Archer Skill raises from a Corpse, which shoots Arrows; the Hero has a few of them, counted apart from Raised Skeletons, by the same rules. Never just "Archer": the Skeleton Archer is a Monster.
-_Avoid_: Archer, Skeleton Archer (that's the Monster), skeletal mage
+_Avoid_: Archer, Skeleton Archer (that's the Monster)
+
+**Raised Mage**:
+The Minion the Raise Mage Skill raises from a Corpse, which shoots Frost Bolts; the Hero has fewer of them than of Raised Skeletons or Raised Archers, counted apart, by the same rules. Never just "Mage".
+_Avoid_: Mage, Skeleton Mage, skeletal mage
+
+**Frost Bolt**:
+The Raised Mage's Projectile: it flies straight like an Arrow, hits the first Monster or Bone Altar it touches, deals only Cold damage and leaves the Monster it hits Chilled.
+_Avoid_: Ice bolt, frost arrow
+
+**Chilled**:
+A Monster hit by a Frost Bolt walking and swinging or shooting more slowly for a moment; a new hit starts it over. It is not a Curse and never takes a Curse's place. A Monster both Chilled and under Leaden Limbs' Curse is slowed only by whichever slows it more.
+_Avoid_: Frozen, slowed, frostbite
 
 **Bone Wall**:
 The short line of bone the Bone Wall Skill raises where it is cast, standing for a while as Props with Life: no one can walk through it, Hero and Minions included, a Monster's Projectile stops at it, Muck aside, and the Hero's flies through, and a Monster that can't reach the Hero breaks it with attacks.
@@ -337,7 +349,7 @@ What each Act past the first takes off every one of the Hero's Resistances while
 _Avoid_: Difficulty penalty, curse (that's a Skill's mark)
 
 **Projectile**:
-Something loosed by an attack or a Skill that flies in a straight line through an Area until it meets a wall or runs out of range, Muck aside. A Monster's hits the first Hero or Minion it touches and flies through Monsters; the Skeleton Archer's is the Arrow. The Hero's flies through Minions and hits every Monster on its way, each once; Bone Spear's is one, and Splinter Volley looses a fan of them at once, each hitting on its own.
+Something loosed by an attack or a Skill that flies in a straight line through an Area until it meets a wall or runs out of range, Muck aside. A Monster's hits the first Hero or Minion it touches and flies through Monsters; the Skeleton Archer's is the Arrow. A Minion's hits the first Monster it touches: the Raised Archer's is an Arrow, the Raised Mage's a Frost Bolt. The Hero's flies through Minions and hits every Monster on its way, each once; Bone Spear's is one, and Splinter Volley looses a fan of them at once, each hitting on its own.
 _Avoid_: Missile, bullet, shot
 
 **Muck**:

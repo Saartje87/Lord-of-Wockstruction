@@ -37,7 +37,7 @@ const { bossReport, tuningReport, uniqueReport } = await load<
 const { skillReport } = await load<typeof SkillReportModule>(
   "./src/game/sim/skillReport.ts",
 );
-const { minionReport, PASSIVE_FROM_LEVEL, PASSIVE_SHARE } = await load<
+const { minionReport, SUMMONING_PASSIVES } = await load<
   typeof MinionReportModule
 >("./src/game/sim/minionReport.ts");
 const { skillTuning } = await load<typeof SkillsModule>(
@@ -272,7 +272,7 @@ console.log(
 );
 
 const minionRows = minionReport();
-const budgetText = `Skill Points earned: Hero Level - 1. Half go into Summoning (rounded down), spread evenly over the open cast Skills (Raise Skeleton, Golem from Level 1; Raise Archer from Level ${skillTuning.raiseArcher.requiredLevel}), odd points to Raise Skeleton, then Golem, then Raise Archer. With Passive Skills, Grave Command (open from Level ${PASSIVE_FROM_LEVEL}) takes ${PASSIVE_SHARE * 100}% of the budget, rounded down, and the rest is spread as before. Synergies between the Summoning Skills count.`;
+const budgetText = `Skill Points earned: Hero Level - 1. Half go into Summoning (rounded down), spread evenly over the open cast Skills (Raise Skeleton, Golem from Level 1; Raise Archer from Level ${skillTuning.raiseArcher.requiredLevel}), odd points to Raise Skeleton, then Golem, then Raise Archer. With Passive Skills, ${SUMMONING_PASSIVES.map(({ skill, share }) => `${skillTuning[skill].name} (open from Level ${skillTuning[skill].requiredLevel}) takes ${share * 100}%`).join(" and ")} of the budget, each rounded down, and the rest is spread as before. Synergies between the Summoning Skills count.`;
 console.log(
   `\n# Minions: against an own-Level trash Skeleton, a full group of each kind\n\n${budgetText}\n`,
 );
@@ -289,6 +289,7 @@ for (const [title, pick] of [
         "Skeleton Life",
         "Minion",
         "Skill Lvl",
+        "Bonebinding",
         "Grave Command",
         "Count",
         "Life",
@@ -305,6 +306,7 @@ for (const [title, pick] of [
           i === 0 ? row.targetLife : "",
           minion.name,
           minion.skillLevel,
+          pick(row).skillLevels.bonebinding ?? 0,
           pick(row).skillLevels.graveCommand ?? 0,
           minion.count,
           minion.life,

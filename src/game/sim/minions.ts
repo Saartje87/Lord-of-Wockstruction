@@ -124,6 +124,10 @@ export type MinionOfLevel = {
   type: MinionType;
   skillLevel: number;
   synergy?: number;
+  /** What Passive Skills multiply its hit damage by (1 if left out). */
+  damageBonus?: number;
+  /** What Passive Skills multiply its Attack Rating by (1 if left out). */
+  attackRatingBonus?: number;
 };
 
 /** Which Minions a number is about: the type, and the Skill that brings it. */
@@ -177,17 +181,21 @@ export function minionDamageRange({
   type,
   skillLevel,
   synergy = 1,
+  damageBonus = 1,
 }: MinionOfLevel): [number, number] {
   const { damage, growth } = minionTuning[type];
+  const power = synergy * damageBonus;
   return [
-    Math.round(grown(damage[0], growth.damage, skillLevel) * synergy),
-    Math.round(grown(damage[1], growth.damage, skillLevel) * synergy),
+    Math.round(grown(damage[0], growth.damage, skillLevel) * power),
+    Math.round(grown(damage[1], growth.damage, skillLevel) * power),
   ];
 }
 
 /** A Minion's Attack Rating at its Skill Level, against Monsters' Defense. */
 export function minionAttackRating(minion: MinionOfLevel): number {
-  return scaled(minion, "attackRating");
+  return Math.round(
+    scaled(minion, "attackRating") * (minion.attackRatingBonus ?? 1),
+  );
 }
 
 /**

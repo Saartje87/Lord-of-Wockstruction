@@ -12,7 +12,7 @@ import {
   minionMaxLife,
 } from "./minions";
 import { monsterDefense, monsterMaxLife } from "./monsters";
-import { skillPower } from "./synergies";
+import { minionBonuses, skillPower } from "./synergies";
 import { chanceToHit, raiseCount, SKILLS } from "./world";
 
 /** The Hero Levels `minionReport` covers when none are asked for. */
@@ -25,20 +25,18 @@ export const SUMMONING_SKILLS: CastSkill[] = [
   "raiseArcher",
 ];
 
-/** The Passive Skill the "with Passive Skills" case puts points in. */
-export const SUMMONING_PASSIVE = "graveCommand" as const;
+/**
+ * The Passive Skills the "with Passive Skills" case puts points in, each
+ * taking its `share` of the Summoning budget (rounded down) once the Hero's
+ * Level has opened it.
+ */
+export const SUMMONING_PASSIVES = [
+  { skill: "bonebinding", share: 0.4 },
+  { skill: "graveCommand", share: 0.2 },
+] as const;
 
 /** The Monster the Minions are measured against: a trash Skeleton of the Hero's own Level. */
 export const REPORT_TARGET = "skeleton" as const;
-
-/**
- * The Hero Level from which the Passive Skill is open (its `requiredLevel`),
- * before which the two cases are the same.
- */
-export const PASSIVE_FROM_LEVEL = skillTuning[SUMMONING_PASSIVE].requiredLevel;
-
-/** The share of the Summoning budget the Passive Skill takes once open. */
-export const PASSIVE_SHARE = 0.25;
 
 /** One Minion kind's numbers against an own-Level trash Skeleton. */
 export type MinionRow = {
@@ -79,7 +77,7 @@ export type MinionLevelRow = {
   targetLife: number;
   /** The base Summoning Skills alone. */
   base: MinionCase;
-  /** With Grave Command at its budgeted Skill Level. */
+  /** With Bonebinding and Grave Command at their budgeted Skill Levels. */
   withPassive: MinionCase;
 };
 
@@ -95,29 +93,40 @@ export function summoningBudget(heroLevel: number): number {
 
 /**
  * Spreads `budget` points over the Summoning Skills the Hero's Level has open
- * (evenly, the odd points going to them in `SUMMONING_SKILLS` order), less
- * the Passive Skill's share if `withPassive` and it is open.
+ * (evenly, the odd points going to them in `SUMMONING_SKILLS` order). With
+ * `withPassive` the open Passive Skills take their shares first, and the
+ * Hero, having chosen the Raised Skeletons they boost, puts the rest into
+ * Raise Skeleton alone.
  */
 function allocate(
   heroLevel: number,
   budget: number,
   withPassive: boolean,
 ): Partial<Record<Skill, number>> {
-  const open = SUMMONING_SKILLS.filter(
-    (skill) => skillTuning[skill].requiredLevel <= heroLevel,
-  );
-  const passive =
-    withPassive && heroLevel >= PASSIVE_FROM_LEVEL
-      ? Math.floor(budget * PASSIVE_SHARE)
-      : 0;
-  const cast = budget - passive;
   const levels: Partial<Record<Skill, number>> = {};
+  let cast = budget;
+  if (withPassive) {
+    for (const { skill, share } of SUMMONING_PASSIVES) {
+      if (skillTuning[skill].requiredLevel > heroLevel) continue;
+      const points = Math.min(
+        cast - 1,
+        Math.max(1, Math.floor(budget * share)),
+      );
+      if (points <= 0) continue;
+      levels[skill] = points;
+      cast -= points;
+    }
+  }
+  const open = SUMMONING_SKILLS.filter(
+    (skill) =>
+      skillTuning[skill].requiredLevel <= heroLevel &&
+      (!withPassive || skill === "raiseSkeleton"),
+  );
   open.forEach((skill, i) => {
     const level =
       Math.floor(cast / open.length) + (i < cast % open.length ? 1 : 0);
     if (level > 0) levels[skill] = level;
   });
-  if (passive > 0) levels[SUMMONING_PASSIVE] = passive;
   return levels;
 }
 
@@ -147,6 +156,7 @@ function minionCase(
       type: effect.minion,
       skillLevel,
       synergy: skillPower(all, skill),
+      ...minionBonuses(all, skill),
     };
     const count = effect.type === "raise" ? raiseCount(effect, skillLevel) : 1;
     const attackRating = minionAttackRating(minion);
@@ -186,8 +196,8 @@ function minionCase(
  * the live tuning. The Skill Levels follow one budget: of the Skill Points
  * earned (`skillPointsAt`), half go into Summoning (`summoningBudget`). The
  * base case spreads them evenly over the open cast Summoning Skills; the
- * Passive case gives Grave Command a quarter (`PASSIVE_SHARE`, rounded down)
- * once it is open (from Hero Level `PASSIVE_FROM_LEVEL`) and spreads the rest.
+ * Passive case gives each of `SUMMONING_PASSIVES` its share (rounded down, at least a point),
+ * once it is open and a point is left over for Raise Skeleton, and puts the rest into it.
  * Levels past the highest Area Level are projected from the formulas.
  */
 export function minionReport(

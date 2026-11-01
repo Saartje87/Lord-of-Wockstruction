@@ -103,6 +103,7 @@ describe("skillTreeSheet", () => {
       "splinterVolley",
       "ossifiedWill",
       "raiseSkeleton",
+      "bonebinding",
       "golem",
       "raiseArcher",
       "graveCommand",
@@ -233,6 +234,71 @@ describe("skillTreeSheet", () => {
       synergies: [],
     });
     expect(rowOf(w, "golem").passive).toBeNull();
+  });
+
+  it("shows Bonebinding's Attack Rating and damage bonus at this Skill Level and the next", () => {
+    const {
+      attackRatingPercentPerSkillLevel: rating,
+      damagePercentPerSkillLevel: damage,
+    } = skillTuning.bonebinding.passive;
+    const bound = (bonebinding: number) =>
+      world({
+        ...FRESH_PROGRESS,
+        level: 4,
+        skillPoints: 1,
+        skillLevels: {
+          ...FRESH_PROGRESS.skillLevels,
+          raiseSkeleton: 1,
+          bonebinding,
+        },
+      });
+    const row = rowOf(bound(2), "bonebinding");
+
+    expect(row.passive).toMatchObject({
+      percentPerSkillLevel: "0",
+      extras: [
+        {
+          label: "Attack Rating",
+          percentPerSkillLevel: String(rating),
+          total: String((rating ?? 0) * 2),
+        },
+        {
+          label: "Damage",
+          percentPerSkillLevel: String(damage),
+          total: String((damage ?? 0) * 2),
+        },
+      ],
+    });
+    expect(row.nextStats).toEqual([
+      `Attack Rating: +${(rating ?? 0) * 3}%`,
+      `Damage: +${(damage ?? 0) * 3}%`,
+    ]);
+    expect(rowOf(bound(2), "raiseSkeleton").prerequisites).toEqual([]);
+    expect(row.prerequisites).toEqual([]);
+    expect(rowOf(world(), "bonebinding").prerequisites).toEqual([
+      skillTuning.raiseSkeleton.name,
+    ]);
+  });
+
+  it("counts Bonebinding in a Minion Skill's stat lines", () => {
+    const stats = (bonebinding: number) =>
+      rowOf(
+        world({
+          ...FRESH_PROGRESS,
+          level: 4,
+          skillLevels: {
+            ...FRESH_PROGRESS.skillLevels,
+            raiseSkeleton: 1,
+            bonebinding,
+          },
+        }),
+        "raiseSkeleton",
+      ).stats;
+
+    expect(stats(3)).not.toEqual(stats(0));
+    expect(stats(3).some((line) => line.startsWith("Attack Rating: "))).toBe(
+      true,
+    );
   });
 
   it("shows a + while a point is unspent", () => {
@@ -433,6 +499,20 @@ describe("skillTreePanelLayout", () => {
       expect(last.x).toBe(centre(tile("splinterVolley")).x);
     }
     expect(arrows.some((arrow) => arrow.to === "boneWard")).toBe(false);
+  });
+
+  it("draws Bonebinding's arrow sideways from Raise Skeleton's tile to its own", () => {
+    const { arrows } = skillTreePanelLayout(screen, "summoning");
+    const arrow = arrows.find((one) => one.to === "bonebinding");
+    const [from, to] = [
+      tileOf("summoning", "raiseSkeleton").tile,
+      tileOf("summoning", "bonebinding").tile,
+    ];
+
+    expect(arrow?.from).toBe("raiseSkeleton");
+    expect(arrow?.points).toHaveLength(2);
+    expect(arrow?.points[0]).toEqual({ x: from.x + from.w, y: centre(from).y });
+    expect(arrow?.points[1]).toEqual({ x: to.x, y: centre(to).y });
   });
 
   it("gives three tabs along the top of the grid, one per Branch", () => {

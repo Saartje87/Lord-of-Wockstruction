@@ -3,7 +3,11 @@ import { minionFrameRows } from "../render/minionFrame";
 import { skillTuning } from "../tuning/skills";
 import { emptyBelt } from "./belt";
 import { inventoryOf } from "./inventory";
-import { minionDamageRange } from "./minions";
+import {
+  minionAttackRating,
+  minionDamageRange,
+  minionMaxLife,
+} from "./minions";
 import { emptySkillBar } from "./skillBar";
 import { combatArea } from "./testAreas";
 import {
@@ -14,6 +18,7 @@ import {
   minionLevelOf,
   type Progress,
   raiseCount,
+  skillLevelOf,
   step,
   type World,
 } from "./world";
@@ -124,7 +129,10 @@ function raiseSkeleton(w: World): Minion {
   return minion;
 }
 
-function spend(w: World, skill: "raiseSkeleton" | "golem" | "graveCommand") {
+function spend(
+  w: World,
+  skill: "raiseSkeleton" | "golem" | "graveCommand" | "bonebinding",
+) {
   step(w, [{ type: "SpendSkillPoint", skill }]);
 }
 
@@ -157,6 +165,35 @@ describe("live Minion stats", () => {
     expect(skeleton.maxLife).toBeGreaterThan(before);
   });
 
+  it("a Skill Point in Bonebinding changes every Minion kind already out, in Attack Rating and damage but not Life", () => {
+    const w = inField({ raiseSkeleton: 1, golem: 1, raiseArcher: 1 });
+    const skeleton = raiseSkeleton(w);
+    const golem = { type: "golem", skill: "golem" } as const;
+    const archer = { type: "raisedArcher", skill: "raiseArcher" } as const;
+    const kinds = [skeleton, golem, archer];
+    const stats = () =>
+      kinds.map((kind) => {
+        const minion = minionLevelOf(w, kind);
+        return {
+          rating: minionAttackRating(minion),
+          most: minionDamageRange(minion)[1],
+          life: minionMaxLife(minion),
+        };
+      });
+    const before = stats();
+    const lifeBefore = skeleton.maxLife;
+
+    spend(w, "bonebinding");
+    const after = stats();
+
+    for (const [i, kind] of kinds.entries()) {
+      expect(after[i].rating, kind.type).toBeGreaterThan(before[i].rating);
+      expect(after[i].most, kind.type).toBeGreaterThan(before[i].most);
+      expect(after[i].life, kind.type).toBe(before[i].life);
+    }
+    expect(skeleton.maxLife).toBe(lifeBefore);
+  });
+
   it("current Life rises with maximum Life, and is capped when it falls", () => {
     const w = inField({ raiseSkeleton: 3 });
     const skeleton = raiseSkeleton(w);
@@ -184,6 +221,23 @@ describe("live Minion stats", () => {
     step(w, [{ type: "LiftItem", from: "weapon" }]);
     expect(skeleton.maxLife).toBe(plain);
     expect(skeleton.life).toBeLessThanOrEqual(plain);
+  });
+
+  it("a Wand Affix raising Bonebinding changes the Minions out at once", () => {
+    const w = inField({ raiseSkeleton: 1 });
+    const skeleton = raiseSkeleton(w);
+    const before = minionAttackRating(minionLevelOf(w, skeleton));
+    w.hero.equipment.weapon = {
+      id: w.nextItemId++,
+      type: "boneWand",
+      rarity: "magic",
+      affixes: [{ kind: "skillBonebinding", grade: 2, value: 3 }],
+    };
+    step(w, []);
+    expect(skillLevelOf(w, "bonebinding")).toBe(3);
+    expect(minionAttackRating(minionLevelOf(w, skeleton))).toBeGreaterThan(
+      before,
+    );
   });
 
   it("follows the current Skill Level for the count limit, keeping the extra until one more is raised", () => {

@@ -37,6 +37,8 @@ const FLASH_COLOUR = 0xffffff;
 /** The colour and strength of a flared Monster's glow. */
 const FLARE_COLOUR = 0xff5a14;
 const FLARE_GLOW = 0.45;
+/** How long a flared, Chilled Monster shows each of its glows in turn (s). */
+const ALTERNATE_GLOW_SECONDS = 0.4;
 /** The colour and strength of a Chilled Monster's glow. */
 const CHILL_COLOUR = 0x5fc8ff;
 const CHILL_GLOW = 0.5;
@@ -82,6 +84,8 @@ export type MonsterActor = {
   highlighted: boolean;
   /** Radians the model is turned by now, eased towards its facing. */
   turn: number | null;
+  /** Seconds posed so far: alternates the glow of a flared, Chilled Monster. */
+  glowSeconds: number;
 };
 
 /** Makes an actor of a character looking like `look` from the loaded models. */
@@ -121,6 +125,7 @@ export function monsterActorOf(
     clips: look.clips,
     highlighted: false,
     turn: null,
+    glowSeconds: 0,
   };
 }
 
@@ -138,16 +143,21 @@ export function poseMonster(actor: MonsterActor, monster: Posed, dt: number) {
   }
   actor.root.rotation.y = actor.turn ?? 0;
   actor.root.scale.setScalar(monster.scale ?? 1);
-  // A hit's white flash shows over the flare.
+  actor.glowSeconds += dt;
+  // A hit's white flash shows over the flare and the chill, which take turns
+  // when a Monster has both.
   const flash = (monster.flash ?? 0) * FLASH_GLOW;
+  const chillTurn =
+    !monster.flared ||
+    Math.floor(actor.glowSeconds / ALTERNATE_GLOW_SECONDS) % 2 === 1;
   if (flash > 0) {
     glowMaterials(actor.materials, FLASH_COLOUR, flash);
-  } else if (monster.chilled) {
+  } else if (monster.chilled && chillTurn) {
     glowMaterials(actor.materials, CHILL_COLOUR, CHILL_GLOW);
-  } else if (!monster.flared) {
-    glowMaterials(actor.materials, FLASH_COLOUR, 0);
-  } else {
+  } else if (monster.flared) {
     glowMaterials(actor.materials, FLARE_COLOUR, FLARE_GLOW);
+  } else {
+    glowMaterials(actor.materials, FLASH_COLOUR, 0);
   }
   if (monster.highlighted !== actor.highlighted) {
     actor.highlighted = monster.highlighted;

@@ -260,7 +260,7 @@ describe("live Minion stats", () => {
   });
 
   it("the Minion Frame's cap and Life bars follow a Skill Point", () => {
-    const w = inField({ raiseSkeleton: 3 });
+    const w = inField({ raiseSkeleton: 5 });
     const skeleton = raiseSkeleton(w);
     skeleton.life = skeleton.maxLife / 2;
     const [before] = minionFrameRows(w);

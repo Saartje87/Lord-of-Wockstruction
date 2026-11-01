@@ -125,7 +125,8 @@ export type HeroProjectile = Flight & {
  * A Minion's Projectile, a Monster's reversed: it hits the first Monster or
  * Bone Altar it touches with no wall between, and flies through the Hero and
  * their Minions and Bone Wall pieces. It rolls its hit as the Minion's
- * swings do, with the Minion's numbers as the Hero's Skill Levels make them when it hits.
+ * swings do, with the Minion's numbers as the Hero's Skill Levels make them
+ * when it hits.
  */
 export type MinionProjectile = Flight & {
   from: "minion";

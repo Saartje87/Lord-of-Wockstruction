@@ -516,3 +516,48 @@ describe("Frost Bolts", () => {
     expect(minionTuning.golem.damageTypes).toBeUndefined();
   });
 });
+
+describe("Raised Mages fighting an own-Level Skeleton", () => {
+  it.each([
+    [12, 1],
+    [16, 1],
+    [20, 1],
+  ])("hit it most of the time at Level %i, Skill Level %i", (level, skillLevel) => {
+    const field = [
+      "EA..........",
+      "............",
+      "......S.....",
+      "............",
+      "............",
+      "...........H",
+    ];
+    const w = inField(necromancer(skillLevel), {
+      town: map(["HAE"], "field", null),
+      field: map(field, "town", level),
+    });
+    const [skeleton] = w.monsters;
+    if (!skeleton) throw new Error("No Skeleton");
+    // A dummy to shoot at, and a Mage that lasts the whole time.
+    skeleton.life = 1e9;
+    w.hero.life = 1e9;
+    corpseAt(w, { x: 9.5, y: 4.5 });
+    raiseAt(w, { x: 9.5, y: 4.5 });
+
+    let hits = 0;
+    let misses = 0;
+    for (let i = 0; i < 60 * 300; i++) {
+      for (const event of step(w, [])) {
+        if (event.type === "HitLanded" && event.attacker === "minion") hits++;
+        if (event.type === "Missed" && event.target === skeleton.id) misses++;
+      }
+      for (const minion of w.minions) minion.life = minion.maxLife;
+      // The dummy never swings back: a Level 20 blow would fell the Mage.
+      skeleton.cooldown = 1e9;
+    }
+
+    const rate = hits / (hits + misses);
+    expect(hits + misses).toBeGreaterThan(30);
+    expect(rate).toBeGreaterThan(0.6);
+    expect(rate).toBeLessThan(0.92);
+  });
+});

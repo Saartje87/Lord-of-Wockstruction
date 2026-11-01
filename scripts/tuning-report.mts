@@ -37,7 +37,7 @@ const { bossReport, tuningReport, uniqueReport } = await load<
 const { skillReport } = await load<typeof SkillReportModule>(
   "./src/game/sim/skillReport.ts",
 );
-const { minionReport, SUMMONING_PASSIVES } = await load<
+const { minionReport, RAISE_SKELETON_SHARE, SUMMONING_PASSIVES } = await load<
   typeof MinionReportModule
 >("./src/game/sim/minionReport.ts");
 const { skillTuning } = await load<typeof SkillsModule>(
@@ -272,7 +272,7 @@ console.log(
 );
 
 const minionRows = minionReport();
-const budgetText = `Skill Points earned: Hero Level - 1. Half go into Summoning (rounded down), spread evenly over the open cast Skills (Raise Skeleton, Golem from Level 1; Raise Archer from Level ${skillTuning.raiseArcher.requiredLevel}; Raise Mage from Level ${skillTuning.raiseMage.requiredLevel}), odd points to Raise Skeleton, then Golem, then Raise Archer, then Raise Mage. A Raised Mage's Cold damage counts after the Skeleton's Cold Resistance. With Passive Skills, ${SUMMONING_PASSIVES.map(({ skill, share }) => `${skillTuning[skill].name} (open from Level ${skillTuning[skill].requiredLevel}) takes ${share * 100}%`).join(" and ")} of the budget, each rounded down, and the rest is spread as before. Synergies between the Summoning Skills count.`;
+const budgetText = `Skill Points earned: Hero Level - 1. Half go into Summoning (rounded down). Raise Skeleton takes ${RAISE_SKELETON_SHARE * 100}% of them (rounded up); the rest are spread evenly over the other open cast Skills (Raise Archer from Level ${skillTuning.raiseArcher.requiredLevel}; Raise Mage from Level ${skillTuning.raiseMage.requiredLevel}; Golem), odd points to Raise Archer, then Raise Mage, then Golem. A Raised Mage's Cold damage counts after the Skeleton's Cold Resistance. With Passive Skills, ${SUMMONING_PASSIVES.map(({ skill, share }) => `${skillTuning[skill].name} (open from Level ${skillTuning[skill].requiredLevel}) takes ${share * 100}%`).join(" and ")} of those other points first (at least one each), each rounded down, and the rest is spread as before. A kind with no Skill Level has no row. Synergies between the Summoning Skills count.`;
 console.log(
   `\n# Minions: against an own-Level trash Skeleton, a full group of each kind\n\n${budgetText}\n`,
 );

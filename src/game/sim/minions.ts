@@ -217,8 +217,8 @@ export function minionRecoveryProgress(minion: Minion): number {
 }
 
 /**
- * A fresh Minion of `type`, brought by `skill`, at full Life at `skillLevel` and `synergy`, at `pos`, facing `facing`,
- * following the Hero.
+ * A fresh Minion of `type`, brought by `skill`, at full Life at `skillLevel`
+ * and `synergy`, at `pos`, facing `facing`, following the Hero.
  */
 export function newMinion(
   id: MinionId,

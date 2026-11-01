@@ -318,9 +318,12 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
   },
   // Diablo 2's Raise Skeleton, and its Mana: 2 at Skill Level 1, one more at
   // 4, 7, 10 … A Raised Skeleton's Life grows 20% and its damage and Attack
-  // Rating 30% and 45% a Skill Level (see `minionTuning`), so it keeps hitting
-  // trash Skeletons of its Hero's Level most of the time. Its Synergies, 8%
-  // each from Golem and Raise Archer, are its Summoning mates': at Skill Level
+  // Rating 50% and 40% a Skill Level (see `minionTuning`), so with half the
+  // Hero's Skill Points in Summoning it keeps hitting trash Skeletons of its
+  // Hero's Level most of the time and kills one in about 5 s. A third one comes
+  // every 5 Skill Levels, so its damage, not its count, keeps pace with the
+  // Monsters' Life. Its Synergies,
+  // 8% each from Golem and Raise Archer, are its Summoning mates': at Skill Level
   // 5 (108 Life) each Skill Level in a giver adds 9 Life, about what one of
   // its own adds (12 Life).
   raiseSkeleton: {
@@ -336,7 +339,7 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
       type: "raise",
       minion: "raisedSkeleton",
       count: 2,
-      countEvery: 3,
+      countEvery: 5,
     },
     synergies: [
       { skill: "golem", percentPerSkillLevel: 8 },
@@ -647,11 +650,13 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
     },
     synergies: [],
   },
-  // Minions that hit more often and harder: +10% Attack Rating and +8% damage
+  // Minions that hit more often and harder: +10% Attack Rating and +80% damage
   // a Skill Level on every kind, and no Life. Beside Raise Skeleton, from the
   // second Skill Point on, so a summoner has it long before Grave Command.
-  // Tuned with `npm run tuning:report` so that, with Grave Command, a full
-  // group of Raised Skeletons kills an own-Level trash Skeleton in 2-3 s.
+  // Tuned with `npm run tuning:report` so that, with one point here and in
+  // Grave Command, a full group of Raised Skeletons kills an own-Level trash
+  // Skeleton in 2-3 s at every Level the report covers. The spec's +8% was
+  // too weak: the half-the-points budget leaves only a point or two for it.
   bonebinding: {
     name: "Bonebinding",
     branch: "summoning",
@@ -662,7 +667,7 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
       boosts: ["golem", "raiseSkeleton", "raiseArcher", "raiseMage"],
       percentPerSkillLevel: 0,
       attackRatingPercentPerSkillLevel: 10,
-      damagePercentPerSkillLevel: 8,
+      damagePercentPerSkillLevel: 80,
     },
     synergies: [],
   },

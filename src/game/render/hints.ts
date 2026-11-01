@@ -202,8 +202,9 @@ export function skillTooltip(
     lines.push(`Synergies add +${sheet.synergyTotal}% now`);
   }
   if (sheet.passive) {
-    const { percentPerSkillLevel, boosts, total, extras } = sheet.passive;
-    if (percentPerSkillLevel !== "0") {
+    const { boostsMain, percentPerSkillLevel, boosts, total, extras } =
+      sheet.passive;
+    if (boostsMain) {
       lines.push(
         `Passive: +${percentPerSkillLevel}% per Skill Level to ${boosts}`,
       );

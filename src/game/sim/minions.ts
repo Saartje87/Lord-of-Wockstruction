@@ -38,8 +38,9 @@ export type Minion = {
   pos: Vec;
   /** Where it was one step ago, for the renderer to interpolate from. */
   prevPos: Vec;
-  /** Never regained. */
   life: number;
+  /** Steps since it was last hit; it regains Life once this is long enough. */
+  sinceHit: number;
   /**
    * Its full Life as the Hero's Skill Levels last made it. The World keeps
    * it up to date, moving `life` along with it (see `syncMinionLife`).
@@ -77,6 +78,8 @@ const STEPPED = Object.fromEntries(
         radius: wallRadius(tuning.radius),
         replanSteps: msToSteps(tuning.replanMs),
       },
+      regenSteps: msToSteps(tuning.regenDelayMs),
+      regenPerStep: perStep(tuning.regenPerSecond),
       windUpSteps: msToSteps(tuning.windUpMs),
       rootSteps: msToSteps(tuning.rootMs),
       recoverySteps: msToSteps(tuning.recoveryMs),
@@ -94,6 +97,8 @@ const STEPPED = Object.fromEntries(
   {
     speed: number;
     stuckSteps: number;
+    regenSteps: number;
+    regenPerStep: number;
     stuckStride: number;
     gait: Gait;
     windUpSteps: number;
@@ -123,6 +128,17 @@ export type MinionOfLevel = {
 
 /** Which Minions a number is about: the type, and the Skill that brings it. */
 export type MinionKind = Pick<Minion, "type" | "skill">;
+
+/** Counts a Minion's wait since its last hit, regaining Life once it is over. */
+export function regainMinionLife(minion: Minion) {
+  minion.sinceHit += 1;
+  const { regenSteps, regenPerStep } = STEPPED[minion.type];
+  if (minion.sinceHit < regenSteps) return;
+  minion.life = Math.min(
+    minion.maxLife,
+    minion.life + minion.maxLife * regenPerStep,
+  );
+}
 
 /**
  * Moves a Minion's current Life with its full Life becoming `maxLife`: up by
@@ -213,6 +229,7 @@ export function newMinion(
     pos: { ...pos },
     prevPos: { ...pos },
     life: maxLife,
+    sinceHit: Infinity,
     maxLife,
     facing,
     state: "follow",

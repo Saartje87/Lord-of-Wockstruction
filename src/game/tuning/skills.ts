@@ -318,7 +318,7 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
   },
   // Diablo 2's Raise Skeleton, and its Mana: 2 at Skill Level 1, one more at
   // 4, 7, 10 … A Raised Skeleton's Life grows 20% and its damage and Attack
-  // Rating 50% and 40% a Skill Level (see `minionTuning`), so with half the
+  // Rating 45% and 40% a Skill Level (see `minionTuning`), so with half the
   // Hero's Skill Points in Summoning it keeps hitting trash Skeletons of its
   // Hero's Level most of the time and kills one in about 5 s. A third one comes
   // every 5 Skill Levels, so its damage, not its count, keeps pace with the
@@ -650,13 +650,13 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
     },
     synergies: [],
   },
-  // Minions that hit more often and harder: +10% Attack Rating and +80% damage
+  // Minions that hit more often and harder: +12% Attack Rating and +8% damage
   // a Skill Level on every kind, and no Life. Beside Raise Skeleton, from the
-  // second Skill Point on, so a summoner has it long before Grave Command.
-  // Tuned with `npm run tuning:report` so that, with one point here and in
-  // Grave Command, a full group of Raised Skeletons kills an own-Level trash
-  // Skeleton in 2-3 s at every Level the report covers. The spec's +8% was
-  // too weak: the half-the-points budget leaves only a point or two for it.
+  // second Skill Point on, so a summoner has it long before Grave Command. The
+  // Attack Rating is the cheap, early part: one point lifts a Raised Skeleton
+  // from about 72% to 78% to hit. Tuned with `npm run tuning:report` together
+  // with Grave Command: with them a full group of Raised Skeletons kills an
+  // own-Level trash Skeleton in about 3-4 s (base Skills: about 4-4.5 s).
   bonebinding: {
     name: "Bonebinding",
     branch: "summoning",
@@ -666,14 +666,14 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
     passive: {
       boosts: ["golem", "raiseSkeleton", "raiseArcher", "raiseMage"],
       percentPerSkillLevel: 0,
-      attackRatingPercentPerSkillLevel: 10,
-      damagePercentPerSkillLevel: 80,
+      attackRatingPercentPerSkillLevel: 12,
+      damagePercentPerSkillLevel: 8,
     },
     synergies: [],
   },
   // Diablo 2's Skeleton Mastery for all Minions: Life and damage together,
-  // so 6% a Skill Level is a Minion 6% tougher and 6% stronger, about what a
-  // Skill Level 5 Raise Skeleton's own 11% a Skill Level is, spread over
+  // so 20% a Skill Level is a Minion 20% tougher and 20% stronger, a Skill
+  // Level worth about two of Bonebinding's, spread over
   // three Skills as Ossified Will's is over four.
   graveCommand: {
     name: "Grave Command",
@@ -683,7 +683,7 @@ export const skillTuning: Record<CastSkill, CastSkillTuning> &
     requiredLevel: 12,
     passive: {
       boosts: ["golem", "raiseSkeleton", "raiseArcher", "raiseMage"],
-      percentPerSkillLevel: 6,
+      percentPerSkillLevel: 20,
     },
     synergies: [],
   },

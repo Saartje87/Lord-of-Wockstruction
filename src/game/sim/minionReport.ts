@@ -46,8 +46,8 @@ const SPARE_POINT_ORDER: CastSkill[] = ["raiseArcher", "raiseMage", "golem"];
  * Level has opened it.
  */
 export const SUMMONING_PASSIVES = [
-  { skill: "bonebinding", share: 0.34 },
-  { skill: "graveCommand", share: 0.25 },
+  { skill: "bonebinding", share: 0.5 },
+  { skill: "graveCommand", share: 0.34 },
 ] as const;
 
 /** The Monster the Minions are measured against: a trash Skeleton of the Hero's own Level. */

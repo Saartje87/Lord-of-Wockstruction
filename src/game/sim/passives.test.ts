@@ -164,7 +164,7 @@ describe("Passive Skills in the Skill Tree's Branches", () => {
     );
   });
 
-  it("gives Bonebinding +10% Attack Rating and +80% damage a Skill Level to every Minion kind", () => {
+  it("gives Bonebinding +12% Attack Rating and +8% damage a Skill Level to every Minion kind", () => {
     const { passive } = skillTuning.bonebinding;
     expect(passive.boosts).toEqual([
       "golem",
@@ -172,8 +172,8 @@ describe("Passive Skills in the Skill Tree's Branches", () => {
       "raiseArcher",
       "raiseMage",
     ]);
-    expect(passive.attackRatingPercentPerSkillLevel).toBe(10);
-    expect(passive.damagePercentPerSkillLevel).toBe(80);
+    expect(passive.attackRatingPercentPerSkillLevel).toBe(12);
+    expect(passive.damagePercentPerSkillLevel).toBe(8);
   });
 
   it("neither give nor get Synergies, and cost no Mana", () => {

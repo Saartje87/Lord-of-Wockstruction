@@ -13,8 +13,12 @@ export type MinionTuning = {
    * place of its own.
    */
   resistancesOf?: MonsterType;
-  /** Life when summoned at Skill Level 1; it never regains any. */
+  /** Life when summoned at Skill Level 1. */
   life: number;
+  /** Once unhit this long, it starts regaining Life (ms). */
+  regenDelayMs: number;
+  /** Then it regains this fraction of its full Life every second. */
+  regenPerSecond: number;
   /** Damage per hit at Skill Level 1, rolled from `[min, max]` inclusive. */
   damage: [number, number];
   /** Set against a Monster's Defense for its chance to hit, at Skill Level 1. */
@@ -116,6 +120,8 @@ export const minionTuning: Record<MinionType, MinionTuning> = {
     name: "Golem",
     resistances: { lightning: 50 },
     life: 300,
+    regenDelayMs: 3000,
+    regenPerSecond: 0.02,
     // A Monster Level 1 Skeleton's, grown 30% a Skill Level: modest.
     damage: [4, 8],
     // Its own: it hits an own-Level Skeleton about three times in four.
@@ -152,6 +158,8 @@ export const minionTuning: Record<MinionType, MinionTuning> = {
     name: "Raised Skeleton",
     resistancesOf: "skeleton",
     life: 60,
+    regenDelayMs: 3000,
+    regenPerSecond: 0.02,
     damage: [16, 24],
     // Its own, not a Monster's: with its 45% a Skill Level it keeps hitting
     // an own-Level trash Skeleton 70 to 80% of the time as the Hero levels
@@ -187,6 +195,8 @@ export const minionTuning: Record<MinionType, MinionTuning> = {
     name: "Raised Archer",
     resistancesOf: "skeleton_archer",
     life: 36,
+    regenDelayMs: 3000,
+    regenPerSecond: 0.02,
     damage: [14, 22],
     // Higher than the Raised Skeleton's, for its Skill Level lags behind the
     // Hero's: it opens at Hero Level 6.

@@ -530,19 +530,8 @@ describe("Monsters fighting the Golem", () => {
     const golem = golemOf(w);
     const heroLife = w.hero.life;
 
-    let lowest = golem.life;
-    let regained = false;
-    const events = stepUntil(
-      w,
-      () => {
-        if (golem.life > lowest) regained = true;
-        lowest = Math.min(lowest, golem.life);
-        return w.minions.length === 0;
-      },
-      60 * 300,
-    );
+    const events = stepUntil(w, () => w.minions.length === 0, 60 * 300);
 
-    expect(regained).toBe(false);
     expect(events).toContainEqual({ type: "MinionMissed", minion: golem.id });
     const dealt = events
       .filter((event) => event.type === "MinionHit")

@@ -386,6 +386,52 @@ describe("the Hero's Raised Skeletons", () => {
   });
 });
 
+describe("Raised Skeletons fighting an own-Level Skeleton", () => {
+  it.each([
+    [4, 1],
+    [8, 1],
+    [12, 2],
+    [16, 3],
+    [20, 3],
+  ])("hit it most of the time at Level %i, Skill Level %i", (level, skillLevel) => {
+    const field = [
+      "EA..........",
+      "............",
+      "......S.....",
+      "............",
+      "............",
+      "...........H",
+    ];
+    const w = inField(necromancer(skillLevel), {
+      town: map(["HAE"], "field", null),
+      field: map(field, "town", level),
+    });
+    const [skeleton] = w.monsters;
+    if (!skeleton) throw new Error("No Skeleton");
+    // A dummy to swing at, and Minions that last the whole count.
+    skeleton.life = 1e9;
+    for (let i = 0; i < 2; i++) {
+      corpseAt(w, { x: 3.5 + i, y: 3.5 });
+      raiseAt(w, { x: 3.5 + i, y: 3.5 });
+    }
+
+    let hits = 0;
+    let misses = 0;
+    for (let i = 0; i < 60 * 300; i++) {
+      for (const event of step(w, [])) {
+        if (event.type === "HitLanded" && event.attacker === "minion") hits++;
+        if (event.type === "Missed" && event.target === skeleton.id) misses++;
+      }
+      for (const minion of w.minions) minion.life = minion.maxLife;
+    }
+
+    const rate = hits / (hits + misses);
+    expect(hits + misses).toBeGreaterThan(100);
+    expect(rate).toBeGreaterThan(0.6);
+    expect(rate).toBeLessThan(0.9);
+  });
+});
+
 describe("learning Raise Skeleton", () => {
   it("is open from Level 1 and puts it on the Skill Bar, ready to cast", () => {
     const w = inField({

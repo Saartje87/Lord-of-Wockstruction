@@ -2,7 +2,6 @@ import type { Rect } from "../sim/rect";
 import {
   type MinionId,
   type MinionType,
-  minionMaxLife,
   raiseCount,
   type SimEvent,
   skillLevelsOf,
@@ -55,7 +54,7 @@ export function minionFrameRows(world: World): MinionRow[] {
           : null,
       bars: [],
     };
-    const fraction = minion.life / minionMaxLife(minion);
+    const fraction = minion.life / minion.maxLife;
     row.bars.push({
       id: minion.id,
       fraction: Math.min(1, Math.max(0, fraction)),

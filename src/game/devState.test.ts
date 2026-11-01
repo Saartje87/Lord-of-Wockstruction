@@ -3,7 +3,7 @@ import { devStateOf } from "./devState";
 import { arenaWith } from "./input/testArena";
 import { newMinion } from "./sim/minions";
 import { QUEST_IDS } from "./sim/quests";
-import { maxMana, minionMaxLife } from "./sim/world";
+import { maxMana } from "./sim/world";
 
 describe("devStateOf", () => {
   it("reads the Area, the Hero, the Target and the Monsters", () => {
@@ -94,7 +94,7 @@ describe("devStateOf", () => {
         skill: "golem",
         pos: { x: 9, y: 10 },
         life: 5,
-        maxLife: minionMaxLife(golem),
+        maxLife: golem.maxLife,
       },
     ]);
   });

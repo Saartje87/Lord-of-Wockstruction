@@ -46,7 +46,7 @@ export const LOOKS = {
   /** Raised Skeletons: paler and tinged with the green of raised bone. */
   raised: { saturation: 0.6, tint: 0xa8f0b8 },
   /** Raised Mages: pale bone washed in frost blue. */
-  frost: { saturation: 0.45, tint: 0x9fd4ff, gain: 1.1 },
+  frost: { saturation: 0.08, tint: 0xa8e0ff, gain: 3.4 },
   /** Grave Wockington: bone washed in the orange of his fire. */
   fire: { saturation: 1, tint: 0xff9a5a },
   /** Fire, magic, loot and danger keep their warmth. */

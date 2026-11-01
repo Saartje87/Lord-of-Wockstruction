@@ -150,11 +150,11 @@ describe("raising Minions through the sim", () => {
 describe("minionFrameRows", () => {
   it("counts Raised Skeletons against the cap at the Raise Skeleton Skill Level", () => {
     const w = withMinions("raisedSkeleton", "raisedSkeleton");
-    w.hero.progress.skillLevels.raiseSkeleton = 3;
+    w.hero.progress.skillLevels.raiseSkeleton = 5;
     expect(minionFrameRows(w)[0]).toMatchObject({ cap: 2 });
 
     // A Skill Point into Raise Skeleton that earns a Minion raises the cap.
-    w.hero.progress.skillLevels.raiseSkeleton = 4;
+    w.hero.progress.skillLevels.raiseSkeleton = 6;
     expect(minionFrameRows(w)[0]).toMatchObject({ cap: 3 });
   });
 

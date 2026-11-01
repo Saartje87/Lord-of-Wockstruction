@@ -246,17 +246,22 @@ function cursedWith<Kind extends "weaken" | "leadenLimbs">(
  * Curse and its Chill, never the two multiplied.
  */
 function walkPace(monster: Pick<Monster, "curse" | "chill">): number {
-  return Math.min(
-    cursedWith(monster.curse, "leadenLimbs")?.walkSpeed ?? 1,
-    monster.chill?.walkSpeed ?? 1,
-  );
+  return slowerPace(monster, "walkSpeed");
 }
 
 /** What share as often a Monster swings or shoots, paced as `walkPace`. */
 function attackPace(monster: Pick<Monster, "curse" | "chill">): number {
+  return slowerPace(monster, "attackSpeed");
+}
+
+/** The slower of a Monster's Leaden Limbs and Chill shares of one pace. */
+function slowerPace(
+  monster: Pick<Monster, "curse" | "chill">,
+  pace: "walkSpeed" | "attackSpeed",
+): number {
   return Math.min(
-    cursedWith(monster.curse, "leadenLimbs")?.attackSpeed ?? 1,
-    monster.chill?.attackSpeed ?? 1,
+    cursedWith(monster.curse, "leadenLimbs")?.[pace] ?? 1,
+    monster.chill?.[pace] ?? 1,
   );
 }
 

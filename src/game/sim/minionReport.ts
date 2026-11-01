@@ -19,7 +19,7 @@ import { chanceToHit, raiseCount, SKILLS } from "./world";
 /** The Hero Levels `minionReport` covers when none are asked for. */
 export const MINION_REPORT_LEVELS = [4, 8, 12, 16, 20];
 
-/** The Summoning Skills whose Minions the report covers, in the order spare points go to them. */
+/** The Summoning Skills whose Minions the report covers, in the Skill Tree's order. */
 export const SUMMONING_SKILLS: CastSkill[] = [
   "raiseSkeleton",
   "golem",
@@ -28,13 +28,26 @@ export const SUMMONING_SKILLS: CastSkill[] = [
 ];
 
 /**
+ * The share of the Summoning budget Raise Skeleton, the Minions' damage
+ * dealer, takes (rounded up). The rest goes to the other Skills.
+ */
+export const RAISE_SKELETON_SHARE = 0.5;
+
+/**
+ * The Skills besides Raise Skeleton, in the order their odd points go: the
+ * damage dealers first, for their Skill Levels keep their Attack Rating
+ * ahead of Monsters' Defense, then the tank.
+ */
+const SPARE_POINT_ORDER: CastSkill[] = ["raiseArcher", "raiseMage", "golem"];
+
+/**
  * The Passive Skills the "with Passive Skills" case puts points in, each
  * taking its `share` of the Summoning budget (rounded down) once the Hero's
  * Level has opened it.
  */
 export const SUMMONING_PASSIVES = [
-  { skill: "bonebinding", share: 0.4 },
-  { skill: "graveCommand", share: 0.2 },
+  { skill: "bonebinding", share: 0.34 },
+  { skill: "graveCommand", share: 0.25 },
 ] as const;
 
 /** The Monster the Minions are measured against: a trash Skeleton of the Hero's own Level. */
@@ -94,11 +107,11 @@ export function summoningBudget(heroLevel: number): number {
 }
 
 /**
- * Spreads `budget` points over the Summoning Skills the Hero's Level has open
- * (evenly, the odd points going to them in `SUMMONING_SKILLS` order). With
- * `withPassive` the open Passive Skills take their shares first, and the
- * Hero, having chosen the Raised Skeletons they boost, puts the rest into
- * Raise Skeleton alone.
+ * Spreads `budget` points over the Summoning Skills the Hero's Level has open.
+ * Raise Skeleton takes its `RAISE_SKELETON_SHARE` in both cases. The rest is
+ * spread evenly over the other open cast Skills (odd points in
+ * `SPARE_POINT_ORDER`). With `withPassive` the open Passive Skills take their
+ * shares of that rest first (at least a point each while one is left).
  */
 function allocate(
   heroLevel: number,
@@ -106,23 +119,21 @@ function allocate(
   withPassive: boolean,
 ): Partial<Record<Skill, number>> {
   const levels: Partial<Record<Skill, number>> = {};
-  let cast = budget;
+  const skeletons = Math.ceil(budget * RAISE_SKELETON_SHARE);
+  if (skeletons > 0) levels.raiseSkeleton = skeletons;
+  const others = budget - skeletons;
+  let cast = others;
   if (withPassive) {
     for (const { skill, share } of SUMMONING_PASSIVES) {
       if (skillTuning[skill].requiredLevel > heroLevel) continue;
-      const points = Math.min(
-        cast - 1,
-        Math.max(1, Math.floor(budget * share)),
-      );
+      const points = Math.min(cast, Math.max(1, Math.floor(others * share)));
       if (points <= 0) continue;
       levels[skill] = points;
       cast -= points;
     }
   }
-  const open = SUMMONING_SKILLS.filter(
-    (skill) =>
-      skillTuning[skill].requiredLevel <= heroLevel &&
-      (!withPassive || skill === "raiseSkeleton"),
+  const open = SPARE_POINT_ORDER.filter(
+    (skill) => skillTuning[skill].requiredLevel <= heroLevel,
   );
   open.forEach((skill, i) => {
     const level =

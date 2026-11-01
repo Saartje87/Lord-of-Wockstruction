@@ -176,15 +176,15 @@ export const minionTuning: Record<MinionType, MinionTuning> = {
     life: 60,
     regenDelayMs: 3000,
     regenPerSecond: 0.02,
-    damage: [16, 24],
-    // Its own, not a Monster's: with its 45% a Skill Level it keeps hitting
-    // an own-Level trash Skeleton 70 to 80% of the time as the Hero levels
+    damage: [12, 18],
+    // Its own, not a Monster's: with its 40% a Skill Level it keeps hitting
+    // an own-Level trash Skeleton about 75% of the time as the Hero levels
     // (Monster Defense grows 15% a Monster Level, and a Skill Level comes
     // about every second Hero Level).
-    attackRating: 150,
+    attackRating: 120,
     // A Monster Level 1 Skeleton hits it about a quarter of the time.
     defense: 135,
-    growth: { life: 0.2, damage: 0.3, attackRating: 0.45, defense: 0.1 },
+    growth: { life: 0.2, damage: 0.5, attackRating: 0.4, defense: 0.1 },
     radius: 0.32,
     // The Golem's, so it keeps up with the Hero as well as the Golem does.
     speed: 4,
@@ -206,7 +206,7 @@ export const minionTuning: Record<MinionType, MinionTuning> = {
     recoveryMs: 650,
   },
   // Starts from a Monster Level 1 Skeleton Archer's Life and its shot, with
-  // the Raised Skeleton's Attack Rating.
+  // an Attack Rating of its own, higher than the Raised Skeleton's.
   raisedArcher: {
     name: "Raised Archer",
     resistancesOf: "skeleton_archer",
@@ -216,9 +216,9 @@ export const minionTuning: Record<MinionType, MinionTuning> = {
     damage: [14, 22],
     // Higher than the Raised Skeleton's, for its Skill Level lags behind the
     // Hero's: it opens at Hero Level 6.
-    attackRating: 190,
+    attackRating: 225,
     defense: 135,
-    growth: { life: 0.2, damage: 0.3, attackRating: 0.45, defense: 0.1 },
+    growth: { life: 0.2, damage: 0.3, attackRating: 0.5, defense: 0.1 },
     radius: 0.32,
     speed: 4,
     followDistance: 3,
@@ -255,9 +255,9 @@ export const minionTuning: Record<MinionType, MinionTuning> = {
     regenDelayMs: 3000,
     regenPerSecond: 0.02,
     damage: [18, 26],
-    attackRating: 190,
+    attackRating: 265,
     defense: 135,
-    growth: { life: 0.2, damage: 0.3, attackRating: 0.45, defense: 0.1 },
+    growth: { life: 0.2, damage: 0.3, attackRating: 0.5, defense: 0.1 },
     radius: 0.32,
     speed: 4,
     followDistance: 3,

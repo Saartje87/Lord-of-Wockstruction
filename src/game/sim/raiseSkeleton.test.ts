@@ -275,10 +275,10 @@ describe("the Hero's Raised Skeletons", () => {
 
   it.each([
     [1, 2],
-    [3, 2],
-    [4, 3],
-    [7, 4],
-  ])("number at most 2 + one every 3 Skill Levels: at Skill Level %i, %i", (skillLevel, count) => {
+    [5, 2],
+    [6, 3],
+    [11, 4],
+  ])("number at most 2 + one every 5 Skill Levels: at Skill Level %i, %i", (skillLevel, count) => {
     const w = inField(necromancer(skillLevel));
 
     raiseMany(w, count + 2);
@@ -389,10 +389,10 @@ describe("the Hero's Raised Skeletons", () => {
 describe("Raised Skeletons fighting an own-Level Skeleton", () => {
   it.each([
     [4, 1],
-    [8, 1],
-    [12, 2],
-    [16, 3],
-    [20, 3],
+    [8, 2],
+    [12, 3],
+    [16, 4],
+    [20, 5],
   ])("hit it most of the time at Level %i, Skill Level %i", (level, skillLevel) => {
     const field = [
       "EA..........",
@@ -427,8 +427,8 @@ describe("Raised Skeletons fighting an own-Level Skeleton", () => {
 
     const rate = hits / (hits + misses);
     expect(hits + misses).toBeGreaterThan(100);
-    expect(rate).toBeGreaterThan(0.6);
-    expect(rate).toBeLessThan(0.9);
+    expect(rate).toBeGreaterThan(0.68);
+    expect(rate).toBeLessThan(0.85);
   });
 });
 

@@ -312,7 +312,7 @@ describe("Raise Mage's tooltip", () => {
   it("mentions the Chill and its numbers", () => {
     const levels = necromancer().skillLevels;
     const line = skillNumbers("raiseMage", 1, levels).find(
-      (one) => one.label === "Chill",
+      (one) => one.label === "Chilled",
     );
     expect(line?.text).toBe(
       "1.5 seconds, walks -25% speed, attacks -25% speed",

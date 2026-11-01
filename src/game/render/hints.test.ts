@@ -215,6 +215,7 @@ describe("the hints and labels that name buttons", () => {
         skillLevel: "2",
         canRaise: true,
         passive: {
+          boostsMain: true,
           percentPerSkillLevel: "5",
           total: "10",
           boosts: "Golem, Raise Skeleton",
@@ -239,6 +240,7 @@ describe("the hints and labels that name buttons", () => {
         canRaise: true,
         nextStats: ["Attack Rating: +30%", "Damage: +24%"],
         passive: {
+          boostsMain: false,
           percentPerSkillLevel: "0",
           total: "0",
           boosts: "Golem, Raise Skeleton",

@@ -36,7 +36,7 @@ export type SkillLineLabel =
   | "Effect"
   | "Radius"
   | "Duration"
-  | "Chill"
+  | "Chilled"
   | "Soak"
   | "Length"
   | "Piece Life"
@@ -167,7 +167,7 @@ export function skillNumbers(
         const seconds = chill.durationMs / 1000;
         lines.push(
           line(
-            "Chill",
+            "Chilled",
             seconds,
             `${shown(seconds)} seconds, walks ${change(chill.walkSpeed)} speed, attacks ${change(chill.attackSpeed)} speed`,
           ),

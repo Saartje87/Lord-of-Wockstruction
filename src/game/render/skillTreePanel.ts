@@ -120,7 +120,9 @@ export type SkillSheet = {
    * and can't go on the Skill Bar; null for a Skill that is cast.
    */
   passive: {
-    /** Its percent per Skill Level on the main number; "0" if it has none. */
+    /** Whether it boosts the main number (Life and damage together). */
+    boostsMain: boolean;
+    /** Its percent per Skill Level on the main number. */
     percentPerSkillLevel: string;
     /** The percent it adds now. */
     total: string;
@@ -227,6 +229,7 @@ export function skillTreeSheet(world: World): SkillTreeSheet {
         ),
         passive: passive
           ? {
+              boostsMain: passive.percentPerSkillLevel > 0,
               percentPerSkillLevel: String(passive.percentPerSkillLevel),
               total: String(passive.percentPerSkillLevel * skillLevel),
               boosts: passive.boosts

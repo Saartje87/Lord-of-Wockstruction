@@ -37,6 +37,9 @@ const FLASH_COLOUR = 0xffffff;
 /** The colour and strength of a flared Monster's glow. */
 const FLARE_COLOUR = 0xff5a14;
 const FLARE_GLOW = 0.45;
+/** The colour and strength of a Chilled Monster's glow. */
+const CHILL_COLOUR = 0x5fc8ff;
+const CHILL_GLOW = 0.5;
 /** The outline's width, in tiles. */
 const OUTLINE = 0.022;
 
@@ -55,6 +58,8 @@ export type Posed = {
   flash?: number;
   /** Whether it glows with a flare of fire; false when missing. */
   flared?: boolean;
+  /** Whether it glows with frost, from a Frost Bolt; false when missing. */
+  chilled?: boolean;
   /** Times the look's scale; 1 when missing. */
   scale?: number;
   /** Whether it is outlined as hovered or targeted. */
@@ -135,8 +140,12 @@ export function poseMonster(actor: MonsterActor, monster: Posed, dt: number) {
   actor.root.scale.setScalar(monster.scale ?? 1);
   // A hit's white flash shows over the flare.
   const flash = (monster.flash ?? 0) * FLASH_GLOW;
-  if (flash > 0 || !monster.flared) {
+  if (flash > 0) {
     glowMaterials(actor.materials, FLASH_COLOUR, flash);
+  } else if (monster.chilled) {
+    glowMaterials(actor.materials, CHILL_COLOUR, CHILL_GLOW);
+  } else if (!monster.flared) {
+    glowMaterials(actor.materials, FLASH_COLOUR, 0);
   } else {
     glowMaterials(actor.materials, FLARE_COLOUR, FLARE_GLOW);
   }

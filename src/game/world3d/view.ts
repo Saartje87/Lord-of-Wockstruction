@@ -87,6 +87,8 @@ export type MonsterView = {
   corpse: boolean;
   /** Whether it has flared up, as Grave Wockington does past half his Life. */
   flared: boolean;
+  /** Whether a Frost Bolt has Chilled it, which shows as a frost glow. */
+  chilled: boolean;
   /** Times its type's own scale: a Unique Monster's, else 1. */
   scale: number;
   /** Whether it is outlined as hovered or targeted. */
@@ -401,6 +403,7 @@ export function worldViewOf(
           flash: 0,
           corpse: true,
           flared: false,
+          chilled: false,
           scale: 1,
           highlighted: false,
         }),
@@ -638,6 +641,7 @@ function monsterViewOf(
     flash: effects.flashes.get(monster.id) ?? 0,
     corpse: false,
     flared: (monster.waves?.stage ?? 0) > 0,
+    chilled: monster.chill !== null,
     scale: monster.unique === null ? 1 : uniqueTuning.scale,
     highlighted: highlight === monster.id,
   };

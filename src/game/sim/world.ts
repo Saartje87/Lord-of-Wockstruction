@@ -378,6 +378,8 @@ export type Monster = {
   pause: number;
   /** Its Curse, if it has one. */
   curse: MonsterCurse | null;
+  /** Its Chill from a Frost Bolt, if it has one: apart from its Curse. */
+  chill: MonsterChill | null;
   /**
    * The Bone Wall piece (its `id`) it is attacking in place of its target,
    * because the Wall cuts it off from them; null when it isn't.
@@ -392,6 +394,16 @@ export type Monster = {
 
 /** A Curse on a Monster: the Skill that put it there, and steps left. */
 export type MonsterCurse = { skill: CastSkill; left: number };
+
+/**
+ * A Chill on a Monster: steps left, and the shares of its walking and attack
+ * speed it keeps (the shot's tuning when it landed).
+ */
+export type MonsterChill = {
+  left: number;
+  walkSpeed: number;
+  attackSpeed: number;
+};
 
 /** Who a Monster goes after: the Hero, or one of their Minions. */
 export type MonsterTarget = "hero" | MinionId;
@@ -2008,6 +2020,7 @@ function placeMonster(
     // So a pack doesn't set off strolling in step.
     pause: wanderPause(world, type),
     curse: null,
+    chill: null,
     wall: null,
     swinging: false,
     waves:
@@ -3720,6 +3733,14 @@ function minionStrike(
     return;
   }
   takeDamage(world, monster, damage, "minion", events);
+  const { chill } = minionTuning[kind.type].shot ?? {};
+  if (chill && monster.life > 0) {
+    monster.chill = {
+      left: Math.max(1, Math.round(chill.durationMs / STEP_MS)),
+      walkSpeed: chill.walkSpeed,
+      attackSpeed: chill.attackSpeed,
+    };
+  }
 }
 
 /**

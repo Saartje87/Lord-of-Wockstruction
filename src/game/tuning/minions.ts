@@ -99,6 +99,16 @@ export type MinionShot = {
   projectileSpeed: number;
   /** How far its Projectile flies before it vanishes (tiles). */
   projectileRange: number;
+  /**
+   * What its hit leaves on a Monster: Chilled for `durationMs` (a new hit
+   * starts it over), walking at `walkSpeed` and swinging or shooting at
+   * `attackSpeed` times its pace. Apart from Curses.
+   */
+  chill?: {
+    durationMs: number;
+    walkSpeed: number;
+    attackSpeed: number;
+  };
 };
 
 /** A growth rate per Skill Level for each number that scales with it. */
@@ -273,6 +283,8 @@ export const minionTuning: Record<MinionType, MinionTuning> = {
       range: 6,
       projectileSpeed: 9,
       projectileRange: 10,
+      // Not stacked with Leaden Limbs' 60%/60%: the slower of the two counts.
+      chill: { durationMs: 1500, walkSpeed: 0.75, attackSpeed: 0.75 },
     },
   },
 };

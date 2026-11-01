@@ -3,6 +3,7 @@ import {
   type DamageShares,
   type DamageType,
 } from "../tuning/damage";
+import { minionTuning } from "../tuning/minions";
 import {
   type CastSkill,
   type CurseEffect,
@@ -35,6 +36,7 @@ export type SkillLineLabel =
   | "Effect"
   | "Radius"
   | "Duration"
+  | "Chill"
   | "Soak"
   | "Length"
   | "Piece Life"
@@ -160,6 +162,17 @@ export function skillNumbers(
         line("Damage", mean(range), `${range[0]}-${range[1]}`),
         line("Attack Rating", minionAttackRating(minion)),
       );
+      const chill = minionTuning[effect.minion].shot?.chill;
+      if (chill) {
+        const seconds = chill.durationMs / 1000;
+        lines.push(
+          line(
+            "Chill",
+            seconds,
+            `${shown(seconds)} seconds, walks ${change(chill.walkSpeed)} speed, attacks ${change(chill.attackSpeed)} speed`,
+          ),
+        );
+      }
       break;
     }
     case "curse": {

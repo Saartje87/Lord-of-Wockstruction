@@ -5,7 +5,7 @@ import {
   type Skill,
   skillTuning,
 } from "../tuning/skills";
-import { minionDamageRange, minionMaxLife } from "./minions";
+import { minionDamageRange } from "./minions";
 import { emptySkillBar } from "./skillBar";
 import { synergyMultiplier } from "./synergies";
 import { combatArea } from "./testAreas";
@@ -14,6 +14,7 @@ import {
   type Corpse,
   createWorld,
   FRESH_PROGRESS,
+  minionLevelOf,
   type Progress,
   progressOf,
   type SimEvent,
@@ -269,7 +270,7 @@ describe("Grave Command", () => {
     castAt(w, { x: 5, y: 4 });
     const [minion] = w.minions;
     if (!minion) throw new Error("No Minion");
-    return minion;
+    return { minion, now: minionLevelOf(w, minion) };
   }
 
   it("gives Minions more Life and damage by the tuned share per Skill Level", () => {
@@ -277,9 +278,9 @@ describe("Grave Command", () => {
     const plain = skeletonWith(0);
     const boosted = skeletonWith(4);
 
-    expect(boosted.life).toBe(Math.round(minionMaxLife(plain) * factor));
-    const [least, most] = minionDamageRange(plain);
-    expect(minionDamageRange(boosted)).toEqual([
+    expect(boosted.minion.life).toBe(Math.round(plain.minion.maxLife * factor));
+    const [least, most] = minionDamageRange(plain.now);
+    expect(minionDamageRange(boosted.now)).toEqual([
       Math.round(least * factor),
       Math.round(most * factor),
     ]);

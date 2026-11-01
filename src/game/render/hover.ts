@@ -1,4 +1,3 @@
-import { minionMaxLife } from "../sim/minions";
 import { monsterMaxLife } from "../sim/monsters";
 import type { Rect } from "../sim/rect";
 import type { Vec } from "../sim/vec";
@@ -103,7 +102,7 @@ export function nameplateOf(hovered: Hovered): Nameplate {
     const { minion } = hovered;
     return {
       name: minionTuning[minion.type].name,
-      fraction: minion.life / minionMaxLife(minion),
+      fraction: minion.life / minion.maxLife,
       friendly: true,
       unique: false,
     };

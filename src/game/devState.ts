@@ -10,7 +10,6 @@ import {
   type MonsterId,
   maxLife,
   maxMana,
-  minionMaxLife,
   type Skill,
   type World,
 } from "./sim/world";
@@ -146,7 +145,7 @@ export function devStateOf(
       skill: minion.skill,
       pos: { ...minion.pos },
       life: minion.life,
-      maxLife: minionMaxLife(minion),
+      maxLife: minion.maxLife,
     })),
     quests: structuredClone(hero.progress.quests),
   };

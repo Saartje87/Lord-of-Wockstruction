@@ -105,6 +105,7 @@ import { faceToward, lands } from "./melee";
 import {
   type Minion,
   type MinionId,
+  type MinionKind,
   type MinionOfLevel,
   type MinionType,
   minionAttackRating,
@@ -114,6 +115,7 @@ import {
   newMinion,
   placeBesideHero,
   stepMinions,
+  syncMinionLife,
 } from "./minions";
 import {
   killExperience,
@@ -2248,6 +2250,7 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
   }
 
   if (hero.flinch > 0) stepFlinch(world, events);
+  syncMinions(world);
   // Before the orders, so a Minion summoned this step stands where it appears.
   stepMinions(world, (minion, monster) =>
     minionStrike(world, minion, monster, events),
@@ -2256,6 +2259,8 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
     give(world, order, events);
   }
   world.heldOrders = [];
+  // A Skill Point spent or a Wand Equipped changes the Minions at once.
+  syncMinions(world);
   // Swing from where the Hero stands if already in reach, or once walked
   // into it.
   approach(world);
@@ -2689,7 +2694,7 @@ function castFrom(
   events.push({ type: "SkillCast", skill, target: { ...target } });
   switch (effect.type) {
     case "summon":
-      summon(world, skill, effect.minion, skillLevel, target, events);
+      summon(world, skill, effect.minion, target, events);
       break;
     case "raise":
       if (corpse) raise(world, skill, effect, skillLevel, corpse, events);
@@ -2753,7 +2758,6 @@ function summon(
   world: World,
   skill: CastSkill,
   type: MinionType,
-  skillLevel: number,
   target: Vec,
   events: SimEvent[],
 ) {
@@ -2762,7 +2766,7 @@ function summon(
   const pos = freeSpot(world, target, minionTuning[type].radius, replaced);
   if (!pos) return;
   for (const minion of replaced) crumbleMinion(world, minion, events);
-  bringMinion(world, skill, type, skillLevel, pos, events);
+  bringMinion(world, skill, type, pos, events);
 }
 
 /**
@@ -2787,7 +2791,7 @@ function raise(
   }
   const pos = freeSpot(world, corpse.pos, minionTuning[effect.minion].radius);
   if (!pos) return;
-  bringMinion(world, skill, effect.minion, skillLevel, pos, events);
+  bringMinion(world, skill, effect.minion, pos, events);
 }
 
 /** How far `effect` reaches from its Corpse at `skillLevel` (tiles). */
@@ -3099,12 +3103,39 @@ function stepBoneWalls(world: World, events: SimEvent[]) {
   }
 }
 
+/**
+ * A Minion's type at the Skill Level, Synergies and Passive Skills of its
+ * Skill as the Hero has them now.
+ */
+export function minionLevelOf(
+  world: World,
+  { type, skill }: MinionKind,
+  skillLevels = skillLevelsOf(world),
+): MinionOfLevel {
+  return {
+    type,
+    skillLevel: Math.max(1, skillLevels[skill]),
+    synergy: skillPower(skillLevels, skill),
+  };
+}
+
+/** Brings every Minion's full Life up to date with the Hero's Skill Levels. */
+function syncMinions(world: World) {
+  if (world.minions.length === 0) return;
+  const skillLevels = skillLevelsOf(world);
+  for (const minion of world.minions) {
+    syncMinionLife(
+      minion,
+      minionMaxLife(minionLevelOf(world, minion, skillLevels)),
+    );
+  }
+}
+
 /** Adds a fresh Minion at full Life at `pos` to the Hero's Minions. */
 function bringMinion(
   world: World,
   skill: CastSkill,
   type: MinionType,
-  skillLevel: number,
   pos: Vec,
   events: SimEvent[],
 ) {
@@ -3112,7 +3143,7 @@ function bringMinion(
     world.nextMinionId++,
     type,
     skill,
-    skillLevel,
+    skillLevelsOf(world)[skill],
     pos,
     world.hero.facing,
     skillPower(skillLevelsOf(world), skill),
@@ -3657,10 +3688,11 @@ function rollAttack(
  */
 function minionStrike(
   world: World,
-  minion: MinionOfLevel,
+  kind: MinionKind,
   monster: Monster | BoneAltar,
   events: SimEvent[],
 ) {
+  const minion = minionLevelOf(world, kind);
   if (isBoneAltar(monster)) {
     hurtAltar(
       world,
@@ -3844,7 +3876,12 @@ function hitMinion(
   if (!minion) return;
   const rolled = rollAttack(
     world,
-    alwaysHits ? 1 : chanceToHit(attack.attackRating, minionDefense(minion)),
+    alwaysHits
+      ? 1
+      : chanceToHit(
+          attack.attackRating,
+          minionDefense(minionLevelOf(world, minion)),
+        ),
     attack.damage,
     attack.damageTypes,
   );

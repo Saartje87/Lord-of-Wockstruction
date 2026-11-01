@@ -12,6 +12,7 @@ import {
   canRaiseSkill,
   createWorld,
   FRESH_PROGRESS,
+  minionLevelOf,
   type Progress,
   type SimEvent,
   SKILLS,
@@ -211,7 +212,7 @@ describe("casting with a raised Skill", () => {
   it("casts at the raised Skill Level", () => {
     const w = inField({ weapon: wand("golem", 3) }, 1);
     cast(w);
-    expect(w.minions[0].skillLevel).toBe(4);
+    expect(minionLevelOf(w, w.minions[0]).skillLevel).toBe(4);
   });
 
   it("counts a Wand's raise to a giver for Synergies", () => {

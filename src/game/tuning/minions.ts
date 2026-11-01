@@ -13,8 +13,12 @@ export type MinionTuning = {
    * place of its own.
    */
   resistancesOf?: MonsterType;
-  /** Life when summoned at Skill Level 1; it never regains any. */
+  /** Life when summoned at Skill Level 1. */
   life: number;
+  /** Once unhit this long, it starts regaining Life (ms). */
+  regenDelayMs: number;
+  /** Then it regains this fraction of its full Life every second. */
+  regenPerSecond: number;
   /** Damage per hit at Skill Level 1, rolled from `[min, max]` inclusive. */
   damage: [number, number];
   /** Set against a Monster's Defense for its chance to hit, at Skill Level 1. */
@@ -113,6 +117,8 @@ export const minionTuning: Record<MinionType, MinionTuning> = {
     name: "Golem",
     resistances: { lightning: 50 },
     life: 180,
+    regenDelayMs: 3000,
+    regenPerSecond: 0.02,
     // A Skeleton's.
     damage: [4, 8],
     // Hits a Monster Level 1 Skeleton (Defense 135) about 85% of the time.
@@ -147,6 +153,8 @@ export const minionTuning: Record<MinionType, MinionTuning> = {
     name: "Raised Skeleton",
     resistancesOf: "skeleton",
     life: 60,
+    regenDelayMs: 3000,
+    regenPerSecond: 0.02,
     damage: [4, 8],
     // Hits a Monster Level 1 Skeleton (Defense 135) about a quarter of the
     // time, as one hits another.
@@ -180,6 +188,8 @@ export const minionTuning: Record<MinionType, MinionTuning> = {
     name: "Raised Archer",
     resistancesOf: "skeleton_archer",
     life: 36,
+    regenDelayMs: 3000,
+    regenPerSecond: 0.02,
     damage: [3, 6],
     attackRating: 20,
     defense: 135,

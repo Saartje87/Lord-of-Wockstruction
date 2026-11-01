@@ -114,6 +114,7 @@ import {
   minionMaxLife,
   newMinion,
   placeBesideHero,
+  regainMinionLife,
   stepMinions,
   syncMinionLife,
 } from "./minions";
@@ -2251,6 +2252,7 @@ export function step(world: World, orders: readonly Order[]): SimEvent[] {
 
   if (hero.flinch > 0) stepFlinch(world, events);
   syncMinions(world);
+  for (const minion of world.minions) regainMinionLife(minion);
   // Before the orders, so a Minion summoned this step stands where it appears.
   stepMinions(world, (minion, monster) =>
     minionStrike(world, minion, monster, events),
@@ -3894,6 +3896,7 @@ function hitMinion(
     minionResistances(minion.type),
   );
   minion.life = Math.max(0, minion.life - damage);
+  minion.sinceHit = 0;
   events.push({ type: "MinionHit", minion: minion.id, damage, damageType });
   if (minion.life > 0) return;
   removeMinion(world, minion);

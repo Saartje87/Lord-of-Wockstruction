@@ -161,6 +161,7 @@ describe("live Minion stats", () => {
     const w = inField({ raiseSkeleton: 3 });
     const skeleton = raiseSkeleton(w);
     skeleton.life = 10;
+    skeleton.sinceHit = 0;
     const before = skeleton.maxLife;
     spend(w, "raiseSkeleton");
     const rise = skeleton.maxLife - before;
@@ -209,5 +210,53 @@ describe("live Minion stats", () => {
     const [after] = minionFrameRows(w);
     expect(after.cap).toBeGreaterThan(before.cap ?? 0);
     expect(after.bars[0].fraction).toBeGreaterThan(before.bars[0].fraction);
+  });
+});
+
+describe("Minions regain Life", () => {
+  // 3 s is 180 steps; 2% a second of the maximum Life.
+  const hurt = (minion: Minion, life: number) => {
+    minion.life = life;
+    minion.sinceHit = 0;
+  };
+  const idle = (w: World, steps: number) => {
+    for (let i = 0; i < steps; i++) step(w, []);
+  };
+
+  it("regains about 2% of its maximum Life a second once unhit for 3 s", () => {
+    const w = inField({ raiseSkeleton: 1 });
+    const skeleton = raiseSkeleton(w);
+    hurt(skeleton, 1);
+    idle(w, 170);
+    expect(skeleton.life).toBe(1);
+    idle(w, 10 + 60);
+    expect(skeleton.life - 1).toBeCloseTo(skeleton.maxLife * 0.02, 1);
+  });
+
+  it("starts the wait over with every hit, even one that does no damage", () => {
+    const w = inField({ raiseSkeleton: 1 });
+    const skeleton = raiseSkeleton(w);
+    hurt(skeleton, 1);
+    idle(w, 150);
+    skeleton.sinceHit = 0;
+    idle(w, 150);
+    expect(skeleton.life).toBe(1);
+  });
+
+  it("never rises above maximum Life", () => {
+    const w = inField({ raiseSkeleton: 1 });
+    const skeleton = raiseSkeleton(w);
+    hurt(skeleton, skeleton.maxLife - 0.1);
+    idle(w, 600);
+    expect(skeleton.life).toBe(skeleton.maxLife);
+  });
+
+  it("works in Town too", () => {
+    const w = inField({ raiseSkeleton: 1 });
+    const skeleton = raiseSkeleton(w);
+    w.areaName = "town";
+    hurt(skeleton, 1);
+    idle(w, 300);
+    expect(skeleton.life).toBeGreaterThan(1);
   });
 });

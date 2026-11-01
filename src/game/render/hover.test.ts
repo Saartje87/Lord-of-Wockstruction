@@ -69,6 +69,7 @@ const golem = (life: number): Minion => ({
   pos: { x: 1, y: 1 },
   prevPos: { x: 1, y: 1 },
   life,
+  sinceHit: Infinity,
   maxLife: minionMaxLife({ type: "golem", skillLevel: 1 }),
   facing: 0,
   state: "follow",
